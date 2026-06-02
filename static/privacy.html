@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - YT Playlist Agent</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: rgb(20, 20, 28) !important;
+            background-image: radial-gradient(circle at top, #1e1e38 0%, #0c0c14 100%) !important;
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .privacy-card {
+            max-width: 800px;
+            width: 100%;
+            padding: 3rem;
+            border-radius: 20px;
+            margin: auto;
+        }
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-top: 2rem;
+            margin-bottom: 0.75rem;
+            color: #a5b4fc;
+        }
+        p, li {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+        ul {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+            transition: color 0.2s;
+        }
+        .back-link:hover {
+            color: #60a5fa;
+        }
+        hr {
+            border: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+            margin: 2rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="privacy-card glass">
+        <a href="/" class="back-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            Back to Dashboard
+        </a>
+        <h1>Privacy Policy</h1>
+        <p>Last updated: June 2, 2026</p>
+        
+        <hr>
+
+        <p>This Privacy Policy describes how the <strong>YT Playlist Agent</strong> ("we", "our", or "the App") handles your personal data when you authorize the App to connect to your Google/YouTube account via OAuth.</p>
+
+        <h2>1. Introduction</h2>
+        <p>YT Playlist Agent is a self-hosted automation tool designed to help you scan, organize, sort, and remove duplicate videos from your personal YouTube playlists. The App connects to your YouTube account locally and headlessly through the official Google YouTube Data API v3.</p>
+
+        <h2>2. Data We Access and Collect</h2>
+        <p>The App only accesses information necessary to fulfill its automation functions. This is limited to:</p>
+        <ul>
+            <li><strong>Basic Profile Info</strong>: Your Google email address and display name, used solely to create your local user account and isolate your settings.</li>
+            <li><strong>YouTube Playlist Data</strong>: The names, descriptions, and video lists of your YouTube playlists.</li>
+            <li><strong>Video Identifiers</strong>: The titles, channel names, and video IDs of items in your playlists, used to run classification rules (e.g. grouping music or tech reviews).</li>
+        </ul>
+        <p><strong>Note:</strong> We do not store, access, or handle your Google Account password.</p>
+
+        <h2>3. How We Use Your Data</h2>
+        <p>Any data accessed by the App is used exclusively to:</p>
+        <ul>
+            <li>Render your personal dashboard displaying your playlists and videos.</li>
+            <li>Detect duplicate videos and suggest cleanup actions.</li>
+            <li>Automatically move videos between playlists in accordance with your sorting rules.</li>
+            <li>Save user-specific preferences (such as custom channel-to-playlist mappings).</li>
+        </ul>
+
+        <h2>4. Data Storage and Security</h2>
+        <p>Because the App is self-hosted on your own private cloud instance/server:</p>
+        <ul>
+            <li>All cached playlist details, sorting logs, and SQLite database data remain strictly on <strong>your own server hardware</strong>.</li>
+            <li>Your OAuth access and refresh tokens are stored locally on your database and are never transmitted to any external servers (other than communicating directly with Google's API endpoints).</li>
+        </ul>
+
+        <h2>5. Sharing Your Data</h2>
+        <p>We do not share, sell, distribute, or rent your personal data, profile information, or YouTube metadata to any third parties. All processing happens locally on your server.</p>
+
+        <h2>6. Revoking Access</h2>
+        <p>You can revoke the App's access to your Google account at any time. To do so:</p>
+        <ol>
+            <li>Navigate to your <a href="https://myaccount.google.com/permissions" target="_blank" style="color: var(--primary);">Google Account Permissions page</a>.</li>
+            <li>Locate <strong>YT Playlist Agent</strong> (or the developer project name you created).</li>
+            <li>Click <strong>Remove Access</strong>.</li>
+        </ol>
+
+        <h2>7. Contact</h2>
+        <p>If you have any questions about this Privacy Policy or the security of your self-hosted instance, please contact the administrator of your server.</p>
+    </div>
+</body>
+</html>
