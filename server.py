@@ -1850,7 +1850,7 @@ def get_maintenance(user=Depends(get_current_user)):
 @app.post("/api/maintenance/generate")
 def api_generate_maintenance(user=Depends(get_current_user)):
     user_id = user.get("user_id") if "user_id" in user else user.get("id")
-    args = [sys.executable, "generate_maintenance.py"]
+    args = ["generate_maintenance.py"]
     if is_oauth_configured():
         args.extend(["--user-id", str(user_id)])
     success, msg = task_manager.run_task("generate_maintenance", args)
