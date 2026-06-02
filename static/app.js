@@ -683,9 +683,12 @@ async function generateMaintenanceList() {
         const response = await fetch('/api/maintenance/generate', { method: 'POST' });
         const data = await response.json();
         if (data.success) {
-            addConsoleLog(`[Client] Maintenance queue successfully regenerated. Found ${data.actions_count} actions.`);
-            loadMaintenanceQueue();
-            loadStatus();
+            addConsoleLog(`[Client] Maintenance queue regeneration started in background...`);
+            // Poll or wait a bit, then load
+            setTimeout(() => {
+                loadMaintenanceQueue();
+                loadStatus();
+            }, 3000);
         } else {
             addConsoleLog(`[Error] Failed to generate: ${data.detail || data.message}`);
         }
