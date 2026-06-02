@@ -129,6 +129,8 @@ def get_target_cat(title, channel, channel_map, vid=None, ai_classifications=Non
     if matches(["gadget", "unboxing", "tech review", "hardware"]): return "Tech", False
     # Bigfoot
     if matches(["bigfoot", "sasquatch", "cryptid", "yeti"]): return "Bigfoot", False
+    # Cosplay
+    if matches(["cosplay"]): return "Cosplay", False
     # Auto
     if matches(["v8", "engine", "horsepower", "torque", "car review", "automotive"]): return "Auto", False
     # Football
