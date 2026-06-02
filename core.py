@@ -6,8 +6,12 @@ try:
     import undetected_chromedriver as uc
 except ImportError:
     uc = None
-import win32gui
-import win32con
+try:
+    import win32gui
+    import win32con
+except ImportError:
+    win32gui = None
+    win32con = None
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -620,10 +624,11 @@ def get_browser():
             # Use win32gui to find and hide the window immediately
             time.sleep(1)
             try:
-                def hide_window(hwnd, _):
-                    if driver.title in win32gui.GetWindowText(hwnd):
-                        win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
-                win32gui.EnumWindows(hide_window, None)
+                if win32gui is not None:
+                    def hide_window(hwnd, _):
+                        if driver.title in win32gui.GetWindowText(hwnd):
+                            win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+                    win32gui.EnumWindows(hide_window, None)
             except: pass
 
             # Fallback off-screen positioning
