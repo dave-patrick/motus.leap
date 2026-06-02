@@ -1,6 +1,7 @@
 let activeTab = 'dashboard';
 let logInterval = null;
 let statusInterval = null;
+let wasRunning = false;
 
 // Playlist Detail view state variables
 let currentPlaylist = null;
@@ -139,8 +140,9 @@ async function loadStatus() {
         const text = document.getElementById('engine-status-text');
         const stopBtn = document.getElementById('btn-stop-engine');
         
+        const isRunningNow = (data.engine_status === 'running');
         dot.className = 'status-dot';
-        if (data.engine_status === 'running') {
+        if (isRunningNow) {
             dot.classList.add('busy');
             const estimate = getJobEstimateText(data.active_job, data.pending_actions, data.queued_jobs);
             let statusText = `Running: ${data.active_job || 'Task'}${estimate}`;
@@ -162,6 +164,15 @@ async function loadStatus() {
                 logInterval = null;
             }
         }
+
+        if (wasRunning && !isRunningNow) {
+            if (activeTab === 'maintenance') {
+                loadMaintenanceQueue();
+            } else if (activeTab === 'playlists') {
+                loadPlaylists();
+            }
+        }
+        wasRunning = isRunningNow;
         
         // Update last run
         if (data.last_run) {
