@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Playlist Agent Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="glass">
+            <div class="logo-section">
+                <div class="logo-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: white;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                </div>
+                <div>
+                    <h1>YouTube Playlist Agent</h1>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">Automated Playlist Orchestrator</p>
+                </div>
+            </div>
+            <div class="system-status">
+                <div class="status-indicator">
+                    <span>Engine:</span>
+                    <span id="engine-status-dot" class="status-dot active"></span>
+                    <span id="engine-status-text">Ready</span>
+                    <button id="btn-stop-engine" class="btn btn-danger" style="display: none; padding: 4px 10px; font-size: 0.75rem; margin-left: 10px; border-radius: 6px; height: max-content; line-height: 1; font-weight: bold;" onclick="triggerStopTask()">Stop</button>
+                </div>
+                <div class="status-indicator">
+                    <span>Last Run:</span>
+                    <span id="last-run-text" style="color: var(--text-primary); font-weight: 600;">--:--</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs-nav">
+            <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+            <button class="tab-btn" onclick="switchTab('maintenance')">Maintenance Queue <span id="queue-badge" style="background: var(--danger); color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.75rem; margin-left: 4px; display: none;">0</span></button>
+            <button class="tab-btn" onclick="switchTab('rules')">Rules & Mappings</button>
+            <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
+        </nav>
+
+        <!-- DASHBOARD TAB -->
+        <div id="tab-dashboard" class="tab-content active">
+            <div class="dashboard-grid">
+                <div class="stat-card glass" onclick="switchTab('playlists')" style="cursor: pointer;">
+                    <div class="stat-header">
+                        <span>Total Playlists</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                    </div>
+                    <div class="stat-value" id="stat-playlists">-</div>
+                </div>
+                <div class="stat-card glass success" onclick="openTrackedVideosModal()" style="cursor: pointer;">
+                    <div class="stat-header">
+                        <span>Total Tracked Videos</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
+                    </div>
+                    <div class="stat-value" id="stat-videos">-</div>
+                </div>
+                <div class="stat-card glass warning" onclick="switchTab('maintenance')" style="cursor: pointer;">
+                    <div class="stat-header">
+                        <span>Pending Actions</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    </div>
+                    <div class="stat-value" id="stat-actions">-</div>
+                </div>
+                <div class="stat-card glass accent" onclick="openAIClassificationsModal()" style="cursor: pointer;">
+                    <div class="stat-header">
+                        <span>AI Learning</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l-7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    </div>
+                    <div class="stat-value" id="stat-ai-cache">0</div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;" id="stat-ai-details">0 pending / 0 reviewed</div>
+                </div>
+            </div>
+
+            <div class="section-grid">
+                <!-- Action Controls -->
+                <div class="control-panel glass">
+                    <h2 class="panel-title">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+                        Agent Control Center
+                    </h2>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 1rem;">
+                        Manually trigger the background crawler, execute duplicate cleaning, or run AI-assisted category sorts.
+                    </p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="btn-scan" onclick="triggerTask('scan')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                            Scan YouTube Playlists
+                        </button>
+                        <button class="btn btn-secondary" id="btn-sort" onclick="triggerTask('sort')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+                            Auto-Sort Watch Later
+                        </button>
+                        <button class="btn btn-success" id="btn-apply-maintenance" onclick="triggerApplyMaintenance(false)">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            Apply Queue
+                        </button>
+                        <button class="btn btn-danger" id="btn-apply-maintenance-force" onclick="triggerApplyMaintenance(true)">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                            Force Run Queue
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 8px;">Failure Diagnostics</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 12px;">
+                            View screenshot captures of failed browser operations.
+                        </p>
+                        <div style="display: flex; gap: 8px;" id="failed-screenshot-buttons">
+                            <button class="btn" style="padding: 8px 12px; font-size: 0.85rem;" onclick="viewDebugScreenshot('move_debug_dialog.png')">Move Dialog Pre/Post</button>
+                            <button class="btn" style="padding: 8px 12px; font-size: 0.85rem;" onclick="viewDebugScreenshot('debug_dialog_fail_tqMyLuDGdUg.png')">Fail Capture</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- MAINTENANCE TAB -->
+        <div id="tab-maintenance" class="tab-content">
+            <div class="glass" style="padding: 1.5rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 4px;">Pending Maintenance Actions</h2>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">Clean up duplicate videos across playlists or move misplaced items based on current rules.</p>
+                </div>
+                <button class="btn btn-primary" onclick="generateMaintenanceList()">Regenerate Queue</button>
+            </div>
+
+            <!-- Filters -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; width: 100%;">
+                <div class="tabs-nav" style="padding: 4px; font-size: 0.85rem; width: max-content; background: rgba(0, 0, 0, 0.2); margin: 0;">
+                    <button class="tab-btn active" id="maint-filter-all" onclick="filterMaintenanceQueue('all')">All</button>
+                    <button class="tab-btn" id="maint-filter-duplicate" onclick="filterMaintenanceQueue('duplicate')">Duplicates</button>
+                    <button class="tab-btn" id="maint-filter-misplaced" onclick="filterMaintenanceQueue('misplaced')">Misplaced</button>
+                </div>
+                <div id="maint-playlist-filter-container">
+                    <select id="maint-playlist-filter" class="form-input" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); width: 220px; font-size: 0.85rem;" onchange="filterMaintByPlaylist(this.value)">
+                        <option value="">-- All Playlists --</option>
+                    </select>
+                </div>
+            </div>
+            <!-- Batch Operations Toolbar -->
+            <div id="maint-batch-toolbar" class="glass" style="padding: 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; display: none;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <input type="checkbox" id="maint-select-all" onchange="toggleSelectAllMaint(this)">
+                    <label for="maint-select-all" style="font-weight: 600; cursor: pointer; user-select: none;">Select All</label>
+                    <span id="maint-selected-count" class="action-badge" style="background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(59, 130, 246, 0.2); padding: 6px 12px; border-radius: 8px; font-weight: 600;">0 Selected</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-success" onclick="triggerMaintBatchApply()" style="padding: 8px 16px; font-size: 0.9rem;">Apply Selected</button>
+                    <button class="btn btn-danger" onclick="triggerMaintBatchDiscard()" style="padding: 8px 16px; font-size: 0.9rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary);">Skip Selected</button>
+                </div>
+            </div>
+            <div class="glass maintenance-container" id="maintenance-list">
+                <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                    Loading actions queue...
+                </div>
+            </div>
+        </div>
+
+        <!-- RULES TAB -->
+        <div id="tab-rules" class="tab-content">
+            <div class="glass" style="padding: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 4px;">Rules Editor</h2>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">Map channel names to playlists and adjust regular expression keywords.</p>
+                </div>
+                <button class="btn btn-success" style="padding: 10px 24px;" onclick="saveRules()">Save All Rules</button>
+            </div>
+
+            <div class="rules-container">
+                <div class="rules-panel">
+                    <label class="form-label" style="margin-bottom: 8px; font-weight: 600;">Static Category & Regex Rules (youtube_rules.promptinclude.md)</label>
+                    <textarea class="rules-editor" id="rules-md"></textarea>
+                </div>
+                <div class="rules-panel">
+                    <label class="form-label" style="margin-bottom: 8px; font-weight: 600;">Channel Map List (youtube_category_channel_map.txt)</label>
+                    <textarea class="rules-editor" id="rules-channels"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- PLAYLISTS TAB -->
+        <div id="tab-playlists" class="tab-content">
+            <div class="glass" style="padding: 1.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 4px;">Active Playlists</h2>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">Browse scanned playlists and view details of cataloged videos.</p>
+                </div>
+                <button class="btn btn-primary" onclick="triggerTask('scan')" style="padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                    Rescan All
+                </button>
+            </div>
+            <div class="playlists-grid" id="playlists-container">
+                <!-- Dynamically populated -->
+            </div>
+
+            <!-- Playlist Detail View -->
+            <div id="playlist-detail-container" style="display: none;">
+                <div class="glass" style="padding: 1.5rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <button class="btn" onclick="goBackToPlaylists()" style="padding: 8px 16px; font-size: 0.9rem;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                                Back
+                            </button>
+                            <div>
+                                <h2 id="current-playlist-title" style="font-size: 1.3rem; font-weight: 700; margin-bottom: 4px;">Playlist Details</h2>
+                                <p id="current-playlist-meta" style="color: var(--text-secondary); font-size: 0.9rem;">Loading videos...</p>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" id="btn-refresh-live" onclick="refreshPlaylistVideosLive()" style="padding: 10px 20px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                                Refresh Live
+                            </button>
+                            <button class="btn btn-danger" id="btn-remove-duplicates" onclick="removePlaylistDuplicates()" style="padding: 10px 20px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                Remove Duplicates
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Toolbar -->
+                    <div class="playlist-toolbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="display: flex; align-items: center; gap: 12px; flex-grow: 1; max-width: 450px;">
+                            <div style="position: relative; width: 100%;">
+                                <input type="text" id="video-search" class="form-input" placeholder="Search videos or channels..." oninput="filterVideoTable()" style="width: 100%; padding-left: 2.2rem; background: rgba(0, 0, 0, 0.3);">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            </div>
+                            <span id="selected-count-tag" class="action-badge" style="background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(59, 130, 246, 0.2); white-space: nowrap; padding: 6px 12px; border-radius: 8px; font-weight: 600; display: none;">0 Selected</span>
+                        </div>
+                        <div id="batch-actions-group" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <span style="color: var(--text-secondary); font-size: 0.9rem;">Move selected to:</span>
+                            <select id="target-playlist-select" class="form-input" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); width: 180px;"></select>
+                            <button class="btn btn-primary" id="btn-batch-move" onclick="triggerBatchMove()" style="padding: 10px 16px; font-size: 0.9rem;" disabled>Move</button>
+                            <button class="btn btn-danger" id="btn-batch-delete" onclick="triggerBatchDelete()" style="padding: 10px 16px; font-size: 0.9rem;" disabled>Delete</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Table -->
+                <div class="glass video-table-container">
+                    <table class="video-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;">
+                                    <input type="checkbox" id="select-all-videos" onchange="toggleSelectAll(this)">
+                                </th>
+                                <th id="th-index" class="sortable" style="width: 50px; text-align: center;" onclick="sortVideoTable('index')">#</th>
+                                <th id="th-title" class="sortable" onclick="sortVideoTable('title')">Video Title</th>
+                                <th id="th-channel" class="sortable" style="width: 250px;" onclick="sortVideoTable('channel')">Channel</th>
+                                <th id="th-length" class="sortable" style="width: 100px;" onclick="sortVideoTable('length')">Length</th>
+                                <th id="th-published" class="sortable" style="width: 150px;" onclick="sortVideoTable('published')">Published</th>
+                                <th style="width: 70px; text-align: center;">Link</th>
+                                <th style="width: 200px; text-align: center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="video-table-body">
+                            <!-- Dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="display: flex; justify-content: center; margin-top: 1.5rem;">
+                    <button class="btn btn-secondary" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" style="display: flex; align-items: center; gap: 8px; padding: 10px 20px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+                        Back to Top
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SETTINGS TAB -->
+        <div id="tab-settings" class="tab-content">
+            <div class="glass settings-container">
+                <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 8px;">Agent System Settings</h2>
+                
+                <div class="form-group">
+                    <label class="form-label" for="gemini-key">Gemini API Key</label>
+                    <input type="password" id="gemini-key" class="form-input" placeholder="AI Key for Video Auto-Categorization">
+                    <span class="form-help">Required for semantic categorization of uncategorized videos using Google LLMs.</span>
+                </div>
+
+                <div class="form-group" style="margin-top: 8px;">
+                    <label class="form-label" for="webhook-url">Discord/Slack Webhook URL</label>
+                    <input type="text" id="webhook-url" class="form-input" placeholder="https://discord.com/api/webhooks/...">
+                    <span class="form-help">Sends a notification when background jobs complete or fail.</span>
+                </div>
+
+                <div class="form-group" style="margin-top: 8px;">
+                    <label class="form-label">Auto-Run Scheduling</label>
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 12px; border-radius: 8px; font-size: 0.95rem; color: var(--text-secondary);">
+                        Status: <strong style="color: var(--success);" id="schedule-status-text">Daily at 5:00 PM & 11:00 PM</strong>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" style="margin-top: 1rem; width: max-content; padding: 10px 24px;" onclick="saveSettings()">Save Settings</button>
+            </div>
+        </div>
+
+        <!-- Console Logs (Persistent) -->
+        <div class="console-card glass">
+            <div class="console-header">
+                <span style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                    <span class="status-dot active"></span> Live Agent Output Terminal
+                </span>
+                <button onclick="clearLogs()" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.8rem;">Clear</button>
+            </div>
+            <div class="console-body" id="console-logs">Waiting for task output...</div>
+        </div>
+    </div>
+
+    <!-- MODAL FOR SCREENSHOT VIEW -->
+    <div id="screenshot-modal" class="modal" onclick="closeScreenshotModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modal-title">Screenshot View</h3>
+                <button class="modal-close" onclick="closeScreenshotModal()">&times;</button>
+            </div>
+            <img class="modal-image" id="modal-img" src="" alt="Failed Browser Capture">
+        </div>
+    </div>
+
+    <!-- MODAL FOR TRACKED VIDEOS -->
+    <div id="tracked-videos-modal" class="modal" onclick="closeTrackedVideosModal()">
+        <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 1400px; width: 95%; height: 85%; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div>
+                    <h3 style="font-size: 1.3rem; font-weight: 700;">Tracked Videos</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 2px;">View all videos currently tracked and cataloged across your playlists.</p>
+                </div>
+                <button class="modal-close" onclick="closeTrackedVideosModal()">&times;</button>
+            </div>
+            
+            <!-- Toolbar / Search inside modal -->
+            <div style="display: flex; gap: 12px; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
+                <div style="position: relative; flex-grow: 1; min-width: 300px;">
+                    <input type="text" id="tracked-video-search" class="form-input" placeholder="Search tracked videos, channels, or playlists..." oninput="filterTrackedVideos()" style="width: 100%; padding-left: 2.2rem; background: rgba(0, 0, 0, 0.3);">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+                
+                <!-- Batch Actions Group -->
+                <div id="tracked-batch-actions-group" style="display: flex; align-items: center; gap: 12px; display: none;">
+                    <span style="color: var(--text-secondary); font-size: 0.9rem; white-space: nowrap;">Move selected to:</span>
+                    <select id="tracked-target-select" class="form-input" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); width: 180px;" onchange="updateTrackedSelectedCount()"></select>
+                    <button class="btn btn-primary" id="btn-tracked-batch-move" onclick="triggerTrackedBatchMove()" style="padding: 10px 16px; font-size: 0.9rem;" disabled>Move</button>
+                    <button class="btn btn-danger" id="btn-tracked-batch-delete" onclick="triggerTrackedBatchDelete()" style="padding: 10px 16px; font-size: 0.9rem;">Delete</button>
+                </div>
+
+                <span id="tracked-selected-count-tag" class="action-badge" style="background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(59, 130, 246, 0.2); white-space: nowrap; padding: 6px 12px; border-radius: 8px; font-weight: 600; display: none;">0 Selected</span>
+                <span id="tracked-videos-count-badge" class="action-badge" style="background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(59, 130, 246, 0.2); white-space: nowrap; padding: 6px 12px; border-radius: 8px; font-weight: 600;">0 Videos</span>
+            </div>
+
+            <!-- Content Area -->
+            <div style="flex-grow: 1; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; background: rgba(0,0,0,0.2);">
+                <table class="video-table" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align: center;">
+                                <input type="checkbox" id="select-all-tracked" onchange="toggleSelectAllTracked(this)">
+                            </th>
+                            <th id="th-tracked-index" class="sortable" style="width: 50px; text-align: center;" onclick="sortTrackedTable('index')">#</th>
+                            <th id="th-tracked-title" class="sortable" onclick="sortTrackedTable('title')">Video Title</th>
+                            <th id="th-tracked-channel" class="sortable" style="width: 200px;" onclick="sortTrackedTable('channel')">Channel</th>
+                            <th id="th-tracked-length" class="sortable" style="width: 100px;" onclick="sortTrackedTable('length')">Length</th>
+                            <th id="th-tracked-playlist" class="sortable" style="width: 200px;" onclick="sortTrackedTable('playlist')">Playlist</th>
+                            <th id="th-tracked-published" class="sortable" style="width: 120px;" onclick="sortTrackedTable('published')">Published</th>
+                            <th style="width: 80px; text-align: center;">Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tracked-videos-table-body">
+                        <!-- Loaded dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FOR AI CLASSIFICATIONS REVIEW -->
+    <div id="ai-classifications-modal" class="modal" onclick="closeAIClassificationsModal()">
+        <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 1100px; width: 95%; height: 85%; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div>
+                    <h3 style="font-size: 1.3rem; font-weight: 700;">AI Classification History</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 2px;">Review decisions made by the Gemini LLM and approve/correct them to teach the system.</p>
+                </div>
+                <button class="modal-close" onclick="closeAIClassificationsModal()">&times;</button>
+            </div>
+            
+            <!-- Filters -->
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 1rem; flex-wrap: wrap; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="tabs-nav" style="padding: 4px; font-size: 0.85rem; width: max-content; margin: 0;">
+                        <button class="tab-btn active" id="ai-filter-all" onclick="filterAIClassifications('all')">All</button>
+                        <button class="tab-btn" id="ai-filter-pending" onclick="filterAIClassifications('pending')">Pending</button>
+                        <button class="tab-btn" id="ai-filter-reviewed" onclick="filterAIClassifications('reviewed')">Reviewed</button>
+                    </div>
+                    <select id="ai-playlist-filter" class="form-input" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); width: 185px; font-size: 0.85rem; margin-left: 6px;" onchange="filterAIByPlaylist(this.value)">
+                        <option value="">-- All Playlists --</option>
+                    </select>
+                </div>
+                <!-- Batch Actions Group for AI Classifications -->
+                <div id="ai-batch-actions-group" style="display: flex; align-items: center; gap: 12px; display: none;">
+                    <span id="ai-selected-count-tag" class="action-badge" style="background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(59, 130, 246, 0.2); white-space: nowrap; padding: 6px 12px; border-radius: 8px; font-weight: 600;">0 Selected</span>
+                    <button class="btn btn-success" id="btn-ai-batch-approve" onclick="submitAIClassificationBatch('approve')" style="padding: 8px 16px; font-size: 0.85rem;">Approve Selected</button>
+                    <select id="ai-batch-correct-select" class="form-input" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); width: 160px; font-size: 0.85rem;" onchange="if(this.value) submitAIClassificationBatch('correct', this.value)"></select>
+                    <button class="btn btn-danger" id="btn-ai-batch-delete" onclick="triggerAIBatchDelete()" style="padding: 8px 16px; font-size: 0.85rem;">Delete Selected</button>
+                    <button class="btn" id="btn-ai-batch-skip" onclick="submitAIClassificationBatch('skip')" style="padding: 8px 16px; font-size: 0.85rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-secondary);">Skip Selected</button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div style="flex-grow: 1; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; background: rgba(0,0,0,0.2);">
+                <table class="video-table" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align: center;">
+                                <input type="checkbox" id="select-all-ai" onchange="toggleSelectAllAI(this)">
+                            </th>
+                            <th>Video Details</th>
+                            <th id="th-ai-category" class="sortable" style="width: 140px;" onclick="sortAIClassificationsTable('category')">AI Category</th>
+                            <th style="width: 80px; text-align: center;">Conf</th>
+                            <th style="width: 100px;">Status</th>
+                            <th style="width: 320px; text-align: center;">Train / Learn Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ai-classifications-table-body">
+                        <!-- Loaded dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=2.2"></script>
+</body>
+</html>

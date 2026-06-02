@@ -1,0 +1,9 @@
+user_data/
+user_data_playwright/
+venv/
+__pycache__/
+*.log
+*.png
+*.txt
+*.json
+*.bat
