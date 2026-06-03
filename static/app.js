@@ -488,7 +488,7 @@ function renderMaintenanceQueue(actions) {
 
         item.innerHTML = `
             <div style="display: flex; align-items: center; gap: 12px; margin-right: 8px;">
-                <input type="checkbox" class="maint-checkbox" data-vid="${a.vid}" ${maintSelectedVids.has(a.vid) ? 'checked' : ''} onchange="handleMaintCheckboxChange(this, '${a.vid}')">
+                <input type="checkbox" class="maint-checkbox" data-vid="${a.vid}" ${maintSelectedVids.has(a.vid) ? 'checked' : ''} onclick="handleMaintCheckboxClick(this, '${a.vid}', event)">
             </div>
             <div class="action-info" style="flex-grow: 1;">
                 <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 4px;">
@@ -509,12 +509,36 @@ function renderMaintenanceQueue(actions) {
     });
 }
 
-function handleMaintCheckboxChange(checkbox, vid) {
-    if (checkbox.checked) {
-        maintSelectedVids.add(vid);
+let lastMaintCheckedIndex = null;
+
+function handleMaintCheckboxClick(checkbox, vid, event) {
+    const checkboxes = Array.from(document.querySelectorAll('#maintenance-list .maint-checkbox'));
+    const clickedIdx = checkboxes.indexOf(checkbox);
+    
+    if (event && event.shiftKey && lastMaintCheckedIndex !== null && lastMaintCheckedIndex < checkboxes.length) {
+        const start = Math.min(lastMaintCheckedIndex, clickedIdx);
+        const end = Math.max(lastMaintCheckedIndex, clickedIdx);
+        const targetCheckedState = checkbox.checked;
+        
+        for (let i = start; i <= end; i++) {
+            const cb = checkboxes[i];
+            cb.checked = targetCheckedState;
+            const itemVid = cb.getAttribute('data-vid');
+            if (targetCheckedState) {
+                maintSelectedVids.add(itemVid);
+            } else {
+                maintSelectedVids.delete(itemVid);
+            }
+        }
     } else {
-        maintSelectedVids.delete(vid);
+        if (checkbox.checked) {
+            maintSelectedVids.add(vid);
+        } else {
+            maintSelectedVids.delete(vid);
+        }
     }
+    
+    lastMaintCheckedIndex = clickedIdx;
     updateMaintSelectedCount();
 }
 
