@@ -44,6 +44,24 @@ def classify_video_with_ai(title: str, channel: str, description: str = "", vid:
     if AI_DISABLED:
         return None
         
+    # Check if this video is already classified in the JSON cache
+    if vid:
+        filename = f"ai_classifications_{user_id}.json" if user_id else "ai_classifications.json"
+        class_path = os.path.join(os.path.dirname(__file__), filename)
+        if os.path.exists(class_path):
+            try:
+                with open(class_path, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+                for item in history:
+                    if item.get("vid") == vid:
+                        status = item.get("status")
+                        category = item.get("category")
+                        if status in ["approved", "corrected", "pending"] and category:
+                            print(f"AI Classifier Cache Hit: vid={vid} status={status} category={category}")
+                            return category
+            except Exception as cache_err:
+                print(f"AI Classifier: Failed to read classifications cache: {cache_err}")
+
     # 1. Load API key from settings
     settings_path = os.path.join(os.path.dirname(__file__), "settings.json")
     if not os.path.exists(settings_path):

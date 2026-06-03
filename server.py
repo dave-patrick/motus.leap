@@ -19,6 +19,90 @@ from core import add_video_to_playlist, remove_video_from_playlist, list_videos_
 
 app = FastAPI(title="YT Playlist Manager API")
 
+PLAYLIST_REPORT_CACHE = {}
+RULES_CACHE = {}
+
+def load_cached_playlist_report(report_path: str):
+    global PLAYLIST_REPORT_CACHE
+    if not os.path.exists(report_path):
+        return None
+    try:
+        mtime = os.path.getmtime(report_path)
+        cached = PLAYLIST_REPORT_CACHE.get(report_path)
+        if cached and cached.get("mtime") == mtime:
+            return cached["data"]
+        with open(report_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        PLAYLIST_REPORT_CACHE[report_path] = {
+            "mtime": mtime,
+            "data": data
+        }
+        return data
+    except Exception as e:
+        print(f"Error loading cached playlist report: {e}")
+        try:
+            with open(report_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return None
+
+def load_cached_rules(user_id=None):
+    global RULES_CACHE
+    rules_path = os.path.join(os.path.dirname(__file__), "yt_rules.promptinclude.md")
+    
+    rules_md = ""
+    if os.path.exists(rules_path):
+        mtime = os.path.getmtime(rules_path)
+        cached_md = RULES_CACHE.get("rules_md")
+        if cached_md and cached_md.get("mtime") == mtime:
+            rules_md = cached_md["data"]
+        else:
+            try:
+                with open(rules_path, "r", encoding="utf-8") as f:
+                    rules_md = f.read()
+                RULES_CACHE["rules_md"] = {"mtime": mtime, "data": rules_md}
+            except:
+                pass
+                
+    channels_txt = ""
+    if not is_oauth_configured():
+        chan_path = os.path.join(os.path.dirname(__file__), "yt_category_channel_map.txt")
+        if os.path.exists(chan_path):
+            mtime = os.path.getmtime(chan_path)
+            cached_chan = RULES_CACHE.get("channels_txt_local")
+            if cached_chan and cached_chan.get("mtime") == mtime:
+                channels_txt = cached_chan["data"]
+            else:
+                try:
+                    with open(chan_path, "r", encoding="utf-8") as f:
+                        channels_txt = f.read()
+                    RULES_CACHE["channels_txt_local"] = {"mtime": mtime, "data": channels_txt}
+                except:
+                    pass
+    else:
+        cache_key = f"user_rules_{user_id}"
+        cached_user = RULES_CACHE.get(cache_key)
+        if cached_user is not None:
+            channels_txt = cached_user
+        else:
+            user_rules = db_helper.load_user_rules(user_id)
+            channels_txt = "\n".join(f"{ch} : {cat}" for ch, cat in user_rules.items()) + "\n"
+            RULES_CACHE[cache_key] = channels_txt
+            
+    return {"rules_md": rules_md, "channels_txt": channels_txt}
+
+def invalidate_rules_cache(user_id=None):
+    global RULES_CACHE
+    if "rules_md" in RULES_CACHE:
+        del RULES_CACHE["rules_md"]
+    if not is_oauth_configured():
+        if "channels_txt_local" in RULES_CACHE:
+            del RULES_CACHE["channels_txt_local"]
+    else:
+        cache_key = f"user_rules_{user_id}"
+        if cache_key in RULES_CACHE:
+            del RULES_CACHE[cache_key]
+
 # Settings loader helper
 SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "settings.json")
 def get_settings():
@@ -571,18 +655,19 @@ def get_status(user=Depends(get_current_user)):
 @app.get("/api/playlists")
 def get_playlists(user=Depends(get_current_user)):
     report_path = get_user_file_path("playlists_report.json", user)
-    if os.path.exists(report_path):
+    playlists = load_cached_playlist_report(report_path)
+    if playlists:
         try:
-            with open(report_path, "r", encoding="utf-8") as f:
-                playlists = json.load(f)
-                if isinstance(playlists, list):
-                    def sort_key(p):
-                        name = p.get("name", "")
-                        if name.lower() == "watch later":
-                            return (0, "")
-                        return (1, name.lower())
-                    playlists.sort(key=sort_key)
-                return playlists
+            if isinstance(playlists, list):
+                def sort_key(p):
+                    name = p.get("name", "")
+                    if name.lower() == "watch later":
+                        return (0, "")
+                    return (1, name.lower())
+                # Copy to prevent sorting cached list in-place if thread-safety is needed
+                playlists = list(playlists)
+                playlists.sort(key=sort_key)
+            return playlists
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error reading playlists report: {e}")
     return []
@@ -1478,13 +1563,13 @@ def get_playlist_videos(playlist_url: str, refresh: bool = False, user=Depends(g
     
     if os.path.exists(report_path):
         try:
-            with open(report_path, "r", encoding="utf-8") as f:
-                report = json.load(f)
-            for p in report:
-                if p.get("url") == playlist_url or (p.get("url") and playlist_url in p["url"]) or p.get("id") == playlist_id:
-                    cached_videos = p.get("videos", [])
-                    playlist_name = p["name"]
-                    break
+            report = load_cached_playlist_report(report_path)
+            if report:
+                for p in report:
+                    if p.get("url") == playlist_url or (p.get("url") and playlist_url in p["url"]) or p.get("id") == playlist_id:
+                        cached_videos = p.get("videos", [])
+                        playlist_name = p["name"]
+                        break
         except: pass
         
     if not refresh and cached_videos:
@@ -1802,28 +1887,7 @@ def api_remove_duplicates(req: RemoveDuplicatesRequest, user=Depends(get_current
 @app.get("/api/rules")
 def get_rules(user=Depends(get_current_user)):
     user_id = user.get("user_id") if "user_id" in user else user.get("id")
-    
-    rules_md = ""
-    rules_path = os.path.join(os.path.dirname(__file__), "yt_rules.promptinclude.md")
-    if os.path.exists(rules_path):
-        try:
-            with open(rules_path, "r", encoding="utf-8") as f:
-                rules_md = f.read()
-        except: pass
-        
-    if not is_oauth_configured():
-        channels_txt = ""
-        chan_path = os.path.join(os.path.dirname(__file__), "yt_category_channel_map.txt")
-        if os.path.exists(chan_path):
-            try:
-                with open(chan_path, "r", encoding="utf-8") as f:
-                    channels_txt = f.read()
-            except: pass
-    else:
-        user_rules = db_helper.load_user_rules(user_id)
-        channels_txt = "\n".join(f"{ch} : {cat}" for ch, cat in user_rules.items()) + "\n"
-        
-    return {"rules_md": rules_md, "channels_txt": channels_txt}
+    return load_cached_rules(user_id)
 
 @app.post("/api/rules")
 def save_rules(req: RulesSaveRequest, user=Depends(get_current_user)):
@@ -1855,6 +1919,7 @@ def save_rules(req: RulesSaveRequest, user=Depends(get_current_user)):
             conn.commit()
             conn.close()
             
+        invalidate_rules_cache(user_id)
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1868,6 +1933,7 @@ def add_channel_rule(req: AddChannelRuleRequest, user=Depends(get_current_user))
             learn_channel_rule(req.channel, req.category)
         else:
             db_helper.save_user_rule(user_id, req.channel, req.category)
+        invalidate_rules_cache(user_id)
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
