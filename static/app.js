@@ -48,13 +48,14 @@ function getJobSeconds(jobName, pendingActions) {
     if (!jobName) return 0;
     
     const nameLower = jobName.toLowerCase();
+    const isApiMode = (currentUser && currentUser.logged_in);
     
     // Determine the average seconds per item for this job type
-    let secPerItem = 14; // Default for moves, deletes, and single action maintenance
+    let secPerItem = isApiMode ? 1.0 : 14; // Default for moves, deletes, and single action maintenance
     if (nameLower.includes('generate')) {
         secPerItem = 0.5; // very fast local file analysis
     } else if (nameLower.includes('dupe') || nameLower.includes('clean') || nameLower.includes('duplicate')) {
-        secPerItem = 25; // duplicate resolution involves remove + re-add (two operations)
+        secPerItem = isApiMode ? 1.5 : 25; // duplicate resolution involves remove + re-add (two operations)
     }
     
     // Check if it's a progress-tracked active job, e.g. "Batch Move (3/10)"
@@ -75,10 +76,10 @@ function getJobSeconds(jobName, pendingActions) {
     }
     
     if (nameLower.includes('scan')) {
-        return 90; // Est: ~1.5 mins based on average runtime
+        return isApiMode ? 8 : 90; // API scan takes ~8s, Browser scan takes ~90s
     }
     if (nameLower.includes('sort')) {
-        return 45; // Est: ~45s
+        return isApiMode ? 15 : 45; // API sort takes ~15s, Browser sort takes ~45s
     }
     if (nameLower.includes('generate_maintenance')) {
         return 5; // Est: ~5s
@@ -86,10 +87,10 @@ function getJobSeconds(jobName, pendingActions) {
     if (nameLower.includes('apply_maintenance')) {
         const count = pendingActions || 0;
         if (count === 0) return 5;
-        return count * 14;
+        return count * (isApiMode ? 1.0 : 14);
     }
     
-    return 0;
+    return 10;
 }
 
 function getJobEstimateText(activeJob, pendingActions, queuedJobs = []) {

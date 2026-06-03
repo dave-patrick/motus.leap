@@ -461,7 +461,7 @@ Disparil666:Music
 DistractotronChannel:Cosplay
 Disturb Reality:Entertainment
 DIY Builds:Maker Idea
-DIY Creators:Maker Idea
+DIY Creators:Woodworking
 DIY Jeff:Maker
 DIY SITY:Home Improvement
 DIY with Dave:Maker
@@ -619,7 +619,7 @@ Fotografiarte:GX7
 Found And Explained:Aviation
 Foundation Training:Exercise
 Founders, Inc.:3D Printing Watch
-Foureyes Furniture:Maker Idea
+Foureyes Furniture:Woodworking
 FOUSEY:Funny
 FPV Dee:Arizona
 Francis Darracott:Drones
