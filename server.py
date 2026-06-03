@@ -2296,6 +2296,181 @@ def execute_batch_maintenance_api_background(user_id, selected_vids):
             with scheduler.job_lock:
                 scheduler.active_job = None
 
+def execute_single_action_delete_background(action):
+    log_path = os.path.join(os.path.dirname(__file__), "agent_run.log")
+    def log_message(msg):
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n[Single Action Delete] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {msg}\n")
+            
+    vid_url = f"https://www.youtube.com/watch={action['vid']}" if "watch=" in action['vid'] else f"https://www.youtube.com/watch?v={action['vid']}"
+    
+    success = False
+    driver = None
+    try:
+        log_message(f"Starting inline delete for '{action['title']}'...")
+        driver = get_browser()
+        playlists_to_remove = []
+        if action['type'] in ['DUPLICATE', 'DUPLICATE_NO_TARGET']:
+            playlists_to_remove.extend(action.get('remove', []))
+            if action.get('keep'):
+                playlists_to_remove.append(action['keep'])
+        elif action['type'] == 'MISPLACED':
+            playlists_to_remove.extend(action.get('from', []))
+            
+        for p in playlists_to_remove:
+            log_message(f"Removing from '{p}'...")
+            try:
+                remove_video_from_playlist(vid_url, p, driver=driver)
+                success = True
+            except Exception as re:
+                log_message(f"Failed to remove from '{p}': {re}")
+                
+        if success:
+            try:
+                from apply_maintenance import record_history, send_discord_history_report
+                action_id = record_history({**action, "type": f"DELETE_FROM_{action['type']}"})
+                log_message(f"Recorded action ID: {action_id}")
+                send_discord_history_report([{**action, "action_id": action_id, "type": f"DELETE_FROM_{action['type']}"}])
+            except Exception as ex:
+                log_message(f"Failed to log history/send Discord report: {ex}")
+    except Exception as e:
+        log_message(f"Error applying delete for {action['title']}: {e}")
+    finally:
+        if driver:
+            try: driver.quit()
+            except: pass
+
+def execute_batch_maintenance_delete_background(actions):
+    log_path = os.path.join(os.path.dirname(__file__), "agent_run.log")
+    def log_message(msg):
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n[Batch Maintenance Delete] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {msg}\n")
+            
+    total = len(actions)
+    log_message(f"Starting batch maintenance deletion of {total} actions.")
+    
+    driver = None
+    applied_actions = []
+    try:
+        driver = get_browser()
+        for idx, action in enumerate(actions):
+            current_job_name = f"Delete Batch ({idx+1}/{total})"
+            with task_manager.lock:
+                scheduler.active_job = current_job_name
+                task_manager.active_job = current_job_name
+                
+            vid_url = f"https://www.youtube.com/watch={action['vid']}" if "watch=" in action['vid'] else f"https://www.youtube.com/watch?v={action['vid']}"
+            log_message(f"[{idx+1}/{total}] Deleting '{action['title']}' ({action['type']})...")
+            
+            success = False
+            try:
+                playlists_to_remove = []
+                if action['type'] in ['DUPLICATE', 'DUPLICATE_NO_TARGET']:
+                    playlists_to_remove.extend(action.get('remove', []))
+                    if action.get('keep'):
+                        playlists_to_remove.append(action['keep'])
+                elif action['type'] == 'MISPLACED':
+                    playlists_to_remove.extend(action.get('from', []))
+                    
+                for p in playlists_to_remove:
+                    log_message(f"Removing from '{p}'...")
+                    remove_video_from_playlist(vid_url, p, driver=driver)
+                    success = True
+            except Exception as e:
+                log_message(f"Error deleting: {e}")
+                
+            if success:
+                applied_actions.append(action)
+                try:
+                    from apply_maintenance import record_history
+                    record_history({**action, "type": f"DELETE_FROM_{action['type']}"})
+                except:
+                    pass
+                    
+        if applied_actions:
+            try:
+                from apply_maintenance import send_discord_history_report
+                send_discord_history_report([{**a, "type": f"DELETE_FROM_{a['type']}"} for a in applied_actions])
+            except:
+                pass
+    finally:
+        if driver:
+            try: driver.quit()
+            except: pass
+
+def execute_batch_maintenance_delete_api_background(user_id, selected_vids):
+    append_agent_log(f"Starting API-based batch deletion from maintenance of {len(selected_vids)} videos (user_id={user_id}).")
+    import yt_api
+    maint_path = os.path.join(os.path.dirname(__file__), f"maintenance_actions_{user_id}.json")
+    if not os.path.exists(maint_path):
+        append_agent_log("No maintenance queue found.")
+        return
+        
+    try:
+        with open(maint_path, "r", encoding="utf-8") as f:
+            actions = json.load(f)
+            
+        total = len(selected_vids)
+        success_count = 0
+        applied_actions = []
+        
+        remaining_actions = []
+        for a in actions:
+            vid = a.get("vid")
+            if vid in selected_vids:
+                url = f"https://www.youtube.com/watch?v={vid}"
+                title = a.get("title", "Unknown")
+                action_type = a.get("type")
+                
+                current_job_name = f"Delete Batch Maint ({success_count+1}/{total})"
+                with task_manager.lock:
+                    scheduler.active_job = current_job_name
+                    task_manager.active_job = current_job_name
+                    
+                success = False
+                try:
+                    # Collect all playlists to remove the video from
+                    playlists_to_remove = []
+                    if action_type in ["DUPLICATE", "DUPLICATE_NO_TARGET"]:
+                        remove_playlists = a.get("remove", [])
+                        keep_playlist = a.get("keep")
+                        playlists_to_remove.extend(remove_playlists)
+                        if keep_playlist:
+                            playlists_to_remove.append(keep_playlist)
+                    elif action_type == "MISPLACED":
+                        from_playlists = a.get("from", [])
+                        playlists_to_remove.extend(from_playlists)
+                        
+                    for p in playlists_to_remove:
+                        playlist_item_id = get_playlist_item_id_from_cache(url, p, user_id)
+                        if playlist_item_id:
+                            yt_api.remove_video_from_playlist(user_id, playlist_item_id)
+                            update_cache_for_delete(url, p, user_id)
+                            success = True
+                except Exception as e:
+                    append_agent_log(f"Error deleting video {title}: {e}")
+                    success = False
+                    
+                if success:
+                    success_count += 1
+                    applied_actions.append(a)
+                    append_agent_log(f"Successfully deleted video: {title}")
+                    
+                    from apply_maintenance import record_history
+                    # Record this as a delete action
+                    delete_action_record = {**a, "type": f"DELETE_FROM_{action_type}"}
+                    action_id = record_history(delete_action_record, user_id)
+                    a["action_id"] = action_id
+            else:
+                remaining_actions.append(a)
+                
+        with open(maint_path, "w", encoding="utf-8") as f:
+            json.dump(remaining_actions, f, indent=2, ensure_ascii=False)
+            
+        scheduler.send_webhook_notification(f"Batch maintenance deletion completed. Deleted {success_count}/{total} videos.")
+    except Exception as e:
+        append_agent_log(f"Fatal error in batch maintenance deletion execution: {e}")
+
 @app.post("/api/maintenance/apply-single")
 def apply_single_action(req: SingleActionRequest, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
     user_id = user.get("user_id") if "user_id" in user else user.get("id")
@@ -2484,6 +2659,84 @@ def api_batch_discard_maintenance(req: BatchMaintenanceRequest, user=Depends(get
             json.dump(updated_actions, f, indent=2, ensure_ascii=False)
             
         return {"success": True, "message": f"Discarded {len(actions) - len(updated_actions)} actions."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/maintenance/delete-single")
+def delete_single_action(req: SingleActionRequest, background_tasks: BackgroundTasks, user=Depends(get_current_user)):
+    user_id = user.get("user_id") if "user_id" in user else user.get("id")
+    maint_path = get_user_file_path("maintenance_actions.json", user)
+    if not os.path.exists(maint_path):
+        raise HTTPException(status_code=404, detail="Queue file not found")
+        
+    if is_oauth_configured():
+        success, msg = task_manager.run_function(
+            f"Delete Single Video ({req.vid})",
+            execute_batch_maintenance_delete_api_background,
+            (user_id, [req.vid])
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=msg)
+        return {"success": True, "message": "Executing video deletion in background..."}
+        
+    try:
+        with open(maint_path, "r", encoding="utf-8") as f:
+            actions = json.load(f)
+            
+        action = next((a for a in actions if a.get("vid") == req.vid), None)
+        if not action:
+            raise HTTPException(status_code=404, detail="Action not found in queue")
+            
+        background_tasks.add_task(execute_single_action_delete_background, action)
+        
+        updated_actions = [a for a in actions if a.get("vid") != req.vid]
+        with open(maint_path, "w", encoding="utf-8") as f:
+            json.dump(updated_actions, f, indent=2, ensure_ascii=False)
+            
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/maintenance/batch-delete")
+def batch_delete_maintenance(req: BatchMaintenanceRequest, user=Depends(get_current_user)):
+    user_id = user.get("user_id") if "user_id" in user else user.get("id")
+    maint_path = get_user_file_path("maintenance_actions.json", user)
+    if not os.path.exists(maint_path):
+        raise HTTPException(status_code=404, detail="Queue file not found")
+        
+    if is_oauth_configured():
+        success, msg = task_manager.run_function(
+            f"Delete Batch Videos ({len(req.vids)} items)",
+            execute_batch_maintenance_delete_api_background,
+            (user_id, req.vids)
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=msg)
+        return {"success": True, "message": f"Successfully queued batch deletion of {len(req.vids)} videos."}
+        
+    try:
+        with open(maint_path, "r", encoding="utf-8") as f:
+            actions = json.load(f)
+            
+        selected_actions = [a for a in actions if a.get("vid") in req.vids]
+        if not selected_actions:
+            raise HTTPException(status_code=400, detail="No matching actions found in queue")
+            
+        success, msg = task_manager.run_function(
+            f"Delete Batch Videos ({len(selected_actions)} items)", 
+            execute_batch_maintenance_delete_background, 
+            (selected_actions,)
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=msg)
+        
+        updated_actions = [a for a in actions if a.get("vid") not in req.vids]
+        with open(maint_path, "w", encoding="utf-8") as f:
+            json.dump(updated_actions, f, indent=2, ensure_ascii=False)
+            
+        return {"success": True, "message": f"Successfully queued batch deletion of {len(selected_actions)} videos."}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

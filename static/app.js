@@ -501,6 +501,7 @@ function renderMaintenanceQueue(actions) {
                 ${pinBtn}
                 <button class="action-btn btn-success" style="padding: 6px 12px; font-size: 0.8rem;" onclick="applySingleAction('${a.vid}', ${idx})">Apply</button>
                 <button class="action-btn btn-danger" style="padding: 6px 12px; font-size: 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary);" onclick="discardAction('${a.vid}', ${idx})">Skip</button>
+                <button class="action-btn btn-danger" style="padding: 6px 12px; font-size: 0.8rem; background: var(--danger); border: 1px solid var(--danger); color: white;" onclick="deleteVideoAction('${a.vid}', ${idx})">Delete Video</button>
             </div>
         `;
         listEl.appendChild(item);
@@ -592,6 +593,36 @@ async function triggerMaintBatchDiscard() {
     } catch (err) {
         console.error(err);
         alert(`Failed to discard batch: ${err.message}`);
+    }
+}
+
+async function triggerMaintBatchDelete() {
+    const count = maintSelectedVids.size;
+    if (count === 0) return;
+    
+    if (!confirm(`Are you sure you want to delete the selected ${count} videos from all their playlists? This will remove them completely.`)) return;
+    
+    try {
+        addConsoleLog(`[Client] Spawning batch deletion of ${count} videos from maintenance...`);
+        const response = await fetch('/api/maintenance/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vids: Array.from(maintSelectedVids) })
+        });
+        const data = await response.json();
+        if (data.success) {
+            addConsoleLog(`[Client] Batch deletion started successfully in background.`);
+            maintSelectedVids.clear();
+            updateMaintSelectedCount();
+            loadMaintenanceQueue();
+            loadStatus();
+            startLogPolling();
+        } else {
+            alert(`Error: ${data.detail || data.message}`);
+        }
+    } catch (err) {
+        console.error(err);
+        alert(`Failed to delete batch: ${err.message}`);
     }
 }
 
@@ -714,6 +745,29 @@ async function discardAction(vid, index) {
         const data = await response.json();
         if (data.success) {
             addConsoleLog(`[Client] Discarded action for video ID: ${vid}`);
+            removeMaintItemLocally(vid);
+            loadStatus();
+        } else {
+            alert(`Error: ${data.detail || data.message}`);
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function deleteVideoAction(vid, index) {
+    if (!confirm("Are you sure you want to delete this video from all its playlists? This will remove it completely.")) {
+        return;
+    }
+    try {
+        const response = await fetch(`/api/maintenance/delete-single`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vid: vid })
+        });
+        const data = await response.json();
+        if (data.success) {
+            addConsoleLog(`[Client] Deleted video from playlists for ID: ${vid}`);
             removeMaintItemLocally(vid);
             loadStatus();
         } else {
