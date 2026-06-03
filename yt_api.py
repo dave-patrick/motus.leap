@@ -141,7 +141,7 @@ def add_video_to_playlist(user_id, playlist_id, video_id):
         "snippet": {
             "playlistId": playlist_id,
             "resourceId": {
-                "kind": "yt#video",
+                "kind": "youtube#video",
                 "videoId": video_id
             }
         }
