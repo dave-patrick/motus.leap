@@ -184,6 +184,7 @@ def run_api_scan_and_save(user_id):
             report.append({
                 "id": p["id"],
                 "name": p["name"],
+                "url": f"https://www.youtube.com/playlist?list={p['id']}",
                 "video_count": len(videos),
                 "videos": videos
             })

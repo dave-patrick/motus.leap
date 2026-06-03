@@ -91,7 +91,7 @@ Alex Hormozi:Productivity Stuff
 Alex Ziskind:AI
 alfonso ciuffaidi:Music
 Alfox:AI
-Ali Abdaal:AI
+Ali Abdaal:Productivity Stuff
 Ali Solanki:Mobile
 Alice In Chains:Concerts
 All Strong Fitness:Exercise
@@ -120,7 +120,7 @@ ANDROID MAN:Mobile
 Andy Malone MVP:Productivity Stuff
 Andy Park:Productivity Stuff
 Andy Stapleton:AI
-Anne of All Trades:Learning
+Anne of All Trades:Woodworking
 Another Guitar Channel:Music
 ANSELM MEYER Presents:Star Wars
 Anthony Vincent:Music
@@ -130,7 +130,7 @@ Antiquity and Project Genesis:Learning
 Anunnaki Revealed:Learning
 Apocalyptica:Music Videos
 appsntips:Productivity Stuff
-AppX:AI
+AppX:Mobile
 April Wilkerson:Maker Idea
 Apurv Shaurya:Unreleased Metallica Songs
 Aragon Analytics:Knives - Howto
@@ -203,7 +203,7 @@ Benedetta Caretta:Music
 Benjamin Preston:AI
 BERNTH Guitar Academy and BERNTH:Music
 Best,:Funny
-Better Creating:AI
+Better Creating:Productivity Stuff
 Better Stack:AI
 Beyond the Map:Learning
 Beyond The Riffs:Music
@@ -461,7 +461,7 @@ Disparil666:Music
 DistractotronChannel:Cosplay
 Disturb Reality:Entertainment
 DIY Builds:Maker Idea
-DIY Creators:Woodworking
+DIY Creators:Maker Idea
 DIY Jeff:Maker
 DIY SITY:Home Improvement
 DIY with Dave:Maker
@@ -577,7 +577,7 @@ Fact Quickie:Learning
 Facts Verse:Learning
 Fahd Mirza:AI
 Faith No More Followers:Music
-FAN DE UNBOXING:Music
+FAN DE UNBOXING:Tech
 Fan of Star Wars Theory / Explained:Star Wars
 FantastFilms:Star Wars
 Fate Unbound:Arizona
@@ -593,7 +593,7 @@ Fireball Tool:Maker
 Firebox Stove:Overland
 Fireship:AI
 First Humans:Learning
-Fisher's Shop:Woodworking
+Fisher's Shop:Maker Idea
 FitnessBlender:Exercise
 Five By Nine:Entertainment
 Fix This Build That:Maker Idea
@@ -619,7 +619,7 @@ Fotografiarte:GX7
 Found And Explained:Aviation
 Foundation Training:Exercise
 Founders, Inc.:3D Printing Watch
-Foureyes Furniture:Woodworking
+Foureyes Furniture:Maker Idea
 FOUSEY:Funny
 FPV Dee:Arizona
 Francis Darracott:Drones
@@ -814,7 +814,7 @@ Jdavis882 - Knife Sharpening and Reviews:Knives - Howto
 JediPalProductions:Star Wars
 Jeepin Bubba:Overland
 Jeff Geerling:AI
-Jeff Springer:AI
+Jeff Springer:Mobile
 Jeff Springer and SammyGuru:Mobile
 Jeff Su:AI
 Jeffrey Webber:Productivity Stuff
@@ -829,7 +829,7 @@ JerryRigEverything:Mobile
 Jesse Michels Clips:Learning
 Jessie's Drone Adventures:Arizona
 Jet Insight:Aviation
-Jet L:Maker
+Jet L:3D Printing Watch
 Jethub:Aviation
 Jetline Journal:Aviation
 Jeven Dovey:Drones
@@ -1120,7 +1120,7 @@ Mixing Mastering Online:Music
 ML3DoesStuff:Star Wars
 MlCHAEL MYERS:Music
 Mobile Alert:Mobile
-ModBot:3D Printing Software
+ModBot:3D Printing Watch
 Modern Builds:Maker
 Modern Work Mentor:Tech
 Modustrial Maker:Maker Idea
@@ -1181,7 +1181,7 @@ Nate Large - Woodworking DIY & More:Maker Idea
 Nathan Porter:Drones
 Natural Experience:TV
 Nazmaul Fan Films:Star Wars
-NeedItMakeIt:Maker
+NeedItMakeIt:3D Printing Watch
 NeoGamer - The Video Game Archive:Star Wars
 Neon Mammoth:Music
 Nerd of the Rings:Entertainment
@@ -1305,7 +1305,7 @@ PlayBack80:Music
 Playing with Sticks:Overland
 Plebacus AI:Short films
 plywoodworking:Maker Idea
-Pneumatic Addict:Learning
+Pneumatic Addict:Maker
 Pod of Mandalore:Star Wars
 PolandsFinest:Star Wars
 PostmodernJukebox:Star Wars
@@ -1322,7 +1322,7 @@ Primordial Radio:Music
 Pro Photo Supply:GX7
 Produce Like A Pro:Music
 Product Design Online:Fusion 360
-Productive Dude:AI
+Productive Dude:Productivity Stuff
 Productive Tech:Productivity Stuff
 Productivity Game:Productivity Stuff
 Professor Historian:Learning
@@ -1515,7 +1515,7 @@ Simon Creates:AI
 Simon Creates and Strategic (AI) Design:Tana Inc - all content (Playlist)
 Simon Høiberg:AI
 Simon Roper:Learning
-Simple but Surprising:Learning
+Simple but Surprising:Truck
 Simple Drone Reviews:Drones
 Simple Little Life:Knives - Howto
 Simpletivity:Productivity Stuff
@@ -1530,7 +1530,7 @@ Sky Shazad:Star Wars
 SkyForge:Star Wars
 Skywalker Stories:Star Wars
 SkywalkerTales:Star Wars
-Slant 3D:3D Printing Software
+Slant 3D:3D Printing Watch
 SleepTube - Hypnotic Relaxation:Focus
 Slowhands Rock Talk Show:Music
 Small Fry Creations:Laser
@@ -1580,7 +1580,7 @@ Star Wars Theory Plus:Star Wars
 Star Wars Uplink:Star Wars
 StarForceOne:Star Wars
 Starrapter:Star Wars
-Start Making (Woodworking):Maker Idea
+Start Making (Woodworking):Woodworking
 STARWARS FANFILM:Star Wars
 STATE of MINE:Music
 STATE of MINE and 2 more:Music
@@ -1621,7 +1621,7 @@ stupidahhmelon:AI
 SUMERIAN:Music Videos
 Sunny Ozell:Entertainment
 Super Mega VHS TV Archive:Music
-Supercar Blondie:Auto
+Supercar Blondie:Tech
 supercharger666:Music
 SuperfastMatt:Maker Idea
 Superfinances:Laser
@@ -1638,7 +1638,7 @@ szink37:Music
 T-Minus365:Productivity Stuff
 T-Mobile:Camping
 T7pro:Star Wars
-TacomaBeast:Auto
+TacomaBeast:Overland
 Tactical Control:Learning
 Taikuri Bootlegs:Music
 Tailor Made Technologies:Productivity Stuff
@@ -1680,12 +1680,12 @@ Technology Connections:Music
 TechOdyssey:Mobile
 TechPoint:Mobile
 TechTab:Mobile
-TED:TV
+TED:Football
 Ted Coningsby:Aviation
 Ted Weitzman:Music
 TED-Ed:Learning
 teejetronic:Music
-Tejas Fly:Overland
+Tejas Fly:Truck
 TekWize:Tech
 Temple Of The Dog:Music
 Terrapin Creations:Maker Idea
@@ -1768,7 +1768,7 @@ The Space Race:Learning
 The Squirrel:Music
 The Stupendous Wave:Star Wars
 The Sumer Codex and The Origin Vault:Learning
-The Swedish Maker:Woodworking
+The Swedish Maker:3D Printing Watch
 The Tonight Show Starring Jimmy Fallon:Entertainment
 The Tonight Show Starring Jimmy Fallon and Jimmy Fallon:Entertainment
 The Value Add with Alex Pearce:Productivity Stuff
@@ -1840,7 +1840,7 @@ Tom Spurlock:Drone Places
 tommy blasé:Star Wars
 Tommy Linebarger:Truck
 Tom’ s Dreamshop Worx:Maker Idea
-Tool Finder:AI
+Tool Finder:Productivity Stuff
 Tool Review Zone:Maker
 Tool Tap AI:AI
 ToolifyX:Tech
@@ -1872,8 +1872,8 @@ Tyler Beck of Tech & Espresso:Fusion 360
 Tyrell Knifeworks:Knives - Howto
 UC Today News:Productivity Stuff
 Ultimate Cinema's:Star Wars
-Uncle Jessy:Maker
-Undecided with Matt Ferrell:Learning
+Uncle Jessy:3D Printing Watch
+Undecided with Matt Ferrell:AI
 Underhill Forge:Knives - Howto
 unimatrix31:Watch Someday
 Universal Pictures:Entertainment
@@ -2178,7 +2178,7 @@ Print Farm Academy:3D Printing Watch
 3D PrintSmith:3D Printing Watch
 Play Conveyor:3D Printing Watch
 Lao Leaf Design:3D Printing Watch
-3D Print Dood:AI
+3D Print Dood:3D Printing Watch
 Jason Grissom:Shop Stuff To Watch
 Home With Stefani:Shop Stuff To Watch
 MEGAN:Short films
@@ -2488,3 +2488,15 @@ Code Name: new2vero2:Music Videos
 Century Media Records and Arch Enemy:Music Videos
 Sensing Ground: Living with all Eight Senses:Health
 Star Wars: Quantum Studios:Star Wars
+Star Wars: Quantum Studios:Music Videos
+Star Wars: Quantum Studios:AI
+Star Wars: Quantum Studios:AI
+Star Wars: Quantum Studios:AI
+Star Wars: Quantum Studios:AI
+Star Wars: Quantum Studios:AI
+Star Wars: Quantum Studios:AI
+Star Wars: Quantum Studios:AI
+Star Wars: Quantum Studios:AI
+YouTube Movies & TV:Music Videos
+Code Name: new2vero2:Music Videos
+Sensing Ground: Living with all Eight Senses:Health
