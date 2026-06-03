@@ -273,6 +273,9 @@ def auto_sort(input_file: str = None):
                 # Rule 1: Arizona keywords
                 elif matches(["arizona", "phoenix", " az ", ", az"]):
                     target_cat = "Arizona"
+                # Rule 1.5: Cosplay keywords
+                elif matches(["cosplay"]):
+                    target_cat = "Cosplay"
                 # Rule 2: Music videos
                 elif matches(["official music video", "official video", "music video", "lyric video", "official audio", "official lyric", "official visualizer", "musicvideo", "lyrics video", "(official)"]):
                     target_cat = "Music Videos"
@@ -280,7 +283,7 @@ def auto_sort(input_file: str = None):
                 elif matches([" ai ", "gpt", "claude", "gemini", "notebooklm", "llm", "artificial intelligence"]):
                     target_cat = "AI"
                 # Rule 4: Star Wars keywords
-                elif matches(["star wars", "vader", "kenobi", "darth", "jedi", "maul", "coruscant", "skywalker", "ahsoka", "mandalorian", "grogu", "yoda", "sith", "lightsaber"]):
+                elif matches(["star wars", "vader", "kenobi", "darth", "jedi", "darth maul", "coruscant", "skywalker", "ahsoka", "mandalorian", "grogu", "yoda", "sith", "galactic empire", "rebel alliance", "lightsaber"]):
                     target_cat = "Star Wars"
                 # Rule 6: 3D Printing keywords
                 elif matches(["3d print", "slicing", "ender 3", "bambu", "voron", "3d printing"]):

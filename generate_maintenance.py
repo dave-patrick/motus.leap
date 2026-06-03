@@ -112,7 +112,7 @@ def get_target_cat(title, channel, channel_map, vid=None, ai_classifications=Non
     # AI
     if matches([" ai ", "gpt", "claude", "gemini", "notebooklm", "llm", "artificial intelligence"]): return "AI", False
     # Star Wars
-    if matches(["star wars", "vader", "kenobi", "darth", "jedi", "maul", "coruscant", "skywalker", "ahsoka", "mandalorian", "grogu", "yoda", "sith", "empire", "rebellion", "lightsaber"]): return "Star Wars", False
+    if matches(["star wars", "vader", "kenobi", "darth", "jedi", "darth maul", "coruscant", "skywalker", "ahsoka", "mandalorian", "grogu", "yoda", "sith", "galactic empire", "rebel alliance", "lightsaber"]): return "Star Wars", False
     # 3D Printing
     if matches(["3d print", "slicing", "ender 3", "bambu", "voron", "3d printing"]): return "3D Printing Watch", False
     # Woodworking
