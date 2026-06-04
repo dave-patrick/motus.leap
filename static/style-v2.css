@@ -185,7 +185,7 @@ header {
 }
 
 .stat-card {
-    padding: 1.5rem;
+    padding: 1.2rem;
     position: relative;
     overflow: hidden;
 }
@@ -209,12 +209,12 @@ header {
     justify-content: space-between;
     align-items: center;
     color: var(--text-secondary);
-    font-size: 0.9rem;
-    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
 }
 
 .stat-value {
-    font-size: 2.2rem;
+    font-size: 2rem;
     font-weight: 700;
     letter-spacing: -1px;
 }
@@ -824,6 +824,16 @@ html {
     .dashboard-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
+    }
+    .stat-card {
+        padding: 0.8rem 1rem;
+    }
+    .stat-header {
+        margin-bottom: 0.3rem;
+        font-size: 0.8rem;
+    }
+    .stat-value {
+        font-size: 1.6rem;
     }
     
     /* Controls Stack */
