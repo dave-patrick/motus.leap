@@ -9,6 +9,15 @@ let currentVideos = [];
 let selectedVideoUrls = new Set();
 let allPlaylists = [];
 
+// Subscriptions view state variables
+let allSubscriptions = new Map(); // channelName (string) -> videos (Array)
+let selectedSubChannel = '';
+let selectedSubVideoUrls = new Set(); // set of "videoUrl|||sourcePlaylist"
+let sortSubColumn = null;
+let sortSubDirection = 'asc';
+let currentSubVideos = []; // Currently filtered/sorted videos for the selected channel
+let lastSubCheckedIndex = null;
+
 // Sort state for playlist video table
 let sortColumn = null;   // 'index' | 'title' | 'channel' | 'published'
 let sortDirection = 'asc'; // 'asc' | 'desc'
@@ -41,6 +50,19 @@ function switchTab(tabId) {
         document.getElementById('playlist-detail-container').style.display = 'none';
         document.getElementById('playlists-container').style.display = 'grid';
         loadPlaylists();
+    } else if (tabId === 'subscriptions') {
+        selectedSubChannel = '';
+        selectedSubVideoUrls.clear();
+        const tag = document.getElementById('sub-selected-count-tag');
+        if (tag) tag.style.display = 'none';
+        const actionsGroup = document.getElementById('sub-batch-actions-group');
+        if (actionsGroup) actionsGroup.style.display = 'none';
+        const mapBtn = document.getElementById('btn-map-channel');
+        if (mapBtn) mapBtn.style.display = 'none';
+        document.getElementById('sub-video-table-body').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 4rem; color: var(--text-secondary);">Select a channel from the left pane to view videos.</td></tr>';
+        document.getElementById('current-channel-title').textContent = 'Select a Channel';
+        document.getElementById('current-channel-meta').textContent = 'Choose a channel from the left to view cataloged videos.';
+        loadSubscriptions();
     }
 }
 
@@ -495,7 +517,7 @@ function renderMaintenanceQueue(actions) {
                     <span class="action-badge ${badgeClass}">${badgeText}</span>
                     ${aiBadge}
                 </div>
-                <a class="action-title" href="https://www.youtube.com/watch?v=${a.vid}" target="_blank" title="Watch on YouTube" style="text-decoration: none; color: inherit; transition: color 0.2s ease;">${a.title}</a>
+                <a class="action-title" href="https://www.youtube.com/watch?v=${a.vid}" target="_blank" onclick="window.open(this.href, '_blank', 'width=1280,height=720'); return false;" title="Watch on YouTube" style="text-decoration: none; color: inherit; transition: color 0.2s ease;">${escapeHtml(a.title)}</a>
                 <span class="action-desc">${desc}</span>
             </div>
             <div class="action-buttons">
@@ -1105,6 +1127,17 @@ function getSortedVideos(videos) {
     return sorted;
 }
 
+function getAbsoluteVideoUrl(url) {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+    }
+    if (url.startsWith('/')) {
+        return 'https://www.youtube.com' + url;
+    }
+    return 'https://www.youtube.com/' + url;
+}
+
 function escapeHtml(text) {
     if (!text) return '';
     return text
@@ -1214,13 +1247,13 @@ function renderVideoTable(videos) {
             </td>
             <td style="text-align: center; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace;">${index + 1}</td>
             <td>
-                <a href="${v.url}" target="_blank" class="video-title-link">${v.title}</a>
+                <a href="${getAbsoluteVideoUrl(v.url)}" target="_blank" onclick="window.open(this.href, '_blank', 'width=1280,height=720'); return false;" class="video-title-link">${v.title}</a>
             </td>
             <td style="color: var(--text-secondary);">${v.channel || 'Unknown'}</td>
             <td style="color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">${v.duration || '--:--'}</td>
             <td style="color: var(--text-secondary);">${v.published || 'Unknown'}</td>
             <td style="text-align: center;">
-                <a href="${v.url}" target="_blank" class="btn" style="padding: 6px 10px; font-size: 0.8rem; width: max-content; margin: 0 auto;">Watch</a>
+                <a href="${getAbsoluteVideoUrl(v.url)}" target="_blank" onclick="window.open(this.href, '_blank', 'width=1280,height=720'); return false;" class="btn" style="padding: 6px 10px; font-size: 0.8rem; width: max-content; margin: 0 auto;">Watch</a>
             </td>
             <td style="text-align: center;">
                 <select class="form-input inline-move-select" style="padding: 4px 8px; font-size: 0.85rem; width: 140px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); display: inline-block;" onchange="moveVideoInline(this, ${index}, '${v.url}')">
@@ -1608,6 +1641,76 @@ async function saveSettings() {
     }
 }
 
+async function syncPlaylistItemIds() {
+    const btn = document.getElementById('sync-item-ids-btn');
+    const resultEl = document.getElementById('sync-item-ids-result');
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+    resultEl.style.display = 'block';
+    resultEl.style.color = 'var(--text-secondary)';
+    resultEl.textContent = 'Sending request...';
+    try {
+        const resp = await fetch('/api/sync-item-ids', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            resultEl.style.color = 'var(--success)';
+            resultEl.textContent = '✓ ' + data.message;
+            btn.textContent = 'Started ✓';
+        } else {
+            resultEl.style.color = 'var(--danger)';
+            resultEl.textContent = '✗ ' + (data.detail || data.message || 'Unknown error');
+            btn.disabled = false;
+            btn.textContent = 'Sync Now';
+        }
+    } catch (err) {
+        resultEl.style.color = 'var(--danger)';
+        resultEl.textContent = '✗ Network error: ' + err.message;
+        btn.disabled = false;
+        btn.textContent = 'Sync Now';
+    }
+}
+
+async function importYTCookies() {
+    const btn = document.getElementById('import-cookies-btn');
+    const resultEl = document.getElementById('import-cookies-result');
+    const cookiesTxt = document.getElementById('yt-cookies-input').value.trim();
+    
+    if (!cookiesTxt) {
+        resultEl.style.color = 'var(--warning)';
+        resultEl.textContent = 'Please paste your cookies.txt content first.';
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = 'Importing...';
+    resultEl.style.color = 'var(--text-secondary)';
+    resultEl.textContent = 'Sending cookies...';
+    
+    try {
+        const resp = await fetch('/api/import-yt-cookies', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cookies_txt: cookiesTxt })
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            resultEl.style.color = 'var(--success)';
+            resultEl.textContent = '✓ ' + data.message;
+            document.getElementById('yt-cookies-input').value = '';
+        } else {
+            resultEl.style.color = 'var(--danger)';
+            resultEl.textContent = '✗ ' + (data.detail || data.message || 'Unknown error');
+        }
+    } catch (err) {
+        resultEl.style.color = 'var(--danger)';
+        resultEl.textContent = '✗ Network error: ' + err.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Import Cookies';
+    }
+}
+
+
 // Screenshot Viewer
 function viewDebugScreenshot(filename) {
     const modal = document.getElementById('screenshot-modal');
@@ -1867,7 +1970,7 @@ function renderAIClassifications() {
             </td>
             <td>
                 <div style="font-weight: 500; margin-bottom: 2px;">
-                    <a href="${vidUrl}" target="_blank" class="video-title-link">${escapeHtml(c.title)}</a>
+                    <a href="${vidUrl}" target="_blank" onclick="window.open(this.href, '_blank', 'width=1280,height=720'); return false;" class="video-title-link">${escapeHtml(c.title)}</a>
                 </div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(c.channel)}</div>
                 <div style="font-size: 0.8rem; color: var(--primary); margin-top: 2px;">Playlist: <strong>${escapeHtml(c.current_playlist || 'Unknown')}</strong></div>
@@ -2235,7 +2338,7 @@ function renderTrackedVideosTable(videos) {
             </td>
             <td style="text-align: center; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace;">${index + 1}</td>
             <td>
-                <a href="${v.url}" target="_blank" class="video-title-link">${escapeHtml(v.title)}</a>
+                <a href="${getAbsoluteVideoUrl(v.url)}" target="_blank" onclick="window.open(this.href, '_blank', 'width=1280,height=720'); return false;" class="video-title-link">${escapeHtml(v.title)}</a>
             </td>
             <td style="color: var(--text-secondary);">${escapeHtml(v.channel)}</td>
             <td style="color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">${escapeHtml(v.duration || '--:--')}</td>
@@ -2248,7 +2351,7 @@ function renderTrackedVideosTable(videos) {
             </td>
             <td style="color: var(--text-secondary);">${escapeHtml(v.published)}</td>
             <td style="text-align: center;">
-                <a href="${v.url}" target="_blank" class="btn" style="padding: 6px 10px; font-size: 0.8rem; width: max-content; margin: 0 auto;">Watch</a>
+                <a href="${getAbsoluteVideoUrl(v.url)}" target="_blank" onclick="window.open(this.href, '_blank', 'width=1280,height=720'); return false;" class="btn" style="padding: 6px 10px; font-size: 0.8rem; width: max-content; margin: 0 auto;">Watch</a>
             </td>
         `;
         tbody.appendChild(tr);
@@ -2600,6 +2703,729 @@ async function logout() {
     }
 }
 
+
+// ─── Subscriptions Tab Logic ──────────────────────────────────────────────────
+
+async function loadSubscriptions() {
+    const listContainer = document.getElementById('sub-channels-container');
+    listContainer.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading channels...</div>';
+    
+    try {
+        if (allPlaylists.length === 0) {
+            const plistResp = await fetch('/api/playlists');
+            if (!plistResp.ok) throw new Error("Playlists fetch failed");
+            allPlaylists = await plistResp.json();
+        }
+        
+        allSubscriptions.clear();
+        allPlaylists.forEach(p => {
+            const playlistName = p.name;
+            const videos = p.videos || [];
+            videos.forEach(v => {
+                const channel = v.channel || 'Unknown Channel';
+                if (!allSubscriptions.has(channel)) {
+                    allSubscriptions.set(channel, []);
+                }
+                allSubscriptions.get(channel).push({
+                    title: v.title || 'Unknown Video',
+                    url: v.url,
+                    duration: v.duration || '--:--',
+                    published: v.published || 'Unknown',
+                    playlist: playlistName
+                });
+            });
+        });
+        
+        renderChannelList();
+    } catch (err) {
+        listContainer.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--danger);">Error: ${err.message}</div>`;
+    }
+}
+
+function getChannelLatestUpdateRank(channelName) {
+    const videos = allSubscriptions.get(channelName) || [];
+    if (videos.length === 0) return Number.MAX_SAFE_INTEGER;
+    let minRank = Number.MAX_SAFE_INTEGER;
+    videos.forEach(v => {
+        const rank = publishedRank(v.published);
+        if (rank < minRank) {
+            minRank = rank;
+        }
+    });
+    return minRank;
+}
+
+function sortChannels() {
+    renderChannelList();
+}
+
+function renderChannelList() {
+    const listContainer = document.getElementById('sub-channels-container');
+    listContainer.innerHTML = '';
+    
+    const query = document.getElementById('channel-search').value.toLowerCase().trim();
+    const channels = Array.from(allSubscriptions.keys());
+    
+    const sortVal = document.getElementById('channel-sort')?.value || 'name-asc';
+    channels.sort((a, b) => {
+        if (sortVal === 'name-asc') {
+            return a.localeCompare(b, undefined, { sensitivity: 'base' });
+        } else if (sortVal === 'name-desc') {
+            return b.localeCompare(a, undefined, { sensitivity: 'base' });
+        } else if (sortVal === 'count-desc') {
+            const countA = allSubscriptions.get(a)?.length || 0;
+            const countB = allSubscriptions.get(b)?.length || 0;
+            if (countA !== countB) {
+                return countB - countA;
+            }
+            return a.localeCompare(b, undefined, { sensitivity: 'base' });
+        } else if (sortVal === 'count-asc') {
+            const countA = allSubscriptions.get(a)?.length || 0;
+            const countB = allSubscriptions.get(b)?.length || 0;
+            if (countA !== countB) {
+                return countA - countB;
+            }
+            return a.localeCompare(b, undefined, { sensitivity: 'base' });
+        } else if (sortVal === 'update-asc') {
+            const rankA = getChannelLatestUpdateRank(a);
+            const rankB = getChannelLatestUpdateRank(b);
+            if (rankA !== rankB) {
+                return rankA - rankB;
+            }
+            return a.localeCompare(b, undefined, { sensitivity: 'base' });
+        } else if (sortVal === 'update-desc') {
+            const rankA = getChannelLatestUpdateRank(a);
+            const rankB = getChannelLatestUpdateRank(b);
+            if (rankA !== rankB) {
+                return rankB - rankA;
+            }
+            return a.localeCompare(b, undefined, { sensitivity: 'base' });
+        }
+        return 0;
+    });
+    
+    let renderedCount = 0;
+    channels.forEach(channel => {
+        if (query && !channel.toLowerCase().includes(query)) return;
+        
+        renderedCount++;
+        const videos = allSubscriptions.get(channel);
+        const item = document.createElement('button');
+        item.className = `sub-channel-item ${selectedSubChannel === channel ? 'active' : ''}`;
+        item.onclick = () => selectSubChannel(channel);
+        
+        item.innerHTML = `
+            <span class="sub-channel-name" title="${escapeHtml(channel)}">${escapeHtml(channel)}</span>
+            <span class="sub-channel-badge">${videos.length}</span>
+        `;
+        listContainer.appendChild(item);
+    });
+    
+    if (renderedCount === 0) {
+        listContainer.innerHTML = '<div style="text-align: center; padding: 1rem; color: var(--text-secondary); font-size: 0.9rem;">No channels found</div>';
+    }
+}
+
+function filterChannels() {
+    renderChannelList();
+}
+
+function selectSubChannel(channel) {
+    selectedSubChannel = channel;
+    selectedSubVideoUrls.clear();
+    updateSubSelectedCount();
+    
+    sortSubColumn = null;
+    sortSubDirection = 'asc';
+    ['index', 'title', 'playlist', 'length', 'published'].forEach(col => {
+        const th = document.getElementById(`th-sub-${col}`);
+        if (th) th.classList.remove('sort-asc', 'sort-desc');
+    });
+    
+    const items = document.querySelectorAll('.sub-channel-item');
+    items.forEach(item => {
+        const nameEl = item.querySelector('.sub-channel-name');
+        if (nameEl && nameEl.textContent === channel) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+    
+    document.getElementById('current-channel-title').textContent = channel;
+    const count = allSubscriptions.get(channel).length;
+    document.getElementById('current-channel-meta').textContent = `${count} videos cataloged`;
+    
+    populateSubTargetPlaylists();
+    document.getElementById('sub-video-search').value = '';
+    
+    const mapBtn = document.getElementById('btn-map-channel');
+    if (mapBtn) mapBtn.style.display = 'inline-block';
+    
+    filterSubVideos();
+}
+
+function populateSubTargetPlaylists() {
+    const select = document.getElementById('sub-target-playlist-select');
+    if (!select) return;
+    select.innerHTML = '';
+    
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = '-- Select Target Playlist --';
+    select.appendChild(defaultOpt);
+    
+    allPlaylists.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.textContent = p.name;
+        select.appendChild(opt);
+    });
+}
+
+function filterSubVideos() {
+    if (!selectedSubChannel || !allSubscriptions.has(selectedSubChannel)) return;
+    
+    const query = document.getElementById('sub-video-search').value.toLowerCase().trim();
+    const allChannelVideos = allSubscriptions.get(selectedSubChannel);
+    
+    let filtered = allChannelVideos;
+    if (query) {
+        filtered = allChannelVideos.filter(v => 
+            v.title.toLowerCase().includes(query) || 
+            v.playlist.toLowerCase().includes(query)
+        );
+    }
+    
+    const sorted = getSortedSubVideos(filtered);
+    currentSubVideos = sorted;
+    renderSubVideosTable(sorted);
+}
+
+function getSortedSubVideos(videos) {
+    if (!sortSubColumn) return videos;
+    const sorted = [...videos];
+    sorted.sort((a, b) => {
+        let va, vb;
+        if (sortSubColumn === 'index') {
+            va = allSubscriptions.get(selectedSubChannel).indexOf(a);
+            vb = allSubscriptions.get(selectedSubChannel).indexOf(b);
+        } else if (sortSubColumn === 'title') {
+            va = (a.title || '').toLowerCase();
+            vb = (b.title || '').toLowerCase();
+        } else if (sortSubColumn === 'playlist') {
+            va = (a.playlist || '').toLowerCase();
+            vb = (b.playlist || '').toLowerCase();
+        } else if (sortSubColumn === 'length') {
+            va = durationToSeconds(a.duration);
+            vb = durationToSeconds(b.duration);
+        } else if (sortSubColumn === 'published') {
+            va = publishedRank(a.published);
+            vb = publishedRank(b.published);
+        }
+        if (va < vb) return sortSubDirection === 'asc' ? -1 : 1;
+        if (va > vb) return sortSubDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+    return sorted;
+}
+
+function sortSubVideoTable(column) {
+    if (sortSubColumn === column) {
+        sortSubDirection = sortSubDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortSubColumn = column;
+        sortSubDirection = 'asc';
+    }
+
+    ['index', 'title', 'playlist', 'length', 'published'].forEach(col => {
+        const th = document.getElementById(`th-sub-${col}`);
+        if (!th) return;
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (col === sortSubColumn) {
+            th.classList.add(sortSubDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+    });
+
+    filterSubVideos();
+}
+
+function renderSubVideosTable(videos) {
+    const tbody = document.getElementById('sub-video-table-body');
+    tbody.innerHTML = '';
+    
+    const masterCb = document.getElementById('select-all-sub-videos');
+    if (masterCb) masterCb.checked = false;
+    
+    if (!videos || videos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 4rem; color: var(--text-secondary);">No videos found.</td></tr>';
+        return;
+    }
+    
+    videos.forEach((v, index) => {
+        const tr = document.createElement('tr');
+        tr.className = 'video-row';
+        tr.id = `sub-row-${index}`;
+        
+        const uid = `${v.url}|||${v.playlist}`;
+        const isChecked = selectedSubVideoUrls.has(uid);
+        if (isChecked) {
+            tr.classList.add('selected');
+        }
+        
+        let optionsHtml = `<option value="">Move to...</option>`;
+        allPlaylists.forEach(p => {
+            if (p.name.toLowerCase() !== v.playlist.toLowerCase()) {
+                optionsHtml += `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`;
+            }
+        });
+        
+        tr.innerHTML = `
+            <td style="text-align: center;">
+                <input type="checkbox" class="sub-video-checkbox" data-uid="${escapeHtml(uid)}" ${isChecked ? 'checked' : ''} onclick="handleSubRowCheckboxClick(this, ${index}, event)">
+            </td>
+            <td style="text-align: center; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace;">${index + 1}</td>
+            <td>
+                <a href="${getAbsoluteVideoUrl(v.url)}" target="_blank" onclick="window.open(this.href, '_blank', 'width=1280,height=720'); return false;" class="video-title-link">${escapeHtml(v.title)}</a>
+            </td>
+            <td style="color: var(--text-secondary);">${escapeHtml(v.playlist)}</td>
+            <td style="color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">${escapeHtml(v.duration || '--:--')}</td>
+            <td style="color: var(--text-secondary);">${escapeHtml(v.published)}</td>
+            <td style="text-align: center;">
+                <div class="inline-move-container">
+                    <select class="form-input inline-move-select" style="padding: 4px 8px; font-size: 0.85rem; width: 160px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); display: inline-block;" onchange="moveSubVideoInline(this, '${v.url}', '${escapeHtml(v.playlist)}')">
+                        ${optionsHtml}
+                    </select>
+                </div>
+            </td>
+            <td style="text-align: center;">
+                <button class="btn btn-danger" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171;" onclick="deleteSubVideoSingle('${v.url}', '${escapeHtml(v.playlist)}')">Delete</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function handleSubRowCheckboxClick(checkbox, index, event) {
+    const checkboxes = Array.from(document.querySelectorAll('#sub-video-table-body .sub-video-checkbox'));
+    const clickedIdx = checkboxes.indexOf(checkbox);
+    
+    if (event && event.shiftKey && lastSubCheckedIndex !== null && lastSubCheckedIndex < checkboxes.length) {
+        const start = Math.min(lastSubCheckedIndex, clickedIdx);
+        const end = Math.max(lastSubCheckedIndex, clickedIdx);
+        const targetCheckedState = checkbox.checked;
+        
+        for (let i = start; i <= end; i++) {
+            const cb = checkboxes[i];
+            cb.checked = targetCheckedState;
+            const uid = cb.getAttribute('data-uid');
+            const row = cb.closest('tr');
+            
+            if (targetCheckedState) {
+                selectedSubVideoUrls.add(uid);
+                if (row) row.classList.add('selected');
+            } else {
+                selectedSubVideoUrls.delete(uid);
+                if (row) row.classList.remove('selected');
+            }
+        }
+    } else {
+        const uid = checkbox.getAttribute('data-uid');
+        const row = checkbox.closest('tr');
+        if (checkbox.checked) {
+            selectedSubVideoUrls.add(uid);
+            if (row) row.classList.add('selected');
+        } else {
+            selectedSubVideoUrls.delete(uid);
+            if (row) row.classList.remove('selected');
+        }
+    }
+    
+    lastSubCheckedIndex = clickedIdx;
+    updateSubSelectedCount();
+}
+
+function toggleSelectAllSubVideos(masterCheckbox) {
+    const isChecked = masterCheckbox.checked;
+    const checkboxes = document.querySelectorAll('#sub-video-table-body .sub-video-checkbox');
+    
+    checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+        const uid = cb.getAttribute('data-uid');
+        const row = cb.closest('tr');
+        
+        if (isChecked) {
+            selectedSubVideoUrls.add(uid);
+            if (row) row.classList.add('selected');
+        } else {
+            selectedSubVideoUrls.delete(uid);
+            if (row) row.classList.remove('selected');
+        }
+    });
+    
+    updateSubSelectedCount();
+}
+
+function updateSubSelectedCount() {
+    const count = selectedSubVideoUrls.size;
+    const tag = document.getElementById('sub-selected-count-tag');
+    const actionsGroup = document.getElementById('sub-batch-actions-group');
+    
+    if (count > 0) {
+        if (tag) {
+            tag.textContent = `${count} Selected`;
+            tag.style.display = 'inline-block';
+        }
+        if (actionsGroup) {
+            actionsGroup.style.display = 'flex';
+        }
+        
+        const targetPlaylist = document.getElementById('sub-target-playlist-select').value;
+        const moveBtn = document.getElementById('btn-sub-batch-move');
+        if (moveBtn) moveBtn.disabled = !targetPlaylist;
+    } else {
+        if (tag) tag.style.display = 'none';
+        if (actionsGroup) actionsGroup.style.display = 'none';
+    }
+}
+
+function localUpdateMoveVideo(videoUrl, sourcePlaylist, targetPlaylist) {
+    const sourcePl = allPlaylists.find(p => p.name === sourcePlaylist);
+    if (sourcePl && sourcePl.videos) {
+        const idx = sourcePl.videos.findIndex(v => v.url === videoUrl);
+        if (idx !== -1) {
+            const videoObj = sourcePl.videos.splice(idx, 1)[0];
+            sourcePl.video_count = sourcePl.videos.length;
+            
+            const targetPl = allPlaylists.find(p => p.name === targetPlaylist);
+            if (targetPl) {
+                if (!targetPl.videos) targetPl.videos = [];
+                targetPl.videos.push(videoObj);
+                targetPl.video_count = targetPl.videos.length;
+            }
+        }
+    }
+}
+
+// Helper to remove double quotes
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function localUpdateDeleteVideo(videoUrl, sourcePlaylist) {
+    const sourcePl = allPlaylists.find(p => p.name === sourcePlaylist);
+    if (sourcePl && sourcePl.videos) {
+        const idx = sourcePl.videos.findIndex(v => v.url === videoUrl);
+        if (idx !== -1) {
+            sourcePl.videos.splice(idx, 1);
+            sourcePl.video_count = sourcePl.videos.length;
+        }
+    }
+}
+
+function rebuildSubscriptionsAndRender() {
+    allSubscriptions.clear();
+    allPlaylists.forEach(p => {
+        const playlistName = p.name;
+        const videos = p.videos || [];
+        videos.forEach(v => {
+            const channel = v.channel || 'Unknown Channel';
+            if (!allSubscriptions.has(channel)) {
+                allSubscriptions.set(channel, []);
+            }
+            allSubscriptions.get(channel).push({
+                title: v.title || 'Unknown Video',
+                url: v.url,
+                duration: v.duration || '--:--',
+                published: v.published || 'Unknown',
+                playlist: playlistName
+            });
+        });
+    });
+    
+    renderChannelList();
+    
+    if (selectedSubChannel) {
+        if (!allSubscriptions.has(selectedSubChannel)) {
+            selectedSubChannel = '';
+            selectedSubVideoUrls.clear();
+            updateSubSelectedCount();
+            const mapBtn = document.getElementById('btn-map-channel');
+            if (mapBtn) mapBtn.style.display = 'none';
+            document.getElementById('sub-video-table-body').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 4rem; color: var(--text-secondary);">Select a channel from the left pane to view videos.</td></tr>';
+            document.getElementById('current-channel-title').textContent = 'Select a Channel';
+            document.getElementById('current-channel-meta').textContent = 'Choose a channel from the left to view cataloged videos.';
+        } else {
+            selectSubChannel(selectedSubChannel);
+        }
+    }
+}
+
+async function triggerSubBatchMove() {
+    const count = selectedSubVideoUrls.size;
+    if (count === 0) return;
+    
+    const targetPlaylist = document.getElementById('sub-target-playlist-select').value;
+    if (!targetPlaylist) {
+        alert("Please select a target playlist.");
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to move the selected ${count} video(s) to '${targetPlaylist}'?`)) return;
+    
+    const items = [];
+    selectedSubVideoUrls.forEach(uid => {
+        const parts = uid.split('|||');
+        items.push({
+            video_url: parts[0],
+            source_playlist: parts[1]
+        });
+    });
+    
+    addConsoleLog(`[Client] Sending request to multi-source batch move ${count} video(s) to '${targetPlaylist}'...`);
+    
+    try {
+        const response = await fetch('/api/playlists/batch-move-multi-source', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                items: items,
+                target_playlist: targetPlaylist
+            })
+        });
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || "Failed to start multi-source batch move");
+        }
+        
+        // Update local state
+        items.forEach(item => {
+            localUpdateMoveVideo(item.video_url, item.source_playlist, targetPlaylist);
+        });
+        
+        selectedSubVideoUrls.clear();
+        updateSubSelectedCount();
+        rebuildSubscriptionsAndRender();
+        
+        loadStatus();
+        startLogPolling();
+        alert(`Successfully queued move of ${count} video(s) to '${targetPlaylist}'. Progress will be shown in the console logs.`);
+    } catch (err) {
+        alert(`Failed to move batch: ${err.message}`);
+    }
+}
+
+async function triggerSubBatchDelete() {
+    const count = selectedSubVideoUrls.size;
+    if (count === 0) return;
+    
+    if (!confirm(`Are you sure you want to delete the selected ${count} video(s) from their playlists?`)) return;
+    
+    const items = [];
+    selectedSubVideoUrls.forEach(uid => {
+        const parts = uid.split('|||');
+        items.push({
+            video_url: parts[0],
+            source_playlist: parts[1]
+        });
+    });
+    
+    addConsoleLog(`[Client] Sending request to multi-source batch delete ${count} video(s)...`);
+    
+    try {
+        const response = await fetch('/api/playlists/batch-delete-multi-source', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                items: items
+            })
+        });
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || "Failed to start multi-source batch delete");
+        }
+        
+        // Update local state
+        items.forEach(item => {
+            localUpdateDeleteVideo(item.video_url, item.source_playlist);
+        });
+        
+        selectedSubVideoUrls.clear();
+        updateSubSelectedCount();
+        rebuildSubscriptionsAndRender();
+        
+        loadStatus();
+        startLogPolling();
+        alert(`Successfully queued deletion of ${count} video(s). Progress will be shown in the console logs.`);
+    } catch (err) {
+        alert(`Failed to delete batch: ${err.message}`);
+    }
+}
+
+async function moveSubVideoInline(selectEl, videoUrl, sourcePlaylist) {
+    const targetPlaylist = selectEl.value;
+    if (!targetPlaylist) return;
+    
+    if (!confirm(`Are you sure you want to move this video from '${sourcePlaylist}' to '${targetPlaylist}'?`)) {
+        selectEl.value = '';
+        return;
+    }
+    
+    const container = selectEl.parentElement;
+    const originalContent = container.innerHTML;
+    container.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-secondary);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="animation: spin 1s linear infinite; margin-right: 6px; vertical-align: middle; display: inline-block;"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg>Moving...</span>`;
+    
+    try {
+        const response = await fetch('/api/playlists/move-single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                video_url: videoUrl,
+                source_playlist: sourcePlaylist,
+                target_playlist: targetPlaylist
+            })
+        });
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || "Failed to move video.");
+        }
+        
+        // Update local state
+        localUpdateMoveVideo(videoUrl, sourcePlaylist, targetPlaylist);
+        
+        // Clear checkbox selection if this video was selected
+        const uid = `${videoUrl}|||${sourcePlaylist}`;
+        selectedSubVideoUrls.delete(uid);
+        updateSubSelectedCount();
+        
+        rebuildSubscriptionsAndRender();
+        loadStatus();
+        startLogPolling();
+    } catch (err) {
+        container.innerHTML = originalContent;
+        addConsoleLog(`[Error] Inline move failed: ${err.message}`);
+        alert(`Failed to move video: ${err.message}`);
+    }
+}
+
+async function deleteSubVideoSingle(videoUrl, sourcePlaylist) {
+    if (!confirm(`Are you sure you want to delete this video from '${sourcePlaylist}'?`)) return;
+    
+    addConsoleLog(`[Client] Sending request to delete video: ${videoUrl} from '${sourcePlaylist}'...`);
+    
+    try {
+        const response = await fetch('/api/playlists/batch-delete-multi-source', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                items: [{
+                    video_url: videoUrl,
+                    source_playlist: sourcePlaylist
+                }]
+            })
+        });
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || "Failed to delete video");
+        }
+        
+        // Update local state
+        localUpdateDeleteVideo(videoUrl, sourcePlaylist);
+        
+        // Clear checkbox selection if this video was selected
+        const uid = `${videoUrl}|||${sourcePlaylist}`;
+        selectedSubVideoUrls.delete(uid);
+        updateSubSelectedCount();
+        
+        rebuildSubscriptionsAndRender();
+        loadStatus();
+        startLogPolling();
+    } catch (err) {
+        alert(`Failed to delete video: ${err.message}`);
+    }
+}
+
+
+// ─── Map Channel Modal Logic ────────────────────────────────────────────────
+
+function openMapChannelModal() {
+    if (!selectedSubChannel) return;
+    const modal = document.getElementById('map-channel-modal');
+    if (!modal) return;
+    
+    document.getElementById('map-channel-name').textContent = selectedSubChannel;
+    
+    const select = document.getElementById('map-channel-target-select');
+    if (select) {
+        select.innerHTML = '';
+        allPlaylists.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.name;
+            opt.textContent = p.name;
+            select.appendChild(opt);
+        });
+        
+        const currentChannelVideos = allSubscriptions.get(selectedSubChannel) || [];
+        if (currentChannelVideos.length > 0) {
+            const firstPlaylist = currentChannelVideos[0].playlist;
+            const allSame = currentChannelVideos.every(v => v.playlist === firstPlaylist);
+            if (allSame) {
+                select.value = firstPlaylist;
+            }
+        }
+    }
+    
+    modal.classList.add('active');
+}
+
+function closeMapChannelModal() {
+    const modal = document.getElementById('map-channel-modal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+}
+
+async function saveChannelMapping() {
+    if (!selectedSubChannel) return;
+    const targetPlaylist = document.getElementById('map-channel-target-select').value;
+    if (!targetPlaylist) {
+        alert("Please select a target playlist.");
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/rules/add-channel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                channel: selectedSubChannel,
+                category: targetPlaylist
+            })
+        });
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || "Failed to create channel mapping.");
+        }
+        
+        alert(`Successfully mapped channel '${selectedSubChannel}' to '${targetPlaylist}'!`);
+        closeMapChannelModal();
+        loadRules();
+    } catch (err) {
+        alert(`Error: ${err.message}`);
+    }
+}
+
 // Initialize
 window.addEventListener('load', async () => {
     const authenticated = await checkSession();
@@ -2611,6 +3437,11 @@ window.addEventListener('load', async () => {
         const select = document.getElementById('target-playlist-select');
         if (select) {
             select.addEventListener('change', updateSelectedCount);
+        }
+        
+        const subSelect = document.getElementById('sub-target-playlist-select');
+        if (subSelect) {
+            subSelect.addEventListener('change', updateSubSelectedCount);
         }
     }
 });

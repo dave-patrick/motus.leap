@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YT Playlist Manager Dashboard</title>
-    <link rel="stylesheet" href="/static/style-v2.css?v=2.4">
+    <link rel="stylesheet" href="/static/style-v2.css?v=2.6">
 </head>
 <body>
     <div id="login-container" style="display: none; min-height: 100vh; width: 100%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at top, #1e1e38 0%, #0c0c14 100%); font-family: 'Inter', sans-serif;">
@@ -66,6 +66,8 @@
         <!-- Navigation Tabs -->
         <nav class="tabs-nav">
             <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+            <button class="tab-btn" onclick="switchTab('playlists')">Playlists</button>
+            <button class="tab-btn" onclick="switchTab('subscriptions')">Subscriptions</button>
             <button class="tab-btn" onclick="switchTab('maintenance')">Maintenance Queue <span id="queue-badge" style="background: var(--danger); color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.75rem; margin-left: 4px; display: none;">0</span></button>
             <button class="tab-btn" onclick="switchTab('rules')">Rules & Mappings</button>
             <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
@@ -112,7 +114,7 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
                         Agent Control Center
                     </h2>
-                    <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 1rem;">
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.5rem;">
                         Manually trigger the background crawler, execute duplicate cleaning, or run AI-assisted category sorts.
                     </p>
                     <div class="btn-group">
@@ -134,14 +136,16 @@
                         </button>
                     </div>
 
-                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.05);">
-                        <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 8px;">Failure Diagnostics</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 12px;">
-                            View screenshot captures of failed browser operations.
-                        </p>
+                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                        <div>
+                            <h3 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 2px;">Failure Diagnostics</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0;">
+                                View browser screenshots of failed operations.
+                            </p>
+                        </div>
                         <div style="display: flex; gap: 8px;" id="failed-screenshot-buttons">
-                            <button class="btn" style="padding: 8px 12px; font-size: 0.85rem;" onclick="viewDebugScreenshot('move_debug_dialog.png')">Move Dialog Pre/Post</button>
-                            <button class="btn" style="padding: 8px 12px; font-size: 0.85rem;" onclick="viewDebugScreenshot('debug_dialog_fail_tqMyLuDGdUg.png')">Fail Capture</button>
+                            <button class="btn" style="padding: 6px 12px; font-size: 0.8rem;" onclick="viewDebugScreenshot('move_debug_dialog.png')">Move Dialog Pre/Post</button>
+                            <button class="btn" style="padding: 6px 12px; font-size: 0.8rem;" onclick="viewDebugScreenshot('debug_dialog_fail_tqMyLuDGdUg.png')">Fail Capture</button>
                         </div>
                     </div>
                 </div>
@@ -310,6 +314,86 @@
             </div>
         </div>
 
+        <!-- SUBSCRIPTIONS TAB -->
+        <div id="tab-subscriptions" class="tab-content">
+            <div class="subscriptions-container">
+                <!-- Sidebar: Channel List -->
+                <div class="glass sub-sidebar">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">Channels</h3>
+                    <div style="position: relative; margin-bottom: 12px;">
+                        <input type="text" id="channel-search" class="form-input" placeholder="Search channels..." oninput="filterChannels()" style="padding-left: 2rem; background: rgba(0, 0, 0, 0.3);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </div>
+                    <select id="channel-sort" class="form-input" onchange="sortChannels()" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); width: 100%; font-size: 0.85rem; margin-bottom: 12px;">
+                        <option value="name-asc">Sort by: Name (A-Z)</option>
+                        <option value="name-desc">Sort by: Name (Z-A)</option>
+                        <option value="count-desc">Sort by: Video Count (High to Low)</option>
+                        <option value="count-asc">Sort by: Video Count (Low to High)</option>
+                        <option value="update-asc">Sort by: Latest Update First</option>
+                        <option value="update-desc">Sort by: Oldest Update First</option>
+                    </select>
+                    <div class="sub-channel-list" id="sub-channels-container">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Main Content Area: Videos for selected channel -->
+                <div class="sub-main-content">
+                    <div class="glass" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+                                <div>
+                                    <h2 id="current-channel-title" style="font-size: 1.3rem; font-weight: 700; margin-bottom: 4px;">Select a Channel</h2>
+                                    <p id="current-channel-meta" style="color: var(--text-secondary); font-size: 0.9rem;">Choose a channel from the left to view cataloged videos.</p>
+                                </div>
+                                <button class="btn btn-secondary" id="btn-map-channel" onclick="openMapChannelModal()" style="display: none; padding: 8px 16px; font-size: 0.85rem; height: max-content; align-self: center;">Map Channel to Playlist</button>
+                            </div>
+                        </div>
+
+                        <!-- Toolbar -->
+                        <div class="playlist-toolbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div style="display: flex; align-items: center; gap: 12px; flex-grow: 1; max-width: 450px;">
+                                <div style="position: relative; width: 100%;">
+                                    <input type="text" id="sub-video-search" class="form-input" placeholder="Search videos..." oninput="filterSubVideos()" style="width: 100%; padding-left: 2.2rem; background: rgba(0, 0, 0, 0.3);">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                </div>
+                                <span id="sub-selected-count-tag" class="action-badge" style="background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(59, 130, 246, 0.2); white-space: nowrap; padding: 6px 12px; border-radius: 8px; font-weight: 600; display: none;">0 Selected</span>
+                            </div>
+                            <div id="sub-batch-actions-group" style="display: none; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                <span style="color: var(--text-secondary); font-size: 0.9rem;">Move selected to:</span>
+                                <select id="sub-target-playlist-select" class="form-input" style="padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); width: 180px;"></select>
+                                <button class="btn btn-primary" id="btn-sub-batch-move" onclick="triggerSubBatchMove()" style="padding: 10px 16px; font-size: 0.9rem;" disabled>Move</button>
+                                <button class="btn btn-danger" id="btn-sub-batch-delete" onclick="triggerSubBatchDelete()" style="padding: 10px 16px; font-size: 0.9rem;">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Video Table -->
+                    <div class="glass video-table-container" style="min-height: 400px;">
+                        <table class="video-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px; text-align: center;">
+                                        <input type="checkbox" id="select-all-sub-videos" onchange="toggleSelectAllSubVideos(this)">
+                                    </th>
+                                    <th id="th-sub-index" class="sortable" style="width: 50px; text-align: center;" onclick="sortSubVideoTable('index')">#</th>
+                                    <th id="th-sub-title" class="sortable" onclick="sortSubVideoTable('title')">Video Title</th>
+                                    <th id="th-sub-playlist" class="sortable" style="width: 200px;" onclick="sortSubVideoTable('playlist')">Source Playlist</th>
+                                    <th id="th-sub-length" class="sortable" style="width: 100px;" onclick="sortSubVideoTable('length')">Length</th>
+                                    <th id="th-sub-published" class="sortable" style="width: 150px;" onclick="sortSubVideoTable('published')">Published</th>
+                                    <th style="width: 200px; text-align: center;">Move</th>
+                                    <th style="width: 100px; text-align: center;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sub-video-table-body">
+                                <tr><td colspan="8" style="text-align: center; padding: 4rem; color: var(--text-secondary);">Select a channel from the left pane to view videos.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- SETTINGS TAB -->
         <div id="tab-settings" class="tab-content">
             <div class="glass settings-container">
@@ -335,6 +419,39 @@
                 </div>
 
                 <button class="btn btn-primary" style="margin-top: 1rem; width: max-content; padding: 10px 24px;" onclick="saveSettings()">Save Settings</button>
+            </div>
+
+            <!-- Admin Tools -->
+            <div class="glass settings-container" style="margin-top: 1rem;">
+                <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 4px;">🛠️ Admin Tools</h2>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.2rem;">Advanced tools for maintaining the browser automation and API cache.</p>
+
+                <!-- Sync Item IDs -->
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 4px;">🔄 Sync Playlist Item IDs</div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem;">Re-scans all playlists via the YouTube API to populate <code>playlist_item_id</code> values needed for fast API-based video moves. Run this after quota resets (midnight PT) if API moves are failing with "Source item ID not found".</div>
+                        </div>
+                        <button id="sync-item-ids-btn" class="btn btn-primary" style="white-space: nowrap; padding: 8px 18px; min-width: 140px;" onclick="syncPlaylistItemIds()">Sync Now</button>
+                    </div>
+                    <div id="sync-item-ids-result" style="margin-top: 8px; font-size: 0.82rem; display: none;"></div>
+                </div>
+
+                <!-- Import YouTube Cookies -->
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 1rem;">
+                    <div style="font-weight: 600; margin-bottom: 4px;">🍪 Import YouTube Cookies (Browser Login)</div>
+                    <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 10px;">
+                        Paste a Netscape-format <code>cookies.txt</code> file exported from YouTube while logged in. This logs the background browser into YouTube so browser-automation fallback moves work.
+                        <br>Use a browser extension like <strong>Get cookies.txt LOCALLY</strong> on youtube.com, then paste the result here.
+                    </div>
+                    <textarea id="yt-cookies-input" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;1234567890&#9;SID&#9;your-cookie-value..." style="width: 100%; height: 120px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text-primary); padding: 10px; font-family: monospace; font-size: 0.78rem; resize: vertical; box-sizing: border-box;"></textarea>
+                    <div style="display: flex; gap: 10px; margin-top: 8px; align-items: center;">
+                        <button id="import-cookies-btn" class="btn btn-primary" style="padding: 8px 18px;" onclick="importYTCookies()">Import Cookies</button>
+                        <button class="btn btn-secondary" style="padding: 8px 18px;" onclick="document.getElementById('yt-cookies-input').value=''">Clear</button>
+                        <span id="import-cookies-result" style="font-size: 0.82rem; color: var(--text-secondary);"></span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -481,6 +598,29 @@
                         <!-- Loaded dynamically -->
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FOR CREATING CHANNEL MAPPING -->
+    <div id="map-channel-modal" class="modal" onclick="closeMapChannelModal()">
+        <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 450px; width: 90%;">
+            <div class="modal-header">
+                <h3>Map Channel to Playlist</h3>
+                <button class="modal-close" onclick="closeMapChannelModal()">&times;</button>
+            </div>
+            <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                    Create a mapping rule to automatically move all current and future videos from <strong id="map-channel-name" style="color: var(--text-primary);"></strong> to a selected playlist.
+                </p>
+                <div class="form-group">
+                    <label class="form-label" for="map-channel-target-select">Target Playlist</label>
+                    <select id="map-channel-target-select" class="form-input" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px;"></select>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1rem;">
+                    <button class="btn btn-secondary" onclick="closeMapChannelModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveChannelMapping()">Save Mapping</button>
+                </div>
             </div>
         </div>
     </div>

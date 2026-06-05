@@ -322,7 +322,7 @@ class CamofoxDriverWrapper:
                 "userId": self.user_id,
                 "sessionKey": self.session_key
             }
-            r = self.session.post(f"{self.base_url}/tabs", json=payload, timeout=20)
+            r = self.session.post(f"{self.base_url}/tabs", json=payload, timeout=60)
             if r.status_code == 200:
                 data = r.json()
                 self.tab_id = data["tabId"]
@@ -365,7 +365,7 @@ class CamofoxDriverWrapper:
             "userId": self.user_id,
             "url": url
         }
-        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/navigate", json=payload, timeout=40)
+        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/navigate", json=payload, timeout=120)
         if r.status_code != 200:
             print(f"  Camofox navigate failed: {r.status_code} {r.text}")
         self.force_mute()
@@ -415,7 +415,7 @@ class CamofoxDriverWrapper:
             "userId": self.user_id,
             "expression": expr
         }
-        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=20)
+        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=60)
         if r.status_code == 200:
             data = r.json()
             if data.get("ok"):
@@ -444,7 +444,7 @@ class CamofoxDriverWrapper:
             "userId": self.user_id,
             "expression": expr
         }
-        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=20)
+        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=60)
         if r.status_code == 200:
             data = r.json()
             if data.get("ok"):
@@ -1127,6 +1127,15 @@ def move_video(video_url: str, source_playlist_name: str, target_playlist_name: 
                     v.pause();
                 }});
 
+                // 0.5. Detect bot-check wall or sign-in requirement
+                let pageText = document.body ? document.body.innerText : '';
+                if (pageText.includes("Sign in to confirm you're not a bot") || 
+                    pageText.includes("Sign in to add this video to a playlist") ||
+                    document.querySelector('ytd-enforcement-message-view-model') ||
+                    document.querySelector('[data-layer-name="sign-in-to-add-to-playlist-confirmation"]')) {{
+                    return "Browser not logged in: YouTube is showing a sign-in wall. Import YouTube cookies via Settings > Admin Tools.";
+                }}
+
                 // Check if the video is "Made for Kids" or if the Save button is disabled
                 let isKids = Array.from(document.querySelectorAll('*')).some(el => el.textContent && el.textContent.includes("Choices for families"));
                 let container = document.querySelector('ytd-watch-metadata, #top-row, ytd-video-primary-info-renderer') || document;
@@ -1232,6 +1241,8 @@ def move_video(video_url: str, source_playlist_name: str, target_playlist_name: 
         time.sleep(2)
         
         if "Video is marked 'Made for Kids'" in result:
+            raise RuntimeError(result)
+        if "Browser not logged in" in result:
             raise RuntimeError(result)
         if "Dialog not found" in result or "No items found" in result:
             raise RuntimeError(result)
@@ -1434,40 +1445,58 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
         except TimeoutException:
             return []
 
-        # Scroll to the bottom to load all videos
-        print(f"Scrolling to load all videos in {playlist_name_or_url}...")
-        video_count = 0
-        consecutive_same_count = 0
-        while True:
-            # Scroll down and wait
-            driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
-            time.sleep(3)
-            
-            # Force a paint to trigger IntersectionObserver in hidden/offscreen windows
+        # Get initial count of loaded videos
+        initial_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")
+        video_count = len(initial_elements)
+        
+        # If there are fewer than 100 videos initially, they are all loaded on the first page.
+        # Just force a single paint to render lazy elements and skip the scroll loop.
+        if video_count < 100:
             try:
                 if hasattr(driver, 'get_screenshot_as_png'):
                     driver.get_screenshot_as_png()
                 elif hasattr(driver, 'page') and hasattr(driver.page, 'screenshot'):
                     driver.page.screenshot()
             except Exception as pe:
-                print(f"  Warning: failed to force paint: {pe}")
-            time.sleep(2)
-            
-            new_video_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")
-            new_count = len(new_video_elements)
-            print(f"  Found {new_count} videos so far...")
-            
-            if new_count == video_count:
-                consecutive_same_count += 1
-                if consecutive_same_count >= 5: # Increased from 3 to 5 retries
-                    break
-            else:
-                video_count = new_count
-                consecutive_same_count = 0
+                pass
+            time.sleep(1)
+            video_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")
+            video_count = len(video_elements)
+            print(f"  Fewer than 100 videos ({video_count}). Skipping scroll loop.")
+        else:
+            # Scroll to the bottom to load all videos
+            print(f"Scrolling to load all videos in {playlist_name_or_url}...")
+            consecutive_same_count = 0
+            while True:
+                # Scroll down and wait
+                driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
+                time.sleep(3)
                 
-            # Safety break for extremely large playlists
-            if video_count > 2000: # Increased from 1000
-                break
+                # Force a paint to trigger IntersectionObserver in hidden/offscreen windows
+                try:
+                    if hasattr(driver, 'get_screenshot_as_png'):
+                        driver.get_screenshot_as_png()
+                    elif hasattr(driver, 'page') and hasattr(driver.page, 'screenshot'):
+                        driver.page.screenshot()
+                except Exception as pe:
+                    print(f"  Warning: failed to force paint: {pe}")
+                time.sleep(2)
+                
+                new_video_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")
+                new_count = len(new_video_elements)
+                print(f"  Found {new_count} videos so far...")
+                
+                if new_count == video_count:
+                    consecutive_same_count += 1
+                    if consecutive_same_count >= 5: # Increased from 3 to 5 retries
+                        break
+                else:
+                    video_count = new_count
+                    consecutive_same_count = 0
+                    
+                # Safety break for extremely large playlists
+                if video_count > 2000: # Increased from 1000
+                    break
         
         results = []
         video_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")

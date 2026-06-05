@@ -1,7 +1,7 @@
 import os
 import json
 import uvicorn
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -260,6 +260,111 @@ def save_settings(req: SettingsRequest):
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class ImportCookiesRequest(BaseModel):
+    cookies_txt: str  # Netscape-format cookie file content
+
+@app.post("/api/sync-item-ids")
+def sync_playlist_item_ids(background_tasks: BackgroundTasks, user=Depends(get_current_user)):
+    """Trigger a full YouTube API rescan to populate playlist_item_id in the cache."""
+    from core.utils import is_oauth_configured, append_agent_log
+    if not is_oauth_configured():
+        raise HTTPException(status_code=400, detail="OAuth not configured")
+    user_id = user.get("user_id") or user.get("id")
+    
+    def do_sync():
+        import yt_api
+        from core.utils import append_agent_log
+        append_agent_log(f"Starting full playlist item ID sync for user {user_id}...")
+        try:
+            report = yt_api.run_api_scan_and_save(user_id)
+            append_agent_log(f"Sync complete: {len(report)} playlists re-scanned with playlist_item_id.")
+        except Exception as e:
+            append_agent_log(f"Sync failed: {e}")
+    
+    background_tasks.add_task(do_sync)
+    return {"success": True, "message": "Playlist item ID sync started in background. Check logs for progress."}
+
+@app.post("/api/import-yt-cookies")
+def import_yt_cookies(req: ImportCookiesRequest, user=Depends(get_current_user)):
+    """Import Netscape-format YouTube cookies into the Camofox browser session."""
+    import requests as req_lib
+    from core.utils import append_agent_log
+    
+    # Parse Netscape cookie format
+    cookies = []
+    for line in req.cookies_txt.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") and not line.startswith("#HttpOnly_"):
+            continue
+        http_only = False
+        if line.startswith("#HttpOnly_"):
+            http_only = True
+            line = line[len("#HttpOnly_"):]
+        parts = line.split("\t")
+        if len(parts) < 7:
+            continue
+        domain = parts[0]
+        cookie_path = parts[2]
+        secure = parts[3].upper() == "TRUE"
+        try:
+            expires = float(parts[4])
+        except:
+            expires = -1
+        name = parts[5]
+        value = "\t".join(parts[6:])
+        cookies.append({
+            "name": name,
+            "value": value,
+            "domain": domain,
+            "path": cookie_path,
+            "expires": expires,
+            "httpOnly": http_only,
+            "secure": secure,
+        })
+    
+    if not cookies:
+        raise HTTPException(status_code=400, detail="No valid cookies found in the provided text.")
+    
+    # Filter to YouTube/Google cookies only
+    yt_cookies = [c for c in cookies if any(x in c["domain"] for x in ["youtube", "google", "goog"])]
+    if not yt_cookies:
+        raise HTTPException(status_code=400, detail="No YouTube/Google cookies found. Make sure to export cookies from youtube.com.")
+    
+    # Import into Camofox
+    camofox_url = "http://localhost:9377"
+    camofox_user_id = "yt_playlist_agent_default"
+    headers = {"Authorization": "Bearer my_secret_cookie_key", "Content-Type": "application/json"}
+    
+    try:
+        resp = req_lib.post(
+            f"{camofox_url}/sessions/{camofox_user_id}/cookies",
+            headers=headers,
+            json={"cookies": yt_cookies},
+            timeout=30
+        )
+        if not resp.ok:
+            raise HTTPException(status_code=500, detail=f"Camofox cookie import failed: {resp.status_code} {resp.text}")
+    except req_lib.exceptions.ConnectionError:
+        raise HTTPException(status_code=503, detail="Camofox browser service is not running. Check that the camofox PM2 service is up.")
+    
+    # Save to ~/.camofox/cookies/cookies.txt for persistence on restart
+    try:
+        cookies_dir = os.path.expanduser("~/.camofox/cookies")
+        os.makedirs(cookies_dir, exist_ok=True)
+        cookies_file = os.path.join(cookies_dir, "cookies.txt")
+        with open(cookies_file, "w", encoding="utf-8") as f:
+            f.write("# Netscape HTTP Cookie File\n")
+            for c in yt_cookies:
+                http_only_prefix = "#HttpOnly_" if c.get("httpOnly") else ""
+                secure_str = "TRUE" if c.get("secure") else "FALSE"
+                exp = int(c.get("expires", -1)) if c.get("expires", -1) > 0 else 0
+                f.write(f"{http_only_prefix}{c['domain']}\tTRUE\t{c['path']}\t{secure_str}\t{exp}\t{c['name']}\t{c['value']}\n")
+    except Exception as e:
+        append_agent_log(f"Warning: Could not save cookies to disk: {e}")
+    
+    append_agent_log(f"Imported {len(yt_cookies)} YouTube/Google cookies into Camofox browser session.")
+    return {"success": True, "message": f"Successfully imported {len(yt_cookies)} cookies into the browser session.", "count": len(yt_cookies)}
 
 # Mount static files (must be after endpoints to avoid shadowing)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
