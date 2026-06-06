@@ -327,6 +327,26 @@ class CamofoxDriverWrapper:
                 data = r.json()
                 self.tab_id = data["tabId"]
                 print(f"  Camofox: Created new tab {self.tab_id}")
+                
+                # Automatically import saved cookies if cookies.json exists
+                try:
+                    cookies_path = os.path.expanduser("~/.camofox/cookies/cookies.json")
+                    if os.path.exists(cookies_path):
+                        print("  Camofox: Loading persisted cookies from cookies.json...")
+                        with open(cookies_path, "r", encoding="utf-8") as f:
+                            saved_cookies = json.load(f)
+                        if saved_cookies:
+                            cr = self.session.post(
+                                f"{self.base_url}/sessions/{self.user_id}/cookies",
+                                json={"cookies": saved_cookies},
+                                timeout=30
+                            )
+                            if cr.status_code == 200:
+                                print(f"  Camofox: Successfully auto-imported {len(saved_cookies)} cookies into new session.")
+                            else:
+                                print(f"  Camofox: Failed to auto-import cookies: {cr.status_code} {cr.text}")
+                except Exception as ce:
+                    print(f"  Camofox: Warning: Error auto-loading saved cookies: {ce}")
             else:
                 raise RuntimeError(f"Failed to create Camofox tab: {r.status_code} {r.text}")
         except Exception as e:

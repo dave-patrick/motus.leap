@@ -348,10 +348,12 @@ def import_yt_cookies(req: ImportCookiesRequest, user=Depends(get_current_user))
     except req_lib.exceptions.ConnectionError:
         raise HTTPException(status_code=503, detail="Camofox browser service is not running. Check that the camofox PM2 service is up.")
     
-    # Save to ~/.camofox/cookies/cookies.txt for persistence on restart
+    # Save to ~/.camofox/cookies/cookies.txt and cookies.json for persistence on restart
     try:
         cookies_dir = os.path.expanduser("~/.camofox/cookies")
         os.makedirs(cookies_dir, exist_ok=True)
+        
+        # Save cookies.txt
         cookies_file = os.path.join(cookies_dir, "cookies.txt")
         with open(cookies_file, "w", encoding="utf-8") as f:
             f.write("# Netscape HTTP Cookie File\n")
@@ -360,14 +362,38 @@ def import_yt_cookies(req: ImportCookiesRequest, user=Depends(get_current_user))
                 secure_str = "TRUE" if c.get("secure") else "FALSE"
                 exp = int(c.get("expires", -1)) if c.get("expires", -1) > 0 else 0
                 f.write(f"{http_only_prefix}{c['domain']}\tTRUE\t{c['path']}\t{secure_str}\t{exp}\t{c['name']}\t{c['value']}\n")
+                
+        # Save cookies.json
+        json_file = os.path.join(cookies_dir, "cookies.json")
+        with open(json_file, "w", encoding="utf-8") as f:
+            json.dump(yt_cookies, f, indent=2)
     except Exception as e:
         append_agent_log(f"Warning: Could not save cookies to disk: {e}")
     
     append_agent_log(f"Imported {len(yt_cookies)} YouTube/Google cookies into Camofox browser session.")
     return {"success": True, "message": f"Successfully imported {len(yt_cookies)} cookies into the browser session.", "count": len(yt_cookies)}
 
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0"
+}
+
+@app.get("/static/app.js")
+def serve_app_js():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "app.js"), headers=NO_CACHE_HEADERS, media_type="application/javascript")
+
+@app.get("/static/index.html")
+def serve_index_html():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "index.html"), headers=NO_CACHE_HEADERS)
+
+@app.get("/static/style-v2.css")
+def serve_style_v2():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "style-v2.css"), headers=NO_CACHE_HEADERS, media_type="text/css")
+
 # Mount static files (must be after endpoints to avoid shadowing)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
