@@ -21,14 +21,13 @@ def run_home(payload: dict[str, Any] | None) -> str:
     return "home ok"
 
 
+from tube_manager.youtube_actions import execute as execute_youtube
+
+
 HANDLERS = {
     "generic": run_generic,
     "research": run_research,
     "code": run_code,
     "home": run_home,
+    "youtube": execute_youtube,
 }
-
-
-def execute(task_type: str, payload: dict[str, Any] | None) -> str:
-    handler = HANDLERS[task_type]
-    return handler(payload)
