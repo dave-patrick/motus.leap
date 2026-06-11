@@ -86,8 +86,8 @@ class TubeManager:
         outcome = results.get(task_id, "error: unknown")
 
         if not outcome.startswith("error:"):
-            outcome = "completed"
+            status = "completed"
         else:
-            outcome = "failed: " + outcome
+            status = "failed: " + outcome
 
-        return self.update_task(task_id=task_id, status=outcome)
+        return self.update_task(task_id=task_id, status=status)

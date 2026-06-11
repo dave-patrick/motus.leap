@@ -1,6 +1,7 @@
 
-# tube-manager
-Tube Manager is a unified tooling project for organizing and operating a local automation stack.
+# Tube Manager
+
+A playlist-backed saved-video manager with Google/Youtube-style task flows.
 
 ## Repo layout
 - `tube_manager/` — app source package
