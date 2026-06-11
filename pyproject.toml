@@ -2,13 +2,21 @@
 name = "tube-manager"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["pyyaml", "click", "fastapi", "uvicorn[standard]"]
+dependencies = [
+  "pyyaml",
+  "click",
+  "fastapi",
+  "uvicorn[standard]",
+  "pydantic>=2",
+  "httpx",
+]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "pytest-asyncio"]
 
 [project.scripts]
 tube = "tube_manager.cli:cli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
