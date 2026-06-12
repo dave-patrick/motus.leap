@@ -433,7 +433,7 @@ async def startup_event():
 
 @app.get("/")
 async def index():
-    return no_cache_file_response(WEB_DIR / "index.html")
+    return no_cache_file_response(WEB_DIR / "dashboard.html")
 
 
 @app.get("/playlists")
