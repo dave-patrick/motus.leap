@@ -696,4 +696,11 @@ async def yt_create_playlist(body: dict[str, Any]) -> dict[str, Any]:
 
 def _get_youtube_client() -> Any:
     from tube_manager.google import YouTubeClient
-    return YouTubeClient()
+    return YouTubeClient(
+        api_key=APP_CONFIG.get("youtube_api_key"),
+        oauth_access_token=APP_CONFIG.get("youtube_access_token"),
+        oauth_refresh_token=APP_CONFIG.get("youtube_refresh_token"),
+        oauth_client_id=APP_CONFIG.get("oauth_client_id"),
+        oauth_client_secret=APP_CONFIG.get("oauth_client_secret"),
+        token_expiry=APP_CONFIG.get("youtube_token_expiry"),
+    )

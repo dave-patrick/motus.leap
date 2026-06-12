@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 try:
@@ -15,26 +16,108 @@ from tube_manager.youtube_actions import execute as browser_execute
 
 
 class YouTubeClient:
-    def __init__(self, api_key: str | None = None, oauth_credentials: Any | None = None):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        oauth_access_token: str | None = None,
+        oauth_refresh_token: str | None = None,
+        oauth_client_id: str | None = None,
+        oauth_client_secret: str | None = None,
+        token_expiry: int | None = None,
+    ):
         self.api_key = api_key or os.getenv("YOUTUBE_API_KEY", "")
-        self.browser_available = False
+        self.oauth_access_token = oauth_access_token
+        self.oauth_refresh_token = oauth_refresh_token
+        self.oauth_client_id = oauth_client_id
+        self.oauth_client_secret = oauth_client_secret
+        self.token_expiry = token_expiry or 0
+        
         self._youtube = None
+        self._youtube_oauth = None
+        
+        # Build API key client for public operations
         if build is not None and self.api_key:
             try:
                 self._youtube = build("youtube", "v3", developerKey=self.api_key, cache_discovery=False)
             except Exception:
                 self._youtube = None
 
+    def _ensure_oauth_client(self) -> bool:
+        """Build OAuth-authenticated YouTube client if credentials available."""
+        if self._youtube_oauth is not None:
+            # Check if token needs refresh
+            if time.time() >= self.token_expiry - 60:  # Refresh 60s before expiry
+                return self._refresh_access_token()
+            return True
+            
+        if not self.oauth_access_token or not self.oauth_refresh_token:
+            return False
+            
+        if build is None:
+            return False
+            
+        try:
+            from google.oauth2.credentials import Credentials
+            creds = Credentials(
+                token=self.oauth_access_token,
+                refresh_token=self.oauth_refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=self.oauth_client_id,
+                client_secret=self.oauth_client_secret,
+            )
+            self._youtube_oauth = build("youtube", "v3", credentials=creds, cache_discovery=False)
+            return True
+        except Exception:
+            self._youtube_oauth = None
+            return False
+
+    def _refresh_access_token(self) -> bool:
+        """Refresh OAuth access token using refresh token."""
+        if not self.oauth_refresh_token or not self.oauth_client_id or not self.oauth_client_secret:
+            return False
+            
+        import httpx
+        try:
+            data = {
+                "client_id": self.oauth_client_id,
+                "client_secret": self.oauth_client_secret,
+                "refresh_token": self.oauth_refresh_token,
+                "grant_type": "refresh_token",
+            }
+            resp = httpx.post("https://oauth2.googleapis.com/token", data=data, timeout=30.0)
+            resp.raise_for_status()
+            tokens = resp.json()
+            
+            self.oauth_access_token = tokens.get("access_token")
+            expires_in = tokens.get("expires_in", 3600)
+            self.token_expiry = int(time.time()) + expires_in
+            
+            # Rebuild OAuth client with new token
+            self._youtube_oauth = None
+            return self._ensure_oauth_client()
+        except Exception:
+            return False
+
+    def _get_client(self, require_oauth: bool = False):
+        """Get appropriate YouTube client."""
+        if require_oauth:
+            if self._ensure_oauth_client():
+                return self._youtube_oauth
+            return None
+        return self._youtube or (self._ensure_oauth_client() and self._youtube_oauth)
+
     # Read -----------------------------------------------------------
     def get_playlist(self, playlist_id: str) -> dict[str, Any]:
-        if not self._youtube:
+        client = self._get_client()
+        if not client:
             return self._browser_fallback("get_playlist", {"playlist_id": playlist_id})
-        return self._youtube.playlists().list(part="snippet,contentDetails", id=playlist_id).execute()
+        return client.playlists().list(part="snippet,contentDetails", id=playlist_id).execute()
 
     def list_videos(self, playlist_id: str, page_token: str | None = None, max_results: int = 50) -> dict[str, Any]:
-        if not self._youtube:
+        client = self._get_client()
+        if not client:
             return self._browser_fallback("list_videos", {"playlist_id": playlist_id, "page_token": page_token, "max_results": max_results})
-        return self._youtube.playlistItems().list(
+        return client.playlistItems().list(
             part="snippet,contentDetails",
             playlistId=playlist_id,
             maxResults=max_results,
@@ -42,14 +125,17 @@ class YouTubeClient:
         ).execute()
 
     def get_video(self, video_id: str) -> dict[str, Any]:
-        if not self._youtube:
+        client = self._get_client()
+        if not client:
             return self._browser_fallback("get_video", {"video_id": video_id})
-        return self._youtube.videos().list(part="snippet,contentDetails,status", id=video_id).execute()
+        return client.videos().list(part="snippet,contentDetails,status", id=video_id).execute()
 
     def list_mine_playlists(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
-        if not self._youtube:
+        """List user's playlists (requires OAuth)."""
+        client = self._get_client(require_oauth=True)
+        if not client:
             return self._browser_fallback("list_mine_playlists", {"max_results": max_results, "page_token": page_token})
-        return self._youtube.playlists().list(
+        return client.playlists().list(
             part="snippet,contentDetails",
             mine=True,
             maxResults=max_results,
@@ -57,13 +143,18 @@ class YouTubeClient:
         ).execute()
 
     def list_mine_channels(self) -> dict[str, Any]:
-        if not self._youtube:
+        """List user's channels (requires OAuth)."""
+        client = self._get_client(require_oauth=True)
+        if not client:
             return self._browser_fallback("list_mine_channels", {})
-        return self._youtube.channels().list(part="snippet,contentDetails", mine=True).execute()
+        return client.channels().list(part="snippet,contentDetails", mine=True).execute()
+
     def watch_later(self) -> dict[str, Any]:
-        if not self._youtube:
+        """Get Watch Later playlist (requires OAuth)."""
+        client = self._get_client(require_oauth=True)
+        if not client:
             return self._browser_fallback("watch_later", {})
-        resp = self._youtube.channels().list(part="contentDetails", mine=True).execute()
+        resp = client.channels().list(part="contentDetails", mine=True).execute()
         items = resp.get("items", [])
         if not items:
             return {}
