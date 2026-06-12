@@ -1,4 +1,11 @@
-<!DOCTYPE html>
+"""Modern UI for Tube Manager - Matt Black + Blue Coporscheem."""
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def build() -> str:
+    return """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -6,13 +13,15 @@
   <title>Tube Manager</title>
   <style>
     :root {
-      --bg: #0c0f14;
-      --surface: #14181f;
-      --panel: #1a1f29;
-      --accent: #5c6fd6;
-      --text: #e7eaf0;
-      --muted: #8d95a8;
-      --border: #232936;
+      --bg: #04060b;
+      --surface: #0a0e17;
+      --panel: #0f1520;
+      --accent-low: #1b2a5a;
+      --accent: #2648c3;
+      --accent-2: #3066ff;
+      --text: #edf2ff;
+      --muted: #7b8bb5;
+      --border: #172033;
     }
     * { box-sizing: border-box; }
     html, body {
@@ -22,19 +31,19 @@
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
-    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 28px; }
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 24px;
+      margin-bottom: 28px;
     }
-    h1 { font-size: 22px; font-weight: 700; margin: 0; }
+    h1 { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: 0.4px; }
     .bar {
       display: flex;
-      gap: 12px;
+      gap: 14px;
       align-items: center;
-      margin-bottom: 18px;
+      margin-bottom: 20px;
       flex-wrap: wrap;
     }
     input, select, button, textarea {
@@ -42,43 +51,47 @@
       border: 1px solid var(--border);
       color: var(--text);
       padding: 10px 12px;
-      border-radius: 8px;
+      border-radius: 10px;
       font: inherit;
     }
     button { cursor: pointer; }
-    button.primary { background: var(--accent); border-color: var(--accent); }
+    button.primary { background: linear-gradient(180deg, var(--accent), var(--accent-2)); border-color: var(--accent-2); color: #fff; font-weight: 600; }
     .grid {
       display: grid;
       grid-template-columns: 1fr;
       gap: 14px;
     }
-    @media (min-width: 860px) {
+    @media (min-width: 900px) {
       .grid { grid-template-columns: 1fr 1fr 1fr; }
     }
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 14px;
+      transition: transform 120ms ease;
     }
     .meta { color: var(--muted); font-size: 13px; }
-    .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    .row { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
     .toolbar {
       display: flex;
-      gap: 10px;
+      gap: 12px;
       align-items: center;
       flex-wrap: wrap;
       justify-content: space-between;
     }
     .pill {
       display: inline-block;
-      padding: 4px 10px;
+      padding: 5px 12px;
       border-radius: 999px;
-      background: #1f2533;
+      background: var(--panel);
       border: 1px solid var(--border);
       font-size: 13px;
+      color: var(--text);
+      user-select: none;
     }
+    .pill.active { outline: 2px solid var(--accent-2); }
     details.detail {
       margin-top: 10px;
       background: var(--panel);
@@ -87,33 +100,23 @@
       padding: 10px 12px;
     }
     details.detail summary { cursor: pointer; color: var(--muted); }
-    pre { white-space: pre-wrap; word-wrap: break-word; background: #0e1118; padding: 10px; border-radius: 8px; overflow: auto; }
+    pre { white-space: pre-wrap; word-wrap: break-word; background: #090d18; padding: 12px; border-radius: 10px; overflow: auto; }
     .empty {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 18px;
       color: var(--muted);
     }
-    .counters {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
+    .counters { display: flex; gap: 10px; flex-wrap: wrap; }
     .counters .pill { cursor: pointer; }
-    .counters .pill.active { outline: 2px solid var(--accent); }
+    footer { margin-top: 24px; color: var(--muted); font-size: 13px; }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Tube Manager</h1>
-      <div class="row">
-        <span class="meta" id="connectionStatus">Ready</span>
-        <button id="refresh" class="primary">Refresh</button>
-      </div>
     </header>
-
     <div class="bar">
       <div class="counters" id="statusPills">
         <span class="pill active" data-status="">All</span>
@@ -124,12 +127,11 @@
       </div>
       <input id="search" placeholder="Search by title or id" />
     </div>
-
     <div class="card">
       <div class="row">
         <div>
           <strong>New task</strong>
-          <div class="meta">Create and queue a task. Use Smart action for YouTube.</div>
+          <div class="meta">Create and queue a task.</div>
         </div>
       </div>
       <div class="row" style="margin-top:12px;">
@@ -144,34 +146,30 @@
         <input id="newPriority" placeholder="priority: low|medium|high" />
       </div>
       <div class="row" style="margin-top:10px;">
-        <textarea id="newPayload" rows="2" placeholder='Optional JSON payload'></textarea>
+        <textarea id="newPayload" rows="2" placeholder="Optional JSON payload"></textarea>
         <button id="create" class="primary">Create</button>
       </div>
     </div>
-
     <div class="grid" id="taskList"></div>
   </div>
 
   <script>
     const API = "";
-
     async function api(path, opts = {}) {
       const res = await fetch(API + path, { ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) } });
       if (!res.ok) throw new Error(await res.text());
       const text = await res.text();
       return text ? JSON.parse(text) : null;
     }
-
     async function loadTasks() {
-      const status = document.getElementById("statusFilter").value;
       const q = document.getElementById("search").value.trim().toLowerCase();
-      const url = "/tasks" + (status ? `?status=${encodeURIComponent(status)}` : "");
-      const data = await api(url);
+      const data = await api("/tasks");
       let tasks = data.tasks || [];
+      const status = document.getElementById("statusFilter") && document.getElementById("statusFilter").value;
+      if (status) tasks = tasks.filter(t => t.status === status);
       if (q) tasks = tasks.filter(t => ((t.title || "") + " " + (t.id || "")).toLowerCase().includes(q));
       render(tasks);
     }
-
     function render(tasks) {
       const root = document.getElementById("taskList");
       root.innerHTML = "";
@@ -183,21 +181,17 @@
         const card = document.createElement("div");
         card.className = "card";
         const payloadText = t.payload ? JSON.stringify(t.payload, null, 2) : "";
-        const created = t.created_at || "";
-        const updated = t.updated_at || "";
-        const status = t.status || "";
-        const kind = t.type || "";
         card.innerHTML = `
           <div class="row">
             <div>
               <strong>${escapeHtml(t.title)}</strong>
-              <div class="meta">${escapeHtml(t.id)} • ${escapeHtml(kind)} • ${escapeHtml(status)}</div>
+              <div class="meta">${escapeHtml(t.id)} • ${escapeHtml(t.type)} • ${escapeHtml(t.status)}</div>
             </div>
             <span class="pill">${escapeHtml(String(t.priority || ""))}</span>
           </div>
           ${payloadText ? `<details class="detail"><summary>Payload</summary><pre>${escapeHtml(payloadText)}</pre></details>` : ""}
           <div class="row">
-            <span class="meta">created ${escapeHtml(created)} • updated ${escapeHtml(updated)}</span>
+            <span class="meta">${escapeHtml(t.created_at || "")} • ${escapeHtml(t.updated_at || "")}</span>
             <div class="actions">
               <button data-act="run" data-id="${escapeHtml(t.id)}">Run</button>
               <button data-act="delete" data-id="${escapeHtml(t.id)}">Delete</button>
@@ -207,11 +201,9 @@
         root.appendChild(card);
       }
     }
-
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);
     }
-
     document.getElementById("taskList").addEventListener("click", async (e) => {
       const btn = e.target.closest("button");
       if (!btn) return;
@@ -224,7 +216,6 @@
         await loadTasks();
       }
     });
-
     document.getElementById("create").addEventListener("click", async () => {
       const title = document.getElementById("newTitle").value.trim();
       const task_type = document.getElementById("newType").value;
@@ -241,19 +232,24 @@
       document.getElementById("newPayload").value = "";
       await loadTasks();
     });
-
-    document.getElementById("refresh").addEventListener("click", loadTasks);
     document.getElementById("search").addEventListener("input", loadTasks);
     document.getElementById("statusPills").addEventListener("click", async (e) => {
       const pill = e.target.closest(".pill");
       if (!pill) return;
       document.querySelectorAll("#statusPills .pill").forEach(el => el.classList.remove("active"));
       pill.classList.add("active");
+      const prev = document.getElementById("statusFilter");
+      if (!prev) {
+        const input = document.createElement("input");
+        input.id = "statusFilter";
+        input.type = "hidden";
+        document.querySelector(".toolbar").appendChild(input);
+      }
       document.getElementById("statusFilter").value = pill.dataset.status || "";
       await loadTasks();
     });
-
     loadTasks();
   </script>
 </body>
 </html>
+"""
