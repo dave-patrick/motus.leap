@@ -1,12 +1,1 @@
-"""tube_manager core scaffold."""
-
-
-from importlib.metadata import PackageNotFoundError, version
-
-try:
-    __version__ = version("tube-manager")
-except PackageNotFoundError:  # editable installs / missing metadata
-    __version__ = "0.1.0"
-
-
-__all__ = ["__version__"]
+"""Tube Manager package."""
