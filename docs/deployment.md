@@ -23,7 +23,8 @@ See `docs/deployment/docker-compose.yml`.
 
 ## Reverse proxy (recommended)
 - nginx or Caddy on port 80/443
-- Proxy `/` to `http://127.0.0.1:8000`
+- Tunnel target should be the Oracle public IP: `161.115.18.209:8000`
+- Public endpoint example: `https://<subdomain>.ngrok-free.app -> http://161.115.18.209:8000`
 - Terminate TLS with Let's Encrypt if public access is required
 
 ## Env/config
