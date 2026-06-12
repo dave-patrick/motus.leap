@@ -356,14 +356,54 @@ async def action_status():
 @app.websocket("/ws/terminal")
 async def websocket_terminal(websocket: WebSocket):
     await manager.connect(websocket)
+    ping_interval = 30  # seconds
+    pong_timeout = 10   # seconds
+    max_ping_failures = 3
+    ping_failures = 0
+    
     try:
         await websocket.send_text(json.dumps({"type": "log", "message": "[WS] Connected to agent terminal"}))
+        
+        # Start ping task
+        async def ping_loop():
+            nonlocal ping_failures
+            while True:
+                await asyncio.sleep(ping_interval)
+                try:
+                    await websocket.send_text(json.dumps({"type": "ping"}))
+                    # Wait for pong with timeout
+                    try:
+                        data = await asyncio.wait_for(websocket.receive_text(), timeout=pong_timeout)
+                        msg = json.loads(data)
+                        if msg.get("type") == "pong":
+                            ping_failures = 0
+                        else:
+                            ping_failures += 1
+                    except asyncio.TimeoutError:
+                        ping_failures += 1
+                    
+                    if ping_failures >= max_ping_failures:
+                        await manager.broadcast(json.dumps({"type": "log", "message": "[WS] Connection lost - max ping failures reached"}))
+                        break
+                except Exception:
+                    break
+        
+        ping_task = asyncio.create_task(ping_loop())
+        
         while True:
             data = await websocket.receive_text()
             msg = json.loads(data)
             if msg.get("type") == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
+            elif msg.get("type") == "pong":
+                ping_failures = 0
+                
     except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        await manager.broadcast(json.dumps({"type": "log", "message": f"[WS ERROR] {str(e)}"}))
+    finally:
+        ping_task.cancel()
         manager.disconnect(websocket)
 
 
