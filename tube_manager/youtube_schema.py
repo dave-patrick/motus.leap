@@ -12,18 +12,18 @@ class Video(BaseModel):
     video_id: str
     title: str
     channel_id: str
-    channel_title: str | None = None
-    description: str | None = None
-    thumbnails: dict[str, Any] | None = None
-    duration_seconds: int | None = None
-    published_at: str | None = None
+    channel_title: Optional[str] = None
+    description: Optional[str] = None
+    thumbnails: Optional[dict[str, Any]] = None
+    duration_seconds: Optional[int] = None
+    published_at: Optional[str] = None
 
 
 class Playlist(BaseModel):
     playlist_id: str
     title: str
-    description: str | None = None
-    item_count: int | None = None
+    description: Optional[str] = None
+    item_count: Optional[int] = None
     videos: list[Video] = Field(default_factory=list)
 
 
@@ -33,14 +33,13 @@ class SavedVideo(BaseModel):
     channel_id: str
     added_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     status: str = "saved"
-    notes: str | None = None
+    notes: Optional[str] = None
 
 
 class YouTubeTask(BaseModel):
     task_id: str
     kind: str = "youtube"
     action: str = Field(..., description="sync|playlist|watchlater")
-    target: str | None = Field(None, description="playlist_id or watch-later token")
-    result: dict[str, Any] | None = None
+    target: Optional[str] = Field(None, description="playlist_id or watch-later token")
+    result: Optional[dict[str, Any]] = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-

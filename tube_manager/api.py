@@ -1,20 +1,16 @@
 """Tube Manager API."""
 from __future__ import annotations
 
-from __future__ import annotations
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from tube_manager.service import TubeManager
 
-
 api = FastAPI(title="Tube Manager API")
 
-_store: TubeManager | None = None
+_store: Optional[TubeManager] = None
 
 
 def get_store() -> TubeManager:
@@ -27,18 +23,18 @@ def get_store() -> TubeManager:
 class TaskIn(BaseModel):
     title: str
     task_type: str
-    priority: str | None = None
-    payload: dict[str, Any] | None = None
+    priority: Optional[str] = None
+    payload: Optional[dict[str, Any]] = None
 
 
 class TaskUpdate(BaseModel):
-    status: str | None = None
-    priority: str | None = None
-    payload: dict[str, Any] | None = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    payload: Optional[dict[str, Any]] = None
 
 
 @api.get("/tasks")
-def list_tasks(status: str | None = None):
+def list_tasks(status: Optional[str] = None):
     store = get_store()
     items = store.list_tasks(status=status)
     return {"tasks": items}
@@ -93,9 +89,3 @@ async def run_task(task_id: str):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return task
-
-
-@api.get("/", response_class=HTMLResponse)
-async def web_ui(request: Request):
-    html = Path("web/index.html").read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
