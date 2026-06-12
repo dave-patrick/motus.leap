@@ -47,7 +47,12 @@
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client Secret</label>
-                                <input type="password" id="oauth-client-secret" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="••••••••">
+                                <div class="relative">
+                                    <input type="password" id="oauth-client-secret" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none pr-10" placeholder="••••••••">
+                                    <button type="button" onclick="toggleSecretVisibility('oauth-client-secret', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors" title="Show/Hide secret">
+                                        <i class="fa-solid fa-eye" id="oauth-secret-eye"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="pt-2 border-t border-[#2a2f3a] space-y-3">
                                 <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded"><i class="fa-solid fa-floppy-disk mr-2"></i>Save All Settings</button>
@@ -201,6 +206,20 @@
             } catch (e) {
                 status.textContent = 'Error: ' + e.message;
                 status.className = 'text-[10px] text-red-400 text-center mt-2';
+            }
+        }
+
+        function toggleSecretVisibility(inputId, button) {
+            const input = document.getElementById(inputId);
+            const icon = button.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
             }
         }
         
