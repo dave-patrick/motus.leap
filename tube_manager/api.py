@@ -4,7 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from tube_manager.service import TubeManager
@@ -91,3 +93,9 @@ async def run_task(task_id: str):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return task
+
+
+@api.get("/", response_class=HTMLResponse)
+async def web_ui(request: Request):
+    html = Path("web/index.html").read_text(encoding="utf-8")
+    return HTMLResponse(content=html)
