@@ -7,11 +7,11 @@ services:
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11
+        value: "3.11"
       - key: YOUTUBE_API_KEY
         sync: false
       - key: DEPLOY_VERSION
-        value: "2026-06-12-v4"
+        value: "2026-06-12-v5"
     disk:
       name: tube-data
       mountPath: /app/data
