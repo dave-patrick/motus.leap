@@ -412,9 +412,9 @@ async def startup_event():
 
 # Page routes - serve HTML files on demand ---------------------------------
 
-@app.get("/")
+@app.get("/", response_class=FileResponse)
 async def index():
-    return FileResponse(WEB_DIR / "index.html")
+    return WEB_DIR / "index.html"
 
 
 @app.get("/playlists", response_class=FileResponse)
