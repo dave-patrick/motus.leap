@@ -1,5 +1,7 @@
 """Task handlers mapped by task type for Tube Manager."""
 
+from __future__ import annotations
+
 from typing import Any
 
 
