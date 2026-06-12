@@ -39,10 +39,7 @@
                         <div class="space-y-4">
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">API Key</label>
-                                <div class="flex gap-2">
-                                    <input type="password" id="yt-api-key" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="Enter API key">
-                                    <button onclick="saveSettings()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-2 rounded">Save</button>
-                                </div>
+                                <input type="password" id="yt-api-key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="Enter API key">
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client ID</label>
@@ -56,9 +53,10 @@
                                 <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="api-first" class="accent-blue-500" checked> Use API-first mode (fallback to headless)</label>
                                 <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-refresh" class="accent-blue-500" checked> Auto-refresh tokens</label>
                             </div>
-                            <div class="pt-2 border-t border-[#2a2f3a]">
-                                <button onclick="connectYouTube()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded"><i class="fa-brands fa-youtube mr-2"></i>Connect YouTube Account (OAuth)</button>
-                                <div id="yt-status" class="text-[10px] text-gray-400 text-center mt-2"></div>
+                            <div class="pt-2 border-t border-[#2a2f3a] space-y-3">
+                                <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded"><i class="fa-solid fa-floppy-disk mr-2"></i>Save All Settings</button>
+                                <button onclick="connectYouTube()" class="w-full bg-[#c8102e] hover:bg-[#b00f2a] text-white text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-brands fa-youtube"></i> Connect YouTube Account (OAuth)</button>
+                                <div id="yt-status" class="text-[10px] text-gray-400 text-center"></div>
                             </div>
                         </div>
                     </div>
