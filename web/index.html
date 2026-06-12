@@ -1,255 +1,359 @@
-"""Modern UI for Tube Manager - Matt Black + Blue Coporscheem."""
-from __future__ import annotations
-
-from pathlib import Path
-
-
-def build() -> str:
-    return """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tube Manager</title>
-  <style>
-    :root {
-      --bg: #04060b;
-      --surface: #0a0e17;
-      --panel: #0f1520;
-      --accent-low: #1b2a5a;
-      --accent: #2648c3;
-      --accent-2: #3066ff;
-      --text: #edf2ff;
-      --muted: #7b8bb5;
-      --border: #172033;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    }
-    .container { max-width: 1200px; margin: 0 auto; padding: 28px; }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 28px;
-    }
-    h1 { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: 0.4px; }
-    .bar {
-      display: flex;
-      gap: 14px;
-      align-items: center;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-    input, select, button, textarea {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 10px 12px;
-      border-radius: 10px;
-      font: inherit;
-    }
-    button { cursor: pointer; }
-    button.primary { background: linear-gradient(180deg, var(--accent), var(--accent-2)); border-color: var(--accent-2); color: #fff; font-weight: 600; }
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-    }
-    @media (min-width: 900px) {
-      .grid { grid-template-columns: 1fr 1fr 1fr; }
-    }
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-      transition: transform 120ms ease;
-    }
-    .meta { color: var(--muted); font-size: 13px; }
-    .row { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-    .toolbar {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      flex-wrap: wrap;
-      justify-content: space-between;
-    }
-    .pill {
-      display: inline-block;
-      padding: 5px 12px;
-      border-radius: 999px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      font-size: 13px;
-      color: var(--text);
-      user-select: none;
-    }
-    .pill.active { outline: 2px solid var(--accent-2); }
-    details.detail {
-      margin-top: 10px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-    }
-    details.detail summary { cursor: pointer; color: var(--muted); }
-    pre { white-space: pre-wrap; word-wrap: break-word; background: #090d18; padding: 12px; border-radius: 10px; overflow: auto; }
-    .empty {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
-      color: var(--muted);
-    }
-    .counters { display: flex; gap: 10px; flex-wrap: wrap; }
-    .counters .pill { cursor: pointer; }
-    footer { margin-top: 24px; color: var(--muted); font-size: 13px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YT Playlist Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Bento Box Styling */
+        .bento-card {
+            background-color: #1a1d24;
+            border: 1px solid #2a2f3a;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    </style>
 </head>
-<body>
-  <div class="container">
-    <header>
-    </header>
-    <div class="bar">
-      <div class="counters" id="statusPills">
-        <span class="pill active" data-status="">All</span>
-        <span class="pill" data-status="pending">Pending</span>
-        <span class="pill" data-status="running">Running</span>
-        <span class="pill" data-status="completed">Completed</span>
-        <span class="pill" data-status="failed">Failed</span>
-      </div>
-      <input id="search" placeholder="Search by title or id" />
-    </div>
-    <div class="card">
-      <div class="row">
-        <div>
-          <strong>New task</strong>
-          <div class="meta">Create and queue a task.</div>
-        </div>
-      </div>
-      <div class="row" style="margin-top:12px;">
-        <input id="newTitle" placeholder="Title" />
-        <select id="newType">
-          <option value="generic">generic</option>
-          <option value="youtube">youtube</option>
-          <option value="playlist">playlist</option>
-          <option value="home">home</option>
-          <option value="code">code</option>
-        </select>
-        <input id="newPriority" placeholder="priority: low|medium|high" />
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <textarea id="newPayload" rows="2" placeholder="Optional JSON payload"></textarea>
-        <button id="create" class="primary">Create</button>
-      </div>
-    </div>
-    <div class="grid" id="taskList"></div>
-  </div>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
 
-  <script>
-    const API = "";
-    async function api(path, opts = {}) {
-      const res = await fetch(API + path, { ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) } });
-      if (!res.ok) throw new Error(await res.text());
-      const text = await res.text();
-      return text ? JSON.parse(text) : null;
-    }
-    async function loadTasks() {
-      const q = document.getElementById("search").value.trim().toLowerCase();
-      const data = await api("/tasks");
-      let tasks = data.tasks || [];
-      const status = document.getElementById("statusFilter") && document.getElementById("statusFilter").value;
-      if (status) tasks = tasks.filter(t => t.status === status);
-      if (q) tasks = tasks.filter(t => ((t.title || "") + " " + (t.id || "")).toLowerCase().includes(q));
-      render(tasks);
-    }
-    function render(tasks) {
-      const root = document.getElementById("taskList");
-      root.innerHTML = "";
-      if (!tasks.length) {
-        root.innerHTML = `<div class="empty">No tasks found. Create one above.</div>`;
-        return;
-      }
-      for (const t of tasks) {
-        const card = document.createElement("div");
-        card.className = "card";
-        const payloadText = t.payload ? JSON.stringify(t.payload, null, 2) : "";
-        card.innerHTML = `
-          <div class="row">
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-4">
+            <div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white">
+                <i class="fa-solid fa-play text-sm"></i>
+            </div>
             <div>
-              <strong>${escapeHtml(t.title)}</strong>
-              <div class="meta">${escapeHtml(t.id)} • ${escapeHtml(t.type)} • ${escapeHtml(t.status)}</div>
+                <h1 class="text-sm font-bold tracking-wide text-white leading-tight">YT Playlist Manager</h1>
+                <p class="text-[10px] text-gray-400">Automated Playlist Orchestrator</p>
             </div>
-            <span class="pill">${escapeHtml(String(t.priority || ""))}</span>
-          </div>
-          ${payloadText ? `<details class="detail"><summary>Payload</summary><pre>${escapeHtml(payloadText)}</pre></details>` : ""}
-          <div class="row">
-            <span class="meta">${escapeHtml(t.created_at || "")} • ${escapeHtml(t.updated_at || "")}</span>
-            <div class="actions">
-              <button data-act="run" data-id="${escapeHtml(t.id)}">Run</button>
-              <button data-act="delete" data-id="${escapeHtml(t.id)}">Delete</button>
+        </div>
+        
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-3 text-right hidden lg:block">
+                <div class="text-sm font-semibold text-white">Dave Patrick</div>
+                <div class="text-[10px] text-gray-400">52 years old • dave@email.com • <i class="fa-solid fa-location-dot"></i> Queen Creek, AZ</div>
+                <div class="text-[10px] text-blue-400 mt-0.5">[Idle • Last Full Scan: <span id="last-scan">loading...</span> • Trip: Grand Junction, CO: 27 days]</div>
             </div>
-          </div>
-        `;
-        root.appendChild(card);
-      }
-    }
-    function escapeHtml(str) {
-      return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);
-    }
-    document.getElementById("taskList").addEventListener("click", async (e) => {
-      const btn = e.target.closest("button");
-      if (!btn) return;
-      const id = btn.getAttribute("data-id");
-      if (btn.getAttribute("data-act") === "run") {
-        await api(`/tasks/${id}/run`, { method: "POST" });
-        await loadTasks();
-      } else if (btn.getAttribute("data-act") === "delete") {
-        await api(`/tasks/${id}`, { method: "DELETE" });
-        await loadTasks();
-      }
-    });
-    document.getElementById("create").addEventListener("click", async () => {
-      const title = document.getElementById("newTitle").value.trim();
-      const task_type = document.getElementById("newType").value;
-      const priority = document.getElementById("newPriority").value.trim() || null;
-      let payload = null;
-      const payloadRaw = document.getElementById("newPayload").value.trim();
-      if (payloadRaw) {
-        try { payload = JSON.parse(payloadRaw); } catch (err) { alert("Invalid JSON payload"); return; }
-      }
-      if (!title) { alert("Title required"); return; }
-      await api("/tasks", { method: "POST", body: JSON.stringify({ title, task_type, priority, payload }) });
-      document.getElementById("newTitle").value = "";
-      document.getElementById("newPriority").value = "";
-      document.getElementById("newPayload").value = "";
-      await loadTasks();
-    });
-    document.getElementById("search").addEventListener("input", loadTasks);
-    document.getElementById("statusPills").addEventListener("click", async (e) => {
-      const pill = e.target.closest(".pill");
-      if (!pill) return;
-      document.querySelectorAll("#statusPills .pill").forEach(el => el.classList.remove("active"));
-      pill.classList.add("active");
-      const prev = document.getElementById("statusFilter");
-      if (!prev) {
-        const input = document.createElement("input");
-        input.id = "statusFilter";
-        input.type = "hidden";
-        document.querySelector(".toolbar").appendChild(input);
-      }
-      document.getElementById("statusFilter").value = pill.dataset.status || "";
-      await loadTasks();
-    });
-    loadTasks();
-  </script>
+            <div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0">
+                <i class="fa-solid fa-user text-gray-400"></i>
+            </div>
+            <div class="flex gap-2">
+                <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-border-all"></i></button>
+                <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button>
+                <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
+            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30">
+                <i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+                <i class="fa-solid fa-list w-5 text-center"></i> Playlists
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+                <i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+                <i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+                <i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+                <i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+                <i class="fa-solid fa-gear w-5 text-center"></i> Settings
+            </a>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
+            <div class="flex flex-col gap-4 min-w-[1200px]">
+                
+                <h2 class="text-xl font-bold text-white mb-2">Dashboard</h2>
+
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="bento-card p-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-list text-gray-500 text-xs"></i>
+                            <span class="text-xs text-gray-300 font-semibold">Total Playlists</span>
+                        </div>
+                        <div class="flex items-end gap-3">
+                            <div class="text-3xl font-bold text-white" id="stat-playlists">60</div>
+                            <div class="text-[10px] text-gray-500 leading-tight pb-1">Dave's total lists, tracked,<br>3D Printing functional lists</div>
+                        </div>
+                    </div>
+                    
+                    <div class="bento-card p-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-play text-gray-500 text-xs"></i>
+                            <span class="text-xs text-gray-300 font-semibold">Total tracked videos</span>
+                        </div>
+                        <div class="text-3xl font-bold text-white mt-2" id="stat-videos">1331</div>
+                    </div>
+
+                    <div class="bento-card p-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i class="fa-regular fa-clock text-blue-500 text-xs"></i>
+                            <span class="text-xs text-gray-300 font-semibold">Pending actions</span>
+                        </div>
+                        <div class="flex items-end gap-3 mt-2">
+                            <div class="text-3xl font-bold text-white" id="stat-pending">1830</div>
+                            <div class="text-[10px] text-gray-400 pb-1 flex flex-col">
+                                <span class="text-blue-400">Items data: <span id="pending-data">(1830)</span></span>
+                                <span>Still items <span id="pending-still">(13)</span></span>
+                                <span class="text-blue-400">AI Learning: <span id="pending-ai">(3)</span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-card p-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-microchip text-gray-500 text-xs"></i>
+                            <span class="text-xs text-gray-300 font-semibold">AI Learning</span>
+                        </div>
+                        <div class="text-[11px] text-gray-400 flex flex-col gap-1 mt-3">
+                            <span>Learning rate: <span id="ai-rate">2.225%</span></span>
+                            <span>Learning rates: <span id="ai-rates">1922</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-5 gap-4 h-[550px]">
+                    
+                    <div class="bento-card p-4 flex flex-col gap-2">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-2">Agent Control Center</h3>
+                        <button onclick="logTerminal('Initiating Full Cluster Scan across 60 playlists...')" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-magnifying-glass"></i> Full Cluster Scan
+                        </button>
+                        <button onclick="logTerminal('Forcing Auto-Sort...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                            <i class="fa-solid fa-wand-magic-sparkles text-blue-400"></i> Force Auto-Sort All
+                        </button>
+                        <button onclick="logTerminal('Syncing Watch Later...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                            <i class="fa-regular fa-clock text-blue-400"></i> Watch Later Sync
+                        </button>
+                        <button onclick="logTerminal('Diagnosing failure logs...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                            <i class="fa-solid fa-stethoscope text-blue-400"></i> Diagnose Failures
+                        </button>
+                        <button onclick="logTerminal('Regenerating queue rules...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                            <i class="fa-solid fa-rotate text-blue-400"></i> Regenerate Queue
+                        </button>
+                        <button onclick="logTerminal('Pinging surface diagnostics...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                            <i class="fa-solid fa-layer-group text-blue-400"></i> Surface diagnostics
+                        </button>
+                    </div>
+
+                    <div class="bento-card flex flex-col overflow-hidden">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a]">
+                            <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2">
+                                <i class="fa-solid fa-terminal text-blue-400"></i> Live Agent Output
+                            </h3>
+                        </div>
+                        <div id="terminal-body" class="p-3 font-mono text-[10px] leading-relaxed text-blue-300 bg-[#0a0c10] flex-1 overflow-y-auto whitespace-pre-wrap">
+[SYS] Hermes Agent Initialized
+-- AI CLUSTERING Clusteration
+processing...
+[STATUS] Scan started...
+[CLUSTER] ag to initariset
+process...
+[LEARN] Processing 399 items
+in st-actsatics...
+[LEARN] Processing 200 items
+to 1473 displaced videos...
+Processing couree...
+[RULE] Custom regex applied to
+1473 misplaced videos...
+</div>
+                    </div>
+
+                    <div class="bento-card flex flex-col overflow-hidden col-span-1">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a]">
+                            <h3 class="text-xs font-semibold text-gray-300">Maintenance Queue Preview</h3>
+                        </div>
+                        <div class="flex gap-4 px-4 py-2 text-[10px] text-gray-400 border-b border-[#2a2f3a]">
+                            <span class="text-blue-400 border-b border-blue-400 pb-1">Actions</span>
+                            <span>Actions</span>
+                            <span>Actions</span>
+                        </div>
+                        <div class="p-3 overflow-y-auto flex-1 flex flex-col gap-4" id="maintenance-queue">
+                            <div>
+                                <div class="text-[11px] text-gray-300 mb-2">Move from X to Y</div>
+                                <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a]">
+                                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden"><img src="https://picsum.photos/32/24" class="w-full h-full object-cover"></div>
+                                    <select class="bg-blue-600 text-white text-[10px] rounded px-2 py-1 w-full outline-none border-none">
+                                        <option>Move from X to Y</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="text-[11px] text-gray-300 mb-2">Duplicated videos</div>
+                                <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a]">
+                                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden"><img src="https://picsum.photos/32/25" class="w-full h-full object-cover"></div>
+                                    <div class="flex gap-1 w-full justify-end">
+                                        <button class="bg-blue-600 text-white text-[10px] px-3 py-1 rounded">Apply</button>
+                                        <button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-3 py-1 rounded">Skip</button>
+                                    </div>
+                                </div>
+                            </div>
+                             <div>
+                                <div class="text-[11px] text-gray-300 mb-2">Misplaced videos</div>
+                                <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a]">
+                                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden"><img src="https://picsum.photos/32/26" class="w-full h-full object-cover"></div>
+                                    <select class="bg-blue-600 text-white text-[10px] rounded px-2 py-1 w-full outline-none border-none">
+                                        <option>Move from X to Y</option>
+                                    </select>
+                                </div>
+                                <div class="flex gap-1 w-full justify-end mt-1">
+                                    <button class="bg-blue-600 text-white text-[10px] px-3 py-1 rounded">Apply</button>
+                                    <button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-3 py-1 rounded">Skip</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-card flex flex-col overflow-hidden">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a]">
+                            <h3 class="text-xs font-semibold text-gray-300">Rules & Mappings Editor</h3>
+                        </div>
+                        <div class="flex gap-4 px-4 py-2 text-[10px] text-gray-400 border-b border-[#2a2f3a]">
+                            <span class="text-blue-400">Code</span>
+                            <span>Regex</span>
+                        </div>
+                        <div class="p-3 bg-[#0a0c10] flex-1 overflow-y-auto font-mono text-[10px] text-gray-300" id="rules-editor">
+                            <div class="flex"><span class="text-gray-600 w-4">1</span> {</div>
+                            <div class="flex"><span class="text-gray-600 w-4">2</span> &nbsp;&nbsp;"category": {</div>
+                            <div class="flex"><span class="text-gray-600 w-4">3</span> &nbsp;&nbsp;&nbsp;&nbsp;"regex": "\w+"</div>
+                            <div class="flex"><span class="text-gray-600 w-4">4</span> &nbsp;&nbsp;},</div>
+                            <div class="flex"><span class="text-gray-600 w-4">5</span> &nbsp;&nbsp;"category": {</div>
+                            <div class="flex"><span class="text-gray-600 w-4">6</span> &nbsp;&nbsp;&nbsp;&nbsp;"category": {</div>
+                            <div class="flex bg-blue-900/30 text-blue-300"><span class="text-gray-600 w-4">7</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"regex": "/s|j/"</div>
+                            <div class="flex"><span class="text-gray-600 w-4">8</span> &nbsp;&nbsp;&nbsp;&nbsp;}</div>
+                            <div class="flex"><span class="text-gray-600 w-4">9</span> &nbsp;&nbsp;"channel": {</div>
+                            <div class="flex"><span class="text-gray-600 w-4">10</span> &nbsp;&nbsp;&nbsp;&nbsp;"channel": {}</div>
+                            <div class="flex"><span class="text-gray-600 w-4">11</span> }</div>
+                        </div>
+                        <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24]">
+                            <button class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Apply Rules</button>
+                        </div>
+                    </div>
+
+                    <div class="bento-card flex flex-col overflow-hidden">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a]">
+                            <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2">
+                                <i class="fa-solid fa-rss text-blue-400"></i> Subscriptions Map
+                            </h3>
+                        </div>
+                        <div class="p-3 flex flex-col gap-2">
+                            <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none" id="playlist-select">
+                                <option>Map channels to playlists</option>
+                            </select>
+                            <div class="flex gap-2">
+                                <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none" id="channel-filter">
+                                    <option>All channels</option>
+                                </select>
+                                <button class="bg-blue-600 text-white px-3 rounded text-xs"><i class="fa-solid fa-filter"></i> 3%</button>
+                            </div>
+                            
+                            <div class="mt-2 text-[10px] text-gray-400 flex justify-between px-1">
+                                <span>Channels</span>
+                                <span>Status</span>
+                            </div>
+                            
+                            <div class="flex flex-col gap-1 mt-1 overflow-y-auto" id="subscriptions-list">
+                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
+                                    <div class="flex items-center gap-2 text-xs text-gray-300"><i class="fa-brands fa-facebook text-blue-500"></i> Facebook</div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-[10px] text-blue-400">All v</span>
+                                        <input type="checkbox" checked class="accent-blue-500">
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
+                                    <div class="flex items-center gap-2 text-xs text-gray-300"><img src="https://picsum.photos/12" class="rounded-full"> Channels</div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-[10px] text-blue-400">All v</span>
+                                        <input type="checkbox" class="accent-blue-500">
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
+                                    <div class="flex items-center gap-2 text-xs text-gray-300"><i class="fa-brands fa-youtube text-red-500"></i> YouTube</div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-[10px] text-blue-400">All v</span>
+                                        <input type="checkbox" class="accent-blue-500">
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
+                                    <div class="flex items-center gap-2 text-xs text-gray-300"><i class="fa-brands fa-youtube text-red-500"></i> YouTube</div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-[10px] text-blue-400">All v</span>
+                                        <input type="checkbox" checked class="accent-blue-500">
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
+                                    <div class="flex items-center gap-2 text-xs text-gray-300"><img src="https://picsum.photos/12" class="rounded-full"> Ahnita</div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-[10px] text-blue-400">All v</span>
+                                        <input type="checkbox" class="accent-blue-500">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function logTerminal(message) {
+            const terminal = document.getElementById('terminal-body');
+            const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            const newLine = `\n[${timestamp}] [ACTION] ${message}`;
+            terminal.innerHTML += newLine;
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // Load real data from API
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/stats');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('stat-playlists').textContent = data.total_playlists || 60;
+                    document.getElementById('stat-videos').textContent = data.total_videos || 1331;
+                    document.getElementById('stat-pending').textContent = data.pending_actions || 1830;
+                    document.getElementById('pending-data').textContent = `(${data.pending_actions || 1830})`;
+                    document.getElementById('pending-still').textContent = `(${data.still_items || 13})`;
+                    document.getElementById('pending-ai').textContent = `(${data.ai_learning || 3})`;
+                    document.getElementById('ai-rate').textContent = data.learning_rate || '2.225%';
+                    document.getElementById('ai-rates').textContent = data.learning_rates || '1922';
+                    document.getElementById('last-scan').textContent = data.last_scan || 'just now';
+                }
+            } catch (e) {
+                console.log('Stats endpoint not available, using defaults');
+            }
+        }
+
+        // Load on startup
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboardStats();
+            // Poll for updates every 30 seconds
+            setInterval(loadDashboardStats, 30000);
+        });
+    </script>
 </body>
 </html>
-"""
