@@ -24,6 +24,11 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 def no_cache_file_response(file_path: Path) -> Response:
     """Return HTML response with no-cache headers to prevent CDN/browser caching."""
     content = file_path.read_text(encoding="utf-8")
+    # Add a visible marker to confirm fresh deploy
+    content = content.replace(
+        '<title>Tube Manager</title>',
+        '<title>Tube Manager</title>\n    <meta name="deploy-time" content="' + str(int(__import__('time').time())) + '">'
+    )
     return Response(
         content=content,
         media_type="text/html; charset=utf-8",
