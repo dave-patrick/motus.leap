@@ -54,6 +54,22 @@ background_tasks_running = False
 app = FastAPI(title="Tube Manager")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
+# CSP middleware to override Render's restrictive CSP
+@app.middleware("http")
+async def add_csp_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
+        "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' wss: https:; "
+        "frame-ancestors 'self'; "
+        "frame-src 'self' https:;"
+    )
+    return response
+
 # Config persistence
 def load_config() -> dict[str, Any]:
     if CONFIG_FILE.exists():
