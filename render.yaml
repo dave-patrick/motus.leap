@@ -10,6 +10,8 @@ services:
         value: 3.11
       - key: YOUTUBE_API_KEY
         sync: false
+      - key: DEPLOY_VERSION
+        value: "2026-06-12-v3"
     disk:
       name: tube-data
       mountPath: /app/data
