@@ -22,7 +22,7 @@
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
-    .container { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
     header {
       display: flex;
       align-items: center;
@@ -35,6 +35,7 @@
       gap: 12px;
       align-items: center;
       margin-bottom: 18px;
+      flex-wrap: wrap;
     }
     input, select, button, textarea {
       background: var(--panel);
@@ -51,8 +52,8 @@
       grid-template-columns: 1fr;
       gap: 14px;
     }
-    @media (min-width: 760px) {
-      .grid { grid-template-columns: 1fr 1fr; }
+    @media (min-width: 860px) {
+      .grid { grid-template-columns: 1fr 1fr 1fr; }
     }
     .card {
       background: var(--surface);
@@ -62,6 +63,14 @@
     }
     .meta { color: var(--muted); font-size: 13px; }
     .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
     .pill {
       display: inline-block;
       padding: 4px 10px;
@@ -79,33 +88,48 @@
     }
     details.detail summary { cursor: pointer; color: var(--muted); }
     pre { white-space: pre-wrap; word-wrap: break-word; background: #0e1118; padding: 10px; border-radius: 8px; overflow: auto; }
+    .empty {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      color: var(--muted);
+    }
+    .counters {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .counters .pill { cursor: pointer; }
+    .counters .pill.active { outline: 2px solid var(--accent); }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>Tube Manager</h1>
-      <div>
+      <div class="row">
+        <span class="meta" id="connectionStatus">Ready</span>
         <button id="refresh" class="primary">Refresh</button>
       </div>
     </header>
 
     <div class="bar">
-      <select id="statusFilter">
-        <option value="">All statuses</option>
-        <option>pending</option>
-        <option>running</option>
-        <option>completed</option>
-        <option>failed</option>
-      </select>
-      <input id="search" placeholder="Search tasks" />
+      <div class="counters" id="statusPills">
+        <span class="pill active" data-status="">All</span>
+        <span class="pill" data-status="pending">Pending</span>
+        <span class="pill" data-status="running">Running</span>
+        <span class="pill" data-status="completed">Completed</span>
+        <span class="pill" data-status="failed">Failed</span>
+      </div>
+      <input id="search" placeholder="Search by title or id" />
     </div>
 
     <div class="card">
       <div class="row">
         <div>
           <strong>New task</strong>
-          <div class="meta">Create a new task to run.</div>
+          <div class="meta">Create and queue a task. Use Smart action for YouTube.</div>
         </div>
       </div>
       <div class="row" style="margin-top:12px;">
@@ -113,13 +137,14 @@
         <select id="newType">
           <option value="generic">generic</option>
           <option value="youtube">youtube</option>
+          <option value="playlist">playlist</option>
           <option value="home">home</option>
           <option value="code">code</option>
         </select>
-        <input id="newPriority" placeholder="priority" />
+        <input id="newPriority" placeholder="priority: low|medium|high" />
       </div>
       <div class="row" style="margin-top:10px;">
-        <textarea id="newPayload" rows="2" placeholder='Optional JSON payload, e.g. {"action":"sync"}'></textarea>
+        <textarea id="newPayload" rows="2" placeholder='Optional JSON payload'></textarea>
         <button id="create" class="primary">Create</button>
       </div>
     </div>
@@ -128,7 +153,7 @@
   </div>
 
   <script>
-    const API = "" /* fallback same-origin */;
+    const API = "";
 
     async function api(path, opts = {}) {
       const res = await fetch(API + path, { ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) } });
@@ -151,27 +176,31 @@
       const root = document.getElementById("taskList");
       root.innerHTML = "";
       if (!tasks.length) {
-        root.innerHTML = `<div class="card"><div class="meta">No tasks found.</div></div>`;
+        root.innerHTML = `<div class="empty">No tasks found. Create one above.</div>`;
         return;
       }
       for (const t of tasks) {
         const card = document.createElement("div");
         card.className = "card";
         const payloadText = t.payload ? JSON.stringify(t.payload, null, 2) : "";
+        const created = t.created_at || "";
+        const updated = t.updated_at || "";
+        const status = t.status || "";
+        const kind = t.type || "";
         card.innerHTML = `
           <div class="row">
             <div>
               <strong>${escapeHtml(t.title)}</strong>
-              <div class="meta">${escapeHtml(t.id)} • ${escapeHtml(t.type)} • ${escapeHtml(t.status || "")}</div>
+              <div class="meta">${escapeHtml(t.id)} • ${escapeHtml(kind)} • ${escapeHtml(status)}</div>
             </div>
             <span class="pill">${escapeHtml(String(t.priority || ""))}</span>
           </div>
           ${payloadText ? `<details class="detail"><summary>Payload</summary><pre>${escapeHtml(payloadText)}</pre></details>` : ""}
           <div class="row">
-            <span class="meta">created ${escapeHtml(t.created_at || "")} • updated ${escapeHtml(t.updated_at || "")}</span>
-            <div style="display:flex;gap:8px;">
+            <span class="meta">created ${escapeHtml(created)} • updated ${escapeHtml(updated)}</span>
+            <div class="actions">
+              <button data-act="run" data-id="${escapeHtml(t.id)}">Run</button>
               <button data-act="delete" data-id="${escapeHtml(t.id)}">Delete</button>
-              <button data-act="run" data-id="${escapeHtml(t.id)}" class="primary">Run</button>
             </div>
           </div>
         `;
@@ -208,14 +237,21 @@
       if (!title) { alert("Title required"); return; }
       await api("/tasks", { method: "POST", body: JSON.stringify({ title, task_type, priority, payload }) });
       document.getElementById("newTitle").value = "";
-      document.getElementById("newPayload").value = "";
       document.getElementById("newPriority").value = "";
+      document.getElementById("newPayload").value = "";
       await loadTasks();
     });
 
     document.getElementById("refresh").addEventListener("click", loadTasks);
-    document.getElementById("statusFilter").addEventListener("change", loadTasks);
     document.getElementById("search").addEventListener("input", loadTasks);
+    document.getElementById("statusPills").addEventListener("click", async (e) => {
+      const pill = e.target.closest(".pill");
+      if (!pill) return;
+      document.querySelectorAll("#statusPills .pill").forEach(el => el.classList.remove("active"));
+      pill.classList.add("active");
+      document.getElementById("statusFilter").value = pill.dataset.status || "";
+      await loadTasks();
+    });
 
     loadTasks();
   </script>
