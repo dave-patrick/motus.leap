@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.responses import Response
 
 from tube_manager.service import TubeManager
 from pathlib import Path
@@ -19,6 +20,14 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 # Config file for persistence (use persistent disk on Render)
 CONFIG_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__).resolve().parent
 CONFIG_FILE = CONFIG_DIR / "config.json"
+
+def no_cache_file_response(file_path: Path) -> FileResponse:
+    """Return FileResponse with no-cache headers to prevent CDN/browser caching."""
+    response = FileResponse(file_path)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -412,44 +421,44 @@ async def startup_event():
 
 # Page routes - serve HTML files on demand ---------------------------------
 
-@app.get("/", response_class=FileResponse)
+@app.get("/")
 async def index():
-    return WEB_DIR / "index.html"
+    return no_cache_file_response(WEB_DIR / "index.html")
 
 
-@app.get("/playlists", response_class=FileResponse)
+@app.get("/playlists")
 async def playlists():
-    return WEB_DIR / "playlists.html"
+    return no_cache_file_response(WEB_DIR / "playlists.html")
 
 
-@app.get("/subscriptions", response_class=FileResponse)
+@app.get("/subscriptions")
 async def subscriptions():
-    return WEB_DIR / "subscriptions.html"
+    return no_cache_file_response(WEB_DIR / "subscriptions.html")
 
 
-@app.get("/maintenance", response_class=FileResponse)
+@app.get("/maintenance")
 async def maintenance():
-    return WEB_DIR / "maintenance.html"
+    return no_cache_file_response(WEB_DIR / "maintenance.html")
 
 
-@app.get("/rules", response_class=FileResponse)
+@app.get("/rules")
 async def rules():
-    return WEB_DIR / "rules.html"
+    return no_cache_file_response(WEB_DIR / "rules.html")
 
 
-@app.get("/ai", response_class=FileResponse)
+@app.get("/ai")
 async def ai():
-    return WEB_DIR / "ai.html"
+    return no_cache_file_response(WEB_DIR / "ai.html")
 
 
-@app.get("/settings", response_class=FileResponse)
+@app.get("/settings")
 async def settings():
-    return WEB_DIR / "settings.html"
+    return no_cache_file_response(WEB_DIR / "settings.html")
 
 
-@app.get("/test", response_class=FileResponse)
+@app.get("/test")
 async def test_page():
-    return WEB_DIR / "test.html"
+    return no_cache_file_response(WEB_DIR / "test.html")
 
 
 @app.get("/health")
