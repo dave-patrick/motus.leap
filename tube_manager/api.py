@@ -1,13 +1,12 @@
 """Tube Manager API."""
-"""Tube Manager API."""
 from __future__ import annotations
 
 import os
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -18,7 +17,10 @@ api = FastAPI(title="Tube Manager API")
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "web" / "index.html"
 _TEMPLATE_HTML = TEMPLATE_PATH.read_text(encoding="utf-8")
 
-_store: TubeManager | None = None
+WEB_DIR = str(Path(__file__).resolve().parent.parent / "web")
+api.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
+
+_store: Optional[TubeManager] = None
 
 
 def get_store() -> TubeManager:
