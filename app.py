@@ -433,6 +433,13 @@ async def startup_event():
 
 @app.get("/")
 async def index():
+    # Temporary: redirect to dashboard to bypass root route caching
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard", status_code=302)
+
+
+@app.get("/dashboard")
+async def dashboard():
     return no_cache_file_response(WEB_DIR / "dashboard.html")
 
 
