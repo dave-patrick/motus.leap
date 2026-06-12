@@ -16,15 +16,8 @@
 </head>
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4">
-            <div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white"><i class="fa-solid fa-play text-sm"></i></div>
-            <div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">YT Playlist Manager</h1><p class="text-[10px] text-gray-400">Automated Playlist Orchestrator</p></div>
-        </div>
-        <div class="flex items-center gap-6">
-            <div class="text-right hidden lg:block"><div class="text-[10px] text-blue-400 mt-0.5">[Idle • Last Full Scan: <span id="last-scan">loading...</span>]</div></div>
-            <div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div>
-            <div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-border-all"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div>
-        </div>
+        <div class="flex items-center gap-4"><div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white"><i class="fa-solid fa-play text-sm"></i></div><div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">YT Playlist Manager</h1><p class="text-[10px] text-gray-400">Automated Playlist Orchestrator</p></div></div>
+        <div class="flex items-center gap-6"><div class="text-right hidden lg:block"><div class="text-[10px] text-blue-400 mt-0.5">[Idle • Last Full Scan: <span id="last-scan">loading...</span>]</div></div><div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div><div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-border-all"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></div>
     </header>
     <div class="flex flex-1 overflow-hidden">
         <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
@@ -40,38 +33,68 @@
             <div class="flex flex-col gap-4 min-w-[1200px]">
                 <div class="flex items-center justify-between">
                     <h2 class="text-xl font-bold text-white">Playlists</h2>
-                    <button class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> New Playlist</button>
+                    <div class="flex gap-2">
+                        <button onclick="syncPlaylists()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Sync from YouTube</button>
+                        <button class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> New Playlist</button>
+                    </div>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4" id="playlists-grid"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4" id="playlists-grid">
+                    <div class="col-span-full bento-card p-8 text-center text-gray-400">Loading playlists...</div>
+                </div>
             </div>
         </main>
     </div>
     <script>
-        function loadPlaylists() {
-            fetch('/api/playlists')
-                .then(r => r.json())
-                .then(data => {
-                    const grid = document.getElementById('playlists-grid');
-                    if (!data.playlists || !data.playlists.length) {
-                        grid.innerHTML = '<div class="col-span-full bento-card p-12 text-center text-gray-400">No playlists found. Create one to get started.</div>';
-                        return;
-                    }
-                    grid.innerHTML = data.playlists.map(p => `
-                        <div class="bento-card p-4 flex flex-col">
-                            <div class="flex items-start justify-between mb-3">
-                                <div class="w-16 h-9 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
-                                <span class="text-[10px] px-2 py-1 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a]">${p.privacy || 'private'}</span>
-                            </div>
-                            <h3 class="text-sm font-semibold text-white truncate mb-1">${p.title}</h3>
-                            <p class="text-[10px] text-gray-400 mb-3">${p.video_count} videos • ${p.channel}</p>
-                            <div class="flex items-center gap-2 mt-auto pt-2 border-t border-[#2a2f3a]">
-                                <button class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1.5 rounded transition-colors">Open</button>
-                                <button class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded transition-colors">Manage</button>
-                            </div>
+        async function loadPlaylists() {
+            const grid = document.getElementById('playlists-grid');
+            try {
+                const response = await fetch('/api/playlists');
+                if (!response.ok) throw new Error('Failed to load');
+                const data = await response.json();
+                if (!data.playlists || !data.playlists.length) {
+                    grid.innerHTML = '<div class="col-span-full bento-card p-12 text-center text-gray-400">No playlists found. Create one to get started.</div>';
+                    return;
+                }
+                grid.innerHTML = data.playlists.map(p => `
+                    <div class="bento-card p-4 flex flex-col">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="w-16 h-9 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
+                            <span class="text-[10px] px-2 py-1 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a]">${p.privacy || 'private'}</span>
                         </div>
-                    `).join('');
-                });
+                        <h3 class="text-sm font-semibold text-white truncate mb-1">${p.title}</h3>
+                        <p class="text-[10px] text-gray-400 mb-3">${p.video_count} videos • ${p.channel}</p>
+                        <div class="flex items-center gap-2 mt-auto pt-2 border-t border-[#2a2f3a]">
+                            <button class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1.5 rounded transition-colors">Open</button>
+                            <button class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded transition-colors">Manage</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                grid.innerHTML = '<div class="col-span-full bento-card p-8 text-center text-red-400">Failed to load playlists</div>';
+            }
         }
+        
+        async function syncPlaylists() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Syncing...';
+            try {
+                const resp = await fetch('/api/action', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'sync_playlists'})
+                });
+                const result = await resp.json();
+                alert(`Sync queued: ${result.action}`);
+                loadPlaylists();
+            } catch (e) {
+                alert('Failed to queue sync');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-sync"></i> Sync from YouTube';
+            }
+        }
+        
         document.addEventListener('DOMContentLoaded', loadPlaylists);
     </script>
 </body>

@@ -34,47 +34,73 @@
                 <h2 class="text-xl font-bold text-white">Maintenance Queue</h2>
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div class="bento-card flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a"><h3 class="text-xs font-semibold text-gray-300">Move from X to Y</h3></div>
-                        <div class="p-3 overflow-y-auto flex-1" id="move-queue"></div>
-                        <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24]"><button class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Apply All Moves</button></div>
+                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
+                            <h3 class="text-xs font-semibold text-gray-300">Move from X to Y</h3>
+                            <button onclick="applyMaintenance('move')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded">Apply All</button>
+                        </div>
+                        <div class="p-3 overflow-y-auto flex-1" id="move-queue">Loading...</div>
                     </div>
                     <div class="bento-card flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a"><h3 class="text-xs font-semibold text-gray-300">Duplicated Videos</h3></div>
-                        <div class="p-3 overflow-y-auto flex-1" id="dup-queue"></div>
-                        <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24]"><button class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Resolve All</button></div>
+                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
+                            <h3 class="text-xs font-semibold text-gray-300">Duplicated Videos</h3>
+                            <button onclick="applyMaintenance('dup')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded">Resolve All</button>
+                        </div>
+                        <div class="p-3 overflow-y-auto flex-1" id="dup-queue">Loading...</div>
                     </div>
                     <div class="bento-card flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a"><h3 class="text-xs font-semibold text-gray-300">Misplaced Videos</h3></div>
-                        <div class="p-3 overflow-y-auto flex-1" id="misplaced-queue"></div>
-                        <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24]"><button class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Fix All</button></div>
+                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
+                            <h3 class="text-xs font-semibold text-gray-300">Misplaced Videos</h3>
+                            <button onclick="applyMaintenance('misplaced')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded">Fix All</button>
+                        </div>
+                        <div class="p-3 overflow-y-auto flex-1" id="misplaced-queue">Loading...</div>
                     </div>
                 </div>
             </div>
         </main>
     </div>
     <script>
-        function loadMaintenance() {
-            fetch('/api/maintenance')
-                .then(r => r.json())
-                .then(data => {
-                    renderQueue('move-queue', data.move_from_x_to_y || [], 'move');
-                    renderQueue('dup-queue', data.duplicated_videos || [], 'dup');
-                    renderQueue('misplaced-queue', data.misplaced_videos || [], 'misplaced');
-                });
+        let maintenanceData = {};
+        
+        async function loadMaintenance() {
+            try {
+                const response = await fetch('/api/maintenance');
+                if (!response.ok) throw new Error('Failed to load');
+                maintenanceData = await response.json();
+                renderQueue('move-queue', maintenanceData.move_from_x_to_y || [], 'move');
+                renderQueue('dup-queue', maintenanceData.duplicated_videos || [], 'dup');
+                renderQueue('misplaced-queue', maintenanceData.misplaced_videos || [], 'misplaced');
+            } catch (e) {
+                console.error(e);
+            }
         }
+        
         function renderQueue(elId, items, type) {
             const el = document.getElementById(elId);
-            if (!items.length) { el.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-4">No items</div>'; return; }
+            if (!items.length) { 
+                el.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-4">No items</div>'; 
+                return; 
+            }
             el.innerHTML = items.map(item => `
                 <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a] mb-2">
                     <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${item.thumbnail || 'https://picsum.photos/32/24'}" class="w-full h-full object-cover"></div>
-                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${item.title}</div><div class="text-[9px] text-gray-400">${item.from_playlist} → ${item.to_playlist || '?'}</div></div>
+                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${item.title}</div><div class="text-[9px] text-gray-400">${item.from_playlist || item.current_playlist || item.playlist_a} → ${item.to_playlist || item.suggested || item.playlist_b || '?'}</div></div>
                     ${type === 'move' ? `<select class="bg-blue-600 text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>${item.suggested || 'Move from X to Y'}</option></select>` : ''}
                     ${type === 'dup' ? `<div class="flex gap-1"><button class="bg-blue-600 text-white text-[10px] px-2 py-1 rounded">Keep</button><button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>` : ''}
                     ${type === 'misplaced' ? `<select class="bg-blue-600 text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>Move to ${item.suggested || 'Correct Playlist'}</option></select>` : ''}
                 </div>
             `).join('');
         }
+        
+        async function applyMaintenance(type) {
+            const items = maintenanceData[`${type === 'move' ? 'move_from_x_to_y' : type === 'dup' ? 'duplicated_videos' : 'misplaced_videos'}`] || [];
+            await fetch('/api/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'apply_maintenance', payload: {action: type, items}})
+            });
+            alert(`${type} maintenance queued`);
+        }
+        
         document.addEventListener('DOMContentLoaded', loadMaintenance);
     </script>
 </body>

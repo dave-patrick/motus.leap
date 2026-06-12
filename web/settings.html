@@ -38,21 +38,26 @@
                         <div class="space-y-4">
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">API Key</label>
-                                <div class="flex gap-2"><input type="password" value="••••••••••••••••" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none"><button class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-2 rounded">Update</button></div>
+                                <div class="flex gap-2">
+                                    <input type="password" id="yt-api-key" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="Enter API key">
+                                    <button onclick="saveSettings()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-2 rounded">Save</button>
+                                </div>
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client ID</label>
-                                <input type="text" value="••••••••••••••••.apps.googleusercontent.com" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                <input type="text" id="oauth-client-id" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="xxxxx.apps.googleusercontent.com">
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client Secret</label>
-                                <input type="password" value="••••••••••••••••" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                <input type="password" id="oauth-client-secret" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="••••••••">
+                            </div>
+                            <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
+                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="api-first" class="accent-blue-500" checked> Use API-first mode (fallback to headless)</label>
+                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-refresh" class="accent-blue-500" checked> Auto-refresh tokens</label>
                             </div>
                             <div class="pt-2 border-t border-[#2a2f3a]">
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500" checked> Use API-first mode (fallback to headless)</label>
-                            </div>
-                            <div>
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500" checked> Auto-refresh tokens</label>
+                                <button onclick="connectYouTube()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded"><i class="fa-brands fa-youtube mr-2"></i>Connect YouTube Account (OAuth)</button>
+                                <div id="yt-status" class="text-[10px] text-gray-400 text-center mt-2"></div>
                             </div>
                         </div>
                     </div>
@@ -61,39 +66,39 @@
                         <div class="space-y-4">
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">Default Playlist Privacy</label>
-                                <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                    <option>Private</option>
-                                    <option>Unlisted</option>
-                                    <option>Public</option>
+                                <select id="default-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                    <option value="private">Private</option>
+                                    <option value="unlisted">Unlisted</option>
+                                    <option value="public">Public</option>
                                 </select>
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">Scan Interval</label>
-                                <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                    <option>Every 15 minutes</option>
-                                    <option selected>Every hour</option>
-                                    <option>Every 6 hours</option>
-                                    <option>Daily</option>
+                                <select id="scan-interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                    <option value="15min">Every 15 minutes</option>
+                                    <option value="hourly" selected>Every hour</option>
+                                    <option value="6hour">Every 6 hours</option>
+                                    <option value="daily">Daily</option>
                                 </select>
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">Max Concurrent Operations</label>
-                                <input type="number" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
                             </div>
                             <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500" checked> Auto-sort new videos</label>
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500" checked> Sync Watch Later on scan</label>
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500"> Notify on failures</label>
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500"> Dark mode only</label>
+                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-sort" class="accent-blue-500" checked> Auto-sort new videos</label>
+                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="sync-watch-later" class="accent-blue-500" checked> Sync Watch Later on scan</label>
+                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="notify-failures" class="accent-blue-500"> Notify on failures</label>
+                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="dark-mode" class="accent-blue-500" checked> Dark mode only</label>
                             </div>
                         </div>
                     </div>
                     <div class="bento-card p-4">
                         <h3 class="text-xs font-semibold text-gray-300 mb-4">Storage & Data</h3>
                         <div class="space-y-4">
-                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Database Size</div><div class="text-lg font-bold text-white">47.3 MB</div></div>
-                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Cache Size</div><div class="text-lg font-bold text-white">12.1 MB</div></div>
-                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Thumbnails</div><div class="text-lg font-bold text-white">1,331 files</div></div>
+                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Database Size</div><div class="text-lg font-bold text-white" id="db-size">47.3 MB</div></div>
+                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Cache Size</div><div class="text-lg font-bold text-white" id="cache-size">12.1 MB</div></div>
+                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Thumbnails</div><div class="text-lg font-bold text-white" id="thumb-count">1,331 files</div></div>
                             <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
                                 <button class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Thumbnail Cache</button>
                                 <button class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Vacuum Database</button>
@@ -106,16 +111,16 @@
                         <div class="space-y-4">
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">Log Level</label>
-                                <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                    <option>DEBUG</option>
-                                    <option selected>INFO</option>
-                                    <option>WARNING</option>
-                                    <option>ERROR</option>
+                                <select id="log-level" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                    <option value="DEBUG">DEBUG</option>
+                                    <option value="INFO" selected>INFO</option>
+                                    <option value="WARNING">WARNING</option>
+                                    <option value="ERROR">ERROR</option>
                                 </select>
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">Webhook URL (optional)</label>
-                                <input type="url" placeholder="https://your-webhook.com/endpoint" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                <input type="url" id="webhook-url" placeholder="https://your-webhook.com/endpoint" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
                             </div>
                             <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
                                 <button class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Test Webhook</button>
@@ -128,5 +133,79 @@
             </div>
         </main>
     </div>
+    <script>
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                if (!response.ok) return;
+                const data = await response.json();
+                document.getElementById('yt-api-key').placeholder = data.youtube_api_key || 'Enter API key';
+                document.getElementById('oauth-client-id').value = data.oauth_client_id || '';
+                document.getElementById('oauth-client-secret').placeholder = data.oauth_client_secret ? '••••••••' : 'Enter secret';
+                document.getElementById('default-privacy').value = data.default_privacy || 'private';
+                document.getElementById('scan-interval').value = data.scan_interval || 'hourly';
+                document.getElementById('max-concurrent').value = data.max_concurrent || 3;
+                document.getElementById('auto-sort').checked = data.auto_sort !== false;
+                document.getElementById('sync-watch-later').checked = data.sync_watch_later !== false;
+                document.getElementById('notify-failures').checked = data.notify_failures === true;
+                document.getElementById('dark-mode').checked = data.dark_mode !== false;
+                document.getElementById('log-level').value = data.log_level || 'INFO';
+                document.getElementById('webhook-url').value = data.webhook_url || '';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        
+        async function saveSettings() {
+            const payload = {
+                youtube_api_key: document.getElementById('yt-api-key').value || undefined,
+                oauth_client_id: document.getElementById('oauth-client-id').value || undefined,
+                oauth_client_secret: document.getElementById('oauth-client-secret').value || undefined,
+                default_privacy: document.getElementById('default-privacy').value,
+                scan_interval: document.getElementById('scan-interval').value,
+                max_concurrent: parseInt(document.getElementById('max-concurrent').value),
+                auto_sort: document.getElementById('auto-sort').checked,
+                sync_watch_later: document.getElementById('sync-watch-later').checked,
+                notify_failures: document.getElementById('notify-failures').checked,
+                dark_mode: document.getElementById('dark-mode').checked,
+                log_level: document.getElementById('log-level').value,
+                webhook_url: document.getElementById('webhook-url').value || undefined,
+            };
+            
+            try {
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                alert('Settings saved');
+            } catch (e) {
+                alert('Failed to save');
+            }
+        }
+        
+        async function connectYouTube() {
+            const status = document.getElementById('yt-status');
+            status.textContent = 'Opening OAuth...';
+            status.className = 'text-[10px] text-blue-400 text-center mt-2';
+            try {
+                const resp = await fetch('/auth/youtube');
+                const data = await resp.json();
+                if (data.auth_url) {
+                    window.open(data.auth_url, '_blank', 'width=600,height=700');
+                    status.textContent = 'Complete OAuth in popup, then refresh';
+                    status.className = 'text-[10px] text-green-400 text-center mt-2';
+                } else {
+                    status.textContent = data.error || 'OAuth not configured';
+                    status.className = 'text-[10px] text-red-400 text-center mt-2';
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.className = 'text-[10px] text-red-400 text-center mt-2';
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', loadSettings);
+    </script>
 </body>
 </html>
