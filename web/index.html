@@ -56,25 +56,25 @@
 
     <div class="flex flex-1 overflow-hidden">
         <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
-            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30">
+            <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30">
                 <i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard
             </a>
-            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
                 <i class="fa-solid fa-list w-5 text-center"></i> Playlists
             </a>
-            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
                 <i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions
             </a>
-            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
                 <i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue
             </a>
-            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+            <a href="/rules" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
                 <i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings
             </a>
-            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+            <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
                 <i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration
             </a>
-            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
+            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
                 <i class="fa-solid fa-gear w-5 text-center"></i> Settings
             </a>
         </aside>
@@ -135,22 +135,22 @@
                     
                     <div class="bento-card p-4 flex flex-col gap-2">
                         <h3 class="text-xs font-semibold text-gray-300 mb-2">Agent Control Center</h3>
-                        <button onclick="logTerminal('Initiating Full Cluster Scan across 60 playlists...')" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <button onclick="triggerAction('full_cluster_scan')" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
                             <i class="fa-solid fa-magnifying-glass"></i> Full Cluster Scan
                         </button>
-                        <button onclick="logTerminal('Forcing Auto-Sort...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                        <button onclick="triggerAction('force_auto_sort')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
                             <i class="fa-solid fa-wand-magic-sparkles text-blue-400"></i> Force Auto-Sort All
                         </button>
-                        <button onclick="logTerminal('Syncing Watch Later...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                        <button onclick="triggerAction('watch_later_sync')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
                             <i class="fa-regular fa-clock text-blue-400"></i> Watch Later Sync
                         </button>
-                        <button onclick="logTerminal('Diagnosing failure logs...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                        <button onclick="triggerAction('diagnose_failures')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
                             <i class="fa-solid fa-stethoscope text-blue-400"></i> Diagnose Failures
                         </button>
-                        <button onclick="logTerminal('Regenerating queue rules...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                        <button onclick="triggerAction('regenerate_queue')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
                             <i class="fa-solid fa-rotate text-blue-400"></i> Regenerate Queue
                         </button>
-                        <button onclick="logTerminal('Pinging surface diagnostics...')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
+                        <button onclick="triggerAction('surface_diagnostics')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
                             <i class="fa-solid fa-layer-group text-blue-400"></i> Surface diagnostics
                         </button>
                     </div>
@@ -159,6 +159,7 @@
                         <div class="px-4 py-3 border-b border-[#2a2f3a]">
                             <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2">
                                 <i class="fa-solid fa-terminal text-blue-400"></i> Live Agent Output
+                                <span id="ws-status" class="text-[9px] px-1.5 py-0.5 bg-red-900/30 text-red-400 rounded">DISCONNECTED</span>
                             </h3>
                         </div>
                         <div id="terminal-body" class="p-3 font-mono text-[10px] leading-relaxed text-blue-300 bg-[#0a0c10] flex-1 overflow-y-auto whitespace-pre-wrap">
@@ -245,7 +246,7 @@ Processing couree...
                             <div class="flex"><span class="text-gray-600 w-4">11</span> }</div>
                         </div>
                         <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24]">
-                            <button class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Apply Rules</button>
+                            <button onclick="applyRules()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Apply Rules</button>
                         </div>
                     </div>
 
@@ -317,14 +318,73 @@ Processing couree...
     </div>
 
     <script>
+        let ws = null;
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
+            
+            ws.onopen = () => {
+                document.getElementById('ws-status').textContent = 'CONNECTED';
+                document.getElementById('ws-status').className = 'text-[9px] px-1.5 py-0.5 bg-green-900/30 text-green-400 rounded';
+                logTerminal('[WS] Connected to agent terminal');
+                // Ping every 30s to keep alive
+                setInterval(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({type: 'ping'}));
+                    }
+                }, 30000);
+            };
+            
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'log') {
+                    logTerminal(msg.message);
+                } else if (msg.type === 'pong') {
+                    // connection alive
+                }
+            };
+            
+            ws.onclose = () => {
+                document.getElementById('ws-status').textContent = 'DISCONNECTED';
+                document.getElementById('ws-status').className = 'text-[9px] px-1.5 py-0.5 bg-red-900/30 text-red-400 rounded';
+                logTerminal('[WS] Disconnected, reconnecting in 5s...');
+                setTimeout(connectWebSocket, 5000);
+            };
+            
+            ws.onerror = (err) => {
+                console.log('WS error:', err);
+            };
+        }
+        
         function logTerminal(message) {
             const terminal = document.getElementById('terminal-body');
             const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
-            const newLine = `\n[${timestamp}] [ACTION] ${message}`;
+            const newLine = `\n[${timestamp}] ${message}`;
             terminal.innerHTML += newLine;
             terminal.scrollTop = terminal.scrollHeight;
         }
-
+        
+        async function triggerAction(action, payload = {}) {
+            try {
+                logTerminal(`[ACTION] Queuing: ${action}`);
+                const response = await fetch('/api/action', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action, payload})
+                });
+                const result = await response.json();
+                logTerminal(`[ACTION] ${result.status}: ${result.action}`);
+            } catch (e) {
+                logTerminal(`[ERROR] Failed to queue action: ${e.message}`);
+            }
+        }
+        
+        async function applyRules() {
+            const rules = document.getElementById('rules-editor').innerText;
+            await triggerAction('apply_rules', {rules});
+        }
+        
         // Load real data from API
         async function loadDashboardStats() {
             try {
@@ -345,10 +405,11 @@ Processing couree...
                 console.log('Stats endpoint not available, using defaults');
             }
         }
-
+        
         // Load on startup
         document.addEventListener('DOMContentLoaded', () => {
             loadDashboardStats();
+            connectWebSocket();
             // Poll for updates every 30 seconds
             setInterval(loadDashboardStats, 30000);
         });
