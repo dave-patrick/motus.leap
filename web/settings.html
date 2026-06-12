@@ -49,12 +49,12 @@
                                 <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client Secret</label>
                                 <input type="password" id="oauth-client-secret" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="••••••••">
                             </div>
-                            <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="api-first" class="accent-blue-500" checked> Use API-first mode (fallback to headless)</label>
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-refresh" class="accent-blue-500" checked> Auto-refresh tokens</label>
-                            </div>
                             <div class="pt-2 border-t border-[#2a2f3a] space-y-3">
                                 <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded"><i class="fa-solid fa-floppy-disk mr-2"></i>Save All Settings</button>
+                                <div class="border-t border-[#2a2f3a] pt-2 space-y-2">
+                                    <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="api-first" class="accent-blue-500" checked> Use API-first mode (fallback to headless)</label>
+                                    <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-refresh" class="accent-blue-500" checked> Auto-refresh tokens</label>
+                                </div>
                                 <button onclick="connectYouTube()" class="w-full bg-[#c8102e] hover:bg-[#b00f2a] text-white text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-brands fa-youtube"></i> Connect YouTube Account (OAuth)</button>
                                 <div id="yt-status" class="text-[10px] text-gray-400 text-center"></div>
                             </div>
