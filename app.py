@@ -12,6 +12,12 @@ from pathlib import Path
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 INDEX_HTML = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+PLAYLISTS_HTML = (WEB_DIR / "playlists.html").read_text(encoding="utf-8")
+SUBSCRIPTIONS_HTML = (WEB_DIR / "subscriptions.html").read_text(encoding="utf-8")
+MAINTENANCE_HTML = (WEB_DIR / "maintenance.html").read_text(encoding="utf-8")
+RULES_HTML = (WEB_DIR / "rules.html").read_text(encoding="utf-8")
+AI_HTML = (WEB_DIR / "ai.html").read_text(encoding="utf-8")
+SETTINGS_HTML = (WEB_DIR / "settings.html").read_text(encoding="utf-8")
 app = FastAPI(title="Tube Manager")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
@@ -30,6 +36,30 @@ def get_service() -> TubeManager:
 @app.get("/", response_class=HTMLResponse)
 async def index() -> str:
     return INDEX_HTML
+
+@app.get("/playlists", response_class=HTMLResponse)
+async def playlists() -> str:
+    return PLAYLISTS_HTML
+
+@app.get("/subscriptions", response_class=HTMLResponse)
+async def subscriptions() -> str:
+    return SUBSCRIPTIONS_HTML
+
+@app.get("/maintenance", response_class=HTMLResponse)
+async def maintenance() -> str:
+    return MAINTENANCE_HTML
+
+@app.get("/rules", response_class=HTMLResponse)
+async def rules() -> str:
+    return RULES_HTML
+
+@app.get("/ai", response_class=HTMLResponse)
+async def ai() -> str:
+    return AI_HTML
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings() -> str:
+    return SETTINGS_HTML
 
 
 @app.get("/health")
@@ -55,6 +85,65 @@ async def stats() -> dict[str, Any]:
         "learning_rate": "2.225%",
         "learning_rates": "1922",
         "last_scan": "just now",
+    }
+
+
+@app.get("/api/playlists")
+async def api_playlists() -> dict[str, Any]:
+    """Playlists page data."""
+    return {
+        "playlists": [
+            {"id": "PL_tech", "title": "Programming & Tech", "video_count": 347, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?tech"},
+            {"id": "PL_learning", "title": "Tutorials & Learning", "video_count": 289, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?learn"},
+            {"id": "PL_reviews", "title": "Reviews & Unboxings", "video_count": 156, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?review"},
+            {"id": "PL_live", "title": "Live Streams & Premieres", "video_count": 98, "channel": "Multiple", "privacy": "unlisted", "thumbnail": "https://picsum.photos/160/90?live"},
+            {"id": "PL_music", "title": "Music & Audio", "video_count": 234, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?music"},
+            {"id": "PL_gaming", "title": "Gaming Content", "video_count": 187, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?game"},
+        ]
+    }
+
+
+@app.get("/api/subscriptions")
+async def api_subscriptions() -> dict[str, Any]:
+    """Subscriptions page data."""
+    return {
+        "channels": [
+            {"id": "UC_x5XG1OV2P6uZZ5FSM9Ttw", "title": "Google Developers", "video_count": 1247, "subscribers": "2.1M", "thumbnail": "https://picsum.photos/32?gd"},
+            {"id": "UC_latest", "title": "Fireship", "video_count": 342, "subscribers": "2.8M", "thumbnail": "https://picsum.photos/32?fs"},
+            {"id": "UC_tech", "title": "TechLead", "video_count": 567, "subscribers": "1.2M", "thumbnail": "https://picsum.photos/32?tl"},
+            {"id": "UC_code", "title": "Traversy Media", "video_count": 892, "subscribers": "2.0M", "thumbnail": "https://picsum.photos/32?tm"},
+            {"id": "UC_ai", "title": "Two Minute Papers", "video_count": 456, "subscribers": "1.5M", "thumbnail": "https://picsum.photos/32?tmp"},
+        ]
+    }
+
+
+@app.get("/api/maintenance")
+async def api_maintenance() -> dict[str, Any]:
+    """Maintenance queue page data."""
+    return {
+        "move_from_x_to_y": [
+            {"id": "v1", "title": "Python Async Tutorial", "from_playlist": "PL_uncategorized", "to_playlist": "PL_learning", "suggested": "PL_learning", "thumbnail": "https://picsum.photos/32/24?1"},
+            {"id": "v2", "title": "React 18 Features", "from_playlist": "PL_uncategorized", "to_playlist": "PL_tech", "suggested": "PL_tech", "thumbnail": "https://picsum.photos/32/24?2"},
+        ],
+        "duplicated_videos": [
+            {"id": "v3", "title": "Docker Basics", "playlist_a": "PL_tech", "playlist_b": "PL_learning", "thumbnail": "https://picsum.photos/32/25?3"},
+        ],
+        "misplaced_videos": [
+            {"id": "v4", "title": "Music Mix 2024", "current_playlist": "PL_tech", "suggested": "PL_music", "thumbnail": "https://picsum.photos/32/26?4"},
+        ]
+    }
+
+
+@app.get("/api/mappings")
+async def api_mappings() -> dict[str, Any]:
+    """Rules & Mappings page data."""
+    return {
+        "mappings": [
+            {"channel": "Google Developers", "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw", "playlist": "PL_tech", "thumbnail": "https://picsum.photos/24?gd"},
+            {"channel": "Fireship", "channel_id": "UC_latest", "playlist": "PL_learning", "thumbnail": "https://picsum.photos/24?fs"},
+            {"channel": "TechLead", "channel_id": "UC_tech", "playlist": "PL_tech", "thumbnail": "https://picsum.photos/24?tl"},
+            {"channel": "Traversy Media", "channel_id": "UC_code", "playlist": "PL_learning", "thumbnail": "https://picsum.photos/24?tm"},
+        ]
     }
 
 

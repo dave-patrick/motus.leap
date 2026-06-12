@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Integration - YT Playlist Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-4"><div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white"><i class="fa-solid fa-play text-sm"></i></div><div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">YT Playlist Manager</h1><p class="text-[10px] text-gray-400">Automated Playlist Orchestrator</p></div></div>
+        <div class="flex items-center gap-6"><div class="text-right hidden lg:block"><div class="text-[10px] text-blue-400 mt-0.5">[Idle • Last Full Scan: <span id="last-scan">loading...</span> • Trip: Grand Junction, CO: 27 days]</div></div><div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div><div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-border-all"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></div>
+    </header>
+    <div class="flex flex-1 overflow-hidden">
+        <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
+            <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
+            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
+            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
+            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+            <a href="/rules" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings</a>
+            <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration</a>
+            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
+        </aside>
+        <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
+            <div class="flex flex-col gap-4 min-w-[1200px]">
+                <h2 class="text-xl font-bold text-white">AI Integration</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="bento-card p-4">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-4">Model Configuration</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-[10px] text-gray-400 mb-1 block">Classification Model</label>
+                                <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                    <option>Gemini 2.0 Flash (Google AI Studio)</option>
+                                    <option>Llama 3.1 8B (Groq)</option>
+                                    <option>Mistral Small (Mistral AI)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 mb-1 block">Embedding Model</label>
+                                <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                    <option>text-embedding-3-small (OpenAI)</option>
+                                    <option>nomic-embed-text (local)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 mb-1 block">Reasoning Model</label>
+                                <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                    <option>DeepSeek-R1-Distill (Groq)</option>
+                                    <option>Nemotron 3 Ultra (OpenRouter)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bento-card p-4">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-4">Learning Parameters</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between text-[10px] mb-1"><span>Learning Rate</span><span id="lr-value">0.00225</span></div>
+                                <input type="range" min="0.0001" max="0.01" step="0.0001" value="0.00225" class="w-full accent-blue-500" oninput="document.getElementById('lr-value').textContent=this.value">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[10px] mb-1"><span>Confidence Threshold</span><span id="ct-value">0.75</span></div>
+                                <input type="range" min="0.1" max="0.99" step="0.01" value="0.75" class="w-full accent-blue-500" oninput="document.getElementById('ct-value').textContent=this.value">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[10px] mb-1"><span>Cluster Similarity</span><span id="cs-value">0.82</span></div>
+                                <input type="range" min="0.1" max="0.99" step="0.01" value="0.82" class="w-full accent-blue-500" oninput="document.getElementById('cs-value').textContent=this.value">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500" checked> Auto-retrain on new data</label>
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500"> Enable semantic deduplication</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bento-card p-4 lg:col-span-2">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-4">Training Data & Feedback Loop</h3>
+                        <div class="grid grid-cols-3 gap-4 mb-4">
+                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-2xl font-bold text-blue-400">1,922</div><div class="text-[10px] text-gray-400">Training Samples</div></div>
+                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-2xl font-bold text-green-400">2.225%</div><div class="text-[10px] text-gray-400">Learning Rate</div></div>
+                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-2xl font-bold text-purple-400">94.3%</div><div class="text-[10px] text-gray-400">Classification Accuracy</div></div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-4 py-2 rounded">Retrain Model</button>
+                            <button class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Export Weights</button>
+                            <button class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Import Dataset</button>
+                        </div>
+                    </div>
+                    <div class="bento-card p-4 lg:col-span-2">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-3">AI Agent Log</h3>
+                        <div id="ai-log" class="bg-[#0a0c10] p-3 font-mono text-[10px] leading-relaxed text-green-300 h-64 overflow-y-auto whitespace-pre-wrap">
+[AI] Initializing classification pipeline...
+[AI] Loading embeddings cache (1,922 vectors)
+[AI] Gemini 2.0 Flash connected • 1500 req/day quota
+[CLUSTER] Processing playlist "PL_tech" — 347 videos
+[CLUSTER] Similarity matrix computed • 0.82 threshold
+[LEARN] Batch 1/8 complete • accuracy: 94.1%
+[LEARN] Batch 2/8 complete • accuracy: 94.3%
+[DEDUPE] Found 23 semantic duplicates across playlists
+[RULE] Generated 12 new regex patterns from clusters
+[AI] Model checkpoint saved • next retrain: 24h
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Auto-scroll log
+            const log = document.getElementById('ai-log');
+            log.scrollTop = log.scrollHeight;
+        });
+    </script>
+</body>
+</html>
