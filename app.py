@@ -443,6 +443,11 @@ async def settings() -> str:
     return SETTINGS_HTML
 
 
+@app.get("/test", response_class=HTMLResponse)
+async def test_page() -> str:
+    return (WEB_DIR / "test.html").read_text(encoding="utf-8")
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
