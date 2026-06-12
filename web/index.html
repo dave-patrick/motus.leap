@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tube Manager</title>
+  <style>
+    :root {
+      --bg: #0c0f14;
+      --surface: #14181f;
+      --panel: #1a1f29;
+      --accent: #5c6fd6;
+      --text: #e7eaf0;
+      --muted: #8d95a8;
+      --border: #232936;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .container { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    h1 { font-size: 22px; font-weight: 700; margin: 0; }
+    .bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    input, select, button, textarea {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font: inherit;
+    }
+    button { cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    @media (min-width: 760px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .meta { color: var(--muted); font-size: 13px; }
+    .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    .pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #1f2533;
+      border: 1px solid var(--border);
+      font-size: 13px;
+    }
+    details.detail {
+      margin-top: 10px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    details.detail summary { cursor: pointer; color: var(--muted); }
+    pre { white-space: pre-wrap; word-wrap: break-word; background: #0e1118; padding: 10px; border-radius: 8px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Tube Manager</h1>
+      <div>
+        <button id="refresh" class="primary">Refresh</button>
+      </div>
+    </header>
+
+    <div class="bar">
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option>pending</option>
+        <option>running</option>
+        <option>completed</option>
+        <option>failed</option>
+      </select>
+      <input id="search" placeholder="Search tasks" />
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <strong>New task</strong>
+          <div class="meta">Create a new task to run.</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <input id="newTitle" placeholder="Title" />
+        <select id="newType">
+          <option value="generic">generic</option>
+          <option value="youtube">youtube</option>
+          <option value="home">home</option>
+          <option value="code">code</option>
+        </select>
+        <input id="newPriority" placeholder="priority" />
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <textarea id="newPayload" rows="2" placeholder='Optional JSON payload, e.g. {"action":"sync"}'></textarea>
+        <button id="create" class="primary">Create</button>
+      </div>
+    </div>
+
+    <div class="grid" id="taskList"></div>
+  </div>
+
+  <script>
+    const API = "" /* fallback same-origin */;
+
+    async function api(path, opts = {}) {
+      const res = await fetch(API + path, { ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) } });
+      if (!res.ok) throw new Error(await res.text());
+      const text = await res.text();
+      return text ? JSON.parse(text) : null;
+    }
+
+    async function loadTasks() {
+      const status = document.getElementById("statusFilter").value;
+      const q = document.getElementById("search").value.trim().toLowerCase();
+      const url = "/tasks" + (status ? `?status=${encodeURIComponent(status)}` : "");
+      const data = await api(url);
+      let tasks = data.tasks || [];
+      if (q) tasks = tasks.filter(t => ((t.title || "") + " " + (t.id || "")).toLowerCase().includes(q));
+      render(tasks);
+    }
+
+    function render(tasks) {
+      const root = document.getElementById("taskList");
+      root.innerHTML = "";
+      if (!tasks.length) {
+        root.innerHTML = `<div class="card"><div class="meta">No tasks found.</div></div>`;
+        return;
+      }
+      for (const t of tasks) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const payloadText = t.payload ? JSON.stringify(t.payload, null, 2) : "";
+        card.innerHTML = `
+          <div class="row">
+            <div>
+              <strong>${escapeHtml(t.title)}</strong>
+              <div class="meta">${escapeHtml(t.id)} • ${escapeHtml(t.type)} • ${escapeHtml(t.status || "")}</div>
+            </div>
+            <span class="pill">${escapeHtml(String(t.priority || ""))}</span>
+          </div>
+          ${payloadText ? `<details class="detail"><summary>Payload</summary><pre>${escapeHtml(payloadText)}</pre></details>` : ""}
+          <div class="row">
+            <span class="meta">created ${escapeHtml(t.created_at || "")} • updated ${escapeHtml(t.updated_at || "")}</span>
+            <div style="display:flex;gap:8px;">
+              <button data-act="delete" data-id="${escapeHtml(t.id)}">Delete</button>
+              <button data-act="run" data-id="${escapeHtml(t.id)}" class="primary">Run</button>
+            </div>
+          </div>
+        `;
+        root.appendChild(card);
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);
+    }
+
+    document.getElementById("taskList").addEventListener("click", async (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      const id = btn.getAttribute("data-id");
+      if (btn.getAttribute("data-act") === "run") {
+        await api(`/tasks/${id}/run`, { method: "POST" });
+        await loadTasks();
+      } else if (btn.getAttribute("data-act") === "delete") {
+        await api(`/tasks/${id}`, { method: "DELETE" });
+        await loadTasks();
+      }
+    });
+
+    document.getElementById("create").addEventListener("click", async () => {
+      const title = document.getElementById("newTitle").value.trim();
+      const task_type = document.getElementById("newType").value;
+      const priority = document.getElementById("newPriority").value.trim() || null;
+      let payload = null;
+      const payloadRaw = document.getElementById("newPayload").value.trim();
+      if (payloadRaw) {
+        try { payload = JSON.parse(payloadRaw); } catch (err) { alert("Invalid JSON payload"); return; }
+      }
+      if (!title) { alert("Title required"); return; }
+      await api("/tasks", { method: "POST", body: JSON.stringify({ title, task_type, priority, payload }) });
+      document.getElementById("newTitle").value = "";
+      document.getElementById("newPayload").value = "";
+      document.getElementById("newPriority").value = "";
+      await loadTasks();
+    });
+
+    document.getElementById("refresh").addEventListener("click", loadTasks);
+    document.getElementById("statusFilter").addEventListener("change", loadTasks);
+    document.getElementById("search").addEventListener("input", loadTasks);
+
+    loadTasks();
+  </script>
+</body>
+</html>
