@@ -23,8 +23,9 @@ RULES_HTML = (WEB_DIR / "rules.html").read_text(encoding="utf-8")
 AI_HTML = (WEB_DIR / "ai.html").read_text(encoding="utf-8")
 SETTINGS_HTML = (WEB_DIR / "settings.html").read_text(encoding="utf-8")
 
-# Config file for persistence
-CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
+# Config file for persistence (use persistent disk on Render)
+CONFIG_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__).resolve().parent
+CONFIG_FILE = CONFIG_DIR / "config.json"
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -58,12 +59,21 @@ def load_config() -> dict[str, Any]:
     if CONFIG_FILE.exists():
         try:
             return json.loads(CONFIG_FILE.read_text())
-        except Exception:
-            return {}
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to load config: {e}")
     return {}
 
 def save_config(config: dict[str, Any]) -> None:
-    CONFIG_FILE.write_text(json.dumps(config, indent=2))
+    try:
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG_FILE.write_text(json.dumps(config, indent=2))
+        import logging
+        logging.getLogger(__name__).info(f"Config saved to {CONFIG_FILE}")
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Failed to save config: {e}")
+        raise
 
 # Load config on startup
 APP_CONFIG = load_config()
