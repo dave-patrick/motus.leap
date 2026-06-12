@@ -7,7 +7,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -15,13 +15,6 @@ from tube_manager.service import TubeManager
 from pathlib import Path
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
-INDEX_HTML = (WEB_DIR / "index.html").read_text(encoding="utf-8")
-PLAYLISTS_HTML = (WEB_DIR / "playlists.html").read_text(encoding="utf-8")
-SUBSCRIPTIONS_HTML = (WEB_DIR / "subscriptions.html").read_text(encoding="utf-8")
-MAINTENANCE_HTML = (WEB_DIR / "maintenance.html").read_text(encoding="utf-8")
-RULES_HTML = (WEB_DIR / "rules.html").read_text(encoding="utf-8")
-AI_HTML = (WEB_DIR / "ai.html").read_text(encoding="utf-8")
-SETTINGS_HTML = (WEB_DIR / "settings.html").read_text(encoding="utf-8")
 
 # Config file for persistence (use persistent disk on Render)
 CONFIG_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__).resolve().parent
@@ -51,6 +44,7 @@ manager = ConnectionManager()
 # Background task queue
 task_queue: asyncio.Queue = asyncio.Queue()
 background_tasks_running = False
+
 app = FastAPI(title="Tube Manager")
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
@@ -103,6 +97,7 @@ def get_service() -> TubeManager:
         _service = TubeManager()
     return _service
 
+
 # Background task processor
 async def process_background_tasks():
     global background_tasks_running
@@ -132,7 +127,7 @@ async def process_background_tasks():
                 await apply_rules(payload)
             elif action == "sync_playlists":
                 await sync_playlists(payload)
-                
+            
             await manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
             task_queue.task_done()
         except Exception as e:
@@ -414,38 +409,47 @@ async def youtube_status():
 async def startup_event():
     asyncio.create_task(process_background_tasks())
 
-@app.get("/", response_class=HTMLResponse)
-async def index() -> str:
-    return INDEX_HTML
 
-@app.get("/playlists", response_class=HTMLResponse)
-async def playlists() -> str:
-    return PLAYLISTS_HTML
+# Page routes - serve HTML files on demand ---------------------------------
 
-@app.get("/subscriptions", response_class=HTMLResponse)
-async def subscriptions() -> str:
-    return SUBSCRIPTIONS_HTML
-
-@app.get("/maintenance", response_class=HTMLResponse)
-async def maintenance() -> str:
-    return MAINTENANCE_HTML
-
-@app.get("/rules", response_class=HTMLResponse)
-async def rules() -> str:
-    return RULES_HTML
-
-@app.get("/ai", response_class=HTMLResponse)
-async def ai() -> str:
-    return AI_HTML
-
-@app.get("/settings", response_class=HTMLResponse)
-async def settings() -> str:
-    return SETTINGS_HTML
+@app.get("/", response_class=FileResponse)
+async def index():
+    return WEB_DIR / "index.html"
 
 
-@app.get("/test", response_class=HTMLResponse)
-async def test_page() -> str:
-    return (WEB_DIR / "test.html").read_text(encoding="utf-8")
+@app.get("/playlists", response_class=FileResponse)
+async def playlists():
+    return WEB_DIR / "playlists.html"
+
+
+@app.get("/subscriptions", response_class=FileResponse)
+async def subscriptions():
+    return WEB_DIR / "subscriptions.html"
+
+
+@app.get("/maintenance", response_class=FileResponse)
+async def maintenance():
+    return WEB_DIR / "maintenance.html"
+
+
+@app.get("/rules", response_class=FileResponse)
+async def rules():
+    return WEB_DIR / "rules.html"
+
+
+@app.get("/ai", response_class=FileResponse)
+async def ai():
+    return WEB_DIR / "ai.html"
+
+
+@app.get("/settings", response_class=FileResponse)
+async def settings():
+    return WEB_DIR / "settings.html"
+
+
+@app.get("/test", response_class=FileResponse)
+async def test_page():
+    return WEB_DIR / "test.html"
 
 
 @app.get("/health")
@@ -666,5 +670,4 @@ async def yt_create_playlist(body: dict[str, Any]) -> dict[str, Any]:
 
 def _get_youtube_client() -> Any:
     from tube_manager.google import YouTubeClient
-
     return YouTubeClient()
