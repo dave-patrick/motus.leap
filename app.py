@@ -21,13 +21,18 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 CONFIG_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__).resolve().parent
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
-def no_cache_file_response(file_path: Path) -> FileResponse:
-    """Return FileResponse with no-cache headers to prevent CDN/browser caching."""
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    return response
+def no_cache_file_response(file_path: Path) -> Response:
+    """Return HTML response with no-cache headers to prevent CDN/browser caching."""
+    content = file_path.read_text(encoding="utf-8")
+    return Response(
+        content=content,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
 
 # WebSocket connection manager
 class ConnectionManager:
