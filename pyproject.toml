@@ -1,22 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
 [project]
 name = "tube-manager"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = [
-  "pyyaml",
-  "click",
-  "fastapi",
-  "uvicorn[standard]",
-  "pydantic>=2",
-  "httpx",
-]
+dependencies = ["pyyaml", "click", "fastapi", "uvicorn[standard]"]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio"]
+dev = ["pytest", "httpx"]
 
 [project.scripts]
 tube = "tube_manager.cli:cli"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tube_manager*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
