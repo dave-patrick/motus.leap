@@ -308,10 +308,19 @@ async def youtube_auth():
 @app.get("/auth/youtube/callback")
 async def youtube_callback(code: str):
     """Handle OAuth callback and exchange code for tokens."""
+    import httpx
+    import logging
+    logger = logging.getLogger(__name__)
+    
     client_id = APP_CONFIG.get("oauth_client_id")
     client_secret = APP_CONFIG.get("oauth_client_secret")
     if not client_id or not client_secret:
-        return HTMLResponse("<h1>OAuth not configured</h1>", status_code=400)
+        logger.error("OAuth credentials not configured in APP_CONFIG")
+        return HTMLResponse("""
+            <h1>❌ OAuth Not Configured</h1>
+            <p>Please go to <a href="/settings">Settings</a> and enter your OAuth Client ID and Secret, then save.</p>
+            <p>Client ID: <code>343644756734-vht75phpm5ae7m3dm439aolurvpuhdc1.apps.googleusercontent.com</code></p>
+        """, status_code=400)
     
     redirect_uri = "https://tubemanager.onrender.com/auth/youtube/callback"
     token_url = "https://oauth2.googleapis.com/token"
@@ -323,21 +332,46 @@ async def youtube_callback(code: str):
         "grant_type": "authorization_code",
     }
     
-    import httpx
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(token_url, data=data)
-        tokens = resp.json()
-    
-    if "access_token" in tokens:
-        APP_CONFIG["youtube_access_token"] = tokens.get("access_token")
-        APP_CONFIG["youtube_refresh_token"] = tokens.get("refresh_token")
-        save_config(APP_CONFIG)
-        return HTMLResponse("""
-            <h1>✅ YouTube connected!</h1>
-            <p>You can close this window and return to the app.</p>
-            <script>setTimeout(() => window.close(), 3000);</script>
-        """)
-    return HTMLResponse(f"<h1>Error: {tokens}</h1>", status_code=400)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(token_url, data=data)
+            tokens = resp.json()
+        
+        logger.info(f"Token response status: {resp.status_code}")
+        logger.info(f"Token response keys: {list(tokens.keys())}")
+        
+        if "access_token" in tokens:
+            APP_CONFIG["youtube_access_token"] = tokens.get("access_token")
+            APP_CONFIG["youtube_refresh_token"] = tokens.get("refresh_token")
+            APP_CONFIG["youtube_token_expiry"] = tokens.get("expires_in")
+            save_config(APP_CONFIG)
+            logger.info("YouTube OAuth tokens saved successfully")
+            return HTMLResponse("""
+                <h1 style="color: #44ff88;">✅ YouTube Connected!</h1>
+                <p>Tokens saved. You can close this window and return to the app.</p>
+                <p style="color: #7b8bb5; font-size: 12px;">Access token expires in: """ + str(tokens.get("expires_in", 3600)) + """ seconds</p>
+                <script>setTimeout(() => window.close(), 3000);</script>
+            """)
+        else:
+            error_msg = tokens.get("error_description", tokens.get("error", str(tokens)))
+            logger.error(f"OAuth token error: {error_msg}")
+            return HTMLResponse(f"""
+                <h1 style="color: #ff4444;">❌ OAuth Error</h1>
+                <p><strong>Error:</strong> {error_msg}</p>
+                <p><a href="/settings">Return to Settings</a> to verify credentials.</p>
+            """, status_code=400)
+    except httpx.RequestError as e:
+        logger.error(f"HTTP request failed: {e}")
+        return HTMLResponse(f"""
+            <h1 style="color: #ff4444;">❌ Network Error</h1>
+            <p>Failed to connect to Google: {str(e)}</p>
+        """, status_code=500)
+    except Exception as e:
+        logger.exception("Unexpected error in OAuth callback")
+        return HTMLResponse(f"""
+            <h1 style="color: #ff4444;">❌ Server Error</h1>
+            <p>{str(e)}</p>
+        """, status_code=500)
 
 
 @app.get("/api/youtube/status")
