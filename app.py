@@ -412,9 +412,22 @@ async def startup_event():
 
 # Page routes - serve HTML files on demand ---------------------------------
 
-@app.get("/", response_class=FileResponse)
+@app.get("/")
 async def index():
-    return WEB_DIR / "index.html"
+    return HTMLResponse('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Tube Manager</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-900 text-white p-8">
+        <h1 class="text-3xl mb-4">Tube Manager</h1>
+        <p>Root route working!</p>
+        <a href="/test" class="text-blue-400">Go to Test Page</a>
+    </body>
+    </html>
+    ''')
 
 
 @app.get("/playlists", response_class=FileResponse)
