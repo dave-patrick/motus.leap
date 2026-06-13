@@ -15,6 +15,11 @@ from starlette.responses import Response
 from pydantic import BaseModel
 import aiofiles
 
+# Rate limiting
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 # Core imports
 from core.http_client import shutdown_http_client
 from core.logger import setup_logging
@@ -132,6 +137,10 @@ async def lifespan(app: FastAPI):
     await shutdown_http_client()
 
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+_rate_limit_exceeded_handler = RateLimitExceeded
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Tube Manager",
@@ -139,26 +148,46 @@ app = FastAPI(
     description="YouTube Playlist Management System",
     version="2.0.0"
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 
-# CSP middleware to override Render's restrictive CSP
+# Security middleware
 @app.middleware("http")
-async def add_csp_header(request: Request, call_next):
-    """Add Content Security Policy header."""
+async def add_security_headers(request: Request, call_next):
+    """Add security headers including strict CSP."""
+    import secrets
+
+    # Generate nonce for inline scripts (only for Tailwind CDN)
+    nonce = secrets.token_hex(16)
+
     response = await call_next(request)
+
+    # Strict Content Security Policy
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
-        "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
-        "img-src 'self' data: https:; "
-        "connect-src 'self' wss: https:; "
-        "frame-ancestors 'self'; "
-        "frame-src 'self' https:;"
+        f"default-src 'self'; "
+        f"script-src 'self' 'nonce-{nonce}' https://cdn.tailwindcss.com; "
+        f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com; "
+        f"font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
+        f"img-src 'self' https://i.ytimg.com https://yt3.ggpht.com; "
+        f"connect-src 'self' https://www.googleapis.com https://www.youtube.com wss://tubemanager.onrender.com; "
+        f"frame-ancestors 'none'; "
+        f"frame-src 'none';"
     )
+
+    # Additional security headers
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    # Pass nonce to template (if needed)
+    response.headers["X-CSP-Nonce"] = nonce
+
     return response
 
 
@@ -445,6 +474,25 @@ class ActionIn(BaseModel):
     payload: dict[str, Any] | None = None
 
 
+class MappingIn(BaseModel):
+    """Channel mapping model."""
+    channel: str
+    playlist: str
+
+
+class MappingsIn(BaseModel):
+    """Bulk mappings model."""
+    mappings: list[MappingIn] | dict[str, str] = []
+
+
+class ConfigUpdateIn(BaseModel):
+    """Config update model."""
+    youtube_api_key: str | None = None
+    oauth_client_id: str | None = None
+    oauth_client_secret: str | None = None
+    rules: str | None = None
+
+
 # Page routes
 @app.get("/")
 async def index():
@@ -510,7 +558,8 @@ async def health() -> dict[str, str]:
 
 # Single-request endpoint - QUOTA OPTIMIZED
 @app.get("/api/youtube/fetch-all")
-async def fetch_all_youtube_data(force_refresh: bool = False):
+@limiter.limit("10/minute")  # Rate limit: 10 requests per minute
+async def fetch_all_youtube_data(request: Request, force_refresh: bool = False):
     """Fetch ALL YouTube data in one optimized request (subscriptions, playlists, videos with duration).
 
     This is the QUOTA-OPTIMIZED endpoint. Use this to get everything in one call.
@@ -685,7 +734,8 @@ async def save_mappings(body: dict[str, Any]) -> dict[str, Any]:
 
 # Action endpoint
 @app.post("/api/action")
-async def trigger_action(body: ActionIn):
+@limiter.limit("20/minute")  # Rate limit: 20 actions per minute
+async def trigger_action(request: Request, body: ActionIn):
     """Queue a background action."""
     await task_queue.put({"action": body.action, "payload": body.payload or {}})
     return {"status": "queued", "action": body.action}
@@ -751,7 +801,7 @@ async def youtube_callback(code: str):
             tokens = resp.json()
         
         log.info(f"Token response status: {resp.status_code}")
-        log.info(f"Token response keys: {list(tokens.keys())}")
+        log.info("OAuth token exchange completed successfully")
         
         if "access_token" in tokens:
             config.oauth.access_token = tokens.get("access_token")
