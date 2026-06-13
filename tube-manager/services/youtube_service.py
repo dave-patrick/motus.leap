@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 from tube_manager.google import YouTubeClient
 from models.config import TubeManagerConfig
+from core.lru_cache import LRUAsyncCache
 
 log = logging.getLogger(__name__)
 
@@ -24,10 +25,8 @@ class YouTubeService:
         self.config = config
         self._client: Optional[YouTubeClient] = None
         
-        # Local cache to avoid redundant API calls
-        self._cache: Dict[str, Any] = {}
-        self._cache_timestamp: Dict[str, datetime] = {}
-        self._cache_ttl = timedelta(minutes=10)  # Cache for 10 minutes (increased from 5)
+        # LRU cache to avoid redundant API calls with eviction policy
+        self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(minutes=10))
         
         # User-specific storage path
         self._user_data_dir = Path("/app/data/users") / self._get_user_id()
@@ -66,7 +65,7 @@ class YouTubeService:
 
         return self._client
 
-    def _get_cached(self, key: str) -> Optional[Any]:
+    async def _get_cached(self, key: str) -> Optional[Any]:
         """Get cached data if not expired.
 
         Args:
@@ -75,31 +74,21 @@ class YouTubeService:
         Returns:
             Cached data or None if expired/missing
         """
-        if key in self._cache:
-            if datetime.now() - self._cache_timestamp[key] < self._cache_ttl:
-                log.debug(f"Cache hit: {key}")
-                return self._cache[key]
-            else:
-                log.debug(f"Cache expired: {key}")
-                del self._cache[key]
-                del self._cache_timestamp[key]
-        return None
+        return await self._cache.get(key)
 
-    def _set_cached(self, key: str, data: Any) -> None:
+    async def _set_cached(self, key: str, data: Any) -> None:
         """Cache data with timestamp.
 
         Args:
             key: Cache key
             data: Data to cache
         """
-        self._cache[key] = data
-        self._cache_timestamp[key] = datetime.now()
-        log.debug(f"Cached: {key} (TTL: {self._cache_ttl.total_seconds()}s)")
+        await self._cache.set(key, data)
+        log.debug(f"Cached: {key}")
 
-    def _clear_cache(self) -> None:
+    async def _clear_cache(self) -> None:
         """Clear all cached data."""
-        self._cache.clear()
-        self._cache_timestamp.clear()
+        await self._cache.clear()
         log.info("Cache cleared")
 
     def _save_to_disk(self, key: str, data: Any) -> None:
@@ -401,6 +390,36 @@ class YouTubeService:
             parts.append(f"{secs}s")
         
         return " ".join(parts)
+    async def _fetch_all_paginated(self, fetch_fn, max_results: int = 50, max_items: int = 500):
+        """Fetch paginated results with caps and early exit.
+
+        Args:
+            fetch_fn: Function to fetch paginated results
+            max_results: Results per page
+            max_items: Maximum total items to fetch
+
+        Returns:
+            List of items
+        """
+        all_items = []
+        page_token = None
+
+        while len(all_items) < max_items:
+            resp = fetch_fn(max_results=max_results, page_token=page_token)
+            items = resp.get("items", [])
+            all_items.extend(items)
+
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                break
+
+            # Early exit if approaching quota
+            if len(all_items) + max_results > max_items:
+                log.warning(f"Approaching item cap {max_items}, stopping pagination")
+                break
+
+        return all_items[:max_items]
+
 
     async def list_subscriptions(self, force_refresh: bool = False) -> Dict[str, Any]:
         """List user's subscriptions with channel stats (cached).

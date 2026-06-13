@@ -16,6 +16,7 @@ from pydantic import BaseModel
 import aiofiles
 
 # Core imports
+from core.http_client import shutdown_http_client
 from core.logger import setup_logging
 from core.config_manager import ConfigManager
 from models.config import TubeManagerConfig
@@ -62,10 +63,12 @@ async def no_cache_file_response(file_path: Path) -> Response:
 
 # WebSocket connection manager
 class ConnectionManager:
-    """Manages WebSocket connections."""
+    """Manages WebSocket connections with throttling."""
 
     def __init__(self):
         self.active_connections: list[WebSocket] = []
+        self._last_broadcast_time = {}
+        self._min_broadcast_interval = 0.1  # 100ms between messages per client
 
     async def connect(self, websocket: WebSocket):
         """Accept a new WebSocket connection."""
@@ -80,13 +83,25 @@ class ConnectionManager:
             pass
 
     async def broadcast(self, message: str):
-        """Broadcast a message to all connected clients."""
+        """Broadcast a message to all connected clients with throttling."""
+        import asyncio
+        now = asyncio.get_event_loop().time()
+        tasks = []
         for connection in self.active_connections:
-            try:
-                await connection.send_text(message)
-            except Exception as e:
-                logger.error(f"WebSocket send error: {e}")
-                pass
+            conn_id = id(connection)
+            # Rate limit per client
+            if now - self._last_broadcast_time.get(conn_id, 0) >= self._min_broadcast_interval:
+                self._last_broadcast_time[conn_id] = now
+                tasks.append(self._safe_send(connection, message))
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _safe_send(self, connection: WebSocket, message: str):
+        """Send message to single WebSocket with error handling."""
+        try:
+            await connection.send_text(message)
+        except Exception as e:
+            log.debug(f"WebSocket send failed (likely disconnected): {e}")
+            self.disconnect(connection)
 
 
 manager = ConnectionManager()
@@ -114,6 +129,7 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     log.info("Tube Manager shutting down")
+    await shutdown_http_client()
 
 
 # Initialize FastAPI app
