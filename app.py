@@ -749,47 +749,66 @@ async def api_playlists() -> dict[str, Any]:
 
 @app.get("/api/subscriptions")
 async def api_subscriptions() -> dict[str, Any]:
-    """Subscriptions page data - real YouTube subscriptions."""
+    """Subscriptions page data - real YouTube subscriptions with channel stats."""
     client = _get_youtube_client()
     if not client:
         return {"channels": [], "error": "YouTube not connected"}
 
     try:
-        if not hasattr(client, 'list_mine_subscriptions'):
+        if not hasattr(client, "list_mine_subscriptions"):
             return {"channels": [], "error": "Subscriptions method not available"}
 
-        all_subs = []
+        all_subs: list[dict[str, Any]] = []
         resp = client.list_mine_subscriptions(max_results=50)
-        items = resp.get("items", [])
-        all_subs.extend(items)
+        all_subs.extend(resp.get("items", []))
 
         next_token = resp.get("nextPageToken")
         while next_token:
             more = client.list_mine_subscriptions(max_results=50, page_token=next_token)
-            items = more.get("items", [])
-            all_subs.extend(items)
+            all_subs.extend(more.get("items", []))
             next_token = more.get("nextPageToken")
 
-        seen = set()
-        formatted: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        channel_ids: list[str] = []
+        raw: list[dict[str, Any]] = []
         for sub in all_subs:
-            snippet = sub.get("snippet", {})
-            resource = snippet.get("resourceId", {})
+            snippet = sub.get("snippet", {}) or {}
+            resource = snippet.get("resourceId", {}) or {}
             channel_id = resource.get("channelId", "")
             if not channel_id or channel_id in seen:
                 continue
             seen.add(channel_id)
-            formatted.append({
+            channel_ids.append(channel_id)
+            raw.append({
                 "id": channel_id,
                 "title": snippet.get("title", "Unknown Channel"),
-                "video_count": 0,
-                "subscribers": "Unknown",
-                "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
+                "thumbnail": (snippet.get("thumbnails") or {}).get("default", {}).get("url", ""),
                 "description": snippet.get("description", ""),
                 "channel_url": f"https://www.youtube.com/channel/{channel_id}",
+                "video_count": 0,
+                "subscribers": "Unknown",
             })
 
-        return {"channels": formatted}
+        if channel_ids:
+            try:
+                enriched = client.list_channels_by_ids(channel_ids, max_results=50) or {}
+            except Exception as stats_err:
+                logger.warning(f"Channel stats lookup failed: {stats_err}")
+                enriched = {}
+            stats_map: dict[str, dict[str, Any]] = {}
+            for item in enriched.get("items", []):
+                cid = item.get("id", "")
+                if not cid:
+                    continue
+                stats_map[cid] = (item.get("statistics", {}) or {})
+
+            for entry in raw:
+                cid = entry["id"]
+                stats = stats_map.get(cid, {})
+                entry["subscribers"] = stats.get("subscriberCount", "Unknown")
+                entry["video_count"] = int(stats.get("videoCount", "0") or "0")
+
+        return {"channels": raw}
     except Exception as e:
         logger.error(f"Failed to fetch subscriptions: {e}")
         return {"channels": [], "error": str(e)}
