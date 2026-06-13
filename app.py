@@ -1,5 +1,4 @@
 """Single FastAPI app for the Tube Manager UI and API."""
-"""Single FastAPI app for the Tube Manager UI and API."""
 from typing import Any
 import asyncio
 import json
