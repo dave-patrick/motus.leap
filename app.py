@@ -743,7 +743,7 @@ async def api_playlists() -> dict[str, Any]:
         
         return {"playlists": formatted}
     except Exception as e:
-        logger.error(f"Failed to fetch playlists: {e}")
+        log.error(f"Failed to fetch playlists: {e}")
         return {"playlists": [], "error": str(e)}
 
 
@@ -793,7 +793,7 @@ async def api_subscriptions() -> dict[str, Any]:
             try:
                 enriched = client.list_channels_by_ids(channel_ids, max_results=50) or {}
             except Exception as stats_err:
-                logger.warning(f"Channel stats lookup failed: {stats_err}")
+                log.warning(f"Channel stats lookup failed: {stats_err}")
                 enriched = {}
             stats_map: dict[str, dict[str, Any]] = {}
             for item in enriched.get("items", []):
