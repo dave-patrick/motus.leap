@@ -182,9 +182,9 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
-                alert('Settings saved');
+                toast('Settings saved', 'success');
             } catch (e) {
-                alert('Failed to save');
+                toast('Failed to save settings', 'error');
             }
         }
         
@@ -251,16 +251,16 @@
             try {
                 const resp = await fetch('/api/storage/clear-thumbnails', {method: 'POST'});
                 const data = await resp.json();
-                alert(data.message || 'Cache cleared');
-            } catch (e) { alert('Failed: ' + e.message); }
+                toast(data.message || 'Cache cleared', 'success');
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
         
         async function vacuumDatabase() {
             try {
                 const resp = await fetch('/api/storage/vacuum', {method: 'POST'});
                 const data = await resp.json();
-                alert(data.message || 'Database vacuumed');
-            } catch (e) { alert('Failed: ' + e.message); }
+                toast(data.message || 'Database vacuumed', 'success');
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
         
         async function exportAllData() {
@@ -274,13 +274,14 @@
                 a.download = `tube-manager-export-${new Date().toISOString().slice(0,10)}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
-            } catch (e) { alert('Failed: ' + e.message); }
+                toast('Export started', 'success');
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
         
         // Advanced actions
         async function testWebhook() {
             const url = document.getElementById('webhook-url').value;
-            if (!url) { alert('Enter a webhook URL first'); return; }
+            if (!url) { toast('Enter a webhook URL first', 'warning'); return; }
             try {
                 const resp = await fetch('/api/webhook/test', {
                     method: 'POST',
@@ -288,8 +289,8 @@
                     body: JSON.stringify({url, test: true})
                 });
                 const data = await resp.json();
-                alert(data.message || 'Webhook test sent');
-            } catch (e) { alert('Failed: ' + e.message); }
+                toast(data.message || 'Webhook test sent', 'success');
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
         
         async function viewSystemLogs() {
@@ -301,9 +302,9 @@
             try {
                 const resp = await fetch('/api/settings/reset', {method: 'POST'});
                 const data = await resp.json();
-                alert('Settings reset');
+                toast(data.message || 'Settings reset', 'success');
                 window.location.reload();
-            } catch (e) { alert('Failed: ' + e.message); }
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
         
         // Listen for OAuth callback messages from popup
