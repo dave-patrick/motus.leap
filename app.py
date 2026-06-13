@@ -196,7 +196,7 @@ async def full_cluster_scan(payload):
     try:
         # Fetch user's playlists
         await manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Fetching playlist data from YouTube API..."}))
-        playlists_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
+        playlists_resp = client.list_mine_playlists(max_results=10)
         playlists = playlists_resp.get("items", [])
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"}))
         
@@ -207,17 +207,10 @@ async def full_cluster_scan(payload):
             pl_title = pl.get("snippet", {}).get("title", pl_id)
             await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Processing {idx+1}/{len(playlists)}: {pl_title}"}))
             try:
-                items_resp = await asyncio.wait_for(
-                    asyncio.to_thread(client.list_videos, pl_id, max_results=50),
-                    timeout=30.0
-                )
+                items_resp = client.list_videos(pl_id, max_results=50)
                 items = items_resp.get("items", [])
                 total_videos += len(items)
                 await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
-            except asyncio.TimeoutError:
-                failed_playlists += 1
-                await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] {pl_title}: FAILED - Timeout after 30s"}))
-                log.warning(f"Timeout fetching videos for playlist {pl_id} ({pl_title})")
             except Exception as e:
                 failed_playlists += 1
                 error_msg = f"{type(e).__name__}: {str(e)}"

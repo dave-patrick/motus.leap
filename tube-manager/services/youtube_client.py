@@ -1,4 +1,3 @@
-"""YouTube integration with API-first and browser fallback."""
 from __future__ import annotations
 
 import os
@@ -17,8 +16,6 @@ except Exception:  # pragma: no cover
     build = None  # type: ignore
     HttpError = Exception  # type: ignore
     httplib2 = None  # type: ignore
-
-from tube_manager.youtube_actions import execute as browser_execute
 
 
 class YouTubeClient:
@@ -41,35 +38,29 @@ class YouTubeClient:
         self._youtube = None
         self._youtube_oauth = None
 
-        # Build API key client for public operations
         if build is not None and self.api_key:
             try:
-                http = httplib2.Http(timeout=10) if httplib2 else None
+                http = httplib2.Http(timeout=30) if httplib2 else None
                 self._youtube = build("youtube", "v3", developerKey=self.api_key, cache_discovery=False, http=http)
             except Exception:
                 self._youtube = None
 
     def _ensure_oauth_client(self) -> bool:
-        """Build OAuth-authenticated YouTube client if credentials available."""
-        # Check if we have an existing OAuth client
         if self._youtube_oauth is not None:
-            # Check if token needs refresh
-            if time.time() >= self.token_expiry - 60:  # Refresh 60s before expiry
+            if time.time() >= self.token_expiry - 60:
                 return self._refresh_access_token()
             return True
-        
-        # No existing OAuth client - check if we have credentials
+
         if not self.oauth_access_token or not self.oauth_refresh_token:
             return False
-            
+
         if build is None:
             return False
-            
-        # Check if access token is expired (token_expiry = 0 means never set/expired)
+
         if self.token_expiry <= time.time():
             log.warning("Access token expired, refreshing...")
             return self._refresh_access_token()
-            
+
         try:
             from google.oauth2.credentials import Credentials
             creds = Credentials(
@@ -79,19 +70,23 @@ class YouTubeClient:
                 client_id=self.oauth_client_id,
                 client_secret=self.oauth_client_secret,
             )
-            http = httplib2.Http(timeout=10) if httplib2 else None
+            http = httplib2.Http(timeout=30) if httplib2 else None
             self._youtube_oauth = build("youtube", "v3", credentials=creds, cache_discovery=False, http=http)
             return True
         except Exception as e:
             log.error(f"Failed to build OAuth client: {e}")
             self._youtube_oauth = None
             return False
+
     def _refresh_access_token(self) -> bool:
-        """Refresh OAuth access token using refresh token."""
         if not self.oauth_refresh_token or not self.oauth_client_id or not self.oauth_client_secret:
             return False
-            
-        import httpx
+
+        try:
+            import httpx
+        except ImportError:
+            return False
+
         try:
             data = {
                 "client_id": self.oauth_client_id,
@@ -102,36 +97,33 @@ class YouTubeClient:
             resp = httpx.post("https://oauth2.googleapis.com/token", data=data, timeout=30.0)
             resp.raise_for_status()
             tokens = resp.json()
-            
+
             self.oauth_access_token = tokens.get("access_token")
             expires_in = tokens.get("expires_in", 3600)
             self.token_expiry = int(time.time()) + expires_in
-            
-            # Rebuild OAuth client with new token
+
             self._youtube_oauth = None
             return self._ensure_oauth_client()
         except Exception:
             return False
 
     def _get_client(self, require_oauth: bool = False):
-        """Get appropriate YouTube client."""
         if require_oauth:
             if self._ensure_oauth_client():
                 return self._youtube_oauth
             return None
         return self._youtube or (self._ensure_oauth_client() and self._youtube_oauth)
 
-    # Read -----------------------------------------------------------
     def get_playlist(self, playlist_id: str) -> dict[str, Any]:
         client = self._get_client()
         if not client:
-            return self._browser_fallback("get_playlist", {"playlist_id": playlist_id})
+            return {}
         return client.playlists().list(part="snippet,contentDetails", id=playlist_id).execute()
 
     def list_videos(self, playlist_id: str, page_token: str | None = None, max_results: int = 50) -> dict[str, Any]:
         client = self._get_client()
         if not client:
-            return self._browser_fallback("list_videos", {"playlist_id": playlist_id, "page_token": page_token, "max_results": max_results})
+            return {"items": []}
         try:
             return client.playlistItems().list(
                 part="snippet,contentDetails",
@@ -140,15 +132,13 @@ class YouTubeClient:
                 pageToken=page_token or "",
             ).execute()
         except HttpError as e:
-            # Extract detailed error info from HttpError
-            status_code = e.resp.status if hasattr(e, 'resp') and e.resp else 'unknown'
-            error_content = e.content.decode('utf-8') if hasattr(e, 'content') and e.content else 'no content'
-            error_reason = 'unknown'
+            status_code = e.resp.status if hasattr(e, "resp") and e.resp else "unknown"
+            error_content = e.content.decode("utf-8") if hasattr(e, "content") and e.content else "no content"
+            error_reason = "unknown"
             try:
-                import json as _json
-                error_data = _json.loads(error_content)
-                error_reason = error_data.get('error', {}).get('errors', [{}])[0].get('reason', 'unknown')
-            except:
+                error_data = json.loads(error_content)
+                error_reason = error_data.get("error", {}).get("errors", [{}])[0].get("reason", "unknown")
+            except Exception:
                 pass
             log.error(f"YouTube API error in list_videos (playlist={playlist_id}): status={status_code}, reason={error_reason}, content={error_content[:500]}")
             raise
@@ -156,14 +146,13 @@ class YouTubeClient:
     def get_video(self, video_id: str) -> dict[str, Any]:
         client = self._get_client()
         if not client:
-            return self._browser_fallback("get_video", {"video_id": video_id})
+            return {}
         return client.videos().list(part="snippet,contentDetails,status", id=video_id).execute()
 
     def list_mine_playlists(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
-        """List user's playlists (requires OAuth)."""
         client = self._get_client(require_oauth=True)
         if not client:
-            return self._browser_fallback("list_mine_playlists", {"max_results": max_results, "page_token": page_token})
+            return {"items": []}
         return client.playlists().list(
             part="snippet,contentDetails",
             mine=True,
@@ -172,17 +161,15 @@ class YouTubeClient:
         ).execute()
 
     def list_mine_channels(self) -> dict[str, Any]:
-        """List user's channels (requires OAuth)."""
         client = self._get_client(require_oauth=True)
         if not client:
-            return self._browser_fallback("list_mine_channels", {})
+            return {}
         return client.channels().list(part="snippet,contentDetails", mine=True).execute()
 
     def list_mine_subscriptions(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
-        """List user's subscriptions (requires OAuth)."""
         client = self._get_client(require_oauth=True)
         if not client:
-            return self._browser_fallback("list_mine_subscriptions", {"max_results": max_results, "page_token": page_token})
+            return {"items": []}
         return client.subscriptions().list(
             part="snippet,contentDetails",
             mine=True,
@@ -191,41 +178,22 @@ class YouTubeClient:
         ).execute()
 
     def list_channels_by_ids(self, ids: list[str], max_results: int = 50) -> dict[str, Any]:
-        """Lookup channel metadata by channel IDs."""
         client = self._get_client(require_oauth=False)
         if not client:
             return {"items": []}
         return client.channels().list(
             part="snippet,statistics",
-            id=",".join(ids[: max_results]) if ids else "",
+            id=",".join(ids[:max_results]) if ids else "",
             maxResults=max_results,
         ).execute()
 
     def watch_later(self) -> dict[str, Any]:
-        """Get Watch Later playlist (requires OAuth)."""
         client = self._get_client(require_oauth=True)
         if not client:
-            return self._browser_fallback("watch_later", {})
+            return {}
         resp = client.channels().list(part="contentDetails", mine=True).execute()
         items = resp.get("items", [])
         if not items:
             return {}
         watch_later_id = items[0]["contentDetails"]["relatedPlaylists"]["watchLater"]
         return self.get_playlist(watch_later_id)
-
-    # Write -----------------------------------------------------------
-    def add_to_playlist(self, playlist_id: str, video_id: str, title: str | None = None, description: str = "") -> dict[str, Any]:
-        result = browser_execute("add", {"playlist_id": playlist_id, "video_id": video_id, "title": title, "description": description})
-        if result.get("action") == "playlist":
-            return {"kind": "youtube#playlistItem", "snippet": {"title": title or video_id, "description": description}}
-        return result
-
-    def remove_from_playlist(self, playlist_item_id: str) -> dict[str, Any]:
-        return browser_execute("remove", {"playlist_item_id": playlist_item_id})
-
-    def create_playlist(self, title: str, description: str = "", privacy_status: str = "private") -> dict[str, Any]:
-        return browser_execute("create", {"title": title, "description": description, "privacy_status": privacy_status})
-
-    # Helpers ---------------------------------------------------------
-    def _browser_fallback(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return browser_execute(action, payload)
