@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import hashlib
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
@@ -708,7 +709,9 @@ async def youtube_callback(code: str):
         if "access_token" in tokens:
             config.oauth.access_token = tokens.get("access_token")
             config.oauth.refresh_token = tokens.get("refresh_token")
-            config.oauth.token_expiry = tokens.get("expires_in")
+            # Fix: token_expiry should be Unix timestamp, not duration
+            expires_in = tokens.get("expires_in", 3600)
+            config.oauth.token_expiry = int(time.time()) + expires_in
             config_manager.save(config)
             
             log.info("YouTube OAuth tokens saved successfully")
