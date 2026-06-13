@@ -13,6 +13,17 @@
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
         ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateX(100%); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slide-out {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100%); }
+        }
+        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        .animate-slide-out { animation: slide-out 0.3s ease-in; }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
@@ -45,27 +56,64 @@
                             </div>
                         </div>
                         <textarea id="rules-editor" class="flex-1 p-3 bg-[#0a0c10] font-mono text-[10px] text-gray-300 border-none outline-none resize-none" spellcheck="false">{
-  "category": {
-    "regex": "\\w+"
-  },
-  "channel": {
-    "UC_x5XG1OV2P6uZZ5FSM9Ttw": {
-      "playlist": "PL_tech"
-    },
-    "UC_latest": {
-      "playlist": "PL_learning"
-    }
-  },
-  "title_patterns": [
-    { "regex": "(?i)\\b(tutorial|how.to|guide)\\b", "playlist": "PL_learning" },
-    { "regex": "(?i)\\b(review|unboxing|first.look)\\b", "playlist": "PL_reviews" },
-    { "regex": "(?i)\\b(live|stream|premiere)\\b", "playlist": "PL_live" }
-  ],
-  "duration_rules": {
-    "short": { "max_seconds": 300, "playlist": "PL_shorts" },
-    "long": { "min_seconds": 3600, "playlist": "PL_deep_dive" }
-  }
-}</textarea>
+                          "category": {
+                            "regex": "\\w+"
+                          },
+                          "channel": {
+                            "UC_x5XG1OV2P6uZZ5FSM9Ttw": {
+                              "playlist": "PL_tech"
+                            },
+                            "UC_latest": {
+                              "playlist": "PL_learning"
+                            }
+                          },
+                          "title_patterns": [
+                            { "regex": "(?i)\\b(Music Video|Official Video|Official Music Video|lyric video)\b", "playlist": "PL7y0zeb_CORJPWvCa3H1PgYo6weywtEYO" },
+                            { "regex": "(?i)\\b(AI|Artificial Intelligence|Machine Learning|LLM|GPT|Claude|OpenAI|DeepMind|AI tool|AI news|Large Language Model)\b", "playlist": "PL7y0zeb_CORL1pSvjlwSusYNmG6KoRJup" },
+                            { "regex": "(?i)\\b(Mobile|Smartphone|iPhone|Android|iOS|Samsung Galaxy|Galaxy Watch|Galaxy Buds|phone review|phone comparison)\b", "playlist": "PL7y0zeb_CORIpkrNA-VHc-QwaSjPAgCgj" },
+                            { "regex": "(?i)\\b(Star Wars|Sith|Jedi|Mandalorian|Clone Wars|Lightsaber|Star Wars game|Star Wars lore)\b", "playlist": "PL7y0zeb_CORJfHQ5pA5vzS3qgqTPHxGWV" },
+                            { "regex": "(?i)\\b(Bigfoot|Sasquatch|cryptid|sighting|evidence)\b", "playlist": "PL7y0zeb_CORK5-7EsxSKzWhfHLvUbcdwP" },
+                            { "regex": "(?i)\\b(Concert|Live Performance|Live at|Tour|Setlist)\b", "playlist": "PL7y0zeb_CORKC5X2X44vqUaNRNFrGsiT1" },
+                            { "regex": "(?i)\\b(Auto|Car|Engine|Automotive|Car Review|Vehicle)\b", "playlist": "PL7y0zeb_CORLCAcUEZvAwuuU6blZ58vH7" },
+                            { "regex": "(?i)\\b(Tutorial|How.to|Guide|Science|History|Educational|Lecture|Explainer)\b", "playlist": "PL7y0zeb_CORLXj5a_QPWbHvJqgemcaXlr" },
+                            { "regex": "(?i)\\b(Aviation|Plane|Jet|Dogfight|Aviation History|Airport|Airbus|Boeing)\b", "playlist": "PL7y0zeb_CORLXLj16aOlXZRNAKcNJhLoy" },
+                            { "regex": "(?i)\\b(Football|NFL|49ers|Game Highlights|Football Game)\b", "playlist": "PL7y0zeb_CORKoxZUO3457C3b6WrIefFk8" },
+                            { "regex": "(?i)\\b(Music|Analysis|Song|Album|Artist|Band)\b", "playlist": "PL7y0zeb_CORJpW-fQMHT1R9r60JkY3PTS" },
+                            { "regex": "(?i)\\b(Drone|FPV|UAV|Quadcopter)\b", "playlist": "PL7y0zeb_CORIwTikMFo1ebprLKAz5j_Pc" },
+                            { "regex": "(?i)\\b(Blacksmith|Forging|Metalworking|Anvil|Hammer)\b", "playlist": "PL7y0zeb_CORIvSnQBPcX6xkqoB9mTgJqM" },
+                            { "regex": "(?i)\\b(Short Film|Short|Indie Film|Student Film)\b", "playlist": "PL7y0zeb_CORIyz05Jb4KPpec2K65Zfm07" },
+                            { "regex": "(?i)\\b(Truck|Toyota Tacoma|Tacoma|Tundra|F-150|Silverado|Ram|Cybertruck)\b", "playlist": "PL7y0zeb_CORJ7sbSZjPao9RNbbHHCy1-a" },
+                            { "regex": "(?i)\\b(Camping|Tent|Campfire|Outdoor|Hiking|Backpacking)\b", "playlist": "PL7y0zeb_CORJOl3fCuY7YmuqQWoBPTeJ_" },
+                            { "regex": "(?i)\\b(Raspberry Pi|Pi|Arduino|ESP32|Microcontroller|Soldering|Electronics Project)\b", "playlist": "PL7y0zeb_CORIU5WgWv3hEuk2Yy8DpRDrM" },
+                            { "regex": "(?i)\\b(Workout|Fitness|Gym|Exercise Routine|Bodybuilding|Strength Training)\b", "playlist": "PL7y0zeb_CORInIcNSp0aAl2yL5rTHkreV" },
+                            { "regex": "(?i)\\b(GX7|Lumix GX7|Panasonic GX7|Micro Four Thirds)\b", "playlist": "PL7y0zeb_CORLbijxL9CPao7hWBdiXFlQI" },
+                            { "regex": "(?i)\\b(Exercise|Workout|Fitness|Calisthenics|Yoga|Pilates)\b", "playlist": "PL7y0zeb_CORI-OPTi75AfsqjFzt64oiN7" },
+                            { "regex": "(?i)\\b(Laser|Engraving|Cutting|CNC Laser|Diode Laser|CO2 Laser)\b", "playlist": "PL7y0zeb_CORIlvnYNGTTbWChapJ8OGrD5" },
+                            { "regex": "(?i)\\b(Manifestation|Law of Attraction|Affirmations|Meditation|Spirituality)\b", "playlist": "PL7y0zeb_CORItnOrKBTFNaQIw0qhcCtXH" },
+                            { "regex": "(?i)\\b(Photo Tutorial|Photography Tutorial|Camera Tutorial|Lightroom|Photoshop)\b", "playlist": "PL7y0zeb_CORIL3EdriFAO6CNpz-DRQFVs" },
+                            { "regex": "(?i)\\b(Kira|Kira Kira|Kira Video)\b", "playlist": "PL7y0zeb_CORIfrJi2yt158QliAPNCFcCF" },
+                            { "regex": "(?i)\\b(Overland|Off-Road|Offroad|Rock Crawling|Expedition|Vehicle Camping)\b", "playlist": "PL7y0zeb_CORL676RR_pq_GLzP733705GD" },
+                            { "regex": "(?i)\\b(Tech|Gadget|Hardware Review|PC Build|CPU|GPU|Motherboard|RAM|SSD|Keyboard|Mouse|Monitor)\b", "playlist": "PL7y0zeb_CORJUcSZBAb4vVhOxKE9ZBSGB" },
+                            { "regex": "(?i)\\b(Maker|DIY|Crafts|Woodworking|3D Print|CNC|Welding|Soldering|Electronics)\b", "playlist": "PL7y0zeb_CORJHIOjTtI7SPtjqSwQRr8Dv" },
+                            { "regex": "(?i)\\b(3D Printing|Slicer|CAD|STL|FDM|Resin|Filament|Printer|Ender|Prusa|Bambu)\b", "playlist": "PL7y0zeb_CORLpATW8g5_9pvhqyOk7HlkB" },
+                            { "regex": "(?i)\\b(Home Improvement|Remodeling|Home Repair|Renovation|Plumbing|Electrical|Drywall|Flooring)\b", "playlist": "PL7y0zeb_CORKaNonAmTculyIhdrgCiLsJ" },
+                            { "regex": "(?i)\\b(Productivity|Workflow|Note Taking|Obsidian|Notion|Roam|Logseq|Todoist|Time Management)\b", "playlist": "PL7y0zeb_CORLiQSf5expC4gxWvXuHQX6V" },
+                            { "regex": "(?i)\\b(Cosplay|Costume|Prop Making|Armor|Sewing|Foam Smithing)\b", "playlist": "PL7y0zeb_CORKA_K267f-P7KAsxKlyG97M" },
+                            { "regex": "(?i)\\b(Blackstone|Griddle|Seasoning|Outdoor Cooking|Flat Top)\b", "playlist": "PL7y0zeb_CORI80nlSgSzoumw-KoFx0LZ-" },
+                            { "regex": "(?i)\\b(Food|Cooking|Recipe|Food Review|Baking|Restaurant|Meal Prep)\b", "playlist": "PL7y0zeb_CORIJAzUcZAeuyMuPmg2MI360" },
+                            { "regex": "(?i)\\b(Arizona|Phoenix|Tucson|Sedona|Grand Canyon|Arizona Travel)\b", "playlist": "PL7y0zeb_CORJ5hv1dfAjmAMVNDP_iUwlw" },
+                            { "regex": "(?i)\\b(Smart Home|Automation|IoT|Home Assistant|HomeKit|Zigbee|Z-Wave|Matter|Smart Light|Smart Lock|Smart Thermostat)\b", "playlist": "PL7y0zeb_CORKDinVAv761LrHyJkKjJqsW" },
+                            { "regex": "(?i)\\b(Photo|Photography|Camera|Lens|Lightroom|Photoshop|Composition|Portrait|Landscape)\b", "playlist": "PL7y0zeb_CORL8WT86VDIVcrwxu1yBHSf1" },
+                            { "regex": "(?i)\\b(Entertainment|Movie|TV Show|Series|Review|Trailer|Netflix|Disney|HBO|Amazon Prime)\b", "playlist": "PL7y0zeb_CORLzH9tFD4_zEAH9GVAznjAI" },
+                            { "regex": "(?i)\\b(Woodworking|Woodwork|Carpentry|Joinery|Furniture Making|Lathe|Router|Table Saw|Band Saw|Planer)\b", "playlist": "PL7y0zeb_CORItyD4kCnlQrVcE-tzgQhup" },
+                            { "regex": "(?i)\\b(Health|Medical|Fitness|Nutrition|Diet|Supplements|Wellness|Mental Health|Doctor)\b", "playlist": "PL7y0zeb_CORLDzpejAmTKZ_-tRPhJpCVI" },
+                            { "regex": "(?i)\\b(Tana|Tana Workflow|Tana Command|Tana Node|Supertag|Tana Inc)\b", "playlist": "PL7y0zeb_CORK47v9jis0X0xKF1rP6u" }
+                          ],
+                          "duration_rules": {
+                            "short": { "max_seconds": 300, "playlist": "PL_shorts" },
+                            "long": { "min_seconds": 3600, "playlist": "PL_deep_dive" }
+                          }
+                        }</textarea>
                         <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex gap-2">
                             <button onclick="applyRules()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Apply Rules</button>
                             <button onclick="validateRules()" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1.5 rounded">Validate JSON</button>
@@ -74,40 +122,115 @@
                     <div class="bento-card flex flex-col overflow-hidden">
                         <div class="px-4 py-3 border-b border-[#2a2f3a"><h3 class="text-xs font-semibold text-gray-300">Channel → Playlist Mappings</h3></div>
                         <div class="p-3 overflow-y-auto flex-1" id="mappings-list">Loading...</div>
-                        <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24]"><button onclick="saveMappings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Save Mappings</button></div>
+                        <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2">
+                            <div class="text-[10px] text-gray-400">These mappings override the JSON rules above. Channel ID → Playlist ID</div>
+                            <button onclick="loadChannelMappings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Load from Channel Map</button>
+                            <button onclick="saveMappings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Save Mappings</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </main>
     </div>
-    <script>
-        async function loadMappings() {
-            try {
-                const response = await fetch('/api/mappings');
-                if (!response.ok) throw new Error('Failed to load');
-                const data = await response.json();
-                const list = document.getElementById('mappings-list');
-                if (!data.mappings || !data.mappings.length) {
-                    list.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-4">No channel mappings configured.</div>';
-                    return;
-                }
-                list.innerHTML = data.mappings.map(m => `
-                    <div class="flex items-center gap-2 p-2 hover:bg-[#20242c] rounded">
-                        <img src="${m.thumbnail || 'https://picsum.photos/24'}" class="w-6 h-6 rounded-full object-cover">
-                        <div class="flex-1 min-w-0 text-xs text-gray-300 truncate">${m.channel}</div>
-                        <select class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-40" data-channel="${m.channel_id}">
-                            <option ${m.playlist === 'PL_tech' ? 'selected' : ''}>PL_tech</option>
-                            <option ${m.playlist === 'PL_news' ? 'selected' : ''}>PL_news</option>
-                            <option ${m.playlist === 'PL_learning' ? 'selected' : ''}>PL_learning</option>
-                            <option ${m.playlist === 'PL_reviews' ? 'selected' : ''}>PL_reviews</option>
-                            <option>Create new...</option>
-                        </select>
-                    </div>
-                `).join('');
-            } catch (e) {
-                console.error(e);
+    document.addEventListener('DOMContentLoaded', () => {
+        loadDashboardStats();
+        loadMappings();
+    });
+
+    // Load channel mappings from embedded data
+    async function loadChannelMappings() {
+        try {
+            const statusDiv = document.getElementById('mappings-list');
+            statusDiv.innerHTML = '<div class="text-[10px] text-blue-400 text-center py-4">Loading channel mappings...</div>';
+                
+            // Use embedded channel map data
+            const channelMappings = CHANNEL_MAP_DATA;
+            const statusDiv2 = document.getElementById('mappings-list');
+                
+            if (!channelMappings || !channelMappings.length) {
+                statusDiv2.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-4">No channel mappings configured.</div>';
+                return;
             }
+                
+            // Get available playlists for dropdown
+            const playlists = [
+                {id: 'PL7y0zeb_CORJPWvCa3H1PgYo6weywtEYO', name: 'Music Videos'},
+                {id: 'PL7y0zeb_CORL1pSvjlwSusYNmG6KoRJup', name: 'AI'},
+                {id: 'PL7y0zeb_CORIpkrNA-VHc-QwaSjPAgCgj', name: 'Mobile'},
+                {id: 'PL7y0zeb_CORJfHQ5pA5vzS3qgqTPHxGWV', name: 'Star Wars'},
+                {id: 'PL7y0zeb_CORK5-7EsxSKzWhfHLvUbcdwP', name: 'Bigfoot'},
+                {id: 'PL7y0zeb_CORKC5X2X44vqUaNRNFrGsiT1', name: 'Concerts'},
+                {id: 'PL7y0zeb_CORLCAcUEZvAwuuU6blZ58vH7', name: 'Auto'},
+                {id: 'PL7y0zeb_CORLXj5a_QPWbHvJqgemcaXlr', name: 'Learning'},
+                {id: 'PL7y0zeb_CORLXLj16aOlXZRNAKcNJhLoy', name: 'Aviation'},
+                {id: 'PL7y0zeb_CORKoxZUO3457C3b6WrIefFk8', name: 'Football'},
+                {id: 'PL7y0zeb_CORJpW-fQMHT1R9r60JkY3PTS', name: 'Music'},
+                {id: 'PL7y0zeb_CORIwTikMFo1ebprLKAz5j_Pc', name: 'Drones'},
+                {id: 'PL7y0zeb_CORIvSnQBPcX6xkqoB9mTgJqM', name: 'Blacksmith'},
+                {id: 'PL7y0zeb_CORIyz05Jb4KPpec2K65Zfm07', name: 'Short Films'},
+                {id: 'PL7y0zeb_CORJ7sbSZjPao9RNbbHHCy1-a', name: 'Truck'},
+                {id: 'PL7y0zeb_CORJOl3fCuY7YmuqQWoBPTeJ_', name: 'Camping'},
+                {id: 'PL7y0zeb_CORIU5WgWv3hEuk2Yy8DpRDrM', name: 'Pi'},
+                {id: 'PL7y0zeb_CORInIcNSp0aAl2yL5rTHkreV', name: 'Workout'},
+                {id: 'PL7y0zeb_CORLbijxL9CPao7hWBdiXFlQI', name: 'GX7'},
+                {id: 'PL7y0zeb_CORI-OPTi75AfsqjFzt64oiN7', name: 'Exercise'},
+                {id: 'PL7y0zeb_CORIlvnYNGTTbWChapJ8OGrD5', name: 'Laser'},
+                {id: 'PL7y0zeb_CORItnOrKBTFNaQIw0qhcCtXH', name: 'Manifestation'},
+                {id: 'PL7y0zeb_CORIL3EdriFAO6CNpz-DRQFVs', name: 'Photo Tutorials'},
+                {id: 'PL7y0zeb_CORIfrJi2yt158QliAPNCFcCF', name: 'Kira'},
+                {id: 'PL7y0zeb_CORL676RR_pq_GLzP733705GD', name: 'Overland'},
+                {id: 'PL7y0zeb_CORJUcSZBAb4vVhOxKE9ZBSGB', name: 'Tech'},
+                {id: 'PL7y0zeb_CORJHIOjTtI7SPtjqSwQRr8Dv', name: 'Maker'},
+                {id: 'PL7y0zeb_CORLpATW8g5_9pvhqyOk7HlkB', name: '3D Printing Watch'},
+                {id: 'PL7y0zeb_CORKaNonAmTculyIhdrgCiLsJ', name: 'Home Improvement'},
+                {id: 'PL7y0zeb_CORLiQSf5expC4gxWvXuHQX6V', name: 'Productivity Stuff'},
+                {id: 'PL7y0zeb_CORKA_K267f-P7KAsxKlyG97M', name: 'Cosplay'},
+                {id: 'PL7y0zeb_CORI80nlSgSzoumw-KoFx0LZ-', name: 'Blackstone'},
+                {id: 'PL7y0zeb_CORIJAzUcZAeuyMuPmg2MI360', name: 'Food'},
+                {id: 'PL7y0zeb_CORJ5hv1dfAjmAMVNDP_iUwlw', name: 'Arizona'},
+                {id: 'PL7y0zeb_CORKDinVAv761LrHyJkKjJqsW', name: 'Smart Home'},
+                {id: 'PL7y0zeb_CORL8WT86VDIVcrwxu1yBHSf1', name: 'Photo'},
+                {id: 'PL7y0zeb_CORLzH9tFD4_zEAH9GVAznjAI', name: 'Entertainment'},
+                {id: 'PL7y0zeb_CORItyD4kCnlQrVcE-tzgQhup', name: 'Woodworking'},
+                {id: 'PL7y0zeb_CORLDzpejAmTKZ_-tRPhJpCVI', name: 'Health'},
+                {id: 'PL7y0zeb_CORK47v9jis0X0xKF1rP6u', name: 'Tana'},
+                {id: 'PL_tech', name: 'Tech (Legacy)'},
+                {id: 'PL_learning', name: 'Learning (Legacy)'},
+                {id: 'PL_reviews', name: 'Reviews (Legacy)'},
+                {id: 'PL_live', name: 'Live (Legacy)'},
+                {id: 'PL_music', name: 'Music (Legacy)'},
+                {id: 'PL_gaming', name: 'Gaming (Legacy)'},
+            ];
+                
+            statusDiv2.innerHTML = channelMappings.map(m => `
+                <div class="flex items-center gap-2 p-2 hover:bg-[#20242c] rounded">
+                    <img src="https://picsum.photos/24?random=${m.channel}" class="w-6 h-6 rounded-full object-cover">
+                    <div class="flex-1 min-w-0 text-xs text-gray-300 truncate">${m.channel}</div>
+                    <select class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-48" data-channel="${m.channel_id || m.channel}">
+                        <option value="">-- Select Playlist --</option>
+                        ${playlists.map(p => `<option value="${p.id}" ${m.playlist && m.playlist === p.id ? 'selected' : ''}>${p.name} (${p.id})</option>`).join('')}
+                        <option value="Create new...">Create new...</option>
+                    </select>
+                </div>
+            `).join('');
+                
+            // Save to config
+            try {
+                const response = await fetch('/api/mappings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mappings: channelMappings})
+                });
+                const data = await response.json();
+                console.log('Channel mappings saved:', data);
+            } catch (e) {
+                console.error('Failed to save mappings:', e);
+            }
+        } catch (e) {
+            console.error('Failed to load channel mappings:', e);
+            document.getElementById('mappings-list').innerHTML = '<div class="text-[10px] text-red-400 text-center py-4">Failed to load channel mappings: ' + e.message + '</div>';
         }
+    }
         
         function applyRules() {
             const rules = document.getElementById('rules-editor').value;
@@ -122,9 +245,9 @@
             const rules = document.getElementById('rules-editor').value;
             try {
                 JSON.parse(rules);
-                alert('Valid JSON');
+                toast('Valid JSON', 'success');
             } catch (e) {
-                alert('Invalid JSON: ' + e.message);
+                toast('Invalid JSON: ' + e.message, 'error');
             }
         }
         
@@ -134,7 +257,7 @@
                 mappings[sel.dataset.channel] = sel.value;
             });
             // Could POST to API here
-            alert('Mappings saved locally');
+            toast('Mappings saved locally', 'success');
         }
         
         
@@ -159,6 +282,38 @@
             loadDashboardStats();
             loadMappings();
         });
-    </script>
+    <script>
+        // Toast notification system
+        function toast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container') || createToastContainer();
+            const toast = document.createElement('div');
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-times-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+            const colors = {
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                warning: 'bg-yellow-600',
+                info: 'bg-blue-600'
+            };
+            toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('animate-slide-out');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        function createToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
+            document.body.appendChild(container);
+            return container;
+        }
 </body>
 </html>
