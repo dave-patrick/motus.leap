@@ -245,6 +245,21 @@
             loadDashboardStats();
             loadSettings();
         });
+        
+        // Listen for OAuth callback messages from popup
+        window.addEventListener('message', (event) => {
+            if (!event.data || !event.data.type) return;
+            
+            if (event.data.type === 'youtube-oauth-success') {
+                console.log('YouTube OAuth success, refreshing page...');
+                window.location.reload();
+            } else if (event.data.type === 'youtube-oauth-error') {
+                console.log('YouTube OAuth error:', event.data.error);
+                const status = document.getElementById('yt-status');
+                status.textContent = 'OAuth error: ' + event.data.error;
+                status.className = 'text-[10px] text-red-400 text-center mt-2';
+            }
+        });
     </script>
 </body>
 </html>

@@ -516,18 +516,31 @@ async def youtube_callback(code: str):
             logger.info("YouTube OAuth tokens saved successfully")
             return HTMLResponse("""
                 <h1 style="color: #44ff88;">✅ YouTube Connected!</h1>
-                <p>Tokens saved. You can close this window and return to the app.</p>
+                <p>Tokens saved. Closing window...</p>
                 <p style="color: #7b8bb5; font-size: 12px;">Access token expires in: """ + str(tokens.get("expires_in", 3600)) + """ seconds</p>
-                <script>setTimeout(() => window.close(), 3000);</script>
+                <script>
+                    // Notify parent window to refresh
+                    if (window.opener) {
+                        window.opener.postMessage({type: 'youtube-oauth-success'}, '*');
+                    }
+                    setTimeout(() => window.close(), 1500);
+                </script>
             """)
         else:
             error_msg = tokens.get("error_description", tokens.get("error", str(tokens)))
             logger.error(f"OAuth token error: {error_msg}")
-            return HTMLResponse(f"""
+            safe_error = error_msg.replace("'", "\\'")
+            err_html = f"""
                 <h1 style="color: #ff4444;">❌ OAuth Error</h1>
                 <p><strong>Error:</strong> {error_msg}</p>
                 <p><a href="/settings">Return to Settings</a> to verify credentials.</p>
-            """, status_code=400)
+                <script>
+                    if (window.opener) {{
+                        window.opener.postMessage({{type: 'youtube-oauth-error', error: '{safe_error}'}}, '*');
+                    }}
+                </script>
+            """
+            return HTMLResponse(err_html, status_code=400)
     except httpx.RequestError as e:
         logger.error(f"HTTP request failed: {e}")
         return HTMLResponse(f"""
