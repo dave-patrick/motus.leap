@@ -47,7 +47,7 @@
                     <h2 class="text-xl font-bold text-white">Playlists</h2>
                     <div class="flex gap-2">
                         <button onclick="syncPlaylists()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Sync from YouTube</button>
-                        <button class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> New Playlist</button>
+                        <button onclick="openNewPlaylistModal()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> New Playlist</button>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4" id="playlists-grid">
@@ -89,17 +89,24 @@
             document.body.appendChild(container);
             return container;
         }
+
+        // Store all playlists for manage function
+        let allPlaylists = [];
+
         async function loadPlaylists() {
             const grid = document.getElementById('playlists-grid');
             try {
                 const response = await fetch('/api/playlists');
                 if (!response.ok) throw new Error('Failed to load');
                 const data = await response.json();
-                if (!data.playlists || !data.playlists.length) {
+                allPlaylists = data.playlists || [];
+                
+                if (!allPlaylists.length) {
                     grid.innerHTML = '<div class="col-span-full bento-card p-12 text-center text-gray-400">No playlists found. Create one to get started.</div>';
                     return;
                 }
-                grid.innerHTML = data.playlists.map(p => `
+                
+                grid.innerHTML = allPlaylists.map(p => `
                     <div class="bento-card p-4 flex flex-col">
                         <div class="flex items-start justify-between mb-3">
                             <div class="w-16 h-9 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
@@ -108,13 +115,107 @@
                         <h3 class="text-sm font-semibold text-white truncate mb-1">${p.title}</h3>
                         <p class="text-[10px] text-gray-400 mb-3">${p.video_count} videos • ${p.channel}</p>
                         <div class="flex items-center gap-2 mt-auto pt-2 border-t border-[#2a2f3a]">
-                            <button class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1.5 rounded transition-colors">Open</button>
-                            <button class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded transition-colors">Manage</button>
+                            <button onclick="openPlaylist('${p.id}')" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1.5 rounded transition-colors"><i class="fa-solid fa-external-link"></i> Open</button>
+                            <button onclick="managePlaylist('${p.id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded transition-colors"><i class="fa-solid fa-cog"></i> Manage</button>
                         </div>
                     </div>
                 `).join('');
             } catch (e) {
                 grid.innerHTML = '<div class="col-span-full bento-card p-8 text-center text-red-400">Failed to load playlists</div>';
+            }
+        }
+        
+        // Open playlist on YouTube
+        function openPlaylist(playlistId) {
+            window.open(`https://www.youtube.com/playlist?list=${playlistId}`, '_blank');
+        }
+        
+        // Manage playlist - opens a modal with playlist actions
+        function managePlaylist(playlistId) {
+            const playlist = allPlaylists.find(p => p.id === playlistId);
+            if (!playlist) {
+                toast('Playlist not found', 'error');
+                return;
+            }
+            
+            // Show management modal
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50';
+            modal.innerHTML = `
+                <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-lg p-6 w-full max-w-md mx-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-white">Manage: ${playlist.title}</h3>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="space-y-2">
+                        <button onclick="openPlaylist('${playlist.id}'); this.closest('.fixed').remove()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-external-link"></i> Open on YouTube</button>
+                        <button onclick="addVideoToPlaylist('${playlist.id}'); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-plus"></i> Add Video</button>
+                        <button onclick="editPlaylist('${playlist.id}'); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-pen"></i> Edit Details</button>
+                        <button onclick="deletePlaylist('${playlist.id}'); this.closest('.fixed').remove()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-trash"></i> Delete Playlist</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        // Create new playlist modal
+        function openNewPlaylistModal() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50';
+            modal.innerHTML = `
+                <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-lg p-6 w-full max-w-md mx-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-white">Create New Playlist</h3>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Title</label>
+                            <input type="text" id="new-playlist-title" placeholder="My Playlist" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Description</label>
+                            <textarea id="new-playlist-desc" placeholder="Playlist description..." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" rows="3"></textarea>
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Privacy</label>
+                            <select id="new-playlist-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                <option value="private">Private</option>
+                                <option value="unlisted">Unlisted</option>
+                                <option value="public">Public</option>
+                            </select>
+                        </div>
+                        <div class="flex gap-2 pt-2">
+                            <button onclick="createPlaylist(); this.closest('.fixed').remove()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded">Create</button>
+                            <button onclick="this.closest('.fixed').remove()" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        async function createPlaylist() {
+            const title = document.getElementById('new-playlist-title').value;
+            const description = document.getElementById('new-playlist-desc').value;
+            const privacy = document.getElementById('new-playlist-privacy').value;
+            
+            if (!title) {
+                toast('Title is required', 'error');
+                return;
+            }
+            
+            try {
+                const resp = await fetch('/youtube/actions/create-playlist', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title, description, privacy})
+                });
+                const result = await resp.json();
+                toast(`Playlist created: ${result.title || 'New playlist'}`, 'success');
+                loadPlaylists();
+            } catch (e) {
+                toast('Failed to create playlist', 'error');
             }
         }
         
@@ -139,6 +240,38 @@
             }
         }
         
+        // Toast notification system
+        function toast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container') || createToastContainer();
+            const toast = document.createElement('div');
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-times-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+            const colors = {
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                warning: 'bg-yellow-600',
+                info: 'bg-blue-600'
+            };
+            toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('animate-slide-out');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        function createToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
+            document.body.appendChild(container);
+            return container;
+        }
         
         // Load scan status in header
         async function loadDashboardStats() {
@@ -152,11 +285,12 @@
                 console.log('Stats endpoint not available');
             }
         }
+        
         document.addEventListener('DOMContentLoaded', () => {
             loadDashboardStats();
             setInterval(loadDashboardStats, 30000);
         });
-
+        
         document.addEventListener('DOMContentLoaded', () => {
             loadDashboardStats();
             loadPlaylists();
