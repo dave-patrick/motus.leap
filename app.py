@@ -1,10 +1,18 @@
 """Single FastAPI app for the Tube Manager UI and API."""
-
+"""Single FastAPI app for the Tube Manager UI and API."""
 from typing import Any
 import asyncio
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+log = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
