@@ -749,7 +749,7 @@ async def api_playlists() -> dict[str, Any]:
 
 @app.get("/api/subscriptions")
 async def api_subscriptions() -> dict[str, Any]:
-    """Subscriptions page data - real YouTube subscriptions with channel metadata."""
+    """Subscriptions page data - real YouTube subscriptions."""
     client = _get_youtube_client()
     if not client:
         return {"channels": [], "error": "YouTube not connected"}
@@ -758,7 +758,7 @@ async def api_subscriptions() -> dict[str, Any]:
         if not hasattr(client, 'list_mine_subscriptions'):
             return {"channels": [], "error": "Subscriptions method not available"}
 
-        all_subs: list[dict[str, Any]] = []
+        all_subs = []
         resp = client.list_mine_subscriptions(max_results=50)
         items = resp.get("items", [])
         all_subs.extend(items)
@@ -770,52 +770,23 @@ async def api_subscriptions() -> dict[str, Any]:
             all_subs.extend(items)
             next_token = more.get("nextPageToken")
 
-        channel_ids = []
-        for sub in all_subs:
-            snippet = sub.get("snippet", {})
-            resource = snippet.get("resourceId", {})
-            cid = resource.get("channelId", "")
-            if cid:
-                channel_ids.append(cid)
-
-        channel_stats: dict[str, dict[str, Any]] = {}
-        if channel_ids and hasattr(client, "list_channels_by_ids"):
-            for i in range(0, len(channel_ids), 50):
-                batch = channel_ids[i:i + 50]
-                try:
-                    resp = client.list_channels_by_ids(batch)
-                    for item in resp.get("items", []):
-                        cid = item.get("id", "")
-                        stats = item.get("statistics", {})
-                        snippet = item.get("snippet", {})
-                        detail = {
-                            "subscribers": stats.get("subscriberCount", "Unknown"),
-                            "video_count": int(stats.get("videoCount", 0) or 0),
-                            "channel_url": f"https://www.youtube.com/channel/{cid}" if cid else "",
-                            "thumbnail": ((snippet.get("thumbnails", {}) or {}).get("medium", {}) or {}).get("url", ""),
-                        }
-                        channel_stats[cid] = detail
-                except Exception as e:
-                    logger.warning(f"Channel lookup batch failed: {e}")
-
-        formatted = []
         seen = set()
+        formatted: list[dict[str, Any]] = []
         for sub in all_subs:
             snippet = sub.get("snippet", {})
             resource = snippet.get("resourceId", {})
             channel_id = resource.get("channelId", "")
-            if channel_id in seen:
+            if not channel_id or channel_id in seen:
                 continue
             seen.add(channel_id)
-            stats = channel_stats.get(channel_id, {})
             formatted.append({
                 "id": channel_id,
                 "title": snippet.get("title", "Unknown Channel"),
-                "video_count": stats.get("video_count", 0),
-                "subscribers": _fmt_count(stats.get("subscribers", "Unknown")),
-                "thumbnail": stats.get("thumbnail", snippet.get("thumbnails", {}).get("default", {}).get("url", "")),
+                "video_count": 0,
+                "subscribers": "Unknown",
+                "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
                 "description": snippet.get("description", ""),
-                "channel_url": stats.get("channel_url", ""),
+                "channel_url": f"https://www.youtube.com/channel/{channel_id}",
             })
 
         return {"channels": formatted}

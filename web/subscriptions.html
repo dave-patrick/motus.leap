@@ -87,7 +87,10 @@
                             <img src="${c.thumbnail || 'https://picsum.photos/32'}" class="w-8 h-8 rounded-full object-cover">
                             <div>
                                 <div class="text-sm font-medium text-white">${c.title}</div>
-                                <div class="text-[10px] text-gray-400">${c.video_count || 0} videos • ${c.subscribers || 'Unknown'} subs</div>
+                                <div class="text-[10px] text-gray-400 flex items-center gap-2">
+                                    <a class="text-blue-400 hover:underline" href="${c.channel_url || ('https://www.youtube.com/channel/' + c.id)}" target="_blank" rel="noreferrer">Open channel</a>
+                                    ${c.description ? '<span class="text-gray-500">•</span><span class="text-gray-500 truncate max-w-[220px]">' + c.description.replace(/</g, '&lt;') + '</span>' : ''}
+                                </div>
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
