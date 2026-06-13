@@ -808,7 +808,7 @@ async def api_subscriptions() -> dict[str, Any]:
                 entry["subscribers"] = stats.get("subscriberCount", "Unknown")
                 entry["video_count"] = int(stats.get("videoCount", "0") or "0")
 
-        return {"channels": raw}
+        return {"channels": sorted(raw, key=lambda item: (item.get("title") or "").lower())}
     except Exception as e:
         logger.error(f"Failed to fetch subscriptions: {e}")
         return {"channels": [], "error": str(e)}
