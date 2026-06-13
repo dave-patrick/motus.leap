@@ -810,7 +810,7 @@ async def api_subscriptions() -> dict[str, Any]:
 
         return {"channels": sorted(raw, key=lambda item: (item.get("title") or "").lower())}
     except Exception as e:
-        logger.error(f"Failed to fetch subscriptions: {e}")
+        log.error(f"Failed to fetch subscriptions: {e}")
         return {"channels": [], "error": str(e)}
 
 
