@@ -1,0 +1,87 @@
+Tube Manager - Refactored Functions Validation Checklist
+
+Models (models/config.py):
+- TubeManagerConfig.to_dict_for_storage()
+- TubeManagerConfig.from_dict()
+
+Models (models/task.py):
+- Task.__init__ (with default factories)
+
+Core (core/logger.py):
+- setup_logging(log_level, log_file)
+
+Core (core/config_manager.py):
+- ConfigManager.__init__()
+- ConfigManager.load()
+- ConfigManager.save()
+- ConfigManager.config (property)
+
+Services (services/youtube_service.py):
+- YouTubeService.__init__()
+- YouTubeService.get_client(require_oauth)
+- YouTubeService.list_subscriptions()
+- YouTubeService.list_playlists()
+- YouTubeService.get_stats()
+
+API Endpoints (app.py):
+Health:
+- GET /health (returns status ok)
+
+Stats:
+- GET /api/stats (dashboard statistics)
+- GET /api/playlists (YouTube playlists)
+- GET /api/subscriptions (YouTube subscriptions)
+
+Settings:
+- GET /api/settings (current settings)
+- POST /api/settings (save settings)
+- POST /api/settings/reset (reset to defaults)
+
+Mappings:
+- GET /api/mappings (channel mappings)
+- POST /api/mappings (save mappings)
+
+Actions:
+- POST /api/action (queue background action)
+- GET /api/actions/status (queue status)
+
+YouTube OAuth:
+- GET /auth/youtube (initiate OAuth)
+- GET /auth/youtube/callback (OAuth callback)
+- GET /api/youtube/status (connection status)
+
+System:
+- GET /api/system/logs (recent logs)
+
+Storage:
+- POST /api/storage/clear-thumbnails
+- POST /api/storage/vacuum
+- GET /api/storage/export
+
+Webhook:
+- POST /api/webhook/test
+
+WebSocket:
+- WS /ws/terminal (agent terminal)
+
+Background Tasks:
+- full_cluster_scan
+- force_auto_sort
+- watch_later_sync
+- diagnose_failures
+- regenerate_queue
+- surface_diagnostics
+- apply_maintenance
+- apply_rules
+- sync_playlists
+
+Pages:
+- GET / (redirect to dashboard)
+- GET /dashboard
+- GET /playlists
+- GET /subscriptions
+- GET /maintenance
+- GET /rules
+- GET /ai
+- GET /settings
+- GET /test
