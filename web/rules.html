@@ -241,6 +241,35 @@
             });
         }
         
+        // Toast notification system
+        function toast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container') || createToastContainer();
+            const toast = document.createElement('div');
+            const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+            const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-blue-600' };
+            toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.add('animate-slide-out'); setTimeout(() => toast.remove(), 300); }, duration);
+        }
+        function createToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
+            document.body.appendChild(container);
+            return container;
+        }
+
+        function beautifyJson() {
+            try {
+                const editor = document.getElementById('rules-editor');
+                editor.value = JSON.stringify(JSON.parse(editor.value), null, 2);
+                toast('JSON beautified', 'success');
+            } catch (e) {
+                toast('Cannot beautify: invalid JSON', 'error');
+            }
+        }
+
         function validateRules() {
             const rules = document.getElementById('rules-editor').value;
             try {
@@ -250,6 +279,7 @@
                 toast('Invalid JSON: ' + e.message, 'error');
             }
         }
+
         
         function saveMappings() {
             const mappings = {};
