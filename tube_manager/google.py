@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import os
 import time
+import json
+import logging
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 try:
     from googleapiclient.discovery import build  # type: ignore
@@ -31,10 +35,10 @@ class YouTubeClient:
         self.oauth_client_id = oauth_client_id
         self.oauth_client_secret = oauth_client_secret
         self.token_expiry = token_expiry or 0
-        
+
         self._youtube = None
         self._youtube_oauth = None
-        
+
         # Build API key client for public operations
         if build is not None and self.api_key:
             try:
@@ -44,17 +48,24 @@ class YouTubeClient:
 
     def _ensure_oauth_client(self) -> bool:
         """Build OAuth-authenticated YouTube client if credentials available."""
+        # Check if we have an existing OAuth client
         if self._youtube_oauth is not None:
             # Check if token needs refresh
             if time.time() >= self.token_expiry - 60:  # Refresh 60s before expiry
                 return self._refresh_access_token()
             return True
-            
+        
+        # No existing OAuth client - check if we have credentials
         if not self.oauth_access_token or not self.oauth_refresh_token:
             return False
             
         if build is None:
             return False
+            
+        # Check if access token is expired (token_expiry = 0 means never set/expired)
+        if self.token_expiry <= time.time():
+            log.warning("Access token expired, refreshing...")
+            return self._refresh_access_token()
             
         try:
             from google.oauth2.credentials import Credentials
@@ -67,10 +78,10 @@ class YouTubeClient:
             )
             self._youtube_oauth = build("youtube", "v3", credentials=creds, cache_discovery=False)
             return True
-        except Exception:
+        except Exception as e:
+            log.error(f"Failed to build OAuth client: {e}")
             self._youtube_oauth = None
             return False
-
     def _refresh_access_token(self) -> bool:
         """Refresh OAuth access token using refresh token."""
         if not self.oauth_refresh_token or not self.oauth_client_id or not self.oauth_client_secret:
