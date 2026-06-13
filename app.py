@@ -833,26 +833,78 @@ async def api_maintenance() -> dict[str, Any]:
 
 @app.get("/api/mappings")
 async def api_mappings() -> dict[str, Any]:
-    """Rules & Mappings page data - loaded from config."""
-    mappings = APP_CONFIG.get("channel_mappings", {})
-    formatted = []
-    for channel_id, playlist_id in mappings.items():
-        formatted.append({
-            "channel": channel_id,
-            "channel_id": channel_id,
-            "playlist": playlist_id,
-            "thumbnail": "",
-        })
-    return {"mappings": formatted}
+    """Rules & Mappings page data - normalized from stored config."""
+    raw = APP_CONFIG.get("channel_mappings", {})
+    formatted: list[dict[str, Any]] = []
+    if isinstance(raw, dict):
+        formatted.extend(
+            {
+                "channel": channel_id,
+                "channel_id": channel_id,
+                "playlist": playlist_id,
+            }
+            for channel_id, playlist_id in raw.items()
+        )
+    elif isinstance(raw, list):
+        formatted.extend(
+            {
+                "channel": item.get("channel_id") or item.get("channel") or "",
+                "channel_id": item.get("channel_id") or item.get("channel") or "",
+                "playlist": item.get("playlist") or item.get("playlist_id") or "",
+            }
+            for item in raw
+        )
+    return {"mappings": _normalize_mappings(formatted)}
 
 
 @app.post("/api/mappings")
 async def save_mappings(body: dict[str, Any]) -> dict[str, Any]:
-    """Save channel mappings to config."""
-    mappings = body.get("mappings", {})
-    APP_CONFIG["channel_mappings"] = mappings
+    """Save channel mappings to config.
+
+    Accepts either legacy dict or array payloads.
+    Replaces stored mappings instead of merging.
+    """
+    mappings = _normalize_mappings(_extract_mapping_items(body))
+    APP_CONFIG["channel_mappings"] = _serialize_mappings(mappings)
     save_config(APP_CONFIG)
     return {"message": "Mappings saved", "mappings": mappings}
+
+
+def _normalize_mappings(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: dict[str, dict[str, Any]] = {}
+    for item in items or []:
+        channel_id = (item.get("channel_id") or item.get("channel") or "").strip()
+        playlist_id = (item.get("playlist") or item.get("playlist_id") or "").strip()
+        if not channel_id:
+            continue
+        seen[channel_id] = {
+            "channel": channel_id,
+            "channel_id": channel_id,
+            "playlist": playlist_id,
+        }
+    return list(seen.values())
+
+
+def _serialize_mappings(items: list[dict[str, Any]]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for item in items or []:
+        channel_id = (item.get("channel_id") or item.get("channel") or "").strip()
+        playlist_id = (item.get("playlist") or item.get("playlist_id") or "").strip()
+        if channel_id:
+            result[channel_id] = playlist_id
+    return result
+
+
+def _extract_mapping_items(body: dict[str, Any]) -> list[dict[str, Any]]:
+    mappings = body.get("mappings", {})
+    if isinstance(mappings, list):
+        return mappings
+    if isinstance(mappings, dict):
+        return [
+            {"channel_id": channel_id, "playlist": playlist_id}
+            for channel_id, playlist_id in mappings.items()
+        ]
+    return []
 
 
 # Tasks ------------------------------------------------------------------
