@@ -202,9 +202,10 @@ async def full_cluster_scan(payload):
         
         total_videos = 0
         failed_playlists = 0
-        for pl in playlists:
+        for idx, pl in enumerate(playlists):
             pl_id = pl.get("id")
             pl_title = pl.get("snippet", {}).get("title", pl_id)
+            await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Processing {idx+1}/{len(playlists)}: {pl_title}"}))
             try:
                 items_resp = await asyncio.to_thread(client.list_videos, pl_id, max_results=50)
                 items = items_resp.get("items", [])
