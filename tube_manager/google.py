@@ -12,9 +12,11 @@ log = logging.getLogger(__name__)
 try:
     from googleapiclient.discovery import build  # type: ignore
     from googleapiclient.errors import HttpError  # type: ignore
+    import httplib2  # type: ignore
 except Exception:  # pragma: no cover
     build = None  # type: ignore
     HttpError = Exception  # type: ignore
+    httplib2 = None  # type: ignore
 
 from tube_manager.youtube_actions import execute as browser_execute
 
@@ -42,7 +44,8 @@ class YouTubeClient:
         # Build API key client for public operations
         if build is not None and self.api_key:
             try:
-                self._youtube = build("youtube", "v3", developerKey=self.api_key, cache_discovery=False)
+                http = httplib2.Http(timeout=30) if httplib2 else None
+                self._youtube = build("youtube", "v3", developerKey=self.api_key, cache_discovery=False, http=http)
             except Exception:
                 self._youtube = None
 
@@ -76,7 +79,8 @@ class YouTubeClient:
                 client_id=self.oauth_client_id,
                 client_secret=self.oauth_client_secret,
             )
-            self._youtube_oauth = build("youtube", "v3", credentials=creds, cache_discovery=False)
+            http = httplib2.Http(timeout=30) if httplib2 else None
+            self._youtube_oauth = build("youtube", "v3", credentials=creds, cache_discovery=False, http=http)
             return True
         except Exception as e:
             log.error(f"Failed to build OAuth client: {e}")
