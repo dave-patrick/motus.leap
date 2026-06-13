@@ -232,11 +232,17 @@ async def full_cluster_scan(payload):
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."}))
         await asyncio.sleep(1)
         
-        # Simulate clustering analysis (could be replaced with real ML later)
-        await manager.broadcast(json.dumps({"type": "log", "message": "[CLUSTER] Building similarity matrix..."}))
-        await asyncio.sleep(1)
-        await manager.broadcast(json.dumps({"type": "log", "message": "[CLUSTER] 42 clusters identified • threshold: 0.82"}))
-        await asyncio.sleep(1)
+        # Real scan statistics (no fake clustering)
+        await manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Building scan statistics..."}))
+        await asyncio.sleep(0.5)
+
+        # Calculate real metrics from fetched data
+        avg_videos_per_playlist = total_videos / len(playlists) if playlists else 0
+        await manager.broadcast(json.dumps({
+            "type": "log",
+            "message": f"[SCAN] Analysis complete • {total_videos} videos across {len(playlists)} playlists • {avg_videos_per_playlist:.1f} avg videos/playlist"
+        }))
+        await asyncio.sleep(0.5)
         
         await manager.broadcast(json.dumps({"type": "log", "message": "[LEARN] Processing statistics..."}))
         await asyncio.sleep(1)
@@ -273,13 +279,15 @@ async def force_auto_sort(payload):
             return
         
         await manager.broadcast(json.dumps({"type": "log", "message": "[SORT] Applying channel→playlist mappings..."}))
-        
-        moved_count = 0
-        for channel_id, playlist_id in mappings.items():
-            await asyncio.sleep(0.1)
-            moved_count += 1
-        
-        await manager.broadcast(json.dumps({"type": "log", "message": f"[SORT] {moved_count} videos moved to correct playlists"}))
+
+        # NOTE: Auto-sort requires YouTube Data API write operations.
+        # Current implementation uses read-only OAuth scope.
+        # To enable auto-sort, update OAuth scope to include:
+        # https://www.googleapis.com/auth/youtube
+        # Then implement client.move_video() calls here.
+
+        await manager.broadcast(json.dumps({"type": "log", "message": f"[SORT] {len(mappings)} channel→playlist mappings configured"}))
+        await manager.broadcast(json.dumps({"type": "log", "message": "[SORT] Note: Auto-sort requires write permissions. Update OAuth scope in Settings to enable."}))
         await manager.broadcast(json.dumps({"type": "log", "message": "[SORT] Complete"}))
         
     except Exception as e:
@@ -300,17 +308,16 @@ async def watch_later_sync(payload):
         items = wl_resp.get("items", [])
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(items)} videos from Watch Later"}))
         
-        # Classify and move videos (simplified)
-        classified = 0
-        moved = 0
-        for item in items[:20]:
-            await asyncio.sleep(0.05)
-            classified += 1
-            if classified % 3 == 0:
-                moved += 1
-        
-        await manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] {classified} new videos classified"}))
-        await manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] {moved} videos moved to appropriate playlists"}))
+        # NOTE: Watch Later sync requires YouTube Data API write operations.
+        # Current implementation uses read-only OAuth scope.
+        # To enable sync, implement rule-based classification:
+        # 1. Parse video metadata (title, channel, duration)
+        # 2. Match against channel mappings from config
+        # 3. Move to target playlist using client.move_video()
+        # 4. Requires OAuth scope: https://www.googleapis.com/auth/youtube
+
+        await manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Found {len(items)} videos in Watch Later"}))
+        await manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Note: Sync requires write permissions. Update OAuth scope in Settings to enable."}))
         await manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete"}))
         
     except Exception as e:
@@ -374,7 +381,12 @@ async def surface_diagnostics(payload):
         await manager.broadcast(json.dumps({"type": "log", "message": "[SURFACE] Disk: OK"}))
     
     await asyncio.sleep(0.5)
-    await manager.broadcast(json.dumps({"type": "log", "message": "[SURFACE] Cache hit rate: 94.2%"}))
+    # Get real cache stats
+    if youtube_service:
+        cache_stats = youtube_service._cache.get_stats()
+        await manager.broadcast(json.dumps({"type": "log", "message": f"[SURFACE] Cache hit rate: {cache_stats['hit_rate']}"}))
+    else:
+        await manager.broadcast(json.dumps({"type": "log", "message": "[SURFACE] Cache: N/A (service not initialized)"}))
     await manager.broadcast(json.dumps({"type": "log", "message": "[SURFACE] Complete"}))
 
 
@@ -394,7 +406,13 @@ async def apply_rules(payload):
     await asyncio.sleep(1)
     await manager.broadcast(json.dumps({"type": "log", "message": "[RULES] Validating JSON..."}))
     await asyncio.sleep(0.5)
-    await manager.broadcast(json.dumps({"type": "log", "message": "[RULES] 12 category rules • 8 channel mappings • 5 title patterns"}))
+    # Count actual rules and mappings from config
+    config = config_manager.config
+    channel_mappings_count = len(config.channel_mappings)
+    rules_text = config.rules if config.rules else ""
+    # Count rules (basic estimation by splitting on newlines)
+    rules_count = len([r for r in rules_text.split('\n') if r.strip()])
+    await manager.broadcast(json.dumps({"type": "log", "message": f"[RULES] {rules_count} rules defined • {channel_mappings_count} channel mappings • patterns loaded from config"}))
     await asyncio.sleep(1)
     await manager.broadcast(json.dumps({"type": "log", "message": "[RULES] Saved to config • Active on next scan"}))
     
@@ -407,7 +425,14 @@ async def sync_playlists(payload):
     """Sync playlists from YouTube."""
     await manager.broadcast(json.dumps({"type": "log", "message": "[YT] Fetching playlists from YouTube API..."}))
     await asyncio.sleep(1)
-    await manager.broadcast(json.dumps({"type": "log", "message": "[YT] 60 playlists retrieved"}))
+    # Fetch real playlists
+    client = youtube_service.get_client(require_oauth=True) if youtube_service else None
+    if client:
+        playlists_resp = client.list_mine_playlists(max_results=50)
+        playlists_count = len(playlists_resp.get("items", []))
+    else:
+        playlists_count = 0
+    await manager.broadcast(json.dumps({"type": "log", "message": f"[YT] {playlists_count} playlists retrieved"}))
     await asyncio.sleep(1)
     await manager.broadcast(json.dumps({"type": "log", "message": "[YT] Video counts updated"}))
     await manager.broadcast(json.dumps({"type": "log", "message": "[YT] Complete"}))
@@ -525,14 +550,26 @@ async def stats() -> dict[str, Any]:
     else:
         yt_stats = {"total_playlists": 0, "total_videos": 0}
     
+    config = config_manager.config
+    # Calculate real stats from config
+    ai_learning_active = getattr(config, 'ai_learning_enabled', False)
+    channel_mappings_count = len(config.channel_mappings) if hasattr(config, 'channel_mappings') else 0
+
+    # Get real cache stats
+    cache_hit_rate = "N/A"
+    if youtube_service and hasattr(youtube_service, '_cache'):
+        cache_stats = youtube_service._cache.get_stats()
+        cache_hit_rate = cache_stats['hit_rate']
+
     return {
         **yt_stats,
         "pending_actions": task_queue.qsize(),
         "running_tasks": 1 if background_tasks_running else 0,
-        "ai_learning": 0,
-        "learning_rate": "2.225%",
-        "learning_rates": "1922",
-        "last_scan": "just now",
+        "ai_learning": ai_learning_active,
+        "learning_rate": f"{channel_mappings_count / max(channel_mappings_count, 1) * 100:.1f}%" if channel_mappings_count > 0 else "0%",
+        "learning_rates": str(channel_mappings_count),
+        "cache_hit_rate": cache_hit_rate,
+        "last_scan": config.last_scan_time if hasattr(config, 'last_scan_time') else "Never",
     }
 
 
