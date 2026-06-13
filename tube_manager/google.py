@@ -172,6 +172,17 @@ class YouTubeClient:
             pageToken=page_token or "",
         ).execute()
 
+    def list_channels_by_ids(self, ids: list[str], max_results: int = 50) -> dict[str, Any]:
+        """Lookup channel metadata by channel IDs."""
+        client = self._get_client(require_oauth=False)
+        if not client:
+            return {"items": []}
+        return client.channels().list(
+            part="snippet,statistics",
+            id=",".join(ids[: max_results]) if ids else "",
+            maxResults=max_results,
+        ).execute()
+
     def watch_later(self) -> dict[str, Any]:
         """Get Watch Later playlist (requires OAuth)."""
         client = self._get_client(require_oauth=True)

@@ -1,3 +1,18 @@
+def _fmt_count(value):
+    """Pretty-format subscriber counts from YouTube."""
+    if value is None or value == "Unknown":
+        return "Unknown"
+    try:
+        num = int(value)
+        if num >= 1_000_000:
+            return f"{num/1_000_000:.1f}M"
+        if num >= 1_000:
+            return f"{num/1_000:.1f}K"
+        return str(num)
+    except (TypeError, ValueError):
+        return str(value)
+
+
 """Single FastAPI app for the Tube Manager UI and API."""
 from typing import Any
 import asyncio
@@ -734,44 +749,75 @@ async def api_playlists() -> dict[str, Any]:
 
 @app.get("/api/subscriptions")
 async def api_subscriptions() -> dict[str, Any]:
-    """Subscriptions page data - real YouTube subscriptions."""
+    """Subscriptions page data - real YouTube subscriptions with channel metadata."""
     client = _get_youtube_client()
     if not client:
         return {"channels": [], "error": "YouTube not connected"}
-    
+
     try:
         if not hasattr(client, 'list_mine_subscriptions'):
             return {"channels": [], "error": "Subscriptions method not available"}
-        
-        all_subs = []
+
+        all_subs: list[dict[str, Any]] = []
         resp = client.list_mine_subscriptions(max_results=50)
         items = resp.get("items", [])
         all_subs.extend(items)
-        
+
         next_token = resp.get("nextPageToken")
         while next_token:
             more = client.list_mine_subscriptions(max_results=50, page_token=next_token)
             items = more.get("items", [])
             all_subs.extend(items)
             next_token = more.get("nextPageToken")
-        
-        # Format for UI
+
+        channel_ids = []
+        for sub in all_subs:
+            snippet = sub.get("snippet", {})
+            resource = snippet.get("resourceId", {})
+            cid = resource.get("channelId", "")
+            if cid:
+                channel_ids.append(cid)
+
+        channel_stats: dict[str, dict[str, Any]] = {}
+        if channel_ids and hasattr(client, "list_channels_by_ids"):
+            for i in range(0, len(channel_ids), 50):
+                batch = channel_ids[i:i + 50]
+                try:
+                    resp = client.list_channels_by_ids(batch)
+                    for item in resp.get("items", []):
+                        cid = item.get("id", "")
+                        stats = item.get("statistics", {})
+                        snippet = item.get("snippet", {})
+                        detail = {
+                            "subscribers": stats.get("subscriberCount", "Unknown"),
+                            "video_count": int(stats.get("videoCount", 0) or 0),
+                            "channel_url": f"https://www.youtube.com/channel/{cid}" if cid else "",
+                            "thumbnail": ((snippet.get("thumbnails", {}) or {}).get("medium", {}) or {}).get("url", ""),
+                        }
+                        channel_stats[cid] = detail
+                except Exception as e:
+                    logger.warning(f"Channel lookup batch failed: {e}")
+
         formatted = []
+        seen = set()
         for sub in all_subs:
             snippet = sub.get("snippet", {})
             resource = snippet.get("resourceId", {})
             channel_id = resource.get("channelId", "")
-            # Try to get channel details for video count and subscriber count
-            # For now, use snippet data
+            if channel_id in seen:
+                continue
+            seen.add(channel_id)
+            stats = channel_stats.get(channel_id, {})
             formatted.append({
                 "id": channel_id,
                 "title": snippet.get("title", "Unknown Channel"),
-                "video_count": 0,  # Would need separate channel call
-                "subscribers": "Unknown",
-                "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
+                "video_count": stats.get("video_count", 0),
+                "subscribers": _fmt_count(stats.get("subscribers", "Unknown")),
+                "thumbnail": stats.get("thumbnail", snippet.get("thumbnails", {}).get("default", {}).get("url", "")),
                 "description": snippet.get("description", ""),
+                "channel_url": stats.get("channel_url", ""),
             })
-        
+
         return {"channels": formatted}
     except Exception as e:
         logger.error(f"Failed to fetch subscriptions: {e}")
