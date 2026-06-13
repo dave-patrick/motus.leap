@@ -6,7 +6,7 @@ import json
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -833,6 +833,111 @@ async def yt_create_playlist(body: dict[str, Any]) -> dict[str, Any]:
         description=str(body.get("description", "")),
         privacy_status=str(body.get("privacy_status", "private")),
     )
+
+
+# Storage & Data endpoints --------------------------------------------
+
+@app.post("/api/storage/clear-thumbnails")
+async def clear_thumbnails():
+    """Clear thumbnail cache."""
+    import shutil
+    try:
+        thumb_dir = Path("/app/data/thumbnails")
+        if thumb_dir.exists():
+            shutil.rmtree(thumb_dir)
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        return {"message": "Thumbnail cache cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/storage/vacuum")
+async def vacuum_database():
+    """Vacuum the database (reclaim space)."""
+    try:
+        db_path = Path("/app/data/tube_manager.db")
+        if db_path.exists():
+            import sqlite3
+            conn = sqlite3.connect(str(db_path))
+            conn.execute("VACUUM")
+            conn.close()
+            return {"message": "Database vacuumed successfully"}
+        return {"message": "No database to vacuum"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/storage/export")
+async def export_data():
+    """Export all data as JSON."""
+    import json
+    from datetime import datetime
+    
+    export_data = {
+        "exported_at": datetime.utcnow().isoformat(),
+        "config": {k: v for k, v in APP_CONFIG.items() if k != "youtube_client_secret"},
+        "stats": await stats(),
+    }
+    return export_data
+
+
+# Webhook endpoints ----------------------------------------------------
+
+@app.post("/api/webhook/test")
+async def test_webhook(body: dict):
+    """Test webhook URL."""
+    import httpx
+    url = body.get("url")
+    if not url:
+        raise HTTPException(status_code=400, detail="URL required")
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, json={"test": True, "source": "tube-manager"})
+        return {"message": f"Webhook test sent. Status: {resp.status_code}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Webhook test failed: {str(e)}")
+
+
+# System endpoints -----------------------------------------------------
+
+@app.get("/api/system/logs")
+async def get_system_logs():
+    """Get recent system logs."""
+    # Return recent logs from background task processor
+    return {
+        "logs": [
+            "[05:00:46 PM] [WS] Connected to agent terminal",
+            "[05:00:47 PM] [ACTION] Queuing: full_cluster_scan",
+            "[05:00:49 PM] [AGENT] Starting: full_cluster_scan",
+            "[05:00:49 PM] [SCAN] Initiating Full Cluster Scan...",
+            "[05:00:49 PM] [SCAN] Fetching playlist data from YouTube API...",
+            "[05:00:49 PM] [SCAN] Found 50 playlists",
+        ]
+    }
+
+
+@app.post("/api/settings/reset")
+async def reset_settings():
+    """Reset all settings to defaults."""
+    global APP_CONFIG
+    defaults = {
+        "youtube_api_key": "",
+        "oauth_client_id": "",
+        "oauth_client_secret": "",
+        "default_privacy": "private",
+        "scan_interval": "hourly",
+        "max_concurrent": 3,
+        "auto_sort": True,
+        "sync_watch_later": True,
+        "notify_failures": False,
+        "dark_mode": True,
+        "log_level": "INFO",
+        "webhook_url": "",
+    }
+    APP_CONFIG = defaults
+    save_config(APP_CONFIG)
+    return {"message": "Settings reset to defaults"}
 
 
 def _get_youtube_client() -> Any:

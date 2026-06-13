@@ -104,9 +104,9 @@
                             <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Cache Size</div><div class="text-lg font-bold text-white" id="cache-size">12.1 MB</div></div>
                             <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Thumbnails</div><div class="text-lg font-bold text-white" id="thumb-count">1,331 files</div></div>
                             <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
-                                <button class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Thumbnail Cache</button>
-                                <button class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Vacuum Database</button>
-                                <button class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Export All Data (JSON)</button>
+                                <button onclick="clearThumbnailCache()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Thumbnail Cache</button>
+                                <button onclick="vacuumDatabase()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Vacuum Database</button>
+                                <button onclick="exportAllData()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Export All Data (JSON)</button>
                             </div>
                         </div>
                     </div>
@@ -127,9 +127,9 @@
                                 <input type="url" id="webhook-url" placeholder="https://your-webhook.com/endpoint" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
                             </div>
                             <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
-                                <button class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Test Webhook</button>
-                                <button class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">View System Logs</button>
-                                <button class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Reset All Settings</button>
+                                <button onclick="testWebhook()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Test Webhook</button>
+                                <button onclick="viewSystemLogs()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">View System Logs</button>
+                                <button onclick="resetAllSettings()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Reset All Settings</button>
                             </div>
                         </div>
                     </div>
@@ -245,6 +245,66 @@
             loadDashboardStats();
             loadSettings();
         });
+        
+        // Storage & Data actions
+        async function clearThumbnailCache() {
+            try {
+                const resp = await fetch('/api/storage/clear-thumbnails', {method: 'POST'});
+                const data = await resp.json();
+                alert(data.message || 'Cache cleared');
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+        
+        async function vacuumDatabase() {
+            try {
+                const resp = await fetch('/api/storage/vacuum', {method: 'POST'});
+                const data = await resp.json();
+                alert(data.message || 'Database vacuumed');
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+        
+        async function exportAllData() {
+            try {
+                const resp = await fetch('/api/storage/export');
+                const data = await resp.json();
+                const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `tube-manager-export-${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+        
+        // Advanced actions
+        async function testWebhook() {
+            const url = document.getElementById('webhook-url').value;
+            if (!url) { alert('Enter a webhook URL first'); return; }
+            try {
+                const resp = await fetch('/api/webhook/test', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url, test: true})
+                });
+                const data = await resp.json();
+                alert(data.message || 'Webhook test sent');
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+        
+        async function viewSystemLogs() {
+            window.open('/api/system/logs', '_blank');
+        }
+        
+        async function resetAllSettings() {
+            if (!confirm('Reset ALL settings to defaults? This cannot be undone.')) return;
+            try {
+                const resp = await fetch('/api/settings/reset', {method: 'POST'});
+                const data = await resp.json();
+                alert('Settings reset');
+                window.location.reload();
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
         
         // Listen for OAuth callback messages from popup
         window.addEventListener('message', (event) => {
