@@ -12,24 +12,21 @@
         body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
-        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-        
-        @keyframes slide-in {
-            from { opacity: 0; transform: translateX(100%); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slide-out {
-            from { opacity: 1; transform: translateX(0); }
-            to { opacity: 0; transform: translateX(100%); }
-        }
-        .animate-slide-in { animation: slide-in 0.3s ease-out; }
-        .animate-slide-out { animation: slide-out 0.3s ease-in; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4"><div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white"><i class="fa-solid fa-play text-sm"></i></div><div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">Tube Manager</h1><p class="text-[10px] text-gray-400">Automated Playlist Orchestrator</p></div></div>
-        <div class="flex items-center gap-6"><div class="text-right hidden lg:block cursor-pointer" onclick="window.location.href='/'"><div class="text-[10px] text-blue-400 mt-0.5 flex items-center justify-end gap-1" title="Click to view scan details on Dashboard">[Idle • Last Full Scan: <span id="last-scan">loading...</span>] <i class="fa-solid fa-chevron-down text-[9px] opacity-50"></i></div></div><div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div><div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-border-all"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></div>
+        <div class="flex items-center gap-4"><div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white"><i class="fa-solid fa-play text-sm"></i></div>
+            <div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">Tube Manager</h1><p class="text-[10px] text-gray-400">Automated Playlist Orchestrator</p></div>
+        </div>
+        <div class="flex items-center gap-6"><div class="text-right hidden lg:block cursor-pointer" onclick="window.location.href='/'"><div class="text-[10px] text-blue-400 mt-0.5 flex items-center justify-end gap-1" title="Click to view scan details on Dashboard">[<span id="status-label">Idle</span> • Last Full Scan: <span id="last-scan">loading...</span>] <i class="fa-solid fa-chevron-down text-[9px] opacity-50"></i></div></div>
+            <div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div>
+            <div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-border-all"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div>
+        </div>
     </header>
     <div class="flex flex-1 overflow-hidden">
         <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
@@ -49,37 +46,22 @@
                 </div>
                 <div class="bento-card overflow-hidden">
                     <div class="p-4 border-b border-[#2a2f3a]"><h3 class="text-xs font-semibold text-gray-300">Subscribed Channels</h3></div>
-                    <div class="p-3 overflow-y-auto" id="subscriptions-list">
-                        <div class="text-center text-gray-400 py-8">Loading...</div>
-                    </div>
+                    <div class="p-3 overflow-y-auto" id="subscriptions-list"><div class="text-center text-gray-400 py-8">Loading...</div></div>
                 </div>
             </div>
         </main>
     </div>
+
     <script>
-        // Toast notification system
         function toast(message, type = 'info', duration = 4000) {
             const container = document.getElementById('toast-container') || createToastContainer();
-            const toast = document.createElement('div');
-            const icons = {
-                success: 'fa-check-circle',
-                error: 'fa-times-circle',
-                warning: 'fa-exclamation-triangle',
-                info: 'fa-info-circle'
-            };
-            const colors = {
-                success: 'bg-green-600',
-                error: 'bg-red-600',
-                warning: 'bg-yellow-600',
-                info: 'bg-blue-600'
-            };
-            toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
-            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.add('animate-slide-out');
-                setTimeout(() => toast.remove(), 300);
-            }, duration);
+            const el = document.createElement('div');
+            const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+            const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-blue-600' };
+            el.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
+            el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(el);
+            setTimeout(() => { el.classList.add('animate-slide-out'); setTimeout(() => el.remove(), 300); }, duration);
         }
 
         function createToastContainer() {
@@ -89,64 +71,53 @@
             document.body.appendChild(container);
             return container;
         }
+
         async function loadSubscriptions() {
             const list = document.getElementById('subscriptions-list');
             try {
                 const response = await fetch('/api/subscriptions');
                 if (!response.ok) throw new Error('Failed to load');
                 const data = await response.json();
-                if (!data.channels || !data.channels.length) {
-                    list.innerHTML = '<div class="text-center text-gray-400 py-8">No subscriptions found.</div>';
-                    return;
-                }
-                list.innerHTML = data.channels.map(c => `
-                    <div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors">
+                if (!data.channels || !data.channels.length) { list.innerHTML = '<div class="text-center text-gray-400 py-8">No subscriptions found. Connect YouTube in Settings.</div>'; return; }
+                list.innerHTML = data.channels.map((c, idx) => {
+                    const saved = localStorage.getItem('sub-channel-' + c.id);
+                    const mappedPlaylist = saved || '';
+                    return `<div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors">
                         <div class="flex items-center gap-3">
                             <img src="${c.thumbnail || 'https://picsum.photos/32'}" class="w-8 h-8 rounded-full object-cover">
                             <div>
                                 <div class="text-sm font-medium text-white">${c.title}</div>
-                                <div class="text-[10px] text-gray-400">${c.video_count} videos • ${c.subscribers} subs</div>
+                                <div class="text-[10px] text-gray-400">${c.video_count || 0} videos • ${c.subscribers || 'Unknown'} subs</div>
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
-                            <select class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-36">
-                                <option>Assign to playlist...</option>
-                            </select>
-                            <button class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded">Map</button>
+                            <input type="text" id="map-${c.id}" value="${mappedPlaylist}" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-28" placeholder="Playlist ID" onchange="saveMapping('${c.id}', this.value)">
+                            <button onclick="saveMapping('${c.id}', document.getElementById('map-${c.id}').value)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded">Map</button>
                         </div>
-                    </div>
-                `).join('');
-            } catch (e) {
-                list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load subscriptions</div>';
-            }
+                    </div>`;
+                }).join('');
+            } catch (e) { list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load subscriptions</div>'; }
         }
-        
-        function refreshSubscriptions() {
-            loadSubscriptions();
+
+        async function saveMapping(channelId, playlistId) {
+            try {
+                const payload = { mappings: { ...(await fetch('/api/mappings').then(r => r.json()).catch(() => ({ mappings: {} }))).mappings, [channelId]: playlistId } };
+                await fetch('/api/mappings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                localStorage.setItem('sub-channel-' + channelId, playlistId || '');
+                toast(`Mapping saved for ${channelId}`, 'success');
+            } catch (e) { toast('Failed to save mapping', 'error'); }
         }
-        
-        
-        // Load scan status in header
+
+        async function refreshSubscriptions() { await loadSubscriptions(); toast('Subscriptions refreshed', 'success'); }
+
         async function loadDashboardStats() {
             try {
                 const response = await fetch('/api/stats');
-                if (response.ok) {
-                    const data = await response.json();
-                    document.getElementById('last-scan').textContent = data.last_scan || 'just now';
-                }
-            } catch (e) {
-                console.log('Stats endpoint not available');
-            }
+                if (response.ok) { const data = await response.json(); document.getElementById('last-scan').textContent = data.last_scan || 'just now'; }
+            } catch (e) { console.log('Stats endpoint not available'); }
         }
-        document.addEventListener('DOMContentLoaded', () => {
-            loadDashboardStats();
-            setInterval(loadDashboardStats, 30000);
-        });
-
-        document.addEventListener('DOMContentLoaded', () => {
-            loadDashboardStats();
-            loadSubscriptions();
-        });
+        document.addEventListener('DOMContentLoaded', () => { loadDashboardStats(); setInterval(loadDashboardStats, 30000); });
+        document.addEventListener('DOMContentLoaded', () => { loadDashboardStats(); loadSubscriptions(); });
     </script>
 </body>
 </html>

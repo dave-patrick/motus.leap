@@ -10,68 +10,18 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        
-        .bento-card {
-            background-color: #1a1d24;
-            border: 1px solid #2a2f3a;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-        
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-        
-        #scan-detail-panel {
-            position: fixed;
-            top: 60px;
-            right: 20px;
-            width: 420px;
-            max-height: 80vh;
-            background: #16191f;
-            border: 1px solid #2a2f3a;
-            border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-            z-index: 1000;
-            display: none;
-            flex-direction: column;
-            overflow: hidden;
-        }
+        #scan-detail-panel { position: fixed; top: 60px; right: 20px; width: 420px; max-height: 80vh; background: #16191f; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); z-index: 1000; display: none; flex-direction: column; overflow: hidden; }
         #scan-detail-panel.visible { display: flex; }
-        #scan-detail-header {
-            padding: 12px 16px;
-            border-bottom: 1px solid #2a2f3a;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        #scan-detail-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-            font-size: 12px;
-            line-height: 1.6;
-        }
-        .scan-entry {
-            margin-bottom: 8px;
-            padding: 8px;
-            background: #0a0c10;
-            border-radius: 6px;
-            border-left: 3px solid #3066ff;
-        }
-        .scan-entry-header {
-            display: flex;
-            justify-content: space-between;
-            font-size: 10px;
-            color: #7b8bb5;
-            margin-bottom: 4px;
-        }
-        .scan-entry-message {
-            color: #e5e5e5;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-        }
+        #scan-detail-header { padding: 12px 16px; border-bottom: 1px solid #2a2f3a; display: flex; justify-content: space-between; align-items: center; }
+        #scan-detail-content { flex: 1; overflow-y: auto; padding: 16px; font-size: 12px; line-height: 1.6; }
+        .scan-entry { margin-bottom: 8px; padding: 8px; background: #0a0c10; border-radius: 6px; border-left: 3px solid #3066ff; }
+        .scan-entry-header { display: flex; justify-content: space-between; font-size: 10px; color: #7b8bb5; margin-bottom: 4px; }
+        .scan-entry-message { color: #e5e5e5; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
         .scan-entry.error { border-left-color: #ff4444; }
         .scan-entry.warn { border-left-color: #ffaa00; }
         .scan-entry.success { border-left-color: #44ff88; }
@@ -81,26 +31,21 @@
 
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4">
-            <div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white">
-                <i class="fa-solid fa-play text-sm"></i>
-            </div>
+            <div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white"><i class="fa-solid fa-play text-sm"></i></div>
             <div>
                 <h1 class="text-sm font-bold tracking-wide text-white leading-tight">Tube Manager</h1>
                 <p class="text-[10px] text-gray-400">Automated Playlist Orchestrator</p>
-                <p class="text-[10px] text-green-400 font-bold">🟢 FULL DASHBOARD DEPLOYED v6 - ROOT ROUTE WORKING</p>
+                <p class="text-[10px] text-green-400 font-bold" id="app-status">🟢 READY</p>
             </div>
         </div>
-        
         <div class="flex items-center gap-6">
             <div class="text-right hidden lg:block cursor-pointer" onclick="toggleScanDetail()" style="user-select: none;">
                 <div class="text-[10px] text-blue-400 mt-0.5 flex items-center justify-end gap-1" title="Click for scan details">
-                    [Idle • Last Full Scan: <span id="last-scan">loading...</span>]
+                    [<span id="status-label">Idle</span> • Last Full Scan: <span id="last-scan">loading...</span>]
                     <i class="fa-solid fa-chevron-down text-[9px] opacity-50 hover:opacity-100 transition-opacity"></i>
                 </div>
             </div>
-            <div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0">
-                <i class="fa-solid fa-user text-gray-400"></i>
-            </div>
+            <div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div>
             <div class="flex gap-2">
                 <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Layout"><i class="fa-solid fa-border-all"></i></button>
                 <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Notifications"><i class="fa-regular fa-bell"></i></button>
@@ -109,468 +54,228 @@
         </div>
     </header>
 
-    <!-- Scan Detail Panel -->
     <div id="scan-detail-panel">
         <div id="scan-detail-header">
             <span class="text-xs font-semibold text-gray-300">Scan Details</span>
             <button onclick="toggleScanDetail()" class="text-gray-400 hover:text-white p-1"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <div id="scan-detail-content">
-            <div class="text-[10px] text-gray-500 text-center py-8">No scan data yet. Run a Full Cluster Scan to see details here.</div>
-        </div>
+        <div id="scan-detail-content"><div class="text-[10px] text-gray-500 text-center py-8">No scan data yet. Run a Full Cluster Scan to see details here.</div></div>
     </div>
 
     <div class="flex flex-1 overflow-hidden">
         <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
-            <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30">
-                <i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard
-            </a>
-            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
-                <i class="fa-solid fa-list w-5 text-center"></i> Playlists
-            </a>
-            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
-                <i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions
-            </a>
-            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
-                <i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue
-            </a>
-            <a href="/rules" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
-                <i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings
-            </a>
-            <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
-                <i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration
-            </a>
-            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors">
-                <i class="fa-solid fa-gear w-5 text-center"></i> Settings
-            </a>
+            <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
+            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
+            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
+            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+            <a href="/rules" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings</a>
+            <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration</a>
+            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
         </aside>
 
         <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
             <div class="flex flex-col gap-4 min-w-[1200px]">
-                
                 <h2 class="text-xl font-bold text-white mb-2">Dashboard</h2>
 
                 <div class="grid grid-cols-4 gap-4">
                     <div class="bento-card p-4">
-                        <div class="flex items-center gap-2 mb-2">
-                            <i class="fa-solid fa-list text-gray-500 text-xs"></i>
-                            <span class="text-xs text-gray-300 font-semibold">Total Playlists</span>
-                        </div>
-                        <div class="flex items-end gap-3">
-                            <div class="text-3xl font-bold text-white" id="stat-playlists">60</div>
-                            <div class="text-[10px] text-gray-500 leading-tight pb-1">Dave's total lists, tracked,<br>3D Printing functional lists</div>
-                        </div>
+                        <div class="flex items-center gap-2 mb-2"><i class="fa-solid fa-list text-gray-500 text-xs"></i><span class="text-xs text-gray-300 font-semibold">Total Playlists</span></div>
+                        <div class="flex items-end gap-3"><div class="text-3xl font-bold text-white" id="stat-playlists">--</div></div>
                     </div>
-                    
                     <div class="bento-card p-4">
-                        <div class="flex items-center gap-2 mb-2">
-                            <i class="fa-solid fa-play text-gray-500 text-xs"></i>
-                            <span class="text-xs text-gray-300 font-semibold">Total tracked videos</span>
-                        </div>
-                        <div class="text-3xl font-bold text-white mt-2" id="stat-videos">1331</div>
+                        <div class="flex items-center gap-2 mb-2"><i class="fa-solid fa-play text-gray-500 text-xs"></i><span class="text-xs text-gray-300 font-semibold">Total tracked videos</span></div>
+                        <div class="text-3xl font-bold text-white mt-2" id="stat-videos">--</div>
                     </div>
-
                     <div class="bento-card p-4">
-                        <div class="flex items-center gap-2 mb-2">
-                            <i class="fa-regular fa-clock text-blue-500 text-xs"></i>
-                            <span class="text-xs text-gray-300 font-semibold">Pending actions</span>
-                        </div>
-                        <div class="flex items-end gap-3 mt-2">
-                            <div class="text-3xl font-bold text-white" id="stat-pending">1830</div>
-                            <div class="text-[10px] text-gray-400 pb-1 flex flex-col">
-                                <span class="text-blue-400">Items data: <span id="pending-data">(1830)</span></span>
-                                <span>Still items <span id="pending-still">(13)</span></span>
-                                <span class="text-blue-400">AI Learning: <span id="pending-ai">(3)</span></span>
-                            </div>
-                        </div>
+                        <div class="flex items-center gap-2 mb-2"><i class="fa-regular fa-clock text-blue-500 text-xs"></i><span class="text-xs text-gray-300 font-semibold">Pending actions</span></div>
+                        <div class="flex items-end gap-3 mt-2"><div class="text-3xl font-bold text-white" id="stat-pending">--</div><div class="text-[10px] text-gray-400 pb-1 flex flex-col"><span class="text-blue-400">Items data: <span id="pending-data">(0)</span></span><span>Still items <span id="pending-still">(0)</span></span><span class="text-blue-400">AI Learning: <span id="pending-ai">(0)</span></span></div></div>
                     </div>
-
                     <div class="bento-card p-4">
-                        <div class="flex items-center gap-2 mb-2">
-                            <i class="fa-solid fa-microchip text-gray-500 text-xs"></i>
-                            <span class="text-xs text-gray-300 font-semibold">AI Learning</span>
-                        </div>
-                        <div class="text-[11px] text-gray-400 flex flex-col gap-1 mt-3">
-                            <span>Learning rate: <span id="ai-rate">2.225%</span></span>
-                            <span>Learning rates: <span id="ai-rates">1922</span></span>
-                        </div>
+                        <div class="flex items-center gap-2 mb-2"><i class="fa-solid fa-microchip text-gray-500 text-xs"></i><span class="text-xs text-gray-300 font-semibold">AI Learning</span></div>
+                        <div class="text-[11px] text-gray-400 flex flex-col gap-1 mt-3"><span>Learning rate: <span id="ai-rate">--</span></span><span>Learning rates: <span id="ai-rates">--</span></span></div>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-5 gap-4 h-[550px]">
-                    
                     <div class="bento-card p-4 flex flex-col gap-2">
                         <h3 class="text-xs font-semibold text-gray-300 mb-2">Agent Control Center</h3>
-                        <button onclick="triggerAction('full_cluster_scan')" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-magnifying-glass"></i> Full Cluster Scan
-                        </button>
-                        <button onclick="triggerAction('force_auto_sort')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
-                            <i class="fa-solid fa-wand-magic-sparkles text-blue-400"></i> Force Auto-Sort All
-                        </button>
-                        <button onclick="triggerAction('watch_later_sync')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
-                            <i class="fa-regular fa-clock text-blue-400"></i> Watch Later Sync
-                        </button>
-                        <button onclick="triggerAction('diagnose_failures')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
-                            <i class="fa-solid fa-stethoscope text-blue-400"></i> Diagnose Failures
-                        </button>
-                        <button onclick="triggerAction('regenerate_queue')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
-                            <i class="fa-solid fa-rotate text-blue-400"></i> Regenerate Queue
-                        </button>
-                        <button onclick="triggerAction('surface_diagnostics')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3">
-                            <i class="fa-solid fa-layer-group text-blue-400"></i> Surface diagnostics
-                        </button>
-                    </div>
-
-                    <div class="bento-card flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
-                            <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2">
-                                <i class="fa-solid fa-terminal text-blue-400"></i> Live Agent Output
-                                <span id="ws-status" class="text-[9px] px-1.5 py-0.5 bg-red-900/30 text-red-400 rounded">DISCONNECTED</span>
-                            </h3>
-                            <div class="flex gap-1">
-                                <button onclick="copyTerminal()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[9px] px-2 py-1 rounded flex items-center gap-1" title="Copy logs">
-                                    <i class="fa-solid fa-copy"></i> Copy
-                                </button>
-                                <button onclick="exportTerminal()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[9px] px-2 py-1 rounded flex items-center gap-1" title="Export logs">
-                                    <i class="fa-solid fa-download"></i> Export
-                                </button>
-                                <button onclick="clearTerminal()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[9px] px-2 py-1 rounded flex items-center gap-1" title="Clear terminal">
-                                    <i class="fa-solid fa-trash"></i> Clear
-                                </button>
-                            </div>
-                        </div>
-                        <div id="terminal-body" class="p-3 font-mono text-[10px] leading-relaxed text-blue-300 bg-[#0a0c10] flex-1 overflow-y-auto whitespace-pre-wrap">
-[SYS] Hermes Agent Initialized
--- AI CLUSTERING Clusteration
-processing...
-[STATUS] Scan started...
-[CLUSTER] ag to initariset
-process...
-[LEARN] Processing 399 items
-in st-actsatics...
-[LEARN] Processing 200 items
-to 1473 displaced videos...
-Processing couree...
-[RULE] Custom regex applied to
-1473 misplaced videos...
-</div>
+                        <button data-action="full_cluster_scan" class="action-btn w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-magnifying-glass"></i> Full Cluster Scan</button>
+                        <button data-action="force_auto_sort" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-solid fa-wand-magic-sparkles text-blue-400"></i> Force Auto-Sort All</button>
+                        <button data-action="watch_later_sync" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-regular fa-clock text-blue-400"></i> Watch Later Sync</button>
+                        <button data-action="diagnose_failures" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-solid fa-stethoscope text-blue-400"></i> Diagnose Failures</button>
+                        <button data-action="regenerate_queue" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-solid fa-rotate text-blue-400"></i> Regenerate Queue</button>
+                        <button data-action="surface_diagnostics" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-solid fa-layer-group text-blue-400"></i> Surface diagnostics</button>
                     </div>
 
                     <div class="bento-card flex flex-col overflow-hidden col-span-1">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a]">
-                            <h3 class="text-xs font-semibold text-gray-300">Maintenance Queue Preview</h3>
-                        </div>
-                        <div class="flex gap-4 px-4 py-2 text-[10px] text-gray-400 border-b border-[#2a2f3a]">
-                            <span class="text-blue-400 border-b border-blue-400 pb-1">Actions</span>
-                            <span>Actions</span>
-                            <span>Actions</span>
-                        </div>
-                        <div class="p-3 overflow-y-auto flex-1 flex flex-col gap-4" id="maintenance-queue">
-                            <div>
-                                <div class="text-[11px] text-gray-300 mb-2">Move from X to Y</div>
-                                <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a]">
-                                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden"><img src="https://picsum.photos/32/24" class="w-full h-full object-cover"></div>
-                                    <select class="bg-blue-600 text-white text-[10px] rounded px-2 py-1 w-full outline-none border-none">
-                                        <option>Move from X to Y</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <div class="text-[11px] text-gray-300 mb-2">Duplicated videos</div>
-                                <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a]">
-                                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden"><img src="https://picsum.photos/32/25" class="w-full h-full object-cover"></div>
-                                    <div class="flex gap-1 w-full justify-end">
-                                        <button class="bg-blue-600 text-white text-[10px] px-3 py-1 rounded">Apply</button>
-                                        <button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-3 py-1 rounded">Skip</button>
-                                    </div>
-                                </div>
-                            </div>
-                             <div>
-                                <div class="text-[11px] text-gray-300 mb-2">Misplaced videos</div>
-                                <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a]">
-                                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden"><img src="https://picsum.photos/32/26" class="w-full h-full object-cover"></div>
-                                    <select class="bg-blue-600 text-white text-[10px] rounded px-2 py-1 w-full outline-none border-none">
-                                        <option>Move from X to Y</option>
-                                    </select>
-                                </div>
-                                <div class="flex gap-1 w-full justify-end mt-1">
-                                    <button class="bg-blue-600 text-white text-[10px] px-3 py-1 rounded">Apply</button>
-                                    <button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-3 py-1 rounded">Skip</button>
-                                </div>
+                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
+                            <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2"><i class="fa-solid fa-terminal text-blue-400"></i> Live Agent Output<span id="ws-status" class="text-[9px] px-1.5 py-0.5 bg-red-900/30 text-red-400 rounded">DISCONNECTED</span></h3>
+                            <div class="flex gap-1">
+                                <button onclick="copyTerminal()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[9px] px-2 py-1 rounded flex items-center gap-1" title="Copy logs"><i class="fa-solid fa-copy"></i> Copy</button>
+                                <button onclick="exportTerminal()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[9px] px-2 py-1 rounded flex items-center gap-1" title="Export logs"><i class="fa-solid fa-download"></i> Export</button>
+                                <button onclick="clearTerminal()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[9px] px-2 py-1 rounded flex items-center gap-1" title="Clear terminal"><i class="fa-solid fa-trash"></i> Clear</button>
                             </div>
                         </div>
+                        <div id="terminal-body" class="p-3 font-mono text-[10px] leading-relaxed text-blue-300 bg-[#0a0c10] flex-1 overflow-y-auto whitespace-pre-wrap">[SYS] Hermes Agent Initialized</div>
                     </div>
 
-                    <div class="bento-card flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a]">
-                            <h3 class="text-xs font-semibold text-gray-300">Rules & Mappings Editor</h3>
-                        </div>
-                        <div class="flex gap-4 px-4 py-2 text-[10px] text-gray-400 border-b border-[#2a2f3a]">
-                            <span class="text-blue-400">Code</span>
-                            <span>Regex</span>
-                        </div>
-                        <div class="p-3 bg-[#0a0c10] flex-1 overflow-y-auto font-mono text-[10px] text-gray-300" id="rules-editor">
-                            <div class="flex"><span class="text-gray-600 w-4">1</span> {</div>
-                            <div class="flex"><span class="text-gray-600 w-4">2</span> &nbsp;&nbsp;"category": {</div>
-                            <div class="flex"><span class="text-gray-600 w-4">3</span> &nbsp;&nbsp;&nbsp;&nbsp;"regex": "\w+"</div>
-                            <div class="flex"><span class="text-gray-600 w-4">4</span> &nbsp;&nbsp;},</div>
-                            <div class="flex"><span class="text-gray-600 w-4">5</span> &nbsp;&nbsp;"category": {</div>
-                            <div class="flex"><span class="text-gray-600 w-4">6</span> &nbsp;&nbsp;&nbsp;&nbsp;"category": {</div>
-                            <div class="flex bg-blue-900/30 text-blue-300"><span class="text-gray-600 w-4">7</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"regex": "/s|j/"</div>
-                            <div class="flex"><span class="text-gray-600 w-4">8</span> &nbsp;&nbsp;&nbsp;&nbsp;}</div>
-                            <div class="flex"><span class="text-gray-600 w-4">9</span> &nbsp;&nbsp;"channel": {</div>
-                            <div class="flex"><span class="text-gray-600 w-4">10</span> &nbsp;&nbsp;&nbsp;&nbsp;"channel": {}</div>
-                            <div class="flex"><span class="text-gray-600 w-4">11</span> }</div>
-                        </div>
-                        <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24]">
-                            <button onclick="applyRules()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Apply Rules</button>
-                        </div>
+                    <div class="bento-card flex flex-col overflow-hidden col-span-1">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a]"><h3 class="text-xs font-semibold text-gray-300">Maintenance Queue Preview</h3></div>
+                        <div class="p-3 overflow-y-auto flex-1" id="maintenance-queue"><div class="text-[10px] text-gray-400 text-center py-6">Queue will populate after scans.</div></div>
                     </div>
 
-                    <div class="bento-card flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a]">
-                            <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2">
-                                <i class="fa-solid fa-rss text-blue-400"></i> Subscriptions Map
-                            </h3>
-                        </div>
+                    <div class="bento-card flex flex-col overflow-hidden col-span-1">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a]"><h3 class="text-xs font-semibold text-gray-300">Rules & Mappings Editor</h3></div>
+                        <div class="p-3 bg-[#0a0c10] flex-1 overflow-y-auto font-mono text-[10px] text-gray-300" id="rules-editor"><div class="text-[10px] text-gray-500">Load rules from Settings or Rules page.</div></div>
+                        <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24]"><button onclick="applyRules()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Apply Rules</button></div>
+                    </div>
+
+                    <div class="bento-card flex flex-col overflow-hidden col-span-1">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a]"><h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2"><i class="fa-solid fa-rss text-blue-400"></i> Subscriptions Map</h3></div>
                         <div class="p-3 flex flex-col gap-2">
-                            <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none" id="playlist-select">
-                                <option>Map channels to playlists</option>
-                            </select>
-                            <div class="flex gap-2">
-                                <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none" id="channel-filter">
-                                    <option>All channels</option>
-                                </select>
-                                <button class="bg-blue-600 text-white px-3 rounded text-xs"><i class="fa-solid fa-filter"></i> 3%</button>
-                            </div>
-                            
-                            <div class="mt-2 text-[10px] text-gray-400 flex justify-between px-1">
-                                <span>Channels</span>
-                                <span>Status</span>
-                            </div>
-                            
-                            <div class="flex flex-col gap-1 mt-1 overflow-y-auto" id="subscriptions-list">
-                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
-                                    <div class="flex items-center gap-2 text-xs text-gray-300"><i class="fa-brands fa-facebook text-blue-500"></i> Facebook</div>
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-[10px] text-blue-400">All v</span>
-                                        <input type="checkbox" checked class="accent-blue-500">
-                                    </div>
-                                </div>
-                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
-                                    <div class="flex items-center gap-2 text-xs text-gray-300"><img src="https://picsum.photos/12" class="rounded-full"> Channels</div>
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-[10px] text-blue-400">All v</span>
-                                        <input type="checkbox" class="accent-blue-500">
-                                    </div>
-                                </div>
-                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
-                                    <div class="flex items-center gap-2 text-xs text-gray-300"><i class="fa-brands fa-youtube text-red-500"></i> YouTube</div>
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-[10px] text-blue-400">All v</span>
-                                        <input type="checkbox" class="accent-blue-500">
-                                    </div>
-                                </div>
-                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
-                                    <div class="flex items-center gap-2 text-xs text-gray-300"><i class="fa-brands fa-youtube text-red-500"></i> YouTube</div>
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-[10px] text-blue-400">All v</span>
-                                        <input type="checkbox" checked class="accent-blue-500">
-                                    </div>
-                                </div>
-                                <div class="flex items-center justify-between p-1.5 hover:bg-[#20242c] rounded">
-                                    <div class="flex items-center gap-2 text-xs text-gray-300"><img src="https://picsum.photos/12" class="rounded-full"> Ahnita</div>
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-[10px] text-blue-400">All v</span>
-                                        <input type="checkbox" class="accent-blue-500">
-                                    </div>
-                                </div>
-                            </div>
+                            <select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none" id="playlist-select"><option>Map channels to playlists</option></select>
+                            <div class="flex gap-2"><select class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none" id="channel-filter"><option>All channels</option></select><button onclick="refreshSubscriptions()" class="bg-blue-600 text-white px-3 rounded text-xs"><i class="fa-solid fa-filter"></i></button></div>
+                            <div class="mt-2 text-[10px] text-gray-400 flex justify-between px-1"><span>Channels</span><span>Status</span></div>
+                            <div class="flex flex-col gap-1 mt-1 overflow-y-auto" id="subscriptions-list"><div class="text-[10px] text-gray-400 text-center py-4">Load Subscriptions page for mapping controls.</div></div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Scan Detail Panel -->
-    <div id="scan-detail-panel">
-        <div id="scan-detail-header">
-            <span class="text-xs font-semibold text-gray-300">Scan Details</span>
-            <button onclick="toggleScanDetail()" class="text-gray-400 hover:text-white p-1"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div id="scan-detail-content">
-            <div class="text-[10px] text-gray-500 text-center py-8">No scan data yet. Run a Full Cluster Scan to see details here.</div>
-        </div>
-    </div>
-
     <script>
         let ws = null;
         let scanLogs = [];
-        
+        let queueRunning = false;
+
+        function toast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container') || createToastContainer();
+            const el = document.createElement('div');
+            const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+            const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-blue-600' };
+            el.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
+            el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(el);
+            setTimeout(() => { el.classList.add('animate-slide-out'); setTimeout(() => el.remove(), 300); }, duration);
+        }
+
+        function createToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
+            document.body.appendChild(container);
+            return container;
+        }
+
         function connectWebSocket() {
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
-            
             ws.onopen = () => {
                 document.getElementById('ws-status').textContent = 'CONNECTED';
                 document.getElementById('ws-status').className = 'text-[9px] px-1.5 py-0.5 bg-green-900/30 text-green-400 rounded';
                 logTerminal('[WS] Connected to agent terminal');
-                setInterval(() => {
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({type: 'ping'}));
-                    }
-                }, 30000);
+                setInterval(() => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' })); }, 30000);
             };
-            
             ws.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
-                if (msg.type === 'log') {
-                    logTerminal(msg.message);
-                    addScanLog(msg.message);
-                } else if (msg.type === 'pong') {
-                    // connection alive
-                }
+                let msg;
+                try { msg = JSON.parse(event.data); } catch (e) { logTerminal(event.data); return; }
+                if (msg.type === 'log') { logTerminal(msg.message); addScanLog(msg.message); }
             };
-            
             ws.onclose = () => {
                 document.getElementById('ws-status').textContent = 'DISCONNECTED';
                 document.getElementById('ws-status').className = 'text-[9px] px-1.5 py-0.5 bg-red-900/30 text-red-400 rounded';
                 logTerminal('[WS] Disconnected, reconnecting in 5s...');
                 setTimeout(connectWebSocket, 5000);
             };
-            
-            ws.onerror = (err) => {
-                console.log('WS error:', err);
-            };
+            ws.onerror = () => {};
         }
-        
+
         function logTerminal(message) {
             const terminal = document.getElementById('terminal-body');
-            const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
-            const newLine = `\n[${timestamp}] ${message}`;
-            terminal.innerHTML += newLine;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            terminal.innerHTML += `\n[${time}] ${message}`;
             terminal.scrollTop = terminal.scrollHeight;
         }
-        
+
         function addScanLog(message) {
-            const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             let type = 'info';
-            if (message.includes('[ERROR]') || message.includes('[DIAG]')) type = 'error';
-            else if (message.includes('[WARN]') || message.includes('[SYNC]') || message.includes('[SORT]')) type = 'warn';
-            else if (message.includes('Complete') || message.includes('OK') || message.includes('Complete')) type = 'success';
-            
-            scanLogs.push({timestamp, message, type});
+            if (message.includes('[ERROR]') || message.includes('[DIAG]') || message.includes('Error')) type = 'error';
+            else if (message.includes('Complete') || message.includes('OK')) type = 'success';
+            scanLogs.push({ timestamp, message, type });
             if (scanLogs.length > 500) scanLogs.shift();
             renderScanDetail();
         }
-        
+
         function renderScanDetail() {
             const content = document.getElementById('scan-detail-content');
-            if (!scanLogs.length) {
-                content.innerHTML = '<div class="text-[10px] text-gray-500 text-center py-8">No scan data yet. Run a Full Cluster Scan to see details here.</div>';
-                return;
-            }
-            content.innerHTML = scanLogs.slice().reverse().map(log => `
-                <div class="scan-entry ${log.type}">
-                    <div class="scan-entry-header">
-                        <span>${log.timestamp}</span>
-                        <span>${log.type.toUpperCase()}</span>
-                    </div>
-                    <div class="scan-entry-message">${escapeHtml(log.message)}</div>
-                </div>
-            `).join('');
+            if (!scanLogs.length) { content.innerHTML = '<div class="text-[10px] text-gray-500 text-center py-8">No scan data yet. Run a Full Cluster Scan to see details here.</div>'; return; }
+            content.innerHTML = scanLogs.slice().reverse().map(log => `<div class="scan-entry ${log.type}"><div class="scan-entry-header"><span>${log.timestamp}</span><span>${log.type.toUpperCase()}</span></div><div class="scan-entry-message">${escapeHtml(log.message)}</div></div>`).join('');
         }
-        
-        function escapeHtml(str) {
-            return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]);
-        }
-        
-        function toggleScanDetail() {
-            const panel = document.getElementById('scan-detail-panel');
-            panel.classList.toggle('visible');
-        }
-        
-        function copyTerminal() {
-            const terminal = document.getElementById('terminal-body');
-            navigator.clipboard.writeText(terminal.innerText).then(() => {
-                logTerminal('[ACTION] Logs copied to clipboard');
-            });
-        }
-        
+
+        function escapeHtml(str) { return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]); }
+
+        function toggleScanDetail() { document.getElementById('scan-detail-panel').classList.toggle('visible'); }
+
+        function copyTerminal() { navigator.clipboard.writeText(document.getElementById('terminal-body').innerText).then(() => toast('Logs copied', 'success')); }
         function exportTerminal() {
-            const terminal = document.getElementById('terminal-body');
-            const blob = new Blob([terminal.innerText], {type: 'text/plain'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `tube-manager-logs-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-            logTerminal('[ACTION] Logs exported');
+            const blob = new Blob([document.getElementById('terminal-body').innerText], { type: 'text/plain' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `tube-manager-logs-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`; a.click(); URL.revokeObjectURL(a.href); toast('Logs exported', 'success');
         }
-        
-        function clearTerminal() {
-            const terminal = document.getElementById('terminal-body');
-            terminal.innerHTML = '';
-            logTerminal('[SYS] Terminal cleared');
-        }
-        
+        function clearTerminal() { document.getElementById('terminal-body').innerHTML = ''; logTerminal('[SYS] Terminal cleared'); }
+
         async function triggerAction(action, payload = {}) {
             try {
+                const statusLabel = document.getElementById('status-label');
+                statusLabel.textContent = 'Running...';
+                document.getElementById('app-status').className = 'text-[10px] text-yellow-400 font-bold';
                 logTerminal(`[ACTION] Queuing: ${action}`);
-                const response = await fetch('/api/action', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action, payload})
-                });
+                const response = await fetch('/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, payload }) });
                 const result = await response.json();
                 logTerminal(`[ACTION] ${result.status}: ${result.action}`);
+                toast(`${action.replace(/_/g, ' ')} started`, 'success');
             } catch (e) {
                 logTerminal(`[ERROR] Failed to queue action: ${e.message}`);
+                toast(`Action failed: ${action}`, 'error');
+                document.getElementById('status-label').textContent = 'Idle';
+                document.getElementById('app-status').className = 'text-[10px] text-green-400 font-bold';
             }
         }
-        
+
         async function applyRules() {
             const rules = document.getElementById('rules-editor').innerText;
-            await triggerAction('apply_rules', {rules});
+            if (!rules || !rules.trim()) { toast('Rules editor is empty', 'warning'); return; }
+            await triggerAction('apply_rules', { rules });
         }
-        
-        // Load real data from API
+
         async function loadDashboardStats() {
             try {
                 const response = await fetch('/api/stats');
-                if (response.ok) {
-                    const data = await response.json();
-                    document.getElementById('stat-playlists').textContent = data.total_playlists || 60;
-                    document.getElementById('stat-videos').textContent = data.total_videos || 1331;
-                    document.getElementById('stat-pending').textContent = data.pending_actions || 1830;
-                    document.getElementById('pending-data').textContent = `(${data.pending_actions || 1830})`;
-                    document.getElementById('pending-still').textContent = `(${data.still_items || 13})`;
-                    document.getElementById('pending-ai').textContent = `(${data.ai_learning || 3})`;
-                    document.getElementById('ai-rate').textContent = data.learning_rate || '2.225%';
-                    document.getElementById('ai-rates').textContent = data.learning_rates || '1922';
-                    document.getElementById('last-scan').textContent = data.last_scan || 'just now';
-                }
-            } catch (e) {
-                console.log('Stats endpoint not available, using defaults');
-            }
+                if (!response.ok) return;
+                const data = await response.json();
+                document.getElementById('stat-playlists').textContent = data.total_playlists || '--';
+                document.getElementById('stat-videos').textContent = data.total_videos || '--';
+                document.getElementById('stat-pending').textContent = data.pending_actions ?? '--';
+                document.getElementById('pending-data').textContent = `(${data.pending_actions ?? 0})`;
+                document.getElementById('pending-still').textContent = `(${data.still_items ?? 0})`;
+                document.getElementById('pending-ai').textContent = `(${data.ai_learning ?? 0})`;
+                document.getElementById('ai-rate').textContent = data.learning_rate || '--';
+                document.getElementById('ai-rates').textContent = data.learning_rates || '--';
+                document.getElementById('last-scan').textContent = data.last_scan || 'just now';
+                if (!queueRunning) { document.getElementById('status-label').textContent = 'Idle'; document.getElementById('app-status').className = 'text-[10px] text-green-400 font-bold'; }
+            } catch (e) { console.log('Stats endpoint not available'); }
         }
-        
-        // Load on startup
+
+        function refreshSubscriptions() { toast('Use Subscriptions page for live mapping', 'info'); }
+
         document.addEventListener('DOMContentLoaded', () => {
             loadDashboardStats();
-            connectWebSocket();
             setInterval(loadDashboardStats, 30000);
-            
-            document.addEventListener('click', (e) => {
-                const panel = document.getElementById('scan-detail-panel');
-                const trigger = document.querySelector('[onclick="toggleScanDetail()"]');
-                if (panel.classList.contains('visible') && !panel.contains(e.target) && !trigger.contains(e.target)) {
-                    panel.classList.remove('visible');
-                }
-            });
+            connectWebSocket();
+            document.querySelectorAll('.action-btn').forEach(btn => btn.addEventListener('click', () => triggerAction(btn.dataset.action)));
+            document.addEventListener('click', (e) => { const panel = document.getElementById('scan-detail-panel'); const trigger = document.querySelector('[onclick="toggleScanDetail()"]'); if (panel && panel.classList.contains('visible') && !panel.contains(e.target) && !(trigger && trigger.contains(e.target))) panel.classList.remove('visible'); });
         });
     </script>
 </body>
