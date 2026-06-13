@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import hashlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
@@ -14,13 +15,13 @@ from starlette.responses import Response
 from pydantic import BaseModel
 
 # Core imports
-from tube_manager.core.logger import setup_logging
-from tube_manager.core.config_manager import ConfigManager
-from tube_manager.models.config import TubeManagerConfig
-from tube_manager.models.task import Task, TaskStatus, TaskPriority
+from core.logger import setup_logging
+from core.config_manager import ConfigManager
+from models.config import TubeManagerConfig
+from models.task import Task, TaskStatus, TaskPriority
 
 # Service imports
-from tube_manager.services.youtube_service import YouTubeService
+from services.youtube_service import YouTubeService
 
 # Setup logging
 log = logging.getLogger(__name__)
@@ -461,6 +462,39 @@ async def test_page():
 async def health() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+# Single-request endpoint - QUOTA OPTIMIZED
+@app.get("/api/youtube/fetch-all")
+async def fetch_all_youtube_data(force_refresh: bool = False):
+    """Fetch ALL YouTube data in one optimized request (subscriptions, playlists, videos with duration).
+
+    This is the QUOTA-OPTIMIZED endpoint. Use this to get everything in one call.
+    Data is cached for 10 minutes to minimize API quota usage.
+
+    Query params:
+        force_refresh: If True, bypass cache and fetch fresh data
+    """
+    if not youtube_service:
+        return {"error": "YouTube service not initialized"}
+    
+    result = await youtube_service.fetch_all_data(force_refresh=force_refresh)
+    return result
+
+
+@app.get("/api/youtube/videos")
+async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: bool = False):
+    """Get videos with duration (cached).
+
+    Query params:
+        playlist_id: If provided, filter by specific playlist
+        force_refresh: If True, bypass cache
+    """
+    if not youtube_service:
+        return {"videos": [], "error": "YouTube service not initialized"}
+    
+    result = await youtube_service.get_videos(playlist_id=playlist_id, force_refresh=force_refresh)
+    return result
 
 
 # Stats endpoint
