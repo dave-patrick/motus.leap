@@ -196,7 +196,7 @@ async def full_cluster_scan(payload):
     try:
         # Fetch user's playlists
         await manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Fetching playlist data from YouTube API..."}))
-        playlists_resp = client.list_mine_playlists(max_results=50)
+        playlists_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
         playlists = playlists_resp.get("items", [])
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"}))
         
@@ -206,7 +206,7 @@ async def full_cluster_scan(payload):
             pl_id = pl.get("id")
             pl_title = pl.get("snippet", {}).get("title", pl_id)
             try:
-                items_resp = client.list_videos(pl_id, max_results=50)
+                items_resp = await asyncio.to_thread(client.list_videos, pl_id, max_results=50)
                 items = items_resp.get("items", [])
                 total_videos += len(items)
                 await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
