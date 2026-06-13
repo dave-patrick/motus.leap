@@ -191,7 +191,17 @@ async def full_cluster_scan(payload):
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Complete • {total_videos} videos analyzed • Next auto-scan: 1 hour"}))
         
     except Exception as e:
-        await manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Scan failed: {str(e)}"}))
+        error_details = f"{type(e).__name__}: {str(e)}"
+        if hasattr(e, '__cause__') and e.__cause__:
+            error_details += f" | Cause: {type(e.__cause__).__name__}: {str(e.__cause__)}"
+        if hasattr(e, '__context__') and e.__context__:
+            error_details += f" | Context: {type(e.__context__).__name__}: {str(e.__context__)}"
+        import traceback
+        try:
+            error_details += f" | Traceback: {traceback.format_exc()}"
+        except:
+            pass
+        await manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Scan failed: {error_details}"}))
 
 async def force_auto_sort(payload):
     await manager.broadcast(json.dumps({"type": "log", "message": "[SORT] Forcing Auto-Sort All playlists..."}))
