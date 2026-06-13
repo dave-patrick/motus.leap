@@ -201,13 +201,20 @@ async def full_cluster_scan(payload):
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"}))
         
         total_videos = 0
+        failed_playlists = 0
         for pl in playlists:
             pl_id = pl.get("id")
             pl_title = pl.get("snippet", {}).get("title", pl_id)
-            items_resp = client.list_videos(pl_id, max_results=50)
-            items = items_resp.get("items", [])
-            total_videos += len(items)
-            await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
+            try:
+                items_resp = client.list_videos(pl_id, max_results=50)
+                items = items_resp.get("items", [])
+                total_videos += len(items)
+                await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
+            except Exception as e:
+                failed_playlists += 1
+                error_msg = f"{type(e).__name__}: {str(e)}"
+                await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] {pl_title}: FAILED - {error_msg}"}))
+                log.warning(f"Skipping playlist {pl_id} ({pl_title}): {error_msg}")
             await asyncio.sleep(0.1)
         
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."}))
@@ -221,7 +228,7 @@ async def full_cluster_scan(payload):
         
         await manager.broadcast(json.dumps({"type": "log", "message": "[LEARN] Processing statistics..."}))
         await asyncio.sleep(1)
-        await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Complete • {total_videos} videos analyzed • Next auto-scan: 1 hour"}))
+        await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Complete • {total_videos} videos analyzed across {len(playlists)} playlists ({failed_playlists} failed) • Next auto-scan: 1 hour"}))
         
     except Exception as e:
         error_details = f"{type(e).__name__}: {str(e)}"

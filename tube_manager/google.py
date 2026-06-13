@@ -128,12 +128,26 @@ class YouTubeClient:
         client = self._get_client()
         if not client:
             return self._browser_fallback("list_videos", {"playlist_id": playlist_id, "page_token": page_token, "max_results": max_results})
-        return client.playlistItems().list(
-            part="snippet,contentDetails",
-            playlistId=playlist_id,
-            maxResults=max_results,
-            pageToken=page_token or "",
-        ).execute()
+        try:
+            return client.playlistItems().list(
+                part="snippet,contentDetails",
+                playlistId=playlist_id,
+                maxResults=max_results,
+                pageToken=page_token or "",
+            ).execute()
+        except HttpError as e:
+            # Extract detailed error info from HttpError
+            status_code = e.resp.status if hasattr(e, 'resp') and e.resp else 'unknown'
+            error_content = e.content.decode('utf-8') if hasattr(e, 'content') and e.content else 'no content'
+            error_reason = 'unknown'
+            try:
+                import json as _json
+                error_data = _json.loads(error_content)
+                error_reason = error_data.get('error', {}).get('errors', [{}])[0].get('reason', 'unknown')
+            except:
+                pass
+            log.error(f"YouTube API error in list_videos (playlist={playlist_id}): status={status_code}, reason={error_reason}, content={error_content[:500]}")
+            raise
 
     def get_video(self, video_id: str) -> dict[str, Any]:
         client = self._get_client()
