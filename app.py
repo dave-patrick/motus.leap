@@ -633,9 +633,38 @@ async def stats() -> dict[str, Any]:
     running = [t for t in tasks if t.get("status") == "running"]
     completed = [t for t in tasks if t.get("status") == "completed"]
     failed = [t for t in tasks if t.get("status") == "failed"]
+    
+    # Fetch real YouTube stats
+    client = _get_youtube_client()
+    total_playlists = 0
+    total_videos = 0
+    
+    if client:
+        try:
+            # Get playlists count
+            playlists_resp = client.list_mine_playlists(max_results=50)
+            playlists = playlists_resp.get("items", [])
+            total_playlists = len(playlists)
+            
+            # Get total videos across playlist summary
+            for pl in playlists:
+                count = pl.get("contentDetails", {}).get("itemCount", 0)
+                total_videos += count
+            
+            # If more playlists, fetch more
+            next_token = playlists_resp.get("nextPageToken")
+            while next_token:
+                more = client.list_mine_playlists(max_results=50, page_token=next_token)
+                for pl in more.get("items", []):
+                    total_playlists += 1
+                    total_videos += pl.get("contentDetails", {}).get("itemCount", 0)
+                next_token = more.get("nextPageToken")
+        except Exception as e:
+            logger.warning(f"Failed to fetch real YouTube stats: {e}")
+    
     return {
-        "total_playlists": 60,
-        "total_videos": 1331,
+        "total_playlists": total_playlists,
+        "total_videos": total_videos,
         "pending_actions": len(pending) + len(running),
         "still_items": len(running),
         "ai_learning": len(completed),
@@ -647,61 +676,130 @@ async def stats() -> dict[str, Any]:
 
 @app.get("/api/playlists")
 async def api_playlists() -> dict[str, Any]:
-    """Playlists page data."""
-    return {
-        "playlists": [
-            {"id": "PL_tech", "title": "Programming & Tech", "video_count": 347, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?tech"},
-            {"id": "PL_learning", "title": "Tutorials & Learning", "video_count": 289, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?learn"},
-            {"id": "PL_reviews", "title": "Reviews & Unboxings", "video_count": 156, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?review"},
-            {"id": "PL_live", "title": "Live Streams & Premieres", "video_count": 98, "channel": "Multiple", "privacy": "unlisted", "thumbnail": "https://picsum.photos/160/90?live"},
-            {"id": "PL_music", "title": "Music & Audio", "video_count": 234, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?music"},
-            {"id": "PL_gaming", "title": "Gaming Content", "video_count": 187, "channel": "Multiple", "privacy": "private", "thumbnail": "https://picsum.photos/160/90?game"},
-        ]
-    }
+    """Playlists page data - real YouTube playlists."""
+    client = _get_youtube_client()
+    if not client:
+        return {"playlists": [], "error": "YouTube not connected"}
+    
+    try:
+        all_playlists = []
+        resp = client.list_mine_playlists(max_results=50)
+        items = resp.get("items", [])
+        all_playlists.extend(items)
+        
+        next_token = resp.get("nextPageToken")
+        while next_token:
+            more = client.list_mine_playlists(max_results=50, page_token=next_token)
+            items = more.get("items", [])
+            all_playlists.extend(items)
+            next_token = more.get("nextPageToken")
+        
+        # Format for UI
+        formatted = []
+        for pl in all_playlists:
+            snippet = pl.get("snippet", {})
+            content = pl.get("contentDetails", {})
+            formatted.append({
+                "id": pl.get("id"),
+                "title": snippet.get("title", "Untitled"),
+                "video_count": content.get("itemCount", 0),
+                "channel": snippet.get("channelTitle", "Unknown"),
+                "privacy": snippet.get("privacyStatus", "private"),
+                "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
+                "description": snippet.get("description", ""),
+            })
+        
+        return {"playlists": formatted}
+    except Exception as e:
+        logger.error(f"Failed to fetch playlists: {e}")
+        return {"playlists": [], "error": str(e)}
 
 
 @app.get("/api/subscriptions")
 async def api_subscriptions() -> dict[str, Any]:
-    """Subscriptions page data."""
-    return {
-        "channels": [
-            {"id": "UC_x5XG1OV2P6uZZ5FSM9Ttw", "title": "Google Developers", "video_count": 1247, "subscribers": "2.1M", "thumbnail": "https://picsum.photos/32?gd"},
-            {"id": "UC_latest", "title": "Fireship", "video_count": 342, "subscribers": "2.8M", "thumbnail": "https://picsum.photos/32?fs"},
-            {"id": "UC_tech", "title": "TechLead", "video_count": 567, "subscribers": "1.2M", "thumbnail": "https://picsum.photos/32?tl"},
-            {"id": "UC_code", "title": "Traversy Media", "video_count": 892, "subscribers": "2.0M", "thumbnail": "https://picsum.photos/32?tm"},
-            {"id": "UC_ai", "title": "Two Minute Papers", "video_count": 456, "subscribers": "1.5M", "thumbnail": "https://picsum.photos/32?tmp"},
-        ]
-    }
+    """Subscriptions page data - real YouTube subscriptions."""
+    client = _get_youtube_client()
+    if not client:
+        return {"channels": [], "error": "YouTube not connected"}
+    
+    try:
+        if not hasattr(client, 'list_mine_subscriptions'):
+            return {"channels": [], "error": "Subscriptions method not available"}
+        
+        all_subs = []
+        resp = client.list_mine_subscriptions(max_results=50)
+        items = resp.get("items", [])
+        all_subs.extend(items)
+        
+        next_token = resp.get("nextPageToken")
+        while next_token:
+            more = client.list_mine_subscriptions(max_results=50, page_token=next_token)
+            items = more.get("items", [])
+            all_subs.extend(items)
+            next_token = more.get("nextPageToken")
+        
+        # Format for UI
+        formatted = []
+        for sub in all_subs:
+            snippet = sub.get("snippet", {})
+            resource = snippet.get("resourceId", {})
+            channel_id = resource.get("channelId", "")
+            # Try to get channel details for video count and subscriber count
+            # For now, use snippet data
+            formatted.append({
+                "id": channel_id,
+                "title": snippet.get("title", "Unknown Channel"),
+                "video_count": 0,  # Would need separate channel call
+                "subscribers": "Unknown",
+                "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
+                "description": snippet.get("description", ""),
+            })
+        
+        return {"channels": formatted}
+    except Exception as e:
+        logger.error(f"Failed to fetch subscriptions: {e}")
+        return {"channels": [], "error": str(e)}
 
 
 @app.get("/api/maintenance")
 async def api_maintenance() -> dict[str, Any]:
-    """Maintenance queue page data."""
+    """Maintenance queue page data - computed from real YouTube data."""
+    client = _get_youtube_client()
+    if not client:
+        return {"move_from_x_to_y": [], "duplicated_videos": [], "misplaced_videos": [], "error": "YouTube not connected"}
+    
+    # For now return empty queues - real implementation would analyze videos across playlists
+    # This requires fetching all videos from all playlists and analyzing
     return {
-        "move_from_x_to_y": [
-            {"id": "v1", "title": "Python Async Tutorial", "from_playlist": "PL_uncategorized", "to_playlist": "PL_learning", "suggested": "PL_learning", "thumbnail": "https://picsum.photos/32/24?1"},
-            {"id": "v2", "title": "React 18 Features", "from_playlist": "PL_uncategorized", "to_playlist": "PL_tech", "suggested": "PL_tech", "thumbnail": "https://picsum.photos/32/24?2"},
-        ],
-        "duplicated_videos": [
-            {"id": "v3", "title": "Docker Basics", "playlist_a": "PL_tech", "playlist_b": "PL_learning", "thumbnail": "https://picsum.photos/32/25?3"},
-        ],
-        "misplaced_videos": [
-            {"id": "v4", "title": "Music Mix 2024", "current_playlist": "PL_tech", "suggested": "PL_music", "thumbnail": "https://picsum.photos/32/26?4"},
-        ]
+        "move_from_x_to_y": [],
+        "duplicated_videos": [],
+        "misplaced_videos": [],
+        "info": "Maintenance analysis requires full video scan. Run Full Cluster Scan first."
     }
 
 
 @app.get("/api/mappings")
 async def api_mappings() -> dict[str, Any]:
-    """Rules & Mappings page data."""
-    return {
-        "mappings": [
-            {"channel": "Google Developers", "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw", "playlist": "PL_tech", "thumbnail": "https://picsum.photos/24?gd"},
-            {"channel": "Fireship", "channel_id": "UC_latest", "playlist": "PL_learning", "thumbnail": "https://picsum.photos/24?fs"},
-            {"channel": "TechLead", "channel_id": "UC_tech", "playlist": "PL_tech", "thumbnail": "https://picsum.photos/24?tl"},
-            {"channel": "Traversy Media", "channel_id": "UC_code", "playlist": "PL_learning", "thumbnail": "https://picsum.photos/24?tm"},
-        ]
-    }
+    """Rules & Mappings page data - loaded from config."""
+    mappings = APP_CONFIG.get("channel_mappings", {})
+    formatted = []
+    for channel_id, playlist_id in mappings.items():
+        formatted.append({
+            "channel": channel_id,
+            "channel_id": channel_id,
+            "playlist": playlist_id,
+            "thumbnail": "",
+        })
+    return {"mappings": formatted}
+
+
+@app.post("/api/mappings")
+async def save_mappings(body: dict[str, Any]) -> dict[str, Any]:
+    """Save channel mappings to config."""
+    mappings = body.get("mappings", {})
+    APP_CONFIG["channel_mappings"] = mappings
+    save_config(APP_CONFIG)
+    return {"message": "Mappings saved", "mappings": mappings}
 
 
 # Tasks ------------------------------------------------------------------
