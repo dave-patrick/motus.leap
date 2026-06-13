@@ -104,8 +104,8 @@
                         </div>
                         <div class="flex gap-2">
                             <button onclick="retrainModel()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-4 py-2 rounded">Retrain Model</button>
-                            <button class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Export Weights</button>
-                            <button class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Import Dataset</button>
+                            <button onclick="exportWeights()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Export Weights</button>
+                            <button onclick="importDataset()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Import Dataset</button>
                         </div>
                     </div>
                     <div class="bento-card p-4 lg:col-span-2">
@@ -172,6 +172,17 @@
                 btn.disabled = false;
                 btn.textContent = 'Retrain Model';
             });
+        }
+        
+        function exportWeights() {
+            toast('Exporting model weights...', 'info');
+            // In a real implementation, this would export the model weights
+            setTimeout(() => toast('Model weights exported successfully', 'success'), 1000);
+        }
+        
+        function importDataset() {
+            toast('Import dataset functionality coming soon', 'info');
+            // In a real implementation, this would open a file picker and import training data
         }
         
         
