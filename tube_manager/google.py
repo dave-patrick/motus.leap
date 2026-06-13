@@ -149,6 +149,18 @@ class YouTubeClient:
             return self._browser_fallback("list_mine_channels", {})
         return client.channels().list(part="snippet,contentDetails", mine=True).execute()
 
+    def list_mine_subscriptions(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
+        """List user's subscriptions (requires OAuth)."""
+        client = self._get_client(require_oauth=True)
+        if not client:
+            return self._browser_fallback("list_mine_subscriptions", {"max_results": max_results, "page_token": page_token})
+        return client.subscriptions().list(
+            part="snippet,contentDetails",
+            mine=True,
+            maxResults=max_results,
+            pageToken=page_token or "",
+        ).execute()
+
     def watch_later(self) -> dict[str, Any]:
         """Get Watch Later playlist (requires OAuth)."""
         client = self._get_client(require_oauth=True)
