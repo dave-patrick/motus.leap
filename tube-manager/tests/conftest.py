@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app import app, config_manager, youtube_service, manager, task_queue
 from core.config_manager import ConfigManager
-from models.config import TubeManagerConfig
+from models.config import TubeManagerConfig, YouTubeOAuthConfig
 from services.youtube_service import YouTubeService
 
 
@@ -59,18 +59,18 @@ def test_config():
     """Create test configuration."""
     return TubeManagerConfig(
         youtube_api_key="test_api_key",
-        oauth=Mock(
+        oauth=YouTubeOAuthConfig(
             client_id="test_client_id.apps.googleusercontent.com",
-            client_secret=Mock(get_secret_value=Mock(return_value="test_secret")),
+            client_secret="test_secret",
             access_token="test_access_token",
             refresh_token="test_refresh_token",
-            token_expiry=3600
+            token_expiry=3600,
         ),
         channel_mappings={
             "channel1": "playlist1",
-            "channel2": "playlist2"
+            "channel2": "playlist2",
         },
-        rules="test rules\nmore rules"
+        rules="test rules\nmore rules",
     )
 
 
@@ -102,6 +102,13 @@ def test_client(mock_youtube_service):
     import app
     app.youtube_service = mock_youtube_service
 
+    # Disable lifespan to prevent real startup (config load, bg tasks)
+    from contextlib import asynccontextmanager
+    @asynccontextmanager
+    async def _noop_lifespan(a):
+        yield
+    fastapi_app.router.lifespan_context = _noop_lifespan
+
     with TestClient(fastapi_app) as client:
         yield client
 
@@ -116,7 +123,15 @@ async def async_test_client(mock_youtube_service):
     import app
     app.youtube_service = mock_youtube_service
 
-    async with AsyncClient(app=fastapi_app, base_url="http://test") as client:
+    # Disable lifespan + use ASGITransport for httpx compat
+    from contextlib import asynccontextmanager
+    from httpx import ASGITransport
+    @asynccontextmanager
+    async def _noop_lifespan2(a):
+        yield
+    fastapi_app.router.lifespan_context = _noop_lifespan2
+
+    async with AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test") as client:
         yield client
 
 
@@ -345,6 +360,13 @@ def cleanup_tasks():
         task_queue.get_nowait()
     # Clear WebSocket connections
     manager.active_connections.clear()
+    # Reset rate limiter state
+    try:
+        from app import limiter
+        if hasattr(limiter, '_storage'):
+            limiter._storage.reset()
+    except Exception:
+        pass
 
 
 # =============================================================================

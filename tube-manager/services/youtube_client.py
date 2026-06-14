@@ -129,7 +129,7 @@ class YouTubeClient:
                 part="snippet,contentDetails",
                 playlistId=playlist_id,
                 maxResults=max_results,
-                pageToken=page_token or "",
+                pageToken=page_token or None,
             ).execute()
         except HttpError as e:
             status_code = e.resp.status if hasattr(e, "resp") and e.resp else "unknown"
@@ -157,7 +157,7 @@ class YouTubeClient:
             part="snippet,contentDetails",
             mine=True,
             maxResults=max_results,
-            pageToken=page_token or "",
+            pageToken=page_token or None,
         ).execute()
 
     def list_mine_channels(self) -> dict[str, Any]:
@@ -174,7 +174,7 @@ class YouTubeClient:
             part="snippet,contentDetails",
             mine=True,
             maxResults=max_results,
-            pageToken=page_token or "",
+            pageToken=page_token or None,
         ).execute()
 
     def list_channels_by_ids(self, ids: list[str], max_results: int = 50) -> dict[str, Any]:
