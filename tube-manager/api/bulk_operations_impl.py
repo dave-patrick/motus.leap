@@ -287,6 +287,8 @@ class BulkOperationsService:
             log.info(f"Imported {len(items)} channel mappings")
             return len(items)
 
+        except ValueError:
+            raise  # Re-raise ValueError for invalid mode
         except Exception as e:
             log.error(f"Error importing mappings: {e}")
             return 0

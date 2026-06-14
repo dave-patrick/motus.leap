@@ -1,4 +1,4 @@
-"""Tube Manager - Refactored Application."""
+"""Tube Manager Main Application."""
 
 import asyncio
 import json
@@ -19,6 +19,9 @@ import aiofiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+
+# Import routers
+from api.bulk_operations import router as bulk_router
 
 # Rate limiting
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -45,6 +48,19 @@ CONFIG_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__)
 # Initialize managers
 config_manager = ConfigManager(CONFIG_DIR / "config.json")
 youtube_service: Optional[YouTubeService] = None
+
+# Initialize app
+app = FastAPI(
+    title="Tube Manager",
+    version="1.0.0"
+)
+
+# Store in app state for routers
+app.state.config = config_manager.config
+app.state.config_manager = config_manager
+
+# Register routers
+app.include_router(bulk_router, prefix="/api/bulk", tags=["bulk"])
 
 
 async def no_cache_file_response(file_path: Path) -> Response:
@@ -546,6 +562,12 @@ async def rules():
 async def ai():
     """AI page."""
     return await no_cache_file_response(WEB_DIR / "ai.html")
+
+
+@app.get("/bulk")
+async def bulk():
+    """Bulk operations page."""
+    return await no_cache_file_response(WEB_DIR / "bulk.html")
 
 
 @app.get("/settings")

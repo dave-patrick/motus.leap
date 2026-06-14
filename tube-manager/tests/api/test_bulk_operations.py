@@ -275,6 +275,11 @@ class TestBulkOperationsService:
                 }
             }]
         }
+        mock_client.get_playlist.return_value = {
+            "contentDetails": {
+                "itemCount": 10
+            }
+        }
 
         mock_youtube_client_class.return_value = mock_client
 
