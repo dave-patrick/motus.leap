@@ -1,9 +1,10 @@
 """Multi-user configuration extensions for Tube Manager."""
 
-from typing import Dict, List, Optional
-from models.config import TubeManagerConfig
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class UserConfig:
@@ -11,50 +12,55 @@ class UserConfig:
 
     def __init__(self, user_id: str, config_path: Optional[Path] = None):
         self.user_id = user_id
-        self.config_path = config_path or Path(f"/app/data/users/{user_id}/config.json")
+        if config_path is None:
+            config_path = Path("/app/data") / "users" / user_id / "config.json"
+        self.config_path = config_path
 
-    def load(self) -> TubeManagerConfig:
-        """Load user's configuration."""
+    def load(self) -> Dict[str, Any]:
+        """Load user configuration."""
         try:
             if self.config_path.exists():
-                with open(self.config_path, 'r') as f:
-                    data = json.load(f)
-                return TubeManagerConfig.from_dict(data)
-            return TubeManagerConfig()
-        except Exception:
-            return TubeManagerConfig()
+                return json.loads(self.config_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # pragma: no cover - defensive
+            logging.getLogger(__name__).warning("Failed to load user config: %s", exc)
+        return {}
 
-    def save(self, config: TubeManagerConfig) -> None:
-        """Save user's configuration."""
+    def save(self, config: Dict[str, Any]) -> None:
+        """Persist user configuration."""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_path, 'w') as f:
-            json.dump(config.to_dict(), f, indent=2)
+        self.config_path.write_text(
+            json.dumps(config, indent=2, sort_keys=True), encoding="utf-8"
+        )
 
 
 class UserOperationsManager:
     """Track operations per user."""
 
     def __init__(self):
-        self._operations: Dict[str, List[Dict]] = {}
+        self._operations: Dict[str, List[Dict[str, Any]]] = {}
 
-    def add_operation(self, user_id: str, operation: Dict) -> None:
-        """Add operation for user."""
-        if user_id not in self._operations:
-            self._operations[user_id] = []
-        self._operations[user_id].append(operation)
+    def add_operation(self, user_id: str, operation: Dict[str, Any]) -> None:
+        self._operations.setdefault(user_id, []).append(operation)
 
-    def get_user_operations(self, user_id: str) -> List[Dict]:
-        """Get all operations for user."""
-        return self._operations.get(user_id, [])
+    def get_user_operations(self, user_id: str) -> List[Dict[str, Any]]:
+        return list(self._operations.get(user_id, []))
 
-    def get_operation(self, user_id: str, operation_id: str) -> Optional[Dict]:
-        """Get specific operation for user."""
-        operations = self._operations.get(user_id, [])
-        for op in operations:
-            if op.get('operation_id') == operation_id:
-                return op
+    def get_operation(self, user_id: str, operation_id: str) -> Optional[Dict[str, Any]]:
+        for operation in self.get_user_operations(user_id):
+            if operation.get("operation_id") == operation_id:
+                return operation
         return None
 
 
-# Global user operations manager
 user_operations = UserOperationsManager()
+
+
+def prepare_user_dirs(user: Dict[str, Any]) -> None:
+    """Create any per-user runtime directories on disk."""
+    user_id = user.get("id") or user.get("username")
+    if not user_id:
+        return
+    base = Path("/app/data") / "users" / str(user_id)
+    base.mkdir(parents=True, exist_ok=True)
+    for child in ("exports", "imports", "logs"):
+        (base / child).mkdir(exist_ok=True)
