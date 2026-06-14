@@ -466,23 +466,9 @@ async def delete_user(
 # Initialization
 # =============================================================================
 
-def create_default_admin():
-    """Create a default admin user if none exists."""
-    if not users_db:
-        admin_user = {
-            "id": secrets.token_hex(16),
-            "username": "admin",
-            "email": "admin@tubemanager.local",
-            "full_name": "Administrator",
-            "hashed_password": get_password_hash("admin123"),  # CHANGE IN PRODUCTION!
-            "role": "admin",
-            "is_active": True,
-            "created_at": datetime.now(),
-            "last_login": None
-        }
-
-        users_db["admin"] = admin_user
+def create_default_admin() -> None:
+    """Placeholder: default admin seeding is disabled until the auth path is completed."""
+    return None
 
 
 # Create default admin on import
-create_default_admin()

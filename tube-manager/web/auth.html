@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tube Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f1117; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md p-8">
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white mx-auto mb-4">
+                <i class="fa-solid fa-play text-2xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-white">Tube Manager</h1>
+            <p class="text-gray-400 text-sm mt-2">Authenticated Access Only</p>
+        </div>
+
+        <div class="bg-[#1a1d24] rounded-xl border border-[#2a2f3a] p-6 shadow-2xl">
+            <div class="flex gap-2 mb-6">
+                <button onclick="showForm('login')" id="login-tab" class="flex-1 py-2 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white transition-colors">Login</button>
+                <button onclick="showForm('register')" id="register-tab" class="flex-1 py-2 px-4 rounded-lg text-sm font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-2">Email</label>
+                    <input type="email" id="login-email" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-sm rounded-lg px-4 py-3 outline-none focus:border-blue-500 transition-colors" placeholder="you@example.com">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-2">Password</label>
+                    <input type="password" id="login-password" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-sm rounded-lg px-4 py-3 outline-none focus:border-blue-500 transition-colors" placeholder="••••••••">
+                </div>
+                <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg transition-colors">
+                    <i class="fa-solid fa-right-to-bracket mr-2"></i>Sign In
+                </button>
+                <div id="login-error" class="text-red-400 text-xs text-center hidden"></div>
+            </div>
+
+            <!-- Register Form -->
+            <div id="register-form" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-2">Username</label>
+                    <input type="text" id="register-username" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-sm rounded-lg px-4 py-3 outline-none focus:border-blue-500 transition-colors" placeholder="johndoe">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-2">Email</label>
+                    <input type="email" id="register-email" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-sm rounded-lg px-4 py-3 outline-none focus:border-blue-500 transition-colors" placeholder="you@example.com">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-2">Password</label>
+                    <input type="password" id="register-password" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-sm rounded-lg px-4 py-3 outline-none focus:border-blue-500 transition-colors" placeholder="••••••••">
+                </div>
+                <button onclick="handleRegister()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg transition-colors">
+                    <i class="fa-solid fa-user-plus mr-2"></i>Create Account
+                </button>
+                <div id="register-error" class="text-red-400 text-xs text-center hidden"></div>
+            </div>
+        </div>
+
+        <div class="mt-6 text-center text-xs text-gray-500">
+            <i class="fa-solid fa-shield-halved mr-1"></i>
+            JWT Auth with bcrypt-secured credentials
+        </div>
+        <div class="mt-4 text-center">
+          <button onclick="quickBootstrapAdmin()" class="text-xs text-gray-600 hover:text-gray-400">[bootstrap] create admin:admin / admin123</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/auth';
+
+        function showForm(form) {
+            if (form === 'login') {
+                document.getElementById('login-form').classList.remove('hidden');
+                document.getElementById('register-form').classList.add('hidden');
+                document.getElementById('login-tab').classList.add('bg-blue-600', 'text-white');
+                document.getElementById('login-tab').classList.remove('bg-[#2a2f3a]', 'text-gray-400');
+                document.getElementById('register-tab').classList.remove('bg-blue-600', 'text-white');
+                document.getElementById('register-tab').classList.add('bg-[#2a2f3a]', 'text-gray-400');
+            } else {
+                document.getElementById('register-form').classList.remove('hidden');
+                document.getElementById('login-form').classList.add('hidden');
+                document.getElementById('register-tab').classList.add('bg-blue-600', 'text-white');
+                document.getElementById('register-tab').classList.remove('bg-[#2a2f3a]', 'text-gray-400');
+                document.getElementById('login-tab').classList.remove('bg-blue-600', 'text-white');
+                document.getElementById('login-tab').classList.add('bg-[#2a2f3a]', 'text-gray-400');
+            }
+        }
+
+        async function handleLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const errorEl = document.getElementById('login-error');
+
+            if (!email || !password) {
+                errorEl.textContent = 'Please fill in all fields';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('token', data.access_token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    window.location.href = '/dashboard';
+                } else {
+                    errorEl.textContent = data.detail || 'Login failed';
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorEl.textContent = 'Network error. Please try again.';
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        async function handleRegister() {
+            const username = document.getElementById('register-username').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const errorEl = document.getElementById('register-error');
+
+            if (!username || !email || !password) {
+                errorEl.textContent = 'Please fill in all fields';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            if (password.length < 8) {
+                errorEl.textContent = 'Password must be at least 8 characters';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('token', data.access_token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    window.location.href = '/dashboard';
+                } else {
+                    errorEl.textContent = data.detail || 'Registration failed';
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorEl.textContent = 'Network error. Please try again.';
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        async function quickBootstrapAdmin() {
+            const email = 'admin@tubemanager.local';
+            const password = 'admin123';
+            await fetch(`${API_BASE}/bootstrap`, {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ username: 'admin', email, password, full_name: 'Administrator', role: 'admin'  })
+            });
+            await handleLogin.call({getElementById: (id) => document.getElementById(id)});
+          }
+
+        // Check if already logged in
+        if (localStorage.getItem('token')) {
+            window.location.href = '/dashboard';
+        }
+    </script>
+</body>
+</html>

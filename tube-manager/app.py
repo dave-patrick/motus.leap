@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPExcept
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
+from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import aiofiles
 
@@ -22,6 +23,7 @@ from slowapi.errors import RateLimitExceeded
 
 # Import routers
 from api.bulk_operations import router as bulk_router
+from api.auth import router as auth_router
 
 # Rate limiting
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -55,12 +57,22 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify actual origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Store in app state for routers
 app.state.config = config_manager.config
 app.state.config_manager = config_manager
 
 # Register routers
 app.include_router(bulk_router, prefix="/api/bulk", tags=["bulk"])
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
 
 async def no_cache_file_response(file_path: Path) -> Response:
@@ -89,45 +101,52 @@ async def no_cache_file_response(file_path: Path) -> Response:
 
 # WebSocket connection manager
 class ConnectionManager:
-    """Manages WebSocket connections with throttling."""
+    """Manages WebSocket connections with user scoping."""
 
     def __init__(self):
         self.active_connections: list[WebSocket] = []
-        self._last_broadcast_time = {}
-        self._min_broadcast_interval = 0.1  # 100ms between messages per client
+        self._user_connections: dict[str, list[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, user_id: str = None):
         """Accept a new WebSocket connection."""
         await websocket.accept()
         self.active_connections.append(websocket)
+        if user_id:
+            self._user_connections.setdefault(user_id, []).append(websocket)
 
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket, user_id: str = None):
         """Remove a WebSocket connection."""
         try:
             self.active_connections.remove(websocket)
         except ValueError:
             pass
+        if user_id and user_id in self._user_connections:
+            try:
+                self._user_connections[user_id].remove(websocket)
+            except ValueError:
+                pass
+            if not self._user_connections[user_id]:
+                self._user_connections.pop(user_id, None)
 
-    async def broadcast(self, message: str):
-        """Broadcast a message to all connected clients with throttling."""
-        import asyncio
-        now = asyncio.get_event_loop().time()
-        tasks = []
-        for connection in self.active_connections:
-            conn_id = id(connection)
-            # Rate limit per client
-            if now - self._last_broadcast_time.get(conn_id, 0) >= self._min_broadcast_interval:
-                self._last_broadcast_time[conn_id] = now
-                tasks.append(self._safe_send(connection, message))
-        await asyncio.gather(*tasks, return_exceptions=True)
+    async def send_to_user(self, user_id: str, message: str):
+        """Send message to all connections for a specific user."""
+        connections = self._user_connections.get(user_id, [])
+        for connection in connections:
+            try:
+                await connection.send_text(message)
+            except Exception:
+                pass
 
-    async def _safe_send(self, connection: WebSocket, message: str):
-        """Send message to single WebSocket with error handling."""
-        try:
-            await connection.send_text(message)
-        except Exception as e:
-            log.debug(f"WebSocket send failed (likely disconnected): {e}")
-            self.disconnect(connection)
+    async def broadcast(self, message: str, user_id: str = None):
+        """Broadcast a message, optionally only to a specific user."""
+        if user_id:
+            await self.send_to_user(user_id, message)
+        else:
+            for connection in self.active_connections:
+                try:
+                    await connection.send_text(message)
+                except Exception:
+                    self.disconnect(connection)
 
 
 manager = ConnectionManager()
@@ -520,12 +539,24 @@ class ConfigUpdateIn(BaseModel):
     rules: str | None = None
 
 
+# =============================================================================
 # Page routes
+# =============================================================================
+
 @app.get("/")
 async def index():
-    """Redirect to dashboard."""
+    """Redirect to auth or dashboard based on login status."""
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/dashboard", status_code=302)
+
+    # Check for token in cookie (simplified - in production use JWT validation)
+    # For now, redirect to auth page
+    return RedirectResponse(url="/auth", status_code=302)
+
+
+@app.get("/auth")
+async def auth():
+    """Auth page."""
+    return await no_cache_file_response(WEB_DIR / "auth.html")
 
 
 @app.get("/dashboard")
