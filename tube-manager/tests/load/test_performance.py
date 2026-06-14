@@ -31,8 +31,8 @@ class TestConcurrentRequests:
             results = list(executor.map(make_request, range(num_requests)))
 
         # All should succeed (within rate limits)
-        successful = [r for r in results if r.status_code == 200]
-        rate_limited = [r for r in results if r.status_code == 429]
+        successful = [r for r in results if r["status"] == 200]
+        rate_limited = [r for r in results if r["status"] == 429]
 
         # At least 10 should succeed (rate limit is 10/minute)
         assert len(successful) >= 10
@@ -60,7 +60,7 @@ class TestConcurrentRequests:
             results = list(executor.map(make_request, range(num_requests)))
 
         # All should succeed (health check is fast)
-        successful = [r for r in results if r.status_code == 200]
+        successful = [r for r in results if r["status"] == 200]
         assert len(successful) == num_requests
 
         # Health checks should be very fast
@@ -89,7 +89,7 @@ class TestConcurrentRequests:
             results = list(executor.map(make_request, range(num_requests)))
 
         # All should succeed
-        successful = [r for r in results if r.status_code == 200]
+        successful = [r for r in results if r["status"] == 200]
         assert len(successful) == num_requests
 
         # Page loads should be reasonably fast

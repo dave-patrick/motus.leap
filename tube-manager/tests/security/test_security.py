@@ -4,6 +4,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+def assert_csp_headers(response):
+    """Assert that CSP headers are present and valid."""
+    assert "Content-Security-Policy" in response.headers
+    csp = response.headers["Content-Security-Policy"]
+    assert len(csp) > 0
+    assert "default-src" in csp
+    assert "script-src" in csp
+    assert "style-src" in csp
+    assert "nonce-" in csp or "unsafe-inline" not in csp
+
+
 @pytest.mark.security
 class TestCSPHeaders:
     """Test Content Security Policy headers."""

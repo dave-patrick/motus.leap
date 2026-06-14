@@ -1,6 +1,6 @@
 """Bulk operations API endpoints."""
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import json
@@ -10,10 +10,22 @@ from datetime import datetime
 import base64
 
 from api.bulk_operations_impl import BulkOperationsService
-from core.config_manager import ConfigManager, get_config_manager
-from models.config import TubeManagerConfig, get_config
+from core.config_manager import ConfigManager
+from models.config import TubeManagerConfig
 
 router = APIRouter(prefix="/api/bulk", tags=["bulk"])
+
+# ============================================================================
+# Dependency Functions
+# ============================================================================
+
+def get_config(request: Request):
+    """Dependency to get current config from app state."""
+    return request.app.state.config
+
+def get_config_manager(request: Request):
+    """Dependency to get config manager from app state."""
+    return request.app.state.config_manager
 
 
 # =============================================================================
