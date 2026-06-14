@@ -26,11 +26,6 @@ from slowapi.errors import RateLimitExceeded
 from api.bulk_operations import router as bulk_router
 from api.auth import router as auth_router
 
-# Rate limiting
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
 # Core imports
 from core.http_client import shutdown_http_client
 from core.logger import setup_logging
@@ -55,7 +50,8 @@ youtube_service: Optional[YouTubeService] = None
 # Initialize app
 app = FastAPI(
     title="Tube Manager",
-    version="1.0.0"
+    description="YouTube Playlist Management System",
+    version="2.0.0"
 )
 
 # Add CORS middleware
@@ -72,7 +68,7 @@ app.state.config = config_manager.config
 app.state.config_manager = config_manager
 
 # Register routers
-app.include_router(bulk_router, prefix="/api/bulk", tags=["bulk"])
+app.include_router(bulk_router, tags=["bulk"])
 app.include_router(auth_router, tags=["auth"])
 
 
@@ -181,25 +177,14 @@ async def lifespan(app: FastAPI):
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
-# Initialize FastAPI app
-def _secret_val(val) -> str:
-    """Safely extract secret from SecretStr or plain string."""
-    if hasattr(val, "get_secret_value"):
-        return val.get_secret_value() or ""
-    return str(val) if val else ""
-
-
-app = FastAPI(
-    title="Tube Manager",
-    lifespan=lifespan,
-    description="YouTube Playlist Management System",
-    version="2.0.0"
-)
+# Configure existing FastAPI app
+app.router.lifespan_context = lifespan
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Mount static files
-app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
+if not any(getattr(route, "path", "") == "/static" for route in app.routes):
+    app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 
 # Security middleware
