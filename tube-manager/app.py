@@ -73,7 +73,7 @@ app.state.config_manager = config_manager
 
 # Register routers
 app.include_router(bulk_router, prefix="/api/bulk", tags=["bulk"])
-app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(auth_router, tags=["auth"])
 
 
 async def no_cache_file_response(file_path: Path) -> Response:
