@@ -8,7 +8,7 @@ services:
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11.10"
+        value: "3.11.9"
       - key: YOUTUBE_CLIENT_ID
         sync: false
       - key: YOUTUBE_CLIENT_SECRET
