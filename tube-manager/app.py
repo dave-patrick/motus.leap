@@ -20,6 +20,11 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+# Rate limiting
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 # Core imports
 from core.http_client import shutdown_http_client
 from core.logger import setup_logging
@@ -139,9 +144,15 @@ async def lifespan(app: FastAPI):
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
-_rate_limit_exceeded_handler = RateLimitExceeded
 
 # Initialize FastAPI app
+def _secret_val(val) -> str:
+    """Safely extract secret from SecretStr or plain string."""
+    if hasattr(val, "get_secret_value"):
+        return val.get_secret_value() or ""
+    return str(val) if val else ""
+
+
 app = FastAPI(
     title="Tube Manager",
     lifespan=lifespan,
@@ -504,49 +515,49 @@ async def index():
 @app.get("/dashboard")
 async def dashboard():
     """Dashboard page."""
-    return no_cache_file_response(WEB_DIR / "dashboard.html")
+    return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
 
 @app.get("/playlists")
 async def playlists():
     """Playlists page."""
-    return no_cache_file_response(WEB_DIR / "playlists.html")
+    return await no_cache_file_response(WEB_DIR / "playlists.html")
 
 
 @app.get("/subscriptions")
 async def subscriptions():
     """Subscriptions page."""
-    return no_cache_file_response(WEB_DIR / "subscriptions.html")
+    return await no_cache_file_response(WEB_DIR / "subscriptions.html")
 
 
 @app.get("/maintenance")
 async def maintenance():
     """Maintenance page."""
-    return no_cache_file_response(WEB_DIR / "maintenance.html")
+    return await no_cache_file_response(WEB_DIR / "maintenance.html")
 
 
 @app.get("/rules")
 async def rules():
     """Rules page."""
-    return no_cache_file_response(WEB_DIR / "rules.html")
+    return await no_cache_file_response(WEB_DIR / "rules.html")
 
 
 @app.get("/ai")
 async def ai():
     """AI page."""
-    return no_cache_file_response(WEB_DIR / "ai.html")
+    return await no_cache_file_response(WEB_DIR / "ai.html")
 
 
 @app.get("/settings")
 async def settings():
     """Settings page."""
-    return no_cache_file_response(WEB_DIR / "settings.html")
+    return await no_cache_file_response(WEB_DIR / "settings.html")
 
 
 @app.get("/test")
 async def test_page():
     """Test page."""
-    return no_cache_file_response(WEB_DIR / "test.html")
+    return await no_cache_file_response(WEB_DIR / "test.html")
 
 
 # Health check
@@ -723,7 +734,8 @@ async def api_mappings() -> dict[str, Any]:
 
 
 @app.post("/api/mappings")
-async def save_mappings(body: dict[str, Any]) -> dict[str, Any]:
+@limiter.limit("30/minute")  # Rate limit: 30 save operations per minute
+async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any]:
     """Save channel mappings."""
     mappings = _normalize_mappings(_extract_mapping_items(body))
     config = config_manager.config
@@ -777,7 +789,7 @@ async def youtube_callback(code: str):
     
     config = config_manager.config
     
-    if not config.oauth.client_id or not config.oauth.client_secret.get_secret_value():
+    if not config.oauth.client_id or not _secret_val(config.oauth.client_secret):
         log.error("OAuth credentials not configured")
         return HTMLResponse("""
             <h1>❌ OAuth Not Configured</h1>
@@ -790,7 +802,7 @@ async def youtube_callback(code: str):
     data = {
         "code": code,
         "client_id": config.oauth.client_id,
-        "client_secret": config.oauth.client_secret.get_secret_value(),
+        "client_secret": _secret_val(config.oauth.client_secret),
         "redirect_uri": redirect_uri,
         "grant_type": "authorization_code",
     }
@@ -862,7 +874,7 @@ async def youtube_status():
     return {
         "connected": bool(config.oauth.access_token),
         "has_refresh": bool(config.oauth.refresh_token),
-        "api_key_configured": bool(config.youtube_api_key.get_secret_value()),
+        "api_key_configured": bool(_secret_val(config.youtube_api_key)),
     }
 
 
@@ -888,9 +900,9 @@ async def get_settings():
     """Get current settings."""
     config = config_manager.config
     return {
-        "youtube_api_key": (config.youtube_api_key.get_secret_value() or "")[:4] + "••••" if config.youtube_api_key.get_secret_value() else "",
+        "youtube_api_key": (_secret_val(config.youtube_api_key) or "")[:4] + "••••" if _secret_val(config.youtube_api_key) else "",
         "oauth_client_id": config.oauth.client_id,
-        "oauth_client_secret": "••••••••" if config.oauth.client_secret.get_secret_value() else "",
+        "oauth_client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
         "default_privacy": config.default_privacy,
         "scan_interval": config.scan_interval,
         "max_concurrent": config.max_concurrent,

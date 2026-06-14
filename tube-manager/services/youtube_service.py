@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 
-from tube_manager.google import YouTubeClient
+from services.youtube_client import YouTubeClient
 from models.config import TubeManagerConfig
 from core.lru_cache import LRUAsyncCache
 
@@ -27,6 +27,7 @@ class YouTubeService:
         
         # LRU cache to avoid redundant API calls with eviction policy
         self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(minutes=10))
+        self._cache_ttl = timedelta(minutes=10)
         
         # User-specific storage path
         self._user_data_dir = Path("/app/data/users") / self._get_user_id()
@@ -338,7 +339,7 @@ class YouTubeService:
             self._save_to_disk("all_data", result)
             
             # Also cache in memory
-            self._set_cached(f"all_data_{user_id}", result)
+            await self._set_cached(f"all_data_{user_id}", result)
             
             log.info(f"[FETCH] Complete! {len(subscriptions)} subs, {len(playlists)} playlists, {len(videos)} videos with duration")
             

@@ -29,15 +29,20 @@ class TubeManagerConfig(BaseModel):
 
     def to_dict_for_storage(self) -> Dict[str, Any]:
         """Convert to dictionary for safe storage, excluding secrets."""
-        data = self.model_dump(exclude_none=True, mode='json')
+        def _secret(val):
+            """Safely extract secret value from SecretStr or plain string."""
+            if hasattr(val, 'get_secret_value'):
+                return val.get_secret_value()
+            return str(val) if val else ""
+        data = self.model_dump(exclude_none=True)
         data['oauth'] = {
             'client_id': self.oauth.client_id,
-            'client_secret': self.oauth.client_secret.get_secret_value() if self.oauth.client_secret else "",
+            'client_secret': _secret(self.oauth.client_secret),
             'access_token': self.oauth.access_token,
             'refresh_token': self.oauth.refresh_token,
             'token_expiry': self.oauth.token_expiry,
         }
-        data['youtube_api_key'] = self.youtube_api_key.get_secret_value() if self.youtube_api_key else ""
+        data['youtube_api_key'] = _secret(self.youtube_api_key)
         return data
 
     @classmethod
