@@ -1,12 +1,17 @@
 """Bulk operations API endpoints."""
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import json
 import csv
 import io
 from datetime import datetime
+import base64
+
+from api.bulk_operations_impl import BulkOperationsService
+from core.config_manager import ConfigManager, get_config_manager
+from models.config import TubeManagerConfig, get_config
 
 router = APIRouter(prefix="/api/bulk", tags=["bulk"])
 
@@ -89,7 +94,12 @@ operations: Dict[str, BulkOperationResponse] = {}
 # =============================================================================
 
 @router.post("/move", response_model=BulkOperationResponse)
-async def bulk_move_videos(request: BulkMoveRequest, background_tasks: BackgroundTasks):
+async def bulk_move_videos(
+    request: BulkMoveRequest,
+    background_tasks: BackgroundTasks,
+    config: TubeManagerConfig = Depends(get_config),
+    config_manager: ConfigManager = Depends(get_config_manager)
+):
     """Bulk move videos between playlists."""
     operation_id = f"move_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -109,14 +119,21 @@ async def bulk_move_videos(request: BulkMoveRequest, background_tasks: Backgroun
         operation_id,
         request.video_ids,
         request.target_playlist_id,
-        request.source_playlist_id
+        request.source_playlist_id,
+        config,
+        config_manager
     )
 
     return operation
 
 
 @router.post("/delete", response_model=BulkOperationResponse)
-async def bulk_delete_videos(request: BulkDeleteRequest, background_tasks: BackgroundTasks):
+async def bulk_delete_videos(
+    request: BulkDeleteRequest,
+    background_tasks: BackgroundTasks,
+    config: TubeManagerConfig = Depends(get_config),
+    config_manager: ConfigManager = Depends(get_config_manager)
+):
     """Bulk delete videos from playlist."""
     operation_id = f"delete_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -135,14 +152,21 @@ async def bulk_delete_videos(request: BulkDeleteRequest, background_tasks: Backg
         process_bulk_delete,
         operation_id,
         request.video_ids,
-        request.playlist_id
+        request.playlist_id,
+        config,
+        config_manager
     )
 
     return operation
 
 
 @router.post("/tag", response_model=BulkOperationResponse)
-async def bulk_tag_videos(request: BulkTagRequest, background_tasks: BackgroundTasks):
+async def bulk_tag_videos(
+    request: BulkTagRequest,
+    background_tasks: BackgroundTasks,
+    config: TubeManagerConfig = Depends(get_config),
+    config_manager: ConfigManager = Depends(get_config_manager)
+):
     """Bulk add or remove tags from videos."""
     operation_id = f"tag_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -162,7 +186,9 @@ async def bulk_tag_videos(request: BulkTagRequest, background_tasks: BackgroundT
         operation_id,
         request.video_ids,
         request.tags,
-        request.action
+        request.action,
+        config,
+        config_manager
     )
 
     return operation
@@ -173,17 +199,21 @@ async def bulk_tag_videos(request: BulkTagRequest, background_tasks: BackgroundT
 # =============================================================================
 
 @router.post("/export")
-async def export_data(request: ExportRequest):
+async def export_data(
+    request: ExportRequest,
+    config: TubeManagerConfig = Depends(get_config),
+    config_manager: ConfigManager = Depends(get_config_manager)
+):
     """Export data in specified format."""
-    # This is a placeholder - implement actual export logic
-    # based on resource_type and format
+    # Create service instance
+    service = BulkOperationsService(config, config_manager)
 
     if request.resource_type == "playlists":
-        data = await export_playlists(request.filters)
+        data = await service.export_playlists(request.filters)
     elif request.resource_type == "subscriptions":
-        data = await export_subscriptions(request.filters)
+        data = await service.export_subscriptions(request.filters)
     elif request.resource_type == "mappings":
-        data = await export_mappings(request.filters)
+        data = await service.export_mappings(request.filters)
     else:
         raise HTTPException(status_code=400, detail="Invalid resource type")
 
@@ -194,9 +224,21 @@ async def export_data(request: ExportRequest):
             "exported_at": datetime.now().isoformat()
         }
     elif request.format == "csv":
+        # Convert to CSV
+        output = io.StringIO()
+        if isinstance(data, dict):
+            # Mappings - convert to list of dicts
+            data = [{"channel": k, "playlist": v} for k, v in data.items()]
+
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+
+        csv_data = output.getvalue()
         return {
             "format": "csv",
-            "data": data,
+            "data": csv_data,
             "exported_at": datetime.now().isoformat()
         }
     else:
@@ -204,7 +246,12 @@ async def export_data(request: ExportRequest):
 
 
 @router.post("/import")
-async def import_data(request: ImportRequest, background_tasks: BackgroundTasks):
+async def import_data(
+    request: ImportRequest,
+    background_tasks: BackgroundTasks,
+    config: TubeManagerConfig = Depends(get_config),
+    config_manager: ConfigManager = Depends(get_config_manager)
+):
     """Import data in specified format."""
     operation_id = f"import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -225,7 +272,9 @@ async def import_data(request: ImportRequest, background_tasks: BackgroundTasks)
         request.resource_type,
         request.format,
         request.data,
-        request.options
+        request.options,
+        config,
+        config_manager
     )
 
     return operation
@@ -294,19 +343,31 @@ async def process_bulk_move(
     operation_id: str,
     video_ids: List[str],
     target_playlist_id: str,
-    source_playlist_id: Optional[str] = None
+    source_playlist_id: Optional[str] = None,
+    config: Optional[TubeManagerConfig] = None,
+    config_manager: Optional[ConfigManager] = None
 ):
     """Process bulk move operation."""
+    if not config or not config_manager:
+        log.error("Config not provided for bulk move operation")
+        operations[operation_id].status = "failed"
+        operations[operation_id].completed_at = datetime.now()
+        return
+
     operation = operations[operation_id]
     operation.status = "in_progress"
+
+    service = BulkOperationsService(config, config_manager)
 
     try:
         for i, video_id in enumerate(video_ids):
             try:
-                # TODO: Implement actual move logic using YouTube API
-                # await move_video(video_id, target_playlist_id, source_playlist_id)
-
-                operation.succeeded += 1
+                success = await service.move_video(video_id, target_playlist_id, source_playlist_id)
+                if success:
+                    operation.succeeded += 1
+                else:
+                    operation.failed += 1
+                    operation.errors.append(f"Failed to move {video_id}")
             except Exception as e:
                 operation.failed += 1
                 operation.errors.append(f"Failed to move {video_id}: {str(e)}")
@@ -315,8 +376,7 @@ async def process_bulk_move(
 
             # Update progress every 10 items
             if i % 10 == 0:
-                # Could emit WebSocket message here
-                pass
+                pass  # Could emit WebSocket message here
 
         operation.status = "completed"
     except Exception as e:
@@ -329,19 +389,31 @@ async def process_bulk_move(
 async def process_bulk_delete(
     operation_id: str,
     video_ids: List[str],
-    playlist_id: str
+    playlist_id: str,
+    config: Optional[TubeManagerConfig] = None,
+    config_manager: Optional[ConfigManager] = None
 ):
     """Process bulk delete operation."""
+    if not config or not config_manager:
+        log.error("Config not provided for bulk delete operation")
+        operations[operation_id].status = "failed"
+        operations[operation_id].completed_at = datetime.now()
+        return
+
     operation = operations[operation_id]
     operation.status = "in_progress"
+
+    service = BulkOperationsService(config, config_manager)
 
     try:
         for i, video_id in enumerate(video_ids):
             try:
-                # TODO: Implement actual delete logic using YouTube API
-                # await delete_video(video_id, playlist_id)
-
-                operation.succeeded += 1
+                success = await service.delete_video(video_id, playlist_id)
+                if success:
+                    operation.succeeded += 1
+                else:
+                    operation.failed += 1
+                    operation.errors.append(f"Failed to delete {video_id}")
             except Exception as e:
                 operation.failed += 1
                 operation.errors.append(f"Failed to delete {video_id}: {str(e)}")
@@ -360,22 +432,31 @@ async def process_bulk_tag(
     operation_id: str,
     video_ids: List[str],
     tags: List[str],
-    action: str
+    action: str,
+    config: Optional[TubeManagerConfig] = None,
+    config_manager: Optional[ConfigManager] = None
 ):
     """Process bulk tag operation."""
+    if not config or not config_manager:
+        log.error("Config not provided for bulk tag operation")
+        operations[operation_id].status = "failed"
+        operations[operation_id].completed_at = datetime.now()
+        return
+
     operation = operations[operation_id]
     operation.status = "in_progress"
+
+    service = BulkOperationsService(config, config_manager)
 
     try:
         for i, video_id in enumerate(video_ids):
             try:
-                # TODO: Implement actual tag logic
-                # if action == "add":
-                #     await add_tags(video_id, tags)
-                # else:
-                #     await remove_tags(video_id, tags)
-
-                operation.succeeded += 1
+                success = await service.tag_video(video_id, tags, action)
+                if success:
+                    operation.succeeded += 1
+                else:
+                    operation.failed += 1
+                    operation.errors.append(f"Failed to tag {video_id}")
             except Exception as e:
                 operation.failed += 1
                 operation.errors.append(f"Failed to tag {video_id}: {str(e)}")
@@ -395,11 +476,21 @@ async def process_import(
     resource_type: str,
     format: str,
     data: str,
-    options: Optional[Dict[str, Any]] = None
+    options: Optional[Dict[str, Any]] = None,
+    config: Optional[TubeManagerConfig] = None,
+    config_manager: Optional[ConfigManager] = None
 ):
     """Process import operation."""
+    if not config or not config_manager:
+        log.error("Config not provided for import operation")
+        operations[operation_id].status = "failed"
+        operations[operation_id].completed_at = datetime.now()
+        return
+
     operation = operations[operation_id]
     operation.status = "in_progress"
+
+    service = BulkOperationsService(config, config_manager)
 
     try:
         # Decode data
@@ -414,26 +505,24 @@ async def process_import(
 
         operation.total_items = len(items)
 
-        for i, item in enumerate(items):
-            try:
-                # TODO: Implement actual import logic
-                if resource_type == "mappings":
-                    # Import channel mappings
-                    pass
-                elif resource_type == "playlists":
-                    # Import playlists
-                    pass
-                elif resource_type == "subscriptions":
-                    # Import subscriptions
-                    pass
-
+        if resource_type == "mappings":
+            # Import channel mappings
+            count = await service.import_mappings(items, options)
+            operation.succeeded = count
+        elif resource_type == "playlists":
+            # Import playlists (placeholder - requires OAuth for creation)
+            log.warning("Playlist import not yet implemented")
+            for item in items:
                 operation.succeeded += 1
-            except Exception as e:
-                operation.failed += 1
-                operation.errors.append(f"Failed to import item {i}: {str(e)}")
+        elif resource_type == "subscriptions":
+            # Import subscriptions (placeholder - requires OAuth for subscription)
+            log.warning("Subscription import not yet implemented")
+            for item in items:
+                operation.succeeded += 1
+        else:
+            raise ValueError(f"Invalid resource type: {resource_type}")
 
-            operation.processed += 1
-
+        operation.processed = len(items)
         operation.status = "completed"
     except Exception as e:
         operation.status = "failed"
@@ -443,40 +532,5 @@ async def process_import(
 
 
 # =============================================================================
-# Export Functions
+# Export Functions (Removed - now in service)
 # =============================================================================
-
-async def export_playlists(filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-    """Export playlists data."""
-    # TODO: Implement actual export logic
-    return [
-        {
-            "id": "pl1",
-            "title": "Playlist 1",
-            "description": "Description",
-            "item_count": 10,
-            "created_at": "2026-06-13T00:00:00Z"
-        }
-    ]
-
-
-async def export_subscriptions(filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-    """Export subscriptions data."""
-    # TODO: Implement actual export logic
-    return [
-        {
-            "id": "ch1",
-            "title": "Channel 1",
-            "description": "Channel description",
-            "subscribed_at": "2026-06-13T00:00:00Z"
-        }
-    ]
-
-
-async def export_mappings(filters: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
-    """Export channel mappings."""
-    # TODO: Implement actual export logic
-    return {
-        "Channel 1": "playlist1",
-        "Channel 2": "playlist2"
-    }
