@@ -14,7 +14,7 @@ services:
         sync: false
       - key: GOOGLE_API_KEY
         sync: false
-      - key: SECRET_KEY
+      - key: TUBE_MANAGER_SECRET_KEY
         generateValue: true
     autoDeploy: true
     disk:
