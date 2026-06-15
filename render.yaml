@@ -3,8 +3,8 @@ services:
     name: tube-manager
     runtime: python
     plan: starter
-    rootDir: .
-    buildCommand: pip install --no-cache-dir -r requirements.txt
+    rootDir: tube-manager
+    buildCommand: pip install --no-cache-dir -r reqs.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
