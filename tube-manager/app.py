@@ -5,6 +5,8 @@ import asyncio
 import json
 import logging
 import hashlib
+import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
@@ -139,11 +141,14 @@ class ConnectionManager:
         if user_id:
             await self.send_to_user(user_id, message)
         else:
+            failed = []
             for connection in self.active_connections:
                 try:
                     await connection.send_text(message)
                 except Exception:
-                    self.disconnect(connection)
+                    failed.append(connection)
+            for connection in failed:
+                self.disconnect(connection)
 
 
 manager = ConnectionManager()
@@ -268,7 +273,7 @@ async def full_cluster_scan(payload):
     """Perform a full cluster scan."""
     await manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Initiating Full Cluster Scan..."}))
     
-    client = youtube_service.get_client() if youtube_service else None
+    client = youtube_service.get_client(require_oauth=False) if youtube_service else None
     if not client:
         await manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] No YouTube client available. Configure API key or OAuth in Settings."}))
         return
@@ -319,7 +324,7 @@ async def full_cluster_scan(payload):
         try:
             error_details += f" | Traceback: {traceback.format_exc()}"
         except Exception as e:
-            logger.error(f"Error formatting traceback: {e}")
+            log.error(f"Error formatting traceback: {e}")
         await manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Scan failed: {error_details}"}))
 
 
@@ -389,7 +394,7 @@ async def diagnose_failures(payload):
     """Diagnose system health."""
     await manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] Diagnosing system health..."}))
     
-    client = youtube_service.get_client() if youtube_service else None
+    client = youtube_service.get_client(require_oauth=False) if youtube_service else None
     config = config_manager.config
     
     try:
@@ -645,7 +650,7 @@ async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: b
 async def stats() -> dict[str, Any]:
     """Dashboard statistics endpoint."""
     if youtube_service:
-        yt_stats = await youtube_service.get_stats()
+        yt_stats = await youtube_service.get_basic_stats()
     else:
         yt_stats = {"total_playlists": 0, "total_videos": 0}
     
@@ -821,13 +826,20 @@ async def youtube_auth():
     return {"auth_url": auth_url}
 
 
+def _secret_val(val):
+    """Safely extract secret value from SecretStr or plain string."""
+    if hasattr(val, 'get_secret_value'):
+        return val.get_secret_value()
+    return str(val) if val else ""
+
+
 @app.get("/auth/youtube/callback")
 async def youtube_callback(code: str):
     """Handle OAuth callback and exchange code for tokens."""
     import httpx
-    
+
     config = config_manager.config
-    
+
     if not config.oauth.client_id or not _secret_val(config.oauth.client_secret):
         log.error("OAuth credentials not configured")
         return HTMLResponse("""
@@ -857,7 +869,8 @@ async def youtube_callback(code: str):
         if "access_token" in tokens:
             config.oauth.access_token = tokens.get("access_token")
             config.oauth.refresh_token = tokens.get("refresh_token")
-            config.oauth.token_expiry = tokens.get("expires_in")
+            expires_in = int(tokens.get("expires_in", 3600))
+            config.oauth.token_expiry = int(time.time()) + expires_in
             config_manager.save(config)
             
             log.info("YouTube OAuth tokens saved successfully")
@@ -994,14 +1007,8 @@ async def reset_settings():
 async def get_system_logs():
     """Get recent system logs."""
     return {
-        "logs": [
-            "[05:00:46 PM] [WS] Connected to agent terminal",
-            "[05:00:47 PM] [ACTION] Queuing: full_cluster_scan",
-            "[05:00:49 PM] [AGENT] Starting: full_cluster_scan",
-            "[05:00:49 PM] [SCAN] Initiating Full Cluster Scan...",
-            "[05:00:49 PM] [SCAN] Fetching playlist data from YouTube API...",
-            "[05:00:49 PM] [SCAN] Found 50 playlists",
-        ]
+        "logs": [],
+        "info": "System log aggregation not yet implemented. Use application stdout for logs."
     }
 
 
@@ -1100,7 +1107,7 @@ async def websocket_terminal(websocket: WebSocket):
                         await manager.broadcast(json.dumps({"type": "log", "message": "[WS] Connection lost - max ping failures reached"}))
                         break
                 except Exception as e:
-                    logger.debug(f"WebSocket handler terminated: {e}")
+                    log.debug(f"WebSocket handler terminated: {e}")
                     break
         
         ping_task = asyncio.create_task(ping_loop())
@@ -1116,7 +1123,9 @@ async def websocket_terminal(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception as e:
+        log.error(f"Broad WebSocket error: {e}")
         await manager.broadcast(json.dumps({"type": "log", "message": f"[WS ERROR] {str(e)}"}))
+        # Log error but don't break - let the connection be handled normally
     finally:
         ping_task.cancel()
         manager.disconnect(websocket)

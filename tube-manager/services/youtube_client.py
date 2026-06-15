@@ -179,13 +179,21 @@ class YouTubeClient:
 
     def list_channels_by_ids(self, ids: list[str], max_results: int = 50) -> dict[str, Any]:
         client = self._get_client(require_oauth=False)
-        if not client:
+        if not client or not ids:
             return {"items": []}
-        return client.channels().list(
-            part="snippet,statistics",
-            id=",".join(ids[:max_results]) if ids else "",
-            maxResults=max_results,
-        ).execute()
+
+        max_results = min(max_results, 50)
+        all_items = []
+        for start in range(0, len(ids), max_results):
+            batch = ids[start : start + max_results]
+            response = client.channels().list(
+                part="snippet,statistics",
+                id=",".join(batch),
+                maxResults=max_results,
+            ).execute()
+            all_items.extend(response.get("items", []))
+
+        return {"items": all_items}
 
     def watch_later(self) -> dict[str, Any]:
         client = self._get_client(require_oauth=True)

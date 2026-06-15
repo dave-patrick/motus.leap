@@ -1,5 +1,7 @@
 """Bulk operations API endpoints."""
 
+import logging
+
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
@@ -12,6 +14,8 @@ import base64
 from api.bulk_operations_impl import BulkOperationsService
 from core.config_manager import ConfigManager
 from models.config import TubeManagerConfig
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/bulk", tags=["bulk"])
 

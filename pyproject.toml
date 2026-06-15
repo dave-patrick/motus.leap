@@ -1,18 +1,24 @@
 [project]
 name = "tube-manager"
-version = "0.2.0"
+version = "2.0.0"
 requires-python = ">=3.11"
-dependencies = ["pyyaml", "click", "fastapi", "uvicorn[standard]", "pydantic"]
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "google-api-python-client>=2.100.0",
+    "httpx>=0.27.0",
+    "aiofiles>=23.0.0",
+    "slowapi>=0.1.9",
+    "passlib>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.6",
+    "email-validator>=2.0",
+]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx"]
-
-[project.scripts]
-tube = "tube_manager.cli:cli"
+dev = ["pytest", "pytest-asyncio", "httpx", "psutil"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-
-[tool.setuptools.packages.find]
-include = ["tube_manager*"]
-exclude = ["web*"]
+testpaths = ["tube-manager/tests"]
