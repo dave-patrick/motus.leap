@@ -25,7 +25,17 @@ log = logging.getLogger(__name__)
 
 SECRET_KEY = os.getenv("TUBE_MANAGER_SECRET_KEY")
 if not SECRET_KEY:
-    raise RuntimeError("Missing TUBE_MANAGER_SECRET_KEY in environment")
+    secret_path = Path(__file__).resolve().parent / ".secret"
+    try:
+        if secret_path.exists():
+            SECRET_KEY = secret_path.read_text(encoding="utf-8").strip()
+        else:
+            SECRET_KEY = secrets.token_urlsafe(32)
+            secret_path.write_text(SECRET_KEY, encoding="utf-8")
+    except Exception as exc:
+        raise RuntimeError(
+            "Missing TUBE_MANAGER_SECRET_KEY and unable to persist a fallback secret"
+        ) from exc
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
