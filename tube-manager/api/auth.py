@@ -1,16 +1,20 @@
 """Authentication and authorization system."""
 
 import logging
-
-from fastapi import APIRouter, HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
-import hashlib
 import os
 import secrets
-import jwt
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, EmailStr
+
+try:
+    import jwt
+except ModuleNotFoundError:
+    raise RuntimeError("Missing dependency: install PyJWT")
+
 from passlib.context import CryptContext
 
 log = logging.getLogger(__name__)
@@ -19,12 +23,14 @@ log = logging.getLogger(__name__)
 # Configuration
 # =============================================================================
 
-SECRET_KEY = os.getenv("TUBE_MANAGER_SECRET_KEY") or secrets.token_urlsafe(32)
+SECRET_KEY = os.getenv("TUBE_MANAGER_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("Missing TUBE_MANAGER_SECRET_KEY in environment")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-
 security = HTTPBearer()
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -83,7 +89,7 @@ class RoleEnum:
 
 
 # =============================================================================
-# In-Memory Storage (Use database in production)
+# In-Memory Storage
 # =============================================================================
 
 users_db: Dict[str, Dict[str, Any]] = {}
@@ -91,21 +97,18 @@ user_sessions: Dict[str, Dict[str, Any]] = {}
 
 
 # =============================================================================
-# Helper Functions
+# Helpers
 # =============================================================================
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against a hash."""
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password."""
     return pwd_context.hash(password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token."""
     to_encode = data.copy()
 
     if expires_delta:
@@ -120,7 +123,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def decode_access_token(token: str) -> dict:
-    """Decode and verify a JWT token."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
@@ -139,12 +141,10 @@ def decode_access_token(token: str) -> dict:
 
 
 def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
-    """Get a user by username."""
     return users_db.get(username)
 
 
 def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
-    """Get a user by ID."""
     for user in users_db.values():
         if user["id"] == user_id:
             return user
@@ -152,34 +152,26 @@ def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
 
 
 def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
-    """Authenticate a user."""
     user = get_user_by_username(username)
-
     if not user:
         return None
-
     if not verify_password(password, user["hashed_password"]):
         return None
-
     if not user.get("is_active", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is disabled"
+            detail="User account is disabled",
         )
 
-    # Update last login
     user["last_login"] = datetime.now()
-
     return user
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> Dict[str, Any]:
-    """Get the current authenticated user."""
     token = credentials.credentials
     payload = decode_access_token(token)
-
     username: str = payload.get("sub")
 
     if username is None:
@@ -190,7 +182,6 @@ async def get_current_user(
         )
 
     user = get_user_by_username(username)
-
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -202,50 +193,28 @@ async def get_current_user(
 
 
 async def get_current_active_user(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """Get the current active user."""
     if not current_user.get("is_active", True):
         raise HTTPException(status_code=400, detail="Inactive user")
-
     return current_user
 
 
 def check_role(required_roles: List[str]):
-    """Check if user has required role."""
     async def role_checker(
-        current_user: Dict[str, Any] = Depends(get_current_user)
+        current_user: Dict[str, Any] = Depends(get_current_user),
     ) -> Dict[str, Any]:
         if current_user["role"] not in required_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not enough permissions"
+                detail="Not enough permissions",
             )
         return current_user
 
     return role_checker
 
 
-def check_permission(permission: str):
-    """Check if user has specific permission."""
-    async def permission_checker(
-        current_user: Dict[str, Any] = Depends(get_current_user)
-    ) -> Dict[str, Any]:
-        user_permissions = get_user_permissions(current_user["role"])
-
-        if permission not in user_permissions:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission '{permission}' required"
-            )
-
-        return current_user
-
-    return permission_checker
-
-
 def get_user_permissions(role: str) -> List[str]:
-    """Get permissions for a role."""
     role_permissions = {
         "admin": [
             "users:read", "users:write", "users:delete",
@@ -253,22 +222,22 @@ def get_user_permissions(role: str) -> List[str]:
             "subscriptions:read", "subscriptions:write", "subscriptions:delete",
             "mappings:read", "mappings:write", "mappings:delete",
             "config:read", "config:write",
-            "bulk:read", "bulk:write"
+            "bulk:read", "bulk:write",
         ],
         "user": [
             "playlists:read", "playlists:write",
             "subscriptions:read",
             "mappings:read", "mappings:write",
             "config:read",
-            "bulk:read", "bulk:write"
+            "bulk:read", "bulk:write",
         ],
         "viewer": [
             "playlists:read",
             "subscriptions:read",
             "mappings:read",
             "config:read",
-            "bulk:read"
-        ]
+            "bulk:read",
+        ],
     }
 
     return role_permissions.get(role, [])
@@ -280,19 +249,17 @@ def get_user_permissions(role: str) -> List[str]:
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate):
-    """Register a new user."""
     if get_user_by_username(user_data.username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered"
+            detail="Username already registered",
         )
 
-    # Check if email is already used
     for user in users_db.values():
         if user["email"] == user_data.email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+                detail="Email already registered",
             )
 
     user_id = secrets.token_hex(16)
@@ -303,22 +270,19 @@ async def register(user_data: UserCreate):
         "email": user_data.email,
         "full_name": user_data.full_name,
         "hashed_password": get_password_hash(user_data.password),
-        "role": "user",  # Default role
+        "role": "user",
         "is_active": True,
         "created_at": datetime.now(),
-        "last_login": None
+        "last_login": None,
     }
 
     users_db[user_data.username] = user
-
     return UserResponse(**user)
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(user_data: UserLogin):
-    """Login a user and return access token."""
     user = authenticate_user(user_data.username, user_data.password)
-
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -329,22 +293,21 @@ async def login(user_data: UserLogin):
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["username"], "role": user["role"]},
-        expires_delta=access_token_expires
+        expires_delta=access_token_expires,
     )
 
-    # Store session
     user_sessions[access_token] = {
         "user_id": user["id"],
         "username": user["username"],
         "created_at": datetime.now(),
-        "expires_at": datetime.now() + access_token_expires
+        "expires_at": datetime.now() + access_token_expires,
     }
 
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
         expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        user=UserResponse(**user)
+        user=UserResponse(**user),
     )
 
 
@@ -353,32 +316,28 @@ async def logout(
     current_user: Dict[str, Any] = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
-    """Logout the current user and invalidate the token."""
     token = credentials.credentials
     user_sessions.pop(token, None)
-    log.info(f"User '{current_user['username']}' logged out, token invalidated")
+    log.info("User '%s' logged out, token invalidated", current_user["username"])
     return {"message": "Successfully logged out"}
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: Dict[str, Any] = Depends(get_current_active_user)):
-    """Get current user information."""
     return UserResponse(**current_user)
 
 
 @router.put("/me", response_model=UserResponse)
 async def update_me(
     user_update: UserUpdate,
-    current_user: Dict[str, Any] = Depends(get_current_active_user)
+    current_user: Dict[str, Any] = Depends(get_current_active_user),
 ):
-    """Update current user information."""
     if user_update.email:
-        # Check if email is already used by another user
         for user in users_db.values():
             if user["email"] == user_update.email and user["id"] != current_user["id"]:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already in use"
+                    detail="Email already in use",
                 )
         current_user["email"] = user_update.email
 
@@ -394,26 +353,22 @@ async def update_me(
 
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
-    current_user: Dict[str, Any] = Depends(check_role(["admin"]))
+    current_user: Dict[str, Any] = Depends(check_role(["admin"])),
 ):
-    """List all users (admin only)."""
     return [UserResponse(**user) for user in users_db.values()]
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
-    current_user: Dict[str, Any] = Depends(check_role(["admin"]))
+    current_user: Dict[str, Any] = Depends(check_role(["admin"])),
 ):
-    """Get a specific user (admin only)."""
     user = get_user_by_id(user_id)
-
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="User not found",
         )
-
     return UserResponse(**user)
 
 
@@ -421,15 +376,13 @@ async def get_user(
 async def update_user(
     user_id: str,
     user_update: UserUpdate,
-    current_user: Dict[str, Any] = Depends(check_role(["admin"]))
+    current_user: Dict[str, Any] = Depends(check_role(["admin"])),
 ):
-    """Update a user (admin only)."""
     user = get_user_by_id(user_id)
-
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="User not found",
         )
 
     if user_update.email:
@@ -447,27 +400,23 @@ async def update_user(
 @router.delete("/users/{user_id}")
 async def delete_user(
     user_id: str,
-    current_user: Dict[str, Any] = Depends(check_role(["admin"]))
+    current_user: Dict[str, Any] = Depends(check_role(["admin"])),
 ):
-    """Delete a user (admin only)."""
     user = get_user_by_id(user_id)
-
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="User not found",
         )
 
     if user["id"] == current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete yourself"
+            detail="Cannot delete yourself",
         )
 
-    # Delete user
     username_to_delete = user["username"]
     del users_db[username_to_delete]
-
     return {"message": f"User {username_to_delete} deleted"}
 
 
@@ -476,15 +425,14 @@ async def delete_user(
 # =============================================================================
 
 def create_default_admin() -> None:
-    """Create default admin user if no users exist."""
     if not users_db:
-        import os
         default_password = os.getenv("TUBE_MANAGER_ADMIN_PASSWORD", "admin")
         if default_password == "admin":
             log.warning(
                 "Using default admin password 'admin'. "
                 "Set TUBE_MANAGER_ADMIN_PASSWORD env var to change."
             )
+
         user_id = secrets.token_hex(16)
         users_db["admin"] = {
             "id": user_id,
@@ -497,7 +445,7 @@ def create_default_admin() -> None:
             "created_at": datetime.now(),
             "last_login": None,
         }
-        log.info(f"Default admin user created (username: admin)")
+        log.info("Default admin user created (username: admin)")
 
 
 create_default_admin()
