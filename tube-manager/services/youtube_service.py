@@ -125,6 +125,104 @@ class YouTubeService:
             log.warning(f"Failed to load {key} from disk: {e}")
         return None
 
+    def _playlist_item_to_dict(self, item: dict[str, Any]) -> dict[str, Any]:
+        """Normalize a YouTube playlist API item for the UI."""
+        snippet = item.get("snippet", {}) or {}
+        content = item.get("contentDetails", {}) or {}
+        return {
+            "id": item.get("id"),
+            "title": snippet.get("title", "Untitled"),
+            "video_count": int(content.get("itemCount", 0) or 0),
+            "channel": snippet.get("channelTitle", "Unknown"),
+            "privacy": snippet.get("privacyStatus", "private"),
+            "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
+            "description": snippet.get("description", ""),
+        }
+
+    def _video_item_to_dict(self, item: dict[str, Any], playlist_id: str, playlist_title: str) -> dict[str, Any]:
+        """Normalize a playlist item API response for the UI."""
+        snippet = item.get("snippet", {}) or {}
+        content = item.get("contentDetails", {}) or {}
+        duration_str = content.get("duration", "PT0S")
+        duration_seconds = self._parse_duration(duration_str)
+        return {
+            "video_id": content.get("videoId", ""),
+            "title": snippet.get("title", "Unknown"),
+            "description": snippet.get("description", "")[:200],
+            "channel_id": snippet.get("channelId", ""),
+            "playlist_id": playlist_id,
+            "playlist_title": playlist_title,
+            "duration_seconds": duration_seconds,
+            "duration_formatted": self._format_duration(duration_seconds),
+            "published_at": snippet.get("publishedAt", ""),
+            "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
+        }
+
+    async def get_basic_stats(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """Return lightweight playlist/video counts without fetching video durations."""
+        if not force_refresh:
+            cached = await self._get_cached("basic_stats")
+            if cached:
+                return cached
+
+        client = self.get_client(require_oauth=True)
+        if not client:
+            return {
+                "total_playlists": 0,
+                "total_videos": 0,
+                "total_subscriptions": 0,
+            }
+
+        try:
+            playlists = await self._fetch_all_paginated(
+                lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
+                max_results=50,
+                max_items=5000,
+            )
+            total_videos = sum(int((pl.get("contentDetails", {}) or {}).get("itemCount", 0) or 0) for pl in playlists)
+            stats = {
+                "total_playlists": len(playlists),
+                "total_videos": total_videos,
+                "total_subscriptions": 0,
+            }
+            await self._set_cached("basic_stats", stats)
+            return stats
+        except Exception as e:
+            log.warning(f"Failed to fetch lightweight stats: {e}")
+            return {
+                "total_playlists": 0,
+                "total_videos": 0,
+                "total_subscriptions": 0,
+            }
+
+    async def list_playlists(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """List user's playlists without fetching every video duration."""
+        if not force_refresh:
+            cached = await self._get_cached("playlists")
+            if cached:
+                return {"playlists": cached.get("playlists", []), "stats": cached.get("stats", {})}
+
+        client = self.get_client(require_oauth=True)
+        if not client:
+            return {"playlists": [], "error": "YouTube not connected. OAuth required."}
+
+        try:
+            playlist_items = await self._fetch_all_paginated(
+                lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
+                max_results=50,
+                max_items=5000,
+            )
+            playlists = sorted((self._playlist_item_to_dict(pl) for pl in playlist_items), key=lambda x: x["title"].lower())
+            stats = {
+                "total_playlists": len(playlists),
+                "total_videos": sum(pl["video_count"] for pl in playlists),
+            }
+            await self._set_cached("playlists", {"playlists": playlists, "stats": stats})
+            return {"playlists": playlists, "stats": stats}
+        except Exception as e:
+            log.warning(f"Failed to list playlists: {e}")
+            return {"playlists": [], "error": str(e)}
+
     async def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Fetch ALL YouTube data in one optimized request sequence with caching.
 
@@ -175,15 +273,11 @@ class YouTubeService:
             # Step 1: Fetch all subscriptions (1 API call with pagination)
             log.info("[FETCH] Getting subscriptions...")
             
-            all_subs = []
-            resp = client.list_mine_subscriptions(max_results=50)
-            all_subs.extend(resp.get("items", []))
-            
-            next_token = resp.get("nextPageToken")
-            while next_token:
-                more = client.list_mine_subscriptions(max_results=50, page_token=next_token)
-                all_subs.extend(more.get("items", []))
-                next_token = more.get("nextPageToken")
+            all_subs = await self._fetch_all_paginated(
+                lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
+                max_results=50,
+                max_items=5000,
+            )
             
             # Extract channel IDs for batch lookup
             channel_ids = []
@@ -235,39 +329,21 @@ class YouTubeService:
             # Step 2: Fetch all playlists (1 API call with pagination)
             log.info("[FETCH] Getting playlists...")
             
-            all_playlists = []
-            resp = client.list_mine_playlists(max_results=50)
-            all_playlists.extend(resp.get("items", []))
-            
-            next_token = resp.get("nextPageToken")
-            while next_token:
-                more = client.list_mine_playlists(max_results=50, page_token=next_token)
-                all_playlists.extend(more.get("items", []))
-                next_token = more.get("nextPageToken")
-            
-            playlists = []
-            total_videos = 0
-            
-            for pl in all_playlists:
-                snippet = pl.get("snippet", {})
-                content = pl.get("contentDetails", {})
-                vid_count = content.get("itemCount", 0)
-                total_videos += vid_count
-                
-                playlists.append({
-                    "id": pl.get("id"),
-                    "title": snippet.get("title", "Untitled"),
-                    "video_count": vid_count,
-                    "channel": snippet.get("channelTitle", "Unknown"),
-                    "privacy": snippet.get("privacyStatus", "private"),
-                    "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
-                    "description": snippet.get("description", ""),
-                })
-            
-            playlists.sort(key=lambda x: x["title"].lower())
+            all_playlists = await self._fetch_all_paginated(
+                lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
+                max_results=50,
+                max_items=5000,
+            )
+            playlists = sorted((self._playlist_item_to_dict(pl) for pl in all_playlists), key=lambda x: x["title"].lower())
+            total_videos = sum(pl["video_count"] for pl in playlists)
             result["playlists"] = playlists
             result["stats"]["total_playlists"] = len(playlists)
             result["stats"]["total_videos"] = total_videos
+            await self._set_cached("basic_stats", {
+                "total_playlists": len(playlists),
+                "total_videos": total_videos,
+                "total_subscriptions": result["stats"]["total_subscriptions"],
+            })
             
             # Step 3: Fetch videos from playlists with duration (BATCH OPTIMIZED)
             log.info(f"[FETCH] Getting video durations for {total_videos} videos...")
@@ -275,58 +351,21 @@ class YouTubeService:
             videos = []
             total_duration = 0
             
-            # Process playlists in batches to manage memory
-            for playlist in playlists[:10]:  # Limit to first 10 playlists for quota
+            # Process only the first playlists needed to keep duration scans quota-safe.
+            for playlist in playlists[:10]:
                 pl_id = playlist["id"]
                 try:
-                    vid_resp = client.list_videos(pl_id, max_results=50)
-                    video_items = vid_resp.get("items", [])
-                    
+                    video_items = await self._fetch_all_paginated(
+                        lambda max_results, page_token: client.list_videos(pl_id, max_results=max_results, page_token=page_token),
+                        max_results=50,
+                        max_items=max(0, 500 - len(videos)),
+                    )
                     for vid in video_items:
-                        vid_snippet = vid.get("snippet", {})
-                        content = vid.get("contentDetails", {})
-                        duration_str = content.get("duration", "PT0S")
-                        
-                        # Parse ISO 8601 duration (e.g., "PT10M30S")
-                        duration_seconds = self._parse_duration(duration_str)
-                        total_duration += duration_seconds
-                        
-                        videos.append({
-                            "video_id": vid.get("contentDetails", {}).get("videoId", ""),
-                            "title": vid_snippet.get("title", "Unknown"),
-                            "description": vid_snippet.get("description", "")[:200],
-                            "channel_id": vid_snippet.get("channelId", ""),
-                            "playlist_id": pl_id,
-                            "playlist_title": playlist["title"],
-                            "duration_seconds": duration_seconds,
-                            "duration_formatted": self._format_duration(duration_seconds),
-                            "published_at": vid_snippet.get("publishedAt", ""),
-                            "thumbnail": (vid_snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
-                        })
-                    
-                    next_token = vid_resp.get("nextPageToken")
-                    while next_token and len(videos) < 500:  # Cap at 500 videos
-                        more = client.list_videos(pl_id, max_results=50, page_token=next_token)
-                        for vid in more.get("items", []):
-                            vid_snippet = vid.get("snippet", {})
-                            content = vid.get("contentDetails", {})
-                            duration_str = content.get("duration", "PT0S")
-                            duration_seconds = self._parse_duration(duration_str)
-                            total_duration += duration_seconds
-                            
-                            videos.append({
-                                "video_id": vid.get("contentDetails", {}).get("videoId", ""),
-                                "title": vid_snippet.get("title", "Unknown"),
-                                "description": vid_snippet.get("description", "")[:200],
-                                "channel_id": vid_snippet.get("channelId", ""),
-                                "playlist_id": pl_id,
-                                "playlist_title": playlist["title"],
-                                "duration_seconds": duration_seconds,
-                                "duration_formatted": self._format_duration(duration_seconds),
-                                "published_at": vid_snippet.get("publishedAt", ""),
-                                "thumbnail": (vid_snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
-                            })
-                        next_token = more.get("nextPageToken")
+                        video = self._video_item_to_dict(vid, pl_id, playlist["title"])
+                        total_duration += video["duration_seconds"]
+                        videos.append(video)
+                    if len(videos) >= 500:
+                        break
                 
                 except Exception as e:
                     log.warning(f"Failed to fetch videos for playlist {pl_id}: {e}")
@@ -438,34 +477,10 @@ class YouTubeService:
         
         return {"channels": all_data.get("subscriptions", [])}
 
-    async def list_playlists(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """List user's playlists (cached).
-
-        Args:
-            force_refresh: If True, bypass cache and fetch fresh data
-
-        Returns:
-            Dictionary containing playlists list or error
-        """
-        # Use fetch_all_data for efficiency
-        all_data = await self.fetch_all_data(force_refresh=force_refresh)
-        if "error" in all_data:
-            return {"playlists": [], "error": all_data["error"]}
-        
-        return {"playlists": all_data.get("playlists", [])}
 
     async def get_stats(self) -> Dict[str, Any]:
-        """Get YouTube statistics (cached).
-
-        Returns:
-            Dictionary containing stats
-        """
-        # Use fetch_all_data for efficiency
-        all_data = await self.fetch_all_data(force_refresh=False)
-        if "error" in all_data:
-            return {"total_playlists": 0, "total_videos": 0, "total_subscriptions": 0}
-        
-        return all_data.get("stats", {"total_playlists": 0, "total_videos": 0, "total_subscriptions": 0})
+        """Get YouTube statistics without fetching every video duration."""
+        return await self.get_basic_stats(force_refresh=False)
 
     async def get_videos(self, playlist_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
         """Get videos with duration (cached).

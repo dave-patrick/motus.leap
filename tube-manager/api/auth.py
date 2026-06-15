@@ -1,24 +1,29 @@
 """Authentication and authorization system."""
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import hashlib
+import os
 import secrets
 import jwt
 from passlib.context import CryptContext
+
+log = logging.getLogger(__name__)
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-SECRET_KEY = secrets.token_urlsafe(32)
+SECRET_KEY = os.getenv("TUBE_MANAGER_SECRET_KEY") or secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 security = HTTPBearer()
 
@@ -344,10 +349,14 @@ async def login(user_data: UserLogin):
 
 
 @router.post("/logout")
-async def logout(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Logout the current user."""
-    # In a real implementation, you'd invalidate the token
-    # For now, just return success
+async def logout(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Logout the current user and invalidate the token."""
+    token = credentials.credentials
+    user_sessions.pop(token, None)
+    log.info(f"User '{current_user['username']}' logged out, token invalidated")
     return {"message": "Successfully logged out"}
 
 
@@ -467,8 +476,28 @@ async def delete_user(
 # =============================================================================
 
 def create_default_admin() -> None:
-    """Placeholder: default admin seeding is disabled until the auth path is completed."""
-    return None
+    """Create default admin user if no users exist."""
+    if not users_db:
+        import os
+        default_password = os.getenv("TUBE_MANAGER_ADMIN_PASSWORD", "admin")
+        if default_password == "admin":
+            log.warning(
+                "Using default admin password 'admin'. "
+                "Set TUBE_MANAGER_ADMIN_PASSWORD env var to change."
+            )
+        user_id = secrets.token_hex(16)
+        users_db["admin"] = {
+            "id": user_id,
+            "username": "admin",
+            "email": "admin@example.com",
+            "full_name": "Default Admin",
+            "hashed_password": get_password_hash(default_password),
+            "role": "admin",
+            "is_active": True,
+            "created_at": datetime.now(),
+            "last_login": None,
+        }
+        log.info(f"Default admin user created (username: admin)")
 
 
-# Create default admin on import
+create_default_admin()
