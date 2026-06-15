@@ -26,7 +26,7 @@
         .scan-entry.warn { border-left-color: #ffaa00; }
         .scan-entry.success { border-left-color: #44ff88; }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    
     <link rel="stylesheet" href="/static/ux-enhancements.css">
     <script src="/static/ux-enhancements.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -152,6 +152,8 @@
         let ws = null;
         let scanLogs = [];
         let queueRunning = false;
+        let statsLoading = false;
+        let scanRenderPending = false;
 
         function toast(message, type = 'info', duration = 4000) {
             const container = document.getElementById('toast-container') || createToastContainer();
@@ -199,7 +201,7 @@
         function logTerminal(message) {
             const terminal = document.getElementById('terminal-body');
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            terminal.innerHTML += `\n[${time}] ${message}`;
+            terminal.appendChild(document.createTextNode(`[${time}] ${message}\n`));
             terminal.scrollTop = terminal.scrollHeight;
         }
 
@@ -210,7 +212,13 @@
             else if (message.includes('Complete') || message.includes('OK')) type = 'success';
             scanLogs.push({ timestamp, message, type });
             if (scanLogs.length > 500) scanLogs.shift();
-            renderScanDetail();
+            if (!scanRenderPending) {
+                scanRenderPending = true;
+                requestAnimationFrame(() => {
+                    scanRenderPending = false;
+                    renderScanDetail();
+                });
+            }
         }
 
         function renderScanDetail() {
@@ -228,7 +236,7 @@
             const blob = new Blob([document.getElementById('terminal-body').innerText], { type: 'text/plain' });
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `tube-manager-logs-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`; a.click(); URL.revokeObjectURL(a.href); toast('Logs exported', 'success');
         }
-        function clearTerminal() { document.getElementById('terminal-body').innerHTML = ''; logTerminal('[SYS] Terminal cleared'); }
+        function clearTerminal() { document.getElementById('terminal-body').textContent = ''; logTerminal('[SYS] Terminal cleared'); }
 
         async function triggerAction(action, payload = {}) {
             try {
@@ -255,6 +263,8 @@
         }
 
         async function loadDashboardStats() {
+            if (statsLoading) return;
+            statsLoading = true;
             try {
                 const response = await fetch('/api/stats');
                 if (!response.ok) return;
@@ -270,6 +280,7 @@
                 document.getElementById('last-scan').textContent = data.last_scan || 'just now';
                 if (!queueRunning) { document.getElementById('status-label').textContent = 'Idle'; document.getElementById('app-status').className = 'text-[10px] text-green-400 font-bold'; }
             } catch (e) { console.log('Stats endpoint not available'); }
+            finally { statsLoading = false; }
         }
 
         function refreshSubscriptions() { toast('Use Subscriptions page for live mapping', 'info'); }

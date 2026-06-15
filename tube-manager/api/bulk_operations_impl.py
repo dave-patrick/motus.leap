@@ -27,6 +27,7 @@ class BulkOperationsService:
         """
         self.config = config
         self.config_manager = config_manager
+        self._client: Optional[YouTubeClient] = None
 
     def _get_client(self) -> Optional[YouTubeClient]:
         """Get authenticated YouTube client for write operations.
@@ -38,14 +39,29 @@ class BulkOperationsService:
             log.error("OAuth token required for bulk operations")
             return None
 
-        return YouTubeClient(
-            api_key=None,  # Use OAuth for write operations
-            oauth_access_token=self.config.oauth.access_token,
-            oauth_refresh_token=self.config.oauth.refresh_token,
-            oauth_client_id=self.config.oauth.client_id,
-            oauth_client_secret=self.config.oauth.client_secret.get_secret_value() if self.config.oauth.client_secret else None,
-            token_expiry=self.config.token_expiry,
-        )
+        if self._client is None:
+            self._client = YouTubeClient(
+                api_key=None,  # Use OAuth for write operations
+                oauth_access_token=self.config.oauth.access_token,
+                oauth_refresh_token=self.config.oauth.refresh_token,
+                oauth_client_id=self.config.oauth.client_id,
+                oauth_client_secret=self.config.oauth.client_secret.get_secret_value() if self.config.oauth.client_secret else None,
+                token_expiry=self.config.oauth.token_expiry,
+            )
+        return self._client
+
+    async def _paginate_client_items(self, fetch_fn, max_results: int = 50, max_items: int = 5000):
+        """Fetch paginated YouTube items with a hard cap."""
+        items: List[Dict[str, Any]] = []
+        page_token = None
+        while len(items) < max_items:
+            response = fetch_fn(max_results=max_results, page_token=page_token)
+            page_items = response.get("items", [])
+            items.extend(page_items)
+            page_token = response.get("nextPageToken")
+            if not page_token or not page_items:
+                break
+        return items[:max_items]
 
     async def move_video(
         self,
@@ -75,25 +91,9 @@ class BulkOperationsService:
                 log.error("Failed to get authenticated YouTube API client")
                 return False
 
-            # Get the video details to preserve position
+            # Add video to target playlist.
             try:
-                video_response = youtube.videos().list(
-                    part="snippet",
-                    id=video_id
-                ).execute()
-
-                if not video_response.get("items"):
-                    log.warning(f"Video {video_id} not found")
-                    return False
-
-                video_snippet = video_response["items"][0]["snippet"]
-            except Exception as e:
-                log.error(f"Failed to get video details for {video_id}: {e}")
-                return False
-
-            # Add video to target playlist
-            try:
-                insert_response = youtube.playlistItems().insert(
+                youtube.playlistItems().insert(
                     part="snippet",
                     body={
                         "snippet": {
@@ -226,7 +226,7 @@ class BulkOperationsService:
 
             # Update tags
             if action == "add":
-                new_tags = list(set(current_tags + tags))
+                new_tags = list(dict.fromkeys(current_tags + tags))
             else:  # remove
                 new_tags = [t for t in current_tags if t not in tags]
 
@@ -297,39 +297,28 @@ class BulkOperationsService:
         self,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
-        """Export playlists data.
-
-        Args:
-            filters: Optional filters for export
-
-        Returns:
-            List of playlist data
-        """
+        """Export playlists data."""
         try:
             client = self._get_client()
             if not client:
                 return []
 
-            # Get all playlists
-            playlists_response = client.list_mine_playlists(max_results=50)
+            playlist_items = await self._paginate_client_items(
+                lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
+                max_results=50,
+                max_items=5000,
+            )
 
             playlists_data = []
-            for item in playlists_response.get("items", []):
+            for item in playlist_items:
                 playlist_id = item["id"]
-                snippet = item["snippet"]
-
-                # Get playlist item count
-                try:
-                    playlist_details = client.get_playlist(playlist_id)
-                    item_count = playlist_details.get("contentDetails", {}).get("itemCount", 0)
-                except:
-                    item_count = 0
-
+                snippet = item.get("snippet", {})
+                content = item.get("contentDetails", {})
                 playlists_data.append({
                     "id": playlist_id,
-                    "title": snippet["title"],
+                    "title": snippet.get("title", "Untitled"),
                     "description": snippet.get("description", ""),
-                    "item_count": item_count,
+                    "item_count": int(content.get("itemCount", 0) or 0),
                     "created_at": snippet.get("publishedAt"),
                     "privacy": snippet.get("privacyStatus", "public")
                 })
@@ -344,31 +333,27 @@ class BulkOperationsService:
         self,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
-        """Export subscriptions data.
-
-        Args:
-            filters: Optional filters for export
-
-        Returns:
-            List of subscription data
-        """
+        """Export subscriptions data."""
         try:
             client = self._get_client()
             if not client:
                 return []
 
-            # Get all subscriptions
-            subs_response = client.list_mine_subscriptions(max_results=50)
+            sub_items = await self._paginate_client_items(
+                lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
+                max_results=50,
+                max_items=5000,
+            )
 
             subs_data = []
-            for item in subs_response.get("items", []):
-                snippet = item["snippet"]
-
+            for item in sub_items:
+                snippet = item.get("snippet", {})
+                resource = snippet.get("resourceId", {})
                 subs_data.append({
-                    "id": snippet["resourceId"]["channelId"],
-                    "title": snippet["title"],
+                    "id": resource.get("channelId", ""),
+                    "title": snippet.get("title", "Unknown"),
                     "description": snippet.get("description", ""),
-                    "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url"),
+                    "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
                     "subscribed_at": snippet.get("publishedAt")
                 })
 
