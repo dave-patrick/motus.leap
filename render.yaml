@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: starter
     rootDir: tube-manager
-    buildCommand: pip install --no-cache-dir -r requirements.txt
+    buildCommand: rm -rf .venv && pip install --no-cache-dir -r requirements.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION

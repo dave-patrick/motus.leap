@@ -189,7 +189,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Mount static files
 if not any(getattr(route, "path", "") == "/static" for route in app.routes):
-    app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
+    app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
 
 # Security middleware
