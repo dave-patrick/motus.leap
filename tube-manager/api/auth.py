@@ -81,6 +81,12 @@ def _load_secret_key() -> str:
     key = os.getenv("TUBE_MANAGER_SECRET_KEY", "")
     if key:
         return key
+    log.warning(
+        "TUBE_MANAGER_SECRET_KEY env var is not set. "
+        "Falling back to .secret_key file. On Render this file is lost on redeploy, "
+        "which invalidates all login sessions. Set TUBE_MANAGER_SECRET_KEY in your "
+        "Render environment to keep sessions stable."
+    )
     # Fallback: load from or generate into a local file so it persists across restarts
     secret_file = Path(__file__).resolve().parent.parent / ".secret_key"
     if secret_file.exists():
