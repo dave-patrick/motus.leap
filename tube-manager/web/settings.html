@@ -164,9 +164,21 @@
                 const response = await fetch('/api/settings');
                 if (!response.ok) return;
                 const data = await response.json();
-                document.getElementById('yt-api-key').placeholder = data.youtube_api_key || 'Enter API key';
-                document.getElementById('oauth-client-id').value = data.oauth_client_id || '';
-                document.getElementById('oauth-client-secret').placeholder = data.oauth_client_secret ? '••••••••' : 'Enter secret';
+                if (data.youtube_api_key) {
+                    document.getElementById('yt-api-key').value = '••••••••';
+                    document.getElementById('yt-api-key').placeholder = 'Enter new API key to replace';
+                } else {
+                    document.getElementById('yt-api-key').value = '';
+                    document.getElementById('yt-api-key').placeholder = 'Enter API key';
+                }
+                if (data.oauth_client_id) document.getElementById('oauth-client-id').value = data.oauth_client_id;
+                if (data.oauth_client_secret) {
+                    document.getElementById('oauth-client-secret').value = '••••••••';
+                    document.getElementById('oauth-client-secret').placeholder = 'Enter new secret to replace';
+                } else {
+                    document.getElementById('oauth-client-secret').value = '';
+                    document.getElementById('oauth-client-secret').placeholder = 'Enter OAuth client secret';
+                }
                 document.getElementById('default-privacy').value = data.default_privacy || 'private';
                 document.getElementById('scan-interval').value = data.scan_interval || 'hourly';
                 document.getElementById('max-concurrent').value = data.max_concurrent || 3;
