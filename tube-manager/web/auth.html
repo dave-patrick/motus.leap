@@ -130,7 +130,7 @@
                 const response = await fetch(`${API_BASE}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ username: email, password })
                 });
 
                 const data = await response.json();
@@ -138,6 +138,8 @@
                 if (response.ok) {
                     localStorage.setItem('token', data.access_token);
                     localStorage.setItem('user', JSON.stringify(data.user));
+                    // Set cookie for server-side auth
+                    document.cookie = `token=${data.access_token}; path=/; max-age=1800; SameSite=Lax`;
                     window.location.href = '/dashboard';
                 } else {
                     errorEl.textContent = data.detail || 'Login failed';
@@ -179,6 +181,7 @@
                 if (response.ok) {
                     localStorage.setItem('token', data.access_token);
                     localStorage.setItem('user', JSON.stringify(data.user));
+                    document.cookie = `token=${data.access_token}; path=/; max-age=1800; SameSite=Lax`;
                     window.location.href = '/dashboard';
                 } else {
                     errorEl.textContent = data.detail || 'Registration failed';
@@ -228,10 +231,19 @@
             if (hash && hash.includes('token=')) {
                 const token = hash.split('token=')[1].split('&')[0];
                 localStorage.setItem('token', token);
+                document.cookie = `token=${token}; path=/; max-age=1800; SameSite=Lax`;
                 window.location.hash = '';
                 window.location.href = '/dashboard';
             }
         })();
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            document.cookie = 'token=; path=/; max-age=0';
+            window.location.href = '/auth';
+        }
     </script>
 </body>
 </html>
