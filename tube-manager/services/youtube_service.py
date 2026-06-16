@@ -50,12 +50,17 @@ class YouTubeService:
             YouTubeClient instance or None if not available
         """
         if self._client is None:
+            def _secret_val(val):
+                if hasattr(val, 'get_secret_value'):
+                    return val.get_secret_value()
+                return str(val) if val else None
+
             self._client = YouTubeClient(
-                api_key=self.config.youtube_api_key.get_secret_value() if self.config.youtube_api_key else None,
+                api_key=_secret_val(self.config.youtube_api_key),
                 oauth_access_token=self.config.oauth.access_token,
                 oauth_refresh_token=self.config.oauth.refresh_token,
                 oauth_client_id=self.config.oauth.client_id,
-                oauth_client_secret=self.config.oauth.client_secret.get_secret_value() if self.config.oauth.client_secret else None,
+                oauth_client_secret=_secret_val(self.config.oauth.client_secret),
                 token_expiry=self.config.oauth.token_expiry,
             )
 
