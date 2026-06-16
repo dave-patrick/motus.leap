@@ -683,13 +683,9 @@ class ConfigUpdateIn(BaseModel):
 
 
 @app.get("/")
-async def index(request: Request, user=Depends(require_auth)):
-    """Redirect to dashboard if authenticated, auth page if not."""
-    # Redirect protected page requests to the auth page instead of silently redirecting back to login
-    if isinstance(user, RedirectResponse):
-        return user
-
-    return RedirectResponse(url="/dashboard", status_code=302)
+async def index():
+    """Serve root page."""
+    return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
 
 @app.get("/auth")
@@ -699,55 +695,55 @@ async def auth():
 
 
 @app.get("/dashboard")
-async def dashboard(request: Request, user=Depends(require_auth)):
+async def dashboard():
     """Dashboard page."""
     return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
 
 @app.get("/playlists")
-async def playlists(request: Request, user=Depends(require_auth)):
+async def playlists():
     """Playlists page."""
     return await no_cache_file_response(WEB_DIR / "playlists.html")
 
 
 @app.get("/subscriptions")
-async def subscriptions(request: Request, user=Depends(require_auth)):
+async def subscriptions():
     """Subscriptions page."""
     return await no_cache_file_response(WEB_DIR / "subscriptions.html")
 
 
 @app.get("/maintenance")
-async def maintenance(request: Request, user=Depends(require_auth)):
+async def maintenance():
     """Maintenance page."""
     return await no_cache_file_response(WEB_DIR / "maintenance.html")
 
 
 @app.get("/rules")
-async def rules(request: Request, user=Depends(require_auth)):
+async def rules():
     """Rules page."""
     return await no_cache_file_response(WEB_DIR / "rules.html")
 
 
 @app.get("/ai")
-async def ai(request: Request, user=Depends(require_auth)):
+async def ai():
     """AI page."""
     return await no_cache_file_response(WEB_DIR / "ai.html")
 
 
 @app.get("/bulk")
-async def bulk(request: Request, user=Depends(require_auth)):
+async def bulk():
     """Bulk operations page."""
     return await no_cache_file_response(WEB_DIR / "bulk.html")
 
 
 @app.get("/settings")
-async def settings(request: Request, user=Depends(require_auth)):
+async def settings():
     """Settings page."""
     return await no_cache_file_response(WEB_DIR / "settings.html")
 
 
 @app.get("/test")
-async def test_page(request: Request, user=Depends(require_auth)):
+async def test_page():
     """Test page."""
     return await no_cache_file_response(WEB_DIR / "test.html")
 
