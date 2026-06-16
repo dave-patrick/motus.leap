@@ -681,21 +681,6 @@ class ConfigUpdateIn(BaseModel):
 # Page routes
 # =============================================================================
 
-@app.get("/")
-async def index():
-    """Redirect to auth or dashboard based on login status."""
-    from fastapi.responses import RedirectResponse
-
-    # Check for token in cookie (simplified - in production use JWT validation)
-    # For now, redirect to auth page
-    return RedirectResponse(url="/auth", status_code=302)
-
-
-@app.get("/auth")
-async def auth():
-    """Auth page."""
-    return await no_cache_file_response(WEB_DIR / "auth.html")
-
 
 @app.get("/")
 async def index(request: Request, user=Depends(require_auth)):
