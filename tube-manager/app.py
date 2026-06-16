@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends, Cookie
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends, Cookie, Header
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
@@ -21,6 +21,7 @@ import aiofiles
 
 # Auth dependency
 from api.auth import get_current_user
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Auth dependency for page routes (redirects to /auth if not authenticated)
 async def require_auth(request: Request, token: str = Cookie(default=None), authorization: str = Header(default=None)):
@@ -39,10 +40,6 @@ async def require_auth(request: Request, token: str = Cookie(default=None), auth
         return RedirectResponse(url="/auth", status_code=302)
     except Exception:
         return RedirectResponse(url="/auth", status_code=302)
-
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional
-from fastapi import Header
 
 # Rate limiting
 from slowapi import Limiter, _rate_limit_exceeded_handler
