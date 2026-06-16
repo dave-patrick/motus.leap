@@ -10,6 +10,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends, Cookie, Header
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
@@ -958,15 +959,15 @@ async def youtube_auth():
     
     redirect_uri = "https://tubemanager.onrender.com/auth/youtube/callback"
     scope = "https://www.googleapis.com/auth/youtube.force-ssl"
-    auth_url = (
-        f"https://accounts.google.com/o/oauth2/v2/auth"
-        f"?client_id={client_id}"
-        f"&redirect_uri={redirect_uri}"
-        f"&response_type=code"
-        f"&scope=https://www.googleapis.com/auth/youtube"
-        f"&access_type=offline"
-        f"&prompt=consent"
-    )
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": scope,
+        "access_type": "offline",
+        "prompt": "consent",
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
     return {"auth_url": auth_url}
 
 
