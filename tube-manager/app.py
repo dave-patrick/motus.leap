@@ -958,7 +958,7 @@ async def youtube_auth():
         return {"error": "OAuth client ID not configured in settings"}
     
     redirect_uri = "https://tubemanager.onrender.com/auth/youtube/callback"
-    scope = "https://www.googleapis.com/auth/youtube.force-ssl"
+    scope = "https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid"
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
