@@ -184,8 +184,14 @@ background_tasks_running = False
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    # Startup
     global youtube_service
+
+    # Set up file logging
+    log_dir = Path("/app/data")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "tube_manager.log"
+    setup_logging(log_file=log_file)
+
     config = config_manager.load()
     youtube_service = YouTubeService(config)
     
@@ -1163,6 +1169,69 @@ async def get_system_logs():
         "logs": [],
         "info": "System log aggregation not yet implemented. Use application stdout for logs."
     }
+
+
+@app.get("/system/logs")
+async def system_logs_page():
+    """System logs viewer page."""
+    log_file = Path("/app/data/tube_manager.log")
+    logs_html = ""
+    if log_file.exists():
+        try:
+            lines = log_file.read_text().strip().split("\n")
+            last_200 = lines[-200:] if len(lines) > 200 else lines
+            for line in last_200:
+                escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                if "ERROR" in line or "CRITICAL" in line:
+                    logs_html += f'<div style="color:#ff6b6b">{escaped}</div>'
+                elif "WARNING" in line:
+                    logs_html += f'<div style="color:#ffa94d">{escaped}</div>'
+                elif "INFO" in line:
+                    logs_html += f'<div style="color:#69db7c">{escaped}</div>'
+                elif "DEBUG" in line:
+                    logs_html += f'<div style="color:#74c0fc">{escaped}</div>'
+                else:
+                    logs_html += f'<div>{escaped}</div>'
+        except Exception as e:
+            logs_html = f'<div style="color:#ff6b6b">Error reading logs: {e}</div>'
+    else:
+        logs_html = '<div style="color:#868e96">No log file found. Logs are written to stdout only. Set a log file path in config to enable file logging.</div>'
+
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Logs - Tube Manager</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+        body {{ font-family: 'JetBrains Mono', monospace; background: #0a0c10; color: #e5e5e5; margin: 0; padding: 0; }}
+        .header {{ background: #16191f; border-bottom: 1px solid #2a2f3a; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }}
+        .header h1 {{ font-size: 14px; margin: 0; color: #e5e5e5; }}
+        .header a {{ color: #60a5fa; text-decoration: none; font-size: 12px; }}
+        .header a:hover {{ text-decoration: underline; }}
+        .log-container {{ padding: 16px 20px; font-size: 11px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; }}
+        .log-container div {{ border-bottom: 1px solid #1a1d24; padding: 2px 0; }}
+        .controls {{ padding: 8px 20px; background: #16191f; border-bottom: 1px solid #2a2f3a; display: flex; gap: 8px; }}
+        .controls button {{ background: #20242c; border: 1px solid #2a2f3a; color: #9ca3af; font-size: 10px; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; }}
+        .controls button:hover {{ background: #2a2f3a; color: #e5e5e5; }}
+        .filter-active {{ background: #3b82f6 !important; color: white !important; border-color: #3b82f6 !important; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 System Logs — Tube Manager</h1>
+        <a href="/settings">← Back to Settings</a>
+    </div>
+    <div class="controls">
+        <button onclick="location.reload()">🔄 Refresh</button>
+        <button onclick="document.getElementById('log-container').scrollTop = document.getElementById('log-container').scrollHeight">⬇ Bottom</button>
+        <button onclick="document.getElementById('log-container').scrollTop = 0">⬆ Top</button>
+    </div>
+    <div class="log-container" id="log-container">{logs_html}</div>
+    <script>document.getElementById('log-container').scrollTop = document.getElementById('log-container').scrollHeight;</script>
+</body>
+</html>""")
 
 
 # Storage endpoints
