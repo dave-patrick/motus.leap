@@ -740,10 +740,11 @@ async def google_oauth_callback(code: str, state: str = None):
             "expires_at": datetime.now() + access_token_expires,
         }
 
-        # Redirect to dashboard with token in URL fragment (for SPA)
+        # Redirect to auth page with token in URL fragment.
+        # auth.html handles extracting the token from the hash and redirecting to dashboard.
         frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com").rstrip("/")
         return RedirectResponse(
-            url=f"{frontend_url}/dashboard#token={app_token}",
+            url=f"{frontend_url}/auth#token={app_token}",
             status_code=302
         )
 
