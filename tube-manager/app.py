@@ -1145,7 +1145,12 @@ async def save_settings(body: SettingsIn):
     global youtube_service
     youtube_service = YouTubeService(config)
     
-    return {"status": "saved"}
+    return {
+        "status": "saved",
+        "youtube_api_key": (_secret_val(config.youtube_api_key) or "")[:4] + "••••" if _secret_val(config.youtube_api_key) else "",
+        "oauth_client_id": config.oauth.client_id,
+        "oauth_client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
+    }
 
 
 # Reset settings
