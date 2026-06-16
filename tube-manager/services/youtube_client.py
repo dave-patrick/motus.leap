@@ -152,13 +152,22 @@ class YouTubeClient:
     def list_mine_playlists(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
         client = self._get_client(require_oauth=True)
         if not client:
+            log.error("[YOUTUBE] list_mine_playlists: no OAuth client available")
             return {"items": []}
-        return client.playlists().list(
-            part="snippet,contentDetails",
-            mine=True,
-            maxResults=max_results,
-            pageToken=page_token or None,
-        ).execute()
+        try:
+            resp = client.playlists().list(
+                part="snippet,contentDetails",
+                mine=True,
+                maxResults=max_results,
+                pageToken=page_token or None,
+            ).execute()
+            log.info(f"[YOUTUBE] list_mine_playlists returned {len(resp.get('items', []))} items")
+            return resp
+        except HttpError as e:
+            status_code = e.resp.status if hasattr(e, "resp") and e.resp else "unknown"
+            error_content = e.content.decode("utf-8") if hasattr(e, "content") and e.content else "no content"
+            log.error(f"[YOUTUBE] list_mine_playlists error: status={status_code}, content={error_content[:500]}")
+            raise
 
     def list_mine_channels(self) -> dict[str, Any]:
         client = self._get_client(require_oauth=True)
