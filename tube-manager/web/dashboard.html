@@ -149,6 +149,30 @@
     </div>
 
     <script>
+        // Auto-renew token on dashboard load to keep user logged in
+        (async function renewSession() {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            try {
+                const resp = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+                });
+                if (resp.ok) {
+                    // Token still valid — issue a fresh 7-day token
+                    const refreshResp = await fetch('/api/auth/refresh', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+                    });
+                    if (refreshResp.ok) {
+                        const data = await refreshResp.json();
+                        localStorage.setItem('token', data.access_token);
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        })();
+
         function logout() {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
