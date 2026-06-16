@@ -1151,6 +1151,41 @@ async def reset_settings():
     return {"message": "Settings reset to defaults"}
 
 
+# Diagnostics endpoint
+@app.get("/api/diagnostics/youtube")
+async def diagnostics_youtube() -> dict[str, Any]:
+    """Check YouTube OAuth status and test API connectivity."""
+    if not youtube_service:
+        return {"status": "error", "message": "YouTube service not initialized"}
+    
+    config = config_manager.config
+    result = {
+        "status": "ok",
+        "oauth_configured": bool(config.oauth.access_token and config.oauth.refresh_token),
+        "client_id_configured": bool(config.oauth.client_id),
+        "client_secret_configured": bool(config.oauth.client_secret),
+        "token_expiry": config.oauth.token_expiry,
+        "playlist_count": 0,
+        "error": None,
+    }
+    
+    client = youtube_service.get_client(require_oauth=True)
+    if not client:
+        result["status"] = "error"
+        result["error"] = "OAuth client could not be built (missing/invalid credentials)"
+        return result
+    
+    try:
+        resp = client.list_mine_playlists(max_results=10)
+        result["playlist_count"] = len(resp.get("items", []))
+        result["raw_response_keys"] = list(resp.keys())
+    except Exception as e:
+        result["status"] = "error"
+        result["error"] = f"{type(e).__name__}: {str(e)}"
+    
+    return result
+
+
 # System endpoints
 @app.get("/api/system/logs")
 async def get_system_logs():
