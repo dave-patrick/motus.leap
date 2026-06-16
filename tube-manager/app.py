@@ -1071,16 +1071,71 @@ async def youtube_callback(code: str):
 
 @app.get("/api/youtube/status")
 async def youtube_status():
-    """Get YouTube connection status."""
+    """Check YouTube OAuth connection status."""
     config = config_manager.config
     return {
-        "connected": bool(config.oauth.access_token),
+        "connected": bool(config.oauth.access_token and config.oauth.refresh_token),
         "has_refresh": bool(config.oauth.refresh_token),
-        "api_key_configured": bool(_secret_val(config.youtube_api_key)),
+        "api_key_configured": bool(config.youtube_api_key),
     }
 
 
-# Settings endpoints
+@app.post("/api/youtube/disconnect")
+async def youtube_disconnect():
+    """Clear stored YouTube OAuth tokens."""
+    global youtube_service
+    config = config_manager.config
+    config.oauth.access_token = ""
+    config.oauth.refresh_token = ""
+    config.oauth.token_expiry = 0
+    config_manager.save(config)
+    # Recreate YouTubeService without OAuth tokens
+    youtube_service = YouTubeService(config)
+    return {"message": "YouTube OAuth disconnected. Re-authorize in Settings to reconnect."}
+
+
+@app.get("/api/diagnostics/youtube")
+async def diagnostics_youtube() -> dict[str, Any]:
+    """Check YouTube OAuth status and test API connectivity."""
+    if not youtube_service:
+        return {"status": "error", "message": "YouTube service not initialized"}
+    
+    config = config_manager.config
+    result = {
+        "status": "ok",
+        "oauth_configured": bool(config.oauth.access_token and config.oauth.refresh_token),
+        "client_id_configured": bool(config.oauth.client_id),
+        "client_secret_configured": bool(config.oauth.client_secret),
+        "token_expiry": config.oauth.token_expiry,
+        "playlist_count": 0,
+        "error": None,
+    }
+    
+    client = youtube_service.get_client(require_oauth=True)
+    if not client:
+        result["status"] = "error"
+        result["error"] = "OAuth client could not be built (missing/invalid credentials)"
+        return result
+    
+    try:
+        resp = client.list_mine_playlists(max_results=10)
+        result["playlist_count"] = len(resp.get("items", []))
+        result["raw_response_keys"] = list(resp.keys())
+        
+        # Also fetch channel info to verify which account is connected
+        channel_resp = client.list_mine_channels()
+        channel_items = channel_resp.get("items", [])
+        if channel_items:
+            snippet = channel_items[0].get("snippet", {})
+            result["channel_title"] = snippet.get("title", "Unknown")
+            result["channel_id"] = channel_items[0].get("id", "")
+    except Exception as e:
+        result["status"] = "error"
+        result["error"] = f"{type(e).__name__}: {str(e)}"
+    
+    return result
+
+
 class SettingsIn(BaseModel):
     """Settings input model."""
     youtube_api_key: str | None = None
