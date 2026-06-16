@@ -565,7 +565,7 @@ async def google_oauth_init():
         f"&response_type=code"
         f"&scope=openid%20email%20profile"
         f"&access_type=offline"
-        f"&prompt=consent"
+        f"&prompt=consent%20select_account"
     )
     return {"auth_url": auth_url}
 
@@ -585,7 +585,7 @@ async def youtube_oauth_init():
         f"&response_type=code"
         f"&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube"
         f"&access_type=offline"
-        f"&prompt=consent"
+        f"&prompt=consent%20select_account"
         f"&state={state}&include_granted_scopes=true"
     )
     # Store state to identify this as YouTube OAuth on callback
