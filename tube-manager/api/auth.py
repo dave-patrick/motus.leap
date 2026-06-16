@@ -3,6 +3,7 @@
 import logging
 import os
 import secrets
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -490,6 +491,82 @@ async def google_oauth_init():
         f"&prompt=consent"
     )
     return {"auth_url": auth_url}
+
+
+@router.get("/youtube")
+async def youtube_oauth_init():
+    """Initiate YouTube OAuth flow for data access (separate from login)."""
+    if not GOOGLE_OAUTH_CLIENT_ID:
+        return {"error": "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars."}
+
+    youtube_redirect_uri = GOOGLE_OAUTH_REDIRECT_URI.replace("/api/auth/google/callback", "/api/auth/youtube/callback")
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={GOOGLE_OAUTH_CLIENT_ID}"
+        f"&redirect_uri={youtube_redirect_uri}"
+        f"&response_type=code"
+        f"&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube"
+        f"&access_type=offline"
+        f"&prompt=consent"
+        f"&include_granted_scopes=true"
+    )
+    return {"auth_url": auth_url}
+
+
+@router.get("/youtube/callback")
+async def youtube_oauth_callback(code: str, request: Request):
+    """Handle YouTube OAuth callback - save tokens to user config."""
+    if not GOOGLE_OAUTH_CLIENT_ID or not GOOGLE_OAUTH_CLIENT_SECRET:
+        return HTMLResponse("""
+            <h1 style="color: #ff4444;">❌ Google OAuth Not Configured</h1>
+            <p>Please set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables.</p>
+            <p><a href="/settings" style="color: #60a5fa;">← Back to Settings</a></p>
+        """, status_code=400)
+
+    youtube_redirect_uri = GOOGLE_OAUTH_REDIRECT_URI.replace("/api/auth/google/callback", "/api/auth/youtube/callback")
+    token_url = "https://oauth2.googleapis.com/token"
+    data = {
+        "code": code,
+        "client_id": GOOGLE_OAUTH_CLIENT_ID,
+        "client_secret": GOOGLE_OAUTH_CLIENT_SECRET,
+        "redirect_uri": youtube_redirect_uri,
+        "grant_type": "authorization_code",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(token_url, data=data)
+            tokens = resp.json()
+
+        if "access_token" not in tokens:
+            error_msg = tokens.get("error_description", tokens.get("error", str(tokens)))
+            return HTMLResponse(f"""
+                <h1 style="color: #ff4444;">❌ YouTube OAuth Error</h1>
+                <p><strong>Error:</strong> {error_msg}</p>
+                <p><a href="/settings" style="color: #60a5fa;">← Back to Settings</a></p>
+            """, status_code=400)
+
+        # Save YouTube tokens to config
+        from services.config_manager import config_manager
+        config = config_manager.config
+        config.oauth.access_token = tokens["access_token"]
+        config.oauth.refresh_token = tokens.get("refresh_token", "")
+        config.oauth.token_expiry = int(time.time()) + tokens.get("expires_in", 3600)
+        config_manager.save(config)
+
+        return HTMLResponse("""
+            <div style="background: #0a0c10; color: #e5e5e5; font-family: Inter, sans-serif; padding: 40px; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                <h1 style="color: #44ff88;">✅ YouTube Connected!</h1>
+                <p style="color: #9ca3af; margin: 16px 0;">Your YouTube account has been connected successfully.</p>
+                <p style="color: #6b7280; font-size: 12px;">You can close this window and return to <a href="/settings" style="color: #60a5fa;">Settings</a></p>
+                <script>try { window.opener && window.opener.postMessage({type: 'youtube-oauth-success'}, '*'); } catch(e) {}</script>
+            </div>
+        """)
+    except Exception as e:
+        return HTMLResponse(f"""
+            <h1 style="color: #ff4444;">❌ Error</h1>
+            <p>{str(e)}</p>
+        """, status_code=400)
 
 
 @router.get("/google/callback")
