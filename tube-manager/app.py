@@ -11,13 +11,38 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends, Cookie
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import aiofiles
+
+# Auth dependency
+from api.auth import get_current_user
+
+# Auth dependency for page routes (redirects to /auth if not authenticated)
+async def require_auth(request: Request, token: str = Cookie(default=None), authorization: str = Header(default=None)):
+    """Require authentication for page routes. Redirects to /auth if not authenticated."""
+    # Check cookie first, then Authorization header
+    auth_token = token or (authorization.replace("Bearer ", "") if authorization and authorization.startswith("Bearer ") else None)
+    if not auth_token:
+        return RedirectResponse(url="/auth", status_code=302)
+    
+    # Validate token
+    try:
+        user = await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=auth_token))
+        request.state.user = user
+        return user
+    except HTTPException:
+        return RedirectResponse(url="/auth", status_code=302)
+    except Exception:
+        return RedirectResponse(url="/auth", status_code=302)
+
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
+from fastapi import Header
 
 # Rate limiting
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -669,56 +694,68 @@ async def auth():
     return await no_cache_file_response(WEB_DIR / "auth.html")
 
 
+@app.get("/")
+async def index(request: Request, user=Depends(require_auth)):
+    """Redirect to dashboard if authenticated, auth page if not."""
+    return RedirectResponse(url="/dashboard", status_code=302)
+
+
+@app.get("/auth")
+async def auth():
+    """Auth page."""
+    return await no_cache_file_response(WEB_DIR / "auth.html")
+
+
 @app.get("/dashboard")
-async def dashboard():
+async def dashboard(request: Request, user=Depends(require_auth)):
     """Dashboard page."""
     return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
 
 @app.get("/playlists")
-async def playlists():
+async def playlists(request: Request, user=Depends(require_auth)):
     """Playlists page."""
     return await no_cache_file_response(WEB_DIR / "playlists.html")
 
 
 @app.get("/subscriptions")
-async def subscriptions():
+async def subscriptions(request: Request, user=Depends(require_auth)):
     """Subscriptions page."""
     return await no_cache_file_response(WEB_DIR / "subscriptions.html")
 
 
 @app.get("/maintenance")
-async def maintenance():
+async def maintenance(request: Request, user=Depends(require_auth)):
     """Maintenance page."""
     return await no_cache_file_response(WEB_DIR / "maintenance.html")
 
 
 @app.get("/rules")
-async def rules():
+async def rules(request: Request, user=Depends(require_auth)):
     """Rules page."""
     return await no_cache_file_response(WEB_DIR / "rules.html")
 
 
 @app.get("/ai")
-async def ai():
+async def ai(request: Request, user=Depends(require_auth)):
     """AI page."""
     return await no_cache_file_response(WEB_DIR / "ai.html")
 
 
 @app.get("/bulk")
-async def bulk():
+async def bulk(request: Request, user=Depends(require_auth)):
     """Bulk operations page."""
     return await no_cache_file_response(WEB_DIR / "bulk.html")
 
 
 @app.get("/settings")
-async def settings():
+async def settings(request: Request, user=Depends(require_auth)):
     """Settings page."""
     return await no_cache_file_response(WEB_DIR / "settings.html")
 
 
 @app.get("/test")
-async def test_page():
+async def test_page(request: Request, user=Depends(require_auth)):
     """Test page."""
     return await no_cache_file_response(WEB_DIR / "test.html")
 

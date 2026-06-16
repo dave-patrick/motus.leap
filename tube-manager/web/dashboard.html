@@ -53,7 +53,7 @@
             <div class="flex gap-2">
                 <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Layout"><i class="fa-solid fa-border-all"></i></button>
                 <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Notifications"><i class="fa-regular fa-bell"></i></button>
-                <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+                <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
             </div>
         </div>
     </header>
@@ -149,6 +149,12 @@
     </div>
 
     <script>
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            document.cookie = 'token=; path=/; max-age=0';
+            window.location.href = '/auth';
+        }
         let ws = null;
         let scanLogs = [];
         let queueRunning = false;
