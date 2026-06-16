@@ -1226,7 +1226,8 @@ async def diagnostics_oauth_user() -> dict[str, Any]:
                 result["google_name"] = userinfo.get("name")
                 result["google_id"] = userinfo.get("id")
             else:
-                result["userinfo_error"] = userinfo_resp.text[:500]
+                # YouTube-only tokens don't have userinfo scope; this is normal.
+                result["userinfo_note"] = "Token lacks OpenID/email scope (expected for YouTube-only OAuth)"
 
         yt_client = youtube_service.get_client(require_oauth=True) if youtube_service else None
         if yt_client:
