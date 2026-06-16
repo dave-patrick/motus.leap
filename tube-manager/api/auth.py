@@ -1,5 +1,6 @@
 """Authentication and authorization system."""
 
+import json
 import logging
 import os
 import secrets
@@ -26,6 +27,50 @@ except ModuleNotFoundError:
 from passlib.context import CryptContext
 
 log = logging.getLogger(__name__)
+
+# =============================================================================
+# Persistent User Storage
+# =============================================================================
+
+USERS_DIR = Path(__file__).resolve().parent.parent / "data"
+USERS_FILE = USERS_DIR / "users.json"
+
+def _ensure_users_dir():
+    USERS_DIR.mkdir(parents=True, exist_ok=True)
+
+def _load_users() -> Dict[str, Dict[str, Any]]:
+    """Load users from JSON file."""
+    if USERS_FILE.exists():
+        try:
+            data = json.loads(USERS_FILE.read_text())
+            # Convert datetime strings back to datetime objects
+            for u in data.values():
+                for field in ("created_at", "last_login"):
+                    if isinstance(u.get(field), str):
+                        try:
+                            u[field] = datetime.fromisoformat(u[field])
+                        except (ValueError, TypeError):
+                            u[field] = None
+            return data
+        except Exception as e:
+            log.warning("Failed to load users: %s", e)
+    return {}
+
+def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
+    """Save users to JSON file."""
+    _ensure_users_dir()
+    # Convert datetime objects to ISO strings for JSON serialization
+    serializable = {}
+    for k, v in users.items():
+        u = dict(v)
+        for field in ("created_at", "last_login"):
+            if isinstance(u.get(field), datetime):
+                u[field] = u[field].isoformat()
+        serializable[k] = u
+    try:
+        USERS_FILE.write_text(json.dumps(serializable, indent=2, default=str))
+    except Exception as e:
+        log.error("Failed to save users: %s", e)
 
 # =============================================================================
 # Configuration
@@ -115,7 +160,7 @@ class RoleEnum:
 # In-Memory Storage
 # =============================================================================
 
-users_db: Dict[str, Dict[str, Any]] = {}
+users_db: Dict[str, Dict[str, Any]] = _load_users()
 user_sessions: Dict[str, Dict[str, Any]] = {}
 
 
@@ -300,6 +345,7 @@ async def register(user_data: UserCreate):
     }
 
     users_db[user_data.username] = user
+    _save_users(users_db)
     return UserResponse(**user)
 
 
@@ -389,6 +435,7 @@ async def update_me(
     if user_update.full_name:
         current_user["full_name"] = user_update.full_name
 
+    _save_users(users_db)
     return UserResponse(**current_user)
 
 
@@ -439,6 +486,7 @@ async def update_user(
     if user_update.role:
         user["role"] = user_update.role
 
+    _save_users(users_db)
     return UserResponse(**user)
 
 
@@ -462,6 +510,7 @@ async def delete_user(
 
     username_to_delete = user["username"]
     del users_db[username_to_delete]
+    _save_users(users_db)
     return {"message": f"User {username_to_delete} deleted"}
 
 
@@ -490,6 +539,7 @@ def create_default_admin() -> None:
             "created_at": datetime.now(),
             "last_login": None,
         }
+        _save_users(users_db)
         log.info("Default admin user created (username: admin)")
 
 
@@ -672,6 +722,7 @@ async def google_oauth_callback(code: str, state: str = None):
                 "last_login": datetime.now(),
             }
             users_db[username] = user
+            _save_users(users_db)
 
         user["last_login"] = datetime.now()
 
