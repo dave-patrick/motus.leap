@@ -597,7 +597,7 @@ async def google_oauth_callback(code: str):
         }
 
         # Redirect to dashboard with token in URL fragment (for SPA)
-        frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com")
+        frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com").rstrip("/")
         return RedirectResponse(
             url=f"{frontend_url}/dashboard#token={app_token}",
             status_code=302
