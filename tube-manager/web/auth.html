@@ -89,13 +89,25 @@
             <i class="fa-solid fa-shield-halved mr-1"></i>
             JWT Auth with bcrypt-secured credentials
         </div>
-        <div class="mt-4 text-center">
-          <button onclick="quickBootstrapAdmin()" class="text-xs text-gray-600 hover:text-gray-400">[bootstrap] create admin:admin / admin123</button>
-        </div>
     </div>
 
     <script>
         const API_BASE = '/api/auth';
+
+        // Handle token from URL fragment (after OAuth redirect) FIRST
+        (function() {
+            const hash = window.location.hash;
+            if (hash && hash.includes('token=')) {
+                const token = hash.split('token=')[1].split('&')[0];
+                if (token) {
+                    localStorage.setItem('token', token);
+                    document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
+                    window.location.hash = '';
+                    window.location.replace('/dashboard');
+                    return;
+                }
+            }
+        })();
 
         function showForm(form) {
             if (form === 'login') {
@@ -193,17 +205,6 @@
             }
         }
 
-        async function quickBootstrapAdmin() {
-            const email = 'admin@tubemanager.local';
-            const password = 'admin123';
-            await fetch(`${API_BASE}/bootstrap`, {
-              method: 'POST',
-              headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ username: 'admin', email, password, full_name: 'Administrator', role: 'admin'  })
-            });
-            await handleLogin.call({getElementById: (id) => document.getElementById(id)});
-          }
-
         // Check if already logged in
         (async function checkSession() {
             try {
@@ -241,18 +242,6 @@
                     alert('Failed to initiate Google login');
                 });
         }
-
-        // Handle token from URL fragment (after OAuth redirect)
-        (function() {
-            const hash = window.location.hash;
-            if (hash && hash.includes('token=')) {
-                const token = hash.split('token=')[1].split('&')[0];
-                localStorage.setItem('token', token);
-                document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
-                window.location.hash = '';
-                window.location.href = '/dashboard';
-            }
-        })();
 
         // Logout function
         function logout() {
