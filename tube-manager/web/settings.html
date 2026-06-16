@@ -235,7 +235,7 @@
             status.textContent = 'Opening YouTube OAuth...';
             status.className = 'text-[10px] text-blue-400 text-center mt-2';
             try {
-                const resp = await fetch('/api/auth/youtube');
+                const resp = await fetch('/auth/youtube');
                 if (resp.ok) {
                     const data = await resp.json();
                     if (data.auth_url) {
