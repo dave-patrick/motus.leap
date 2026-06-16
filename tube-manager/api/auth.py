@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 
@@ -15,6 +16,11 @@ try:
     import jwt
 except ModuleNotFoundError:
     raise RuntimeError("Missing dependency: install PyJWT")
+
+try:
+    import httpx
+except ModuleNotFoundError:
+    raise RuntimeError("Missing dependency: install httpx")
 
 from passlib.context import CryptContext
 
@@ -457,6 +463,158 @@ def create_default_admin() -> None:
             "last_login": None,
         }
         log.info("Default admin user created (username: admin)")
+
+
+# =============================================================================
+# Google OAuth Login
+# =============================================================================
+
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "https://tubemanager.onrender.com/auth/google/callback")
+
+
+@router.get("/google")
+async def google_oauth_init():
+    """Initiate Google OAuth flow for user login."""
+    if not GOOGLE_OAUTH_CLIENT_ID:
+        return {"error": "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars."}
+
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={GOOGLE_OAUTH_CLIENT_ID}"
+        f"&redirect_uri={GOOGLE_OAUTH_REDIRECT_URI}"
+        f"&response_type=code"
+        f"&scope=openid%20email%20profile"
+        f"&access_type=offline"
+        f"&prompt=consent"
+    )
+    return {"auth_url": auth_url}
+
+
+@router.get("/google/callback")
+async def google_oauth_callback(code: str):
+    """Handle Google OAuth callback and create/login user."""
+    if not GOOGLE_OAUTH_CLIENT_ID or not GOOGLE_OAUTH_CLIENT_SECRET:
+        return HTMLResponse("""
+            <h1 style="color: #ff4444;">❌ Google OAuth Not Configured</h1>
+            <p>Please set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables.</p>
+        """, status_code=400)
+
+    token_url = "https://oauth2.googleapis.com/token"
+    data = {
+        "code": code,
+        "client_id": GOOGLE_OAUTH_CLIENT_ID,
+        "client_secret": GOOGLE_OAUTH_CLIENT_SECRET,
+        "redirect_uri": GOOGLE_OAUTH_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(token_url, data=data)
+            tokens = resp.json()
+
+        if "access_token" not in tokens:
+            error_msg = tokens.get("error_description", tokens.get("error", str(tokens)))
+            return HTMLResponse(f"""
+                <h1 style="color: #ff4444;">❌ OAuth Error</h1>
+                <p><strong>Error:</strong> {error_msg}</p>
+            """, status_code=400)
+
+        # Get user info from Google
+        access_token = tokens["access_token"]
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            userinfo_resp = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+            userinfo = userinfo_resp.json()
+
+        google_id = userinfo.get("id")
+        email = userinfo.get("email")
+        name = userinfo.get("name", "")
+        picture = userinfo.get("picture", "")
+
+        if not email:
+            return HTMLResponse("""
+                <h1 style="color: #ff4444;">❌ OAuth Error</h1>
+                <p>Could not retrieve email from Google account.</p>
+            """, status_code=400)
+
+        # Check if user exists by email
+        existing_user = None
+        for user in users_db.values():
+            if user["email"] == email:
+                existing_user = user
+                break
+
+        if existing_user:
+            user = existing_user
+            # Update profile info from Google
+            user["full_name"] = name
+            if picture:
+                user["avatar_url"] = picture
+        else:
+            # Create new user
+            username = email.split("@")[0]
+            # Ensure unique username
+            base_username = username
+            counter = 1
+            while get_user_by_username(username):
+                username = f"{base_username}{counter}"
+                counter += 1
+
+            user_id = secrets.token_hex(16)
+            user = {
+                "id": user_id,
+                "username": username,
+                "email": email,
+                "full_name": name,
+                "avatar_url": picture,
+                "hashed_password": "",  # No password for OAuth users
+                "role": "user",
+                "is_active": True,
+                "created_at": datetime.now(),
+                "last_login": datetime.now(),
+            }
+            users_db[username] = user
+
+        user["last_login"] = datetime.now()
+
+        # Create access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        app_token = create_access_token(
+            data={"sub": user["username"], "role": user["role"]},
+            expires_delta=access_token_expires,
+        )
+
+        user_sessions[app_token] = {
+            "user_id": user["id"],
+            "username": user["username"],
+            "created_at": datetime.now(),
+            "expires_at": datetime.now() + access_token_expires,
+        }
+
+        # Redirect to dashboard with token in URL fragment (for SPA)
+        frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com")
+        return RedirectResponse(
+            url=f"{frontend_url}/dashboard#token={app_token}",
+            status_code=302
+        )
+
+    except httpx.RequestError as e:
+        log.error(f"HTTP request failed: {e}")
+        return HTMLResponse(f"""
+            <h1 style="color: #ff4444;">❌ Network Error</h1>
+            <p>Failed to connect to Google: {str(e)}</p>
+        """, status_code=500)
+    except Exception as e:
+        log.exception("Unexpected error in Google OAuth callback")
+        return HTMLResponse(f"""
+            <h1 style="color: #ff4444;">❌ Server Error</h1>
+            <p>{str(e)}</p>
+        """, status_code=500)
 
 
 create_default_admin()
