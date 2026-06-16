@@ -141,6 +141,24 @@
         </main>
     </div>
     <script>
+        // Toast notification system
+        function toast(message, type = 'info', duration = 4000) {
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
+                document.body.appendChild(container);
+            }
+            const el = document.createElement('div');
+            const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+            const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-blue-600' };
+            el.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium ${colors[type] || colors.info}`;
+            el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(el);
+            setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, duration);
+        }
+
         async function loadSettings() {
             try {
                 const response = await fetch('/api/settings');
@@ -180,30 +198,39 @@
             };
             
             try {
-                await fetch('/api/settings', {
+                const resp = await fetch('/api/settings', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
-                toast('Settings saved', 'success');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    toast('Settings saved successfully', 'success');
+                } else {
+                    const err = await resp.text();
+                    toast('Failed to save: ' + err, 'error');
+                }
             } catch (e) {
-                toast('Failed to save settings', 'error');
+                toast('Network error: ' + e.message, 'error');
             }
         }
         
         async function connectYouTube() {
             const status = document.getElementById('yt-status');
-            status.textContent = 'Opening OAuth...';
+            status.textContent = 'Opening YouTube OAuth...';
             status.className = 'text-[10px] text-blue-400 text-center mt-2';
             try {
-                const resp = await fetch('/auth/youtube');
-                const data = await resp.json();
-                if (data.auth_url) {
-                    window.open(data.auth_url, '_blank', 'width=600,height=700');
-                    status.textContent = 'Complete OAuth in popup, then refresh';
-                    status.className = 'text-[10px] text-green-400 text-center mt-2';
+                const resp = await fetch('/api/auth/youtube');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.auth_url) {
+                        window.location.href = data.auth_url;
+                    } else {
+                        status.textContent = data.error || 'OAuth not configured';
+                        status.className = 'text-[10px] text-red-400 text-center mt-2';
+                    }
                 } else {
-                    status.textContent = data.error || 'OAuth not configured';
+                    status.textContent = 'Failed to initiate OAuth';
                     status.className = 'text-[10px] text-red-400 text-center mt-2';
                 }
             } catch (e) {
