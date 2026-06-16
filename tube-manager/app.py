@@ -1200,6 +1200,51 @@ async def diagnostics_youtube() -> dict[str, Any]:
     return result
 
 
+@app.get("/api/diagnostics/oauth-user")
+async def diagnostics_oauth_user() -> dict[str, Any]:
+    """Return the Google account and YouTube channel linked to the stored OAuth token."""
+    config = config_manager.config
+    result: dict[str, Any] = {
+        "oauth_configured": bool(config.oauth.access_token and config.oauth.refresh_token),
+        "token_expiry": config.oauth.token_expiry,
+    }
+    if not config.oauth.access_token:
+        result["error"] = "No OAuth access token stored"
+        return result
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            userinfo_resp = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {config.oauth.access_token}"},
+            )
+            result["userinfo_status"] = userinfo_resp.status_code
+            if userinfo_resp.status_code == 200:
+                userinfo = userinfo_resp.json()
+                result["google_email"] = userinfo.get("email")
+                result["google_name"] = userinfo.get("name")
+                result["google_id"] = userinfo.get("id")
+            else:
+                result["userinfo_error"] = userinfo_resp.text[:500]
+
+        yt_client = youtube_service.get_client(require_oauth=True) if youtube_service else None
+        if yt_client:
+            channel_resp = yt_client.list_mine_channels()
+            channel_items = channel_resp.get("items", [])
+            result["youtube_channel_count"] = len(channel_items)
+            if channel_items:
+                snippet = channel_items[0].get("snippet", {})
+                result["youtube_channel_title"] = snippet.get("title")
+                result["youtube_channel_id"] = channel_items[0].get("id")
+        else:
+            result["youtube_client_error"] = "Could not build YouTube OAuth client"
+    except Exception as e:
+        result["error"] = f"{type(e).__name__}: {str(e)}"
+
+    return result
+
+
 # System endpoints
 @app.get("/api/system/logs")
 async def get_system_logs():

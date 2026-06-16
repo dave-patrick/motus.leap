@@ -102,6 +102,16 @@ class YouTubeClient:
             expires_in = tokens.get("expires_in", 3600)
             self.token_expiry = int(time.time()) + expires_in
 
+            # Persist refreshed tokens so they survive app restarts
+            try:
+                from app import config_manager as app_config_manager
+                cfg = app_config_manager.config
+                cfg.oauth.access_token = self.oauth_access_token
+                cfg.oauth.token_expiry = self.token_expiry
+                app_config_manager.save(cfg)
+            except Exception:
+                pass
+
             self._youtube_oauth = None
             return self._ensure_oauth_client()
         except Exception:
