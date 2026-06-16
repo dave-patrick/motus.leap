@@ -361,7 +361,19 @@ async def force_auto_sort(payload):
 
 
 async def watch_later_sync(payload):
-    """Sync Watch Later playlist."""
+    """Sync Watch Later playlist.
+
+    Classification logic:
+    - Build config channel_id -> playlist_id mapping, ignoring empty playlist targets.
+    - Fetch Watch Later playlist items.
+    - For each item, classify:
+        - Use Watch Later's effective owner if owner is missing/blank.
+        - Match channel owner to a configured mapping first.
+        - If no channel match, match title text against mapping channel titles (fuzzy contains / casefold).
+    - If no mapping target, skip and continue.
+    - Move the video to the target playlist: insert in new playlist, then delete original playlist item.
+    - Dry-run is supported via ?dry_run=true or payload.dry_run=true.
+    """
     await manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Syncing Watch Later playlist..."}))
     
     client = youtube_service.get_client(require_oauth=True) if youtube_service else None
@@ -370,20 +382,127 @@ async def watch_later_sync(payload):
         return
     
     try:
-        wl_resp = client.watch_later()
-        items = wl_resp.get("items", [])
-        await manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(items)} videos from Watch Later"}))
-        
-        # NOTE: Watch Later sync requires YouTube Data API write operations.
-        # Current implementation uses read-only OAuth scope.
-        # To enable sync, implement rule-based classification:
-        # 1. Parse video metadata (title, channel, duration)
-        # 2. Match against channel mappings from config
-        # 3. Move to target playlist using client.move_video()
-        # 4. Requires OAuth scope: https://www.googleapis.com/auth/youtube
+        dry_run = bool(payload.get("dry_run") if isinstance(payload, dict) else False)
+        # Fetch channel->playlist mappings from config
+        mappings, _show_next = await api_mappings()
+        mapping_by_channel_id = {}
+        mapping_channel_title_scores: list[tuple[str, str, float]] = []
+        for mapping in mappings.get("mappings", []):
+            channel_id = mapping.get("channel_id")
+            playlist_id = mapping.get("playlist")
+            title = mapping.get("channel", "")
+            if not channel_id or not playlist_id:
+                continue
+            mapping_by_channel_id[channel_id] = playlist_id
+            if title:
+                mapping_channel_title_scores.append((channel_id, playlist_id, float(len(title))))
 
-        await manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Found {len(items)} videos in Watch Later"}))
-        await manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Note: Sync requires write permissions. Update OAuth scope in Settings to enable."}))
+        if not mapping_by_channel_id:
+            await manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] No channel mappings configured. Add mappings in Rules/Settings."}))
+            await manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete"}))
+            return
+
+        # Preload channel metadata for OAuth-based channel lookup
+        channel_key = "__watchlater_channels__"
+        channel_cache = await self._get_cached(channel_key) if hasattr(youtube_service, "_get_cached") else None
+        if not channel_cache:
+            channel_cache = {}
+            # Refresh via YouTubeService if available
+            if hasattr(youtube_service, "fetch_all_data"):
+                async def _safe_fetch():
+                    return await youtube_service.fetch_all_data(force_refresh=True)
+                try:
+                    all_data = await _safe_fetch()
+                    for channel in all_data.get("subscriptions", []):
+                        channel_cache[channel.get("id", "")] = {
+                            "title": channel.get("title", ""),
+                            "channel_id": channel.get("id", ""),
+                        }
+                    await youtube_service._set_cached(channel_key, channel_cache)
+                except Exception:
+                    pass
+
+        def classify(item):
+            # Source owner resolution
+            owner_id = ""
+            owner_title = ""
+            owner = item.get("contentDetails", {}).get("videoOwnerChannelId") or item.get("snippet", {}).get("videoOwnerChannelId")
+            if owner:
+                owner_id = owner.strip()
+            channel_obj = (item.get("snippet", {}) or {}).get("videoOwnerChannelName")
+            if isinstance(channel_obj, str):
+                owner_title = channel_obj.strip()
+            if not owner_id:
+                owner_id = owner_title
+
+            if owner_id:
+                if owner_id in mapping_by_channel_id:
+                    return owner_id, mapping_by_channel_id[owner_id]
+                meta = channel_cache.get(owner_id)
+                if meta:
+                    if meta.get("channel_id") in mapping_by_channel_id:
+                        return meta.get("channel_id"), mapping_by_channel_id[meta.get("channel_id")]
+                    title_for_match = meta.get("title", owner_title or "").lower()
+                    for channel_title_id, channel_playlist_id, title_len in mapping_channel_title_scores:
+                        if title_for_match and channel_title_id.lower() in title_for_match:
+                            return channel_title_id, channel_playlist_id
+
+            # If no owner match, fallback across metadata / title
+            snippet = item.get("snippet", {}) or {}
+            candidates: list[str] = []
+            for key in ("title", "description"):
+                val = snippet.get(key, "")
+                if isinstance(val, str):
+                    candidates.append(val)
+            lower_candidates = [c.lower() for c in candidates]
+
+            for candidate in lower_candidates:
+                for channel_title_id, channel_playlist_id, title_len in mapping_channel_title_scores:
+                    if channel_title_id.lower() in candidate:
+                        return channel_title_id, channel_playlist_id
+            return None, None
+
+        # Fetch watch later items
+        watch_later_resp = client.list_watch_later_items(max_results=50)
+        watch_later_items = watch_later_resp.get("items", [])
+        await manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from Watch Later"}))
+        
+        moved = []
+        skipped = []
+        failed = []
+        for item in watch_later_items:
+            video_id = item.get("contentDetails", {}).get("videoId")
+            playlist_item_id = item.get("id")
+            origin = item.get("snippet", {}).get("playlistId") or ""
+            if not video_id:
+                skipped.append(item)
+                continue
+            channel_id, playlist_id = classify(item)
+            if not playlist_id:
+                skipped.append(item)
+                continue
+            
+            if dry_run:
+                moved.append({"video_id": video_id, "from": origin, "to": playlist_id, "channel_id": channel_id})
+                continue
+
+            try:
+                # Insert into target playlist
+                client.move_video_to_playlist(video_id, playlist_id)
+                # Remove from Watch Later
+                if playlist_item_id:
+                    client.remove_video_from_playlist(playlist_item_id)
+                moved.append({"video_id": video_id, "from": origin, "to": playlist_id, "channel_id": channel_id})
+            except Exception as move_error:
+                failed.append({"video_id": video_id, "error": str(move_error)})
+                await manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {video_id}: {move_error}"}))
+
+        await manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Moved {len(moved)} video(s), skipped {len(skipped)}, failed {len(failed)}"}))
+        if moved:
+            for move in moved[:20]:
+                await manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] {move['video_id']} -> {move['to']} (from {move.get('from', 'watch later')})"}))
+        if dry_run and moved:
+            await manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Dry run: no changes applied."}))
         await manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete"}))
         
     except Exception as e:
@@ -819,7 +938,7 @@ async def youtube_auth():
         f"?client_id={client_id}"
         f"&redirect_uri={redirect_uri}"
         f"&response_type=code"
-        f"&scope={scope}"
+        f"&scope=https://www.googleapis.com/auth/youtube"
         f"&access_type=offline"
         f"&prompt=consent"
     )

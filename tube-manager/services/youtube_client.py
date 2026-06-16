@@ -205,3 +205,40 @@ class YouTubeClient:
             return {}
         watch_later_id = items[0]["contentDetails"]["relatedPlaylists"]["watchLater"]
         return self.get_playlist(watch_later_id)
+
+    def list_watch_later_items(self, max_results: int = 50, page_token: str | None = None) -> dict[str, Any]:
+        client = self._get_client(require_oauth=True)
+        if not client:
+            return {"items": []}
+        resp = client.channels().list(part="contentDetails", mine=True).execute()
+        items = resp.get("items", [])
+        if not items:
+            return {"items": []}
+        watch_later_id = items[0]["contentDetails"]["relatedPlaylists"]["watchLater"]
+        return client.playlistItems().list(
+            part="snippet,contentDetails",
+            playlistId=watch_later_id,
+            maxResults=max_results,
+            pageToken=page_token or None,
+        ).execute()
+
+    def move_video_to_playlist(self, video_id: str, target_playlist_id: str) -> dict[str, Any]:
+        client = self._get_client(require_oauth=True)
+        if not client:
+            return {"error": "OAuth client not available"}
+        add_body = {
+            "snippet": {
+                "playlistId": target_playlist_id,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": video_id,
+                },
+            }
+        }
+        return client.playlistItems().insert(part="snippet", body=add_body).execute()
+
+    def remove_video_from_playlist(self, playlist_item_id: str) -> dict[str, Any]:
+        client = self._get_client(require_oauth=True)
+        if not client:
+            return {"error": "OAuth client not available"}
+        return client.playlistItems().delete(id=playlist_item_id).execute()
