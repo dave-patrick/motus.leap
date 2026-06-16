@@ -232,11 +232,11 @@ async def add_security_headers(request: Request, call_next):
 
     response = await call_next(request)
 
-    # Strict Content Security Policy
+    # Strict Content Security Policy — allow inline scripts via unsafe-inline for non-Jinja pages
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
-        f"script-src 'self' 'nonce-{nonce}' https://cdn.tailwindcss.com; "
-        f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com; "
+        f"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; "
+        f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         f"font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         f"img-src 'self' https://i.ytimg.com https://yt3.ggpht.com; "
         f"connect-src 'self' https://www.googleapis.com https://www.youtube.com wss://tubemanager.onrender.com; "
