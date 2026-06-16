@@ -206,6 +206,9 @@
                 if (resp.ok) {
                     const data = await resp.json();
                     toast('Settings saved successfully', 'success');
+                    if (data.oauth_client_id) document.getElementById('oauth-client-id').value = data.oauth_client_id;
+                    if (data.youtube_api_key) document.getElementById('yt-api-key').placeholder = data.youtube_api_key;
+                    if (typeof data.oauth_client_secret !== 'undefined') document.getElementById('oauth-client-secret').placeholder = data.oauth_client_secret ? '••••••••' : 'Enter secret';
                 } else {
                     const err = await resp.text();
                     toast('Failed to save: ' + err, 'error');
