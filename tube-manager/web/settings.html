@@ -165,22 +165,22 @@
                 if (!response.ok) return;
                 const data = await response.json();
                 if (data.youtube_api_key) {
-                    document.getElementById('yt-api-key').value = '••••••••';
-                    document.getElementById('yt-api-key').placeholder = 'Enter new API key to replace';
+                    document.getElementById('yt-api-key').value = '';
+                    document.getElementById('yt-api-key').placeholder = '•••••••• — previously saved';
                 } else {
                     document.getElementById('yt-api-key').value = '';
                     document.getElementById('yt-api-key').placeholder = 'Enter API key';
                 }
-                if (data.oauth_client_id) document.getElementById('oauth-client-id').value = data.oauth_client_id;
+
                 if (data.oauth_client_secret) {
-                    document.getElementById('oauth-client-secret').value = '••••••••';
-                    document.getElementById('oauth-client-secret').placeholder = 'Enter new secret to replace';
+                    document.getElementById('oauth-client-secret').value = '';
+                    document.getElementById('oauth-client-secret').placeholder = '•••••••• — previously saved';
                 } else {
                     document.getElementById('oauth-client-secret').value = '';
                     document.getElementById('oauth-client-secret').placeholder = 'Enter OAuth client secret';
                 }
-                document.getElementById('default-privacy').value = data.default_privacy || 'private';
-                document.getElementById('scan-interval').value = data.scan_interval || 'hourly';
+
+                document.getElementById('oauth-client-id').value = data.oauth_client_id || '';
                 document.getElementById('max-concurrent').value = data.max_concurrent || 3;
                 document.getElementById('auto-sort').checked = data.auto_sort !== false;
                 document.getElementById('sync-watch-later').checked = data.sync_watch_later !== false;
