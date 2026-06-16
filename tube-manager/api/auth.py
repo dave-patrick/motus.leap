@@ -31,7 +31,24 @@ log = logging.getLogger(__name__)
 # Configuration
 # =============================================================================
 
-SECRET_KEY = os.getenv("TUBE_MANAGER_SECRET_KEY", "")
+def _load_secret_key() -> str:
+    """Load or generate a persistent HMAC secret key."""
+    key = os.getenv("TUBE_MANAGER_SECRET_KEY", "")
+    if key:
+        return key
+    # Fallback: load from or generate into a local file so it persists across restarts
+    secret_file = Path(__file__).resolve().parent.parent / ".secret_key"
+    if secret_file.exists():
+        return secret_file.read_text().strip()
+    # Generate a new one
+    key = secrets.token_hex(32)
+    try:
+        secret_file.write_text(key)
+    except Exception:
+        pass
+    return key
+
+SECRET_KEY = _load_secret_key()
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 7 days
