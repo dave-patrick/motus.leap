@@ -1179,6 +1179,14 @@ async def diagnostics_youtube() -> dict[str, Any]:
         resp = client.list_mine_playlists(max_results=10)
         result["playlist_count"] = len(resp.get("items", []))
         result["raw_response_keys"] = list(resp.keys())
+        
+        # Also fetch channel info to verify which account is connected
+        channel_resp = client.list_mine_channels()
+        channel_items = channel_resp.get("items", [])
+        if channel_items:
+            snippet = channel_items[0].get("snippet", {})
+            result["channel_title"] = snippet.get("title", "Unknown")
+            result["channel_id"] = channel_items[0].get("id", "")
     except Exception as e:
         result["status"] = "error"
         result["error"] = f"{type(e).__name__}: {str(e)}"
