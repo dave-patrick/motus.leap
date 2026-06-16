@@ -1094,48 +1094,6 @@ async def youtube_disconnect():
     return {"message": "YouTube OAuth disconnected. Re-authorize in Settings to reconnect."}
 
 
-@app.get("/api/diagnostics/youtube")
-async def diagnostics_youtube() -> dict[str, Any]:
-    """Check YouTube OAuth status and test API connectivity."""
-    if not youtube_service:
-        return {"status": "error", "message": "YouTube service not initialized"}
-    
-    config = config_manager.config
-    result = {
-        "status": "ok",
-        "oauth_configured": bool(config.oauth.access_token and config.oauth.refresh_token),
-        "client_id_configured": bool(config.oauth.client_id),
-        "client_secret_configured": bool(config.oauth.client_secret),
-        "token_expiry": config.oauth.token_expiry,
-        "playlist_count": 0,
-        "error": None,
-    }
-    
-    client = youtube_service.get_client(require_oauth=True)
-    if not client:
-        result["status"] = "error"
-        result["error"] = "OAuth client could not be built (missing/invalid credentials)"
-        return result
-    
-    try:
-        resp = client.list_mine_playlists(max_results=10)
-        result["playlist_count"] = len(resp.get("items", []))
-        result["raw_response_keys"] = list(resp.keys())
-        
-        # Also fetch channel info to verify which account is connected
-        channel_resp = client.list_mine_channels()
-        channel_items = channel_resp.get("items", [])
-        if channel_items:
-            snippet = channel_items[0].get("snippet", {})
-            result["channel_title"] = snippet.get("title", "Unknown")
-            result["channel_id"] = channel_items[0].get("id", "")
-    except Exception as e:
-        result["status"] = "error"
-        result["error"] = f"{type(e).__name__}: {str(e)}"
-    
-    return result
-
-
 class SettingsIn(BaseModel):
     """Settings input model."""
     youtube_api_key: str | None = None
@@ -1248,6 +1206,20 @@ async def diagnostics_youtube() -> dict[str, Any]:
             snippet = channel_items[0].get("snippet", {})
             result["channel_title"] = snippet.get("title", "Unknown")
             result["channel_id"] = channel_items[0].get("id", "")
+
+        # Raw HTTP check bypassing googleapiclient to confirm API response
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            raw_playlists = await http_client.get(
+                "https://www.googleapis.com/youtube/v3/playlists",
+                headers={"Authorization": f"Bearer {config.oauth.access_token}"},
+                params={"part": "snippet,contentDetails", "mine": "true", "maxResults": 10},
+            )
+            result["raw_api_status"] = raw_playlists.status_code
+            try:
+                result["raw_api_response"] = raw_playlists.json()
+            except Exception:
+                result["raw_api_body"] = raw_playlists.text[:500]
     except Exception as e:
         result["status"] = "error"
         result["error"] = f"{type(e).__name__}: {str(e)}"
