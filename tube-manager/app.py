@@ -965,7 +965,7 @@ async def youtube_auth():
         "response_type": "code",
         "scope": scope,
         "access_type": "offline",
-        "prompt": "consent",
+        "prompt": "consent select_account",
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
     return {"auth_url": auth_url}
