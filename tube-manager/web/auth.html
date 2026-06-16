@@ -139,7 +139,7 @@
                     localStorage.setItem('token', data.access_token);
                     localStorage.setItem('user', JSON.stringify(data.user));
                     // Set cookie for server-side auth
-                    document.cookie = `token=${data.access_token}; path=/; max-age=1800; SameSite=Lax`;
+                    document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
                     window.location.href = '/dashboard';
                 } else {
                     errorEl.textContent = data.detail || 'Login failed';
@@ -181,7 +181,7 @@
                 if (response.ok) {
                     localStorage.setItem('token', data.access_token);
                     localStorage.setItem('user', JSON.stringify(data.user));
-                    document.cookie = `token=${data.access_token}; path=/; max-age=1800; SameSite=Lax`;
+                    document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
                     window.location.href = '/dashboard';
                 } else {
                     errorEl.textContent = data.detail || 'Registration failed';
@@ -248,7 +248,7 @@
             if (hash && hash.includes('token=')) {
                 const token = hash.split('token=')[1].split('&')[0];
                 localStorage.setItem('token', token);
-                document.cookie = `token=${token}; path=/; max-age=1800; SameSite=Lax`;
+                document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
                 window.location.hash = '';
                 window.location.href = '/dashboard';
             }

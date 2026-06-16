@@ -301,9 +301,9 @@ async def full_cluster_scan(payload):
     """Perform a full cluster scan."""
     await manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Initiating Full Cluster Scan..."}))
     
-    client = youtube_service.get_client(require_oauth=False) if youtube_service else None
+    client = youtube_service.get_client(require_oauth=True) if youtube_service else None
     if not client:
-        await manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] No YouTube client available. Configure API key or OAuth in Settings."}))
+        await manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] No YouTube OAuth client available. Connect YouTube in Settings first."}))
         return
     
     try:

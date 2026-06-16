@@ -31,22 +31,10 @@ log = logging.getLogger(__name__)
 # Configuration
 # =============================================================================
 
-SECRET_KEY = os.getenv("TUBE_MANAGER_SECRET_KEY")
-if not SECRET_KEY:
-    secret_path = Path(__file__).resolve().parent / ".secret"
-    try:
-        if secret_path.exists():
-            SECRET_KEY = secret_path.read_text(encoding="utf-8").strip()
-        else:
-            SECRET_KEY = secrets.token_urlsafe(32)
-            secret_path.write_text(SECRET_KEY, encoding="utf-8")
-    except Exception as exc:
-        raise RuntimeError(
-            "Missing TUBE_MANAGER_SECRET_KEY and unable to persist a fallback secret"
-        ) from exc
+SECRET_KEY = os.getenv("TUBE_MANAGER_SECRET_KEY", "")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 7 days
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 security = HTTPBearer()
@@ -338,6 +326,28 @@ async def logout(
     user_sessions.pop(token, None)
     log.info("User '%s' logged out, token invalidated", current_user["username"])
     return {"message": "Successfully logged out"}
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_active_user)):
+    """Issue a fresh 7-day token to keep the user logged in."""
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    new_token = create_access_token(
+        data={"sub": current_user["username"], "role": current_user["role"]},
+        expires_delta=access_token_expires,
+    )
+    user_sessions[new_token] = {
+        "user_id": current_user["id"],
+        "username": current_user["username"],
+        "created_at": datetime.now(),
+        "expires_at": datetime.now() + access_token_expires,
+    }
+    return TokenResponse(
+        access_token=new_token,
+        token_type="bearer",
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=UserResponse(**current_user),
+    )
 
 
 @router.get("/me", response_model=UserResponse)
