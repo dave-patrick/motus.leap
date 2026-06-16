@@ -585,14 +585,27 @@ async def google_oauth_callback(code: str, state: str = None):
 
         # If YouTube OAuth, save tokens and show success
         if is_youtube_oauth:
-            from core.config_manager import ConfigManager
-            from pathlib import Path
-            cm = ConfigManager(Path("/app/data/config.json") if Path("/app/data").exists() else Path("config.json"))
+            # Use the app's running config manager/service so the in-memory
+            # YouTubeService picks up the new tokens immediately.
+            try:
+                from app import config_manager as app_config_manager, youtube_service as app_youtube_service
+                cm = app_config_manager
+            except Exception:
+                from core.config_manager import ConfigManager
+                from pathlib import Path
+                cm = ConfigManager(Path("/app/data/config.json") if Path("/app/data").exists() else Path("config.json"))
+                app_youtube_service = None
+
             config = cm.config
             config.oauth.access_token = tokens["access_token"]
             config.oauth.refresh_token = tokens.get("refresh_token", "")
             config.oauth.token_expiry = int(time.time()) + tokens.get("expires_in", 3600)
             cm.save(config)
+
+            # Force the running YouTubeService to rebuild its client with new tokens
+            if app_youtube_service is not None:
+                app_youtube_service._client = None
+
             return HTMLResponse("""
                 <div style="background: #0a0c10; color: #e5e5e5; font-family: Inter, sans-serif; padding: 40px; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
                     <h1 style="color: #44ff88;">✅ YouTube Connected!</h1>
