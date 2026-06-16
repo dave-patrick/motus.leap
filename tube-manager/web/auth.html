@@ -207,10 +207,22 @@
         // Check if already logged in
         (async function checkSession() {
             try {
-                const resp = await fetch(`${API_BASE}/me`, { method: 'GET', headers: { Accept: 'application/json' } });
-                if (resp.ok) window.location.href = '/dashboard';
+                const token = localStorage.getItem('token');
+                const resp = await fetch(`${API_BASE}/me`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                    },
+                });
+                if (resp.ok) {
+                    window.location.href = '/dashboard';
+                } else {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    // Stay on /auth for fresh login
+                }
             } catch {
-                window.location.href = '/auth';
+                // Stay on /auth
             }
         })();
 
