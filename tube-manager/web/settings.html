@@ -65,6 +65,7 @@
                                     <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-refresh" class="accent-blue-500" checked> Auto-refresh tokens</label>
                                 </div>
                                 <button onclick="connectYouTube()" class="w-full bg-[#c8102e] hover:bg-[#b00f2a] text-white text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-brands fa-youtube"></i> Connect YouTube Account (OAuth)</button>
+                                <button onclick="disconnectYouTube()" class="w-full bg-[#2a2f3a] hover:bg-red-600/20 border border-[#374151] text-gray-300 hover:text-red-400 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-unlink"></i> Disconnect YouTube</button>
                                 <div id="yt-status" class="text-[10px] text-gray-400 text-center"></div>
                             </div>
                         </div>
@@ -265,6 +266,27 @@
                     }
                 } else {
                     status.textContent = 'Failed to initiate OAuth';
+                    status.className = 'text-[10px] text-red-400 text-center mt-2';
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.className = 'text-[10px] text-red-400 text-center mt-2';
+            }
+        }
+
+        async function disconnectYouTube() {
+            const status = document.getElementById('yt-status');
+            if (!confirm('Disconnect YouTube OAuth? This will clear stored tokens and require re-authorization.')) return;
+            status.textContent = 'Disconnecting...';
+            status.className = 'text-[10px] text-blue-400 text-center mt-2';
+            try {
+                const resp = await fetch('/api/youtube/disconnect', {method: 'POST'});
+                const data = await resp.json();
+                if (resp.ok) {
+                    status.textContent = '✅ YouTube disconnected. Click Connect to re-authorize.';
+                    status.className = 'text-[10px] text-green-400 text-center mt-2';
+                } else {
+                    status.textContent = data.error || 'Failed to disconnect';
                     status.className = 'text-[10px] text-red-400 text-center mt-2';
                 }
             } catch (e) {
