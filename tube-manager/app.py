@@ -1026,13 +1026,15 @@ async def youtube_callback(code: str):
             
             return HTMLResponse("""
                 <h1 style="color: #44ff88;">✅ YouTube Connected!</h1>
-                <p>Tokens saved. Closing window...</p>
+                <p>Tokens saved. Redirecting to Settings...</p>
                 <p style="color: #7b8bb5; font-size: 12px;">Access token expires in: """ + str(tokens.get("expires_in", 3600)) + """ seconds</p>
                 <script>
                     if (window.opener) {
                         window.opener.postMessage({type: 'youtube-oauth-success'}, '*');
+                        setTimeout(() => window.close(), 1500);
+                    } else {
+                        setTimeout(() => { window.location.href = '/settings'; }, 2000);
                     }
-                    setTimeout(() => window.close(), 1500);
                 </script>
             """)
         else:
@@ -1046,6 +1048,9 @@ async def youtube_callback(code: str):
                 <script>
                     if (window.opener) {{
                         window.opener.postMessage({{type: 'youtube-oauth-error', error: '{safe_error}'}}, '*');
+                        setTimeout(() => window.close(), 1500);
+                    }} else {{
+                        setTimeout(() => {{ window.location.href = '/settings'; }}, 3000);
                     }}
                 </script>
             """

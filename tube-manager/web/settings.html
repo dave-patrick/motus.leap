@@ -240,7 +240,25 @@
                 if (resp.ok) {
                     const data = await resp.json();
                     if (data.auth_url) {
-                        window.location.href = data.auth_url;
+                        // Open OAuth in a popup so the callback can postMessage back
+                        const popup = window.open(data.auth_url, 'youtube-oauth', 'width=600,height=700');
+                        if (!popup) {
+                            // Popup blocked — fall back to same-window redirect
+                            window.location.href = data.auth_url;
+                            return;
+                        }
+                        // Listen for OAuth success/error message from popup
+                        window.addEventListener('message', function onMsg(e) {
+                            if (e.data.type === 'youtube-oauth-success') {
+                                window.removeEventListener('message', onMsg);
+                                status.textContent = '✅ YouTube connected! Token saved.';
+                                status.className = 'text-[10px] text-green-400 text-center mt-2';
+                            } else if (e.data.type === 'youtube-oauth-error') {
+                                window.removeEventListener('message', onMsg);
+                                status.textContent = '❌ OAuth error: ' + (e.data.error || 'unknown');
+                                status.className = 'text-[10px] text-red-400 text-center mt-2';
+                            }
+                        });
                     } else {
                         status.textContent = data.error || 'OAuth not configured';
                         status.className = 'text-[10px] text-red-400 text-center mt-2';
