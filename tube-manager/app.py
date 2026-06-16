@@ -700,6 +700,10 @@ async def auth():
 @app.get("/")
 async def index(request: Request, user=Depends(require_auth)):
     """Redirect to dashboard if authenticated, auth page if not."""
+    # Redirect protected page requests to the auth page instead of silently redirecting back to login
+    if isinstance(user, RedirectResponse):
+        return user
+
     return RedirectResponse(url="/dashboard", status_code=302)
 
 

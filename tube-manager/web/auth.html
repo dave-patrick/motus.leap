@@ -205,9 +205,14 @@
           }
 
         // Check if already logged in
-        if (localStorage.getItem('token')) {
-            window.location.href = '/dashboard';
-        }
+        (async function checkSession() {
+            try {
+                const resp = await fetch(`${API_BASE}/me`, { method: 'GET', headers: { Accept: 'application/json' } });
+                if (resp.ok) window.location.href = '/dashboard';
+            } catch {
+                window.location.href = '/auth';
+            }
+        })();
 
         function handleGoogleLogin() {
             fetch('/api/auth/google')
