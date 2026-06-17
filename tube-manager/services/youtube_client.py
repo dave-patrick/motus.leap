@@ -17,6 +17,13 @@ except Exception:  # pragma: no cover
     HttpError = Exception  # type: ignore
     httplib2 = None  # type: ignore
 
+try:
+    import httpx
+except Exception:  # pragma: no cover
+    httpx = None  # type: ignore
+
+YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
+
 
 class YouTubeClient:
     def __init__(
@@ -127,6 +134,30 @@ class YouTubeClient:
             return None
         return self._youtube or (self._ensure_oauth_client() and self._youtube_oauth)
 
+    def _oauth_request(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Make an OAuth-authenticated request to the YouTube Data API via httpx.
+
+        This bypasses googleapiclient for OAuth-required endpoints where the
+        library was observed to return empty results despite the API returning
+        data for the same token.
+        """
+        if httpx is None:
+            raise RuntimeError("httpx is not installed")
+        access_token = self.oauth_access_token
+        if not access_token:
+            raise RuntimeError("No OAuth access token available")
+        if time.time() >= self.token_expiry - 60:
+            if not self._refresh_access_token():
+                raise RuntimeError("OAuth token refresh failed")
+            access_token = self.oauth_access_token
+        url = f"{YOUTUBE_API_BASE}/{endpoint}"
+        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+        log.debug(f"[YOUTUBE] _oauth_request GET {url} params={params}")
+        resp = httpx.get(url, headers=headers, params=params, timeout=30.0)
+        log.debug(f"[YOUTUBE] _oauth_request response status={resp.status_code}")
+        resp.raise_for_status()
+        return resp.json()
+
     def get_playlist(self, playlist_id: str) -> dict[str, Any]:
         client = self._get_client()
         if not client:
@@ -163,44 +194,40 @@ class YouTubeClient:
         return client.videos().list(part="snippet,contentDetails,status", id=video_id).execute()
 
     def list_mine_playlists(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
-        client = self._get_client(require_oauth=True)
-        if not client:
-            log.error("[YOUTUBE] list_mine_playlists: no OAuth client available")
+        if not self.oauth_access_token or not self.oauth_refresh_token:
+            log.error("[YOUTUBE] list_mine_playlists: no OAuth tokens available")
             return {"items": []}
         try:
-            resp = client.playlists().list(
-                part="snippet,contentDetails",
-                mine=True,
-                maxResults=max_results,
-                pageToken=page_token or None,
-            ).execute()
+            params = {"part": "snippet,contentDetails", "mine": "true", "maxResults": max_results}
+            if page_token:
+                params["pageToken"] = page_token
+            resp = self._oauth_request("playlists", params)
             log.info(f"[YOUTUBE] list_mine_playlists returned {len(resp.get('items', []))} items")
-            # Debug: log first item if any
-            if resp.get('items'):
-                log.info(f"[YOUTUBE] first item id: {resp['items'][0].get('id')}")
             return resp
-        except HttpError as e:
-            status_code = e.resp.status if hasattr(e, "resp") and e.resp else "unknown"
-            error_content = e.content.decode("utf-8") if hasattr(e, "content") and e.content else "no content"
-            log.error(f"[YOUTUBE] list_mine_playlists error: status={status_code}, content={error_content[:500]}")
+        except Exception as e:
+            log.error(f"[YOUTUBE] list_mine_playlists error: {e}")
             raise
 
     def list_mine_channels(self) -> dict[str, Any]:
-        client = self._get_client(require_oauth=True)
-        if not client:
+        if not self.oauth_access_token or not self.oauth_refresh_token:
             return {}
-        return client.channels().list(part="snippet,contentDetails", mine=True).execute()
+        try:
+            return self._oauth_request("channels", {"part": "snippet,contentDetails", "mine": "true"})
+        except Exception as e:
+            log.error(f"[YOUTUBE] list_mine_channels error: {e}")
+            return {}
 
     def list_mine_subscriptions(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
-        client = self._get_client(require_oauth=True)
-        if not client:
+        if not self.oauth_access_token or not self.oauth_refresh_token:
             return {"items": []}
-        return client.subscriptions().list(
-            part="snippet,contentDetails",
-            mine=True,
-            maxResults=max_results,
-            pageToken=page_token or None,
-        ).execute()
+        try:
+            params = {"part": "snippet,contentDetails", "mine": "true", "maxResults": max_results}
+            if page_token:
+                params["pageToken"] = page_token
+            return self._oauth_request("subscriptions", params)
+        except Exception as e:
+            log.error(f"[YOUTUBE] list_mine_subscriptions error: {e}")
+            return {"items": []}
 
     def list_channels_by_ids(self, ids: list[str], max_results: int = 50) -> dict[str, Any]:
         client = self._get_client(require_oauth=False)
@@ -221,31 +248,35 @@ class YouTubeClient:
         return {"items": all_items}
 
     def watch_later(self) -> dict[str, Any]:
-        client = self._get_client(require_oauth=True)
-        if not client:
+        if not self.oauth_access_token or not self.oauth_refresh_token:
             return {}
-        resp = client.channels().list(part="contentDetails", mine=True).execute()
-        items = resp.get("items", [])
-        if not items:
+        try:
+            resp = self._oauth_request("channels", {"part": "contentDetails", "mine": "true"})
+            items = resp.get("items", [])
+            if not items:
+                return {}
+            watch_later_id = items[0]["contentDetails"]["relatedPlaylists"]["watchLater"]
+            return self.get_playlist(watch_later_id)
+        except Exception as e:
+            log.error(f"[YOUTUBE] watch_later error: {e}")
             return {}
-        watch_later_id = items[0]["contentDetails"]["relatedPlaylists"]["watchLater"]
-        return self.get_playlist(watch_later_id)
 
     def list_watch_later_items(self, max_results: int = 50, page_token: str | None = None) -> dict[str, Any]:
-        client = self._get_client(require_oauth=True)
-        if not client:
+        if not self.oauth_access_token or not self.oauth_refresh_token:
             return {"items": []}
-        resp = client.channels().list(part="contentDetails", mine=True).execute()
-        items = resp.get("items", [])
-        if not items:
+        try:
+            resp = self._oauth_request("channels", {"part": "contentDetails", "mine": "true"})
+            items = resp.get("items", [])
+            if not items:
+                return {"items": []}
+            watch_later_id = items[0]["contentDetails"]["relatedPlaylists"]["watchLater"]
+            params = {"part": "snippet,contentDetails", "playlistId": watch_later_id, "maxResults": max_results}
+            if page_token:
+                params["pageToken"] = page_token
+            return self._oauth_request("playlistItems", params)
+        except Exception as e:
+            log.error(f"[YOUTUBE] list_watch_later_items error: {e}")
             return {"items": []}
-        watch_later_id = items[0]["contentDetails"]["relatedPlaylists"]["watchLater"]
-        return client.playlistItems().list(
-            part="snippet,contentDetails",
-            playlistId=watch_later_id,
-            maxResults=max_results,
-            pageToken=page_token or None,
-        ).execute()
 
     def move_video_to_playlist(self, video_id: str, target_playlist_id: str) -> dict[str, Any]:
         client = self._get_client(require_oauth=True)
