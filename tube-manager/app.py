@@ -560,7 +560,6 @@ async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any
     config_manager.save(config)
     return {"message": "Mappings saved", "mappings": mappings}
 
-
 # Action endpoint
 @app.post("/api/action")
 @limiter.limit("20/minute")  # Rate limit: 20 actions per minute
@@ -568,6 +567,18 @@ async def trigger_action(request: Request, body: ActionIn):
     """Queue a background action."""
     await task_queue.put({"action": body.action, "payload": body.payload or {}})
     return {"status": "queued", "action": body.action}
+
+
+# Playlist detail page
+@app.get("/playlist/{playlist_id}", response_class=HTMLResponse)
+async def playlist_detail(playlist_id: str):
+    """Serve playlist detail page."""
+    try:
+        playlist_html = (WEB_DIR / "playlist.html").read_text()
+        return playlist_html
+    except Exception as e:
+        log.error(f"Failed to load playlist page: {e}")
+        return HTMLResponse("<h1>Error loading playlist</h1>", status_code=500)
 
 
 @app.get("/api/actions/status")
