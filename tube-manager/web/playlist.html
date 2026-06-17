@@ -13,10 +13,20 @@
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; }
         ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-        .video-row { @apply border-t border-[#2a2f3a] py-2 px-3 transition-colors; }
-        .video-row:hover { @apply bg-[#20242c]; }
-        .video-row.selected { @apply bg-blue-600/20; }
-        input[type="checkbox"]:checked + .video-checkbox { @apply bg-blue-600 border-blue-600; }
+        .video-row { border-top: 1px solid #2a2f3a; padding: 8px 12px; transition: background-color 0.2s; }
+        .video-row:hover { background-color: #20242c; }
+        .video-row.selected { background-color: rgba(59, 130, 246, 0.2); }
+        
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateX(100%); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slide-out {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100%); }
+        }
+        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        .animate-slide-out { animation: slide-out 0.3s ease-in; }
     </style>
     <link rel="stylesheet" href="/static/ux-enhancements.css">
     <script src="/static/ux-enhancements.js"></script>
@@ -27,12 +37,10 @@
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4">
             <button onclick="window.location.href='/playlists'" class="text-gray-400 hover:text-white"><i class="fa-solid fa-arrow-left"></i></button>
-            <div><h1 class="text-sm font-bold tracking-wide text-white leading-tight" id="playlist-title">Loading...</h1><p class="text-[10px] text-gray-400" id="playlist-meta">-- videos • --</p></div>
+            <div><h1 class="text-sm font-bold tracking-wide text-white leading-tight" id="playlist-title">Loading...</h1><p class="text-[10px] text-gray-400" id="playlist-meta">-- videos</p></div>
         </div>
         <div class="flex items-center gap-2">
             <button onclick="moveSelectedVideos()" id="move-btn" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 hidden"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Move Selected</button>
-            <button onclick="scanForDuplicates()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5"><i class="fa-solid fa-copy"></i> Scan for Duplicates</button>
-            <button onclick="scanForMisplaced()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5"><i class="fa-solid fa-rectangle-history-circle-question"></i> Scan Misplaced</button>
         </div>
     </header>
     <div class="flex flex-1 overflow-hidden">
@@ -42,7 +50,44 @@
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
         </aside>
         <main class="flex-1 overflow-y-auto p-4 bg-[#121419]">
-            <div class="flex flex-col gap-2 min-w-[800px]">
+            <div class="flex flex-col gap-3 min-w-[800px]">
+                
+                <!-- Operations Panel (Scan Buttons and Results Box) -->
+                <div class="bento-card p-4 flex flex-col gap-3 shrink-0">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xs font-semibold text-white">Diagnostic Operations</h3>
+                            <p class="text-[10px] text-gray-400">Scan this playlist for duplicates and misplaced videos based on your channel mapping rules.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="scanForDuplicates()" id="btn-scan-dup" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-copy text-blue-400"></i> Scan Duplicates</button>
+                            <button onclick="scanForMisplaced()" id="btn-scan-mis" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-triangle-exclamation text-yellow-500"></i> Scan Misplaced</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Scan Results Box (hidden initially) -->
+                    <div id="scan-results-box" class="hidden border border-[#2a2f3a] bg-[#16191f] rounded-lg p-3">
+                        <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-[#2a2f3a]">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-blue-400"></i> Scan Diagnostic Results</span>
+                                <span id="scan-results-summary" class="text-[9px] text-gray-400 px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>
+                                <select id="scan-filter" onchange="filterScanResults()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2.5 py-1 outline-none font-semibold cursor-pointer">
+                                    <option value="all">All Issues</option>
+                                    <option value="duplicates">Duplicates only</option>
+                                    <option value="misplaced">Misplaced only</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="scan-results-list" class="space-y-1.5 max-h-48 overflow-y-auto font-mono text-[11px] text-gray-300">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Videos List Container -->
                 <div class="bento-card p-0" id="videos-container">
                     <div class="text-center p-8 text-gray-400"><i class="fa-solid fa-spinner fa-spin"></i> Loading videos...</div>
                 </div>
@@ -50,10 +95,47 @@
         </main>
     </div>
     <script>
+        // Toast notification system
+        function toast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container') || createToastContainer();
+            const toast = document.createElement('div');
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-times-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+            const colors = {
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                warning: 'bg-yellow-600',
+                info: 'bg-blue-600'
+            };
+            toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('animate-slide-out');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        function createToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
+            document.body.appendChild(container);
+            return container;
+        }
+
         let allVideos = [];
         let selectedVideos = new Set();
         let playlistId = window.location.pathname.split('/').pop();
         let allPlaylists = [];
+        let currentScanResults = {
+            duplicates: [],
+            misplaced: []
+        };
 
         function formatDuration(seconds) {
             seconds = parseInt(seconds) || 0;
@@ -149,50 +231,145 @@
                 toast(`Moved ${videoIds.length} videos`, 'success');
                 selectedVideos.clear();
                 updateMoveButton();
+                loadPlaylist();
             } catch (e) {
                 toast('Failed to move videos', 'error');
             }
         }
 
         async function scanForDuplicates() {
+            const btn = document.getElementById('btn-scan-dup');
+            const origHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> Scanning...';
+            
             toast('Scanning for duplicates...', 'info');
             try {
-                const resp = await fetch(`/api/youtube/duplicates?playlist_id=${playlistId}`);
-                const result = await resp.json();
-                showScanResults('duplicates', result);
-                toast(`Scan complete - ${result.duplicates || 0} duplicates found`, 'success');
+                // Client-side detection over allVideos
+                const counts = {};
+                allVideos.forEach(v => {
+                    counts[v.video_id] = (counts[v.video_id] || 0) + 1;
+                });
+                
+                currentScanResults.duplicates = [];
+                allVideos.forEach(v => {
+                    if (counts[v.video_id] > 1) {
+                        currentScanResults.duplicates.push({
+                            video_id: v.video_id,
+                            title: v.title,
+                            channel: v.channel_title,
+                            reason: `Duplicate entry (${counts[v.video_id]} occurrences)`,
+                            type: 'duplicate'
+                        });
+                    }
+                });
+                
+                // Deduplicate items in list by video_id
+                const uniqueDups = [];
+                const addedIds = new Set();
+                currentScanResults.duplicates.forEach(item => {
+                    if (!addedIds.has(item.video_id)) {
+                        addedIds.add(item.video_id);
+                        uniqueDups.push(item);
+                    }
+                });
+                currentScanResults.duplicates = uniqueDups;
+                
+                toast(`Scan complete - ${currentScanResults.duplicates.length} duplicate videos found`, 'success');
+                showScanBox('duplicates');
             } catch (e) {
                 toast('Scan failed', 'error');
+                console.error(e);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origHTML;
             }
         }
 
         async function scanForMisplaced() {
+            const btn = document.getElementById('btn-scan-mis');
+            const origHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-yellow-500"></i> Scanning...';
+            
             toast('Scanning for misplaced videos...', 'info');
             try {
                 const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
+                if (!resp.ok) throw new Error('API failed');
                 const result = await resp.json();
-                showScanResults('misplaced', result);
-                toast(`Scan complete - ${result.misplaced?.length || 0} misplaced found`, 'success');
+                
+                currentScanResults.misplaced = (result.misplaced || []).map(v => ({
+                    video_id: v.video_id,
+                    title: v.title,
+                    channel: v.channel || '',
+                    reason: v.reason || 'Misplaced channel',
+                    type: 'misplaced'
+                }));
+                
+                toast(`Scan complete - ${currentScanResults.misplaced.length} misplaced videos found`, 'success');
+                showScanBox('misplaced');
             } catch (e) {
                 toast('Scan failed', 'error');
+                console.error(e);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origHTML;
             }
         }
 
-        function showScanResults(type, result) {
-            const container = document.getElementById('videos-container');
-            const resultsDiv = document.createElement('div');
-            resultsDiv.id = 'scan-results';
-            resultsDiv.className = 'border-t border-blue-500/30 p-3';
-            if (type === 'duplicates' && result.duplicates > 0) {
-                resultsDiv.innerHTML = `<div class="text-[10px] text-white mb-2">Found ${result.duplicates} duplicates:</div>`;
-            } else if (type === 'misplaced' && result.misplaced && result.misplaced.length > 0) {
-                resultsDiv.innerHTML = `<div class="text-[10px] text-white mb-2">Misplaced videos:</div><div class="text-[10px] text-gray-400">${result.misplaced.map(v => `<div>${v.title}</div>`).join('')}</div>`;
-            } else {
-                resultsDiv.innerHTML = `<div class="text-[10px] text-gray-400">No ${type} found.</div>`;
+        function showScanBox(defaultFilter) {
+            const box = document.getElementById('scan-results-box');
+            box.classList.remove('hidden');
+            
+            const filterSelect = document.getElementById('scan-filter');
+            filterSelect.value = defaultFilter || 'all';
+            
+            updateScanSummary();
+            filterScanResults();
+        }
+
+        function updateScanSummary() {
+            const summary = document.getElementById('scan-results-summary');
+            const dupCount = currentScanResults.duplicates.length;
+            const misCount = currentScanResults.misplaced.length;
+            summary.textContent = `${dupCount} Duplicates • ${misCount} Misplaced`;
+        }
+
+        function filterScanResults() {
+            const filterValue = document.getElementById('scan-filter').value;
+            const listEl = document.getElementById('scan-results-list');
+            
+            let displayList = [];
+            if (filterValue === 'all') {
+                displayList = [...currentScanResults.duplicates, ...currentScanResults.misplaced];
+            } else if (filterValue === 'duplicates') {
+                displayList = currentScanResults.duplicates;
+            } else if (filterValue === 'misplaced') {
+                displayList = currentScanResults.misplaced;
             }
-            const existing = document.getElementById('scan-results');
-            if (existing) existing.remove();
-            container.appendChild(resultsDiv);
+            
+            if (displayList.length === 0) {
+                listEl.innerHTML = `<div class="text-center py-4 text-gray-500 text-[10px]">No ${filterValue === 'all' ? 'issues' : filterValue} detected.</div>`;
+                return;
+            }
+            
+            listEl.innerHTML = displayList.map(item => {
+                const isDup = item.type === 'duplicate';
+                const badgeColor = isDup ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+                const badgeLabel = isDup ? 'DUPLICATE' : 'MISPLACED';
+                const icon = isDup ? 'fa-copy' : 'fa-triangle-exclamation';
+                
+                return `
+                    <div class="flex items-start gap-3 p-2 bg-[#1a1d24] border border-[#2a2f3a] rounded-lg">
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${badgeColor}"><i class="fa-solid ${icon} mr-1"></i>${badgeLabel}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-white truncate text-[11px]">${item.title}</div>
+                            <div class="text-[10px] text-gray-400 truncate">${item.channel ? item.channel + ' • ' : ''}ID: ${item.video_id}</div>
+                            <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-blue-400' : 'bg-yellow-500'}"></span><span>Reason: ${item.reason}</span></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         document.addEventListener('DOMContentLoaded', loadPlaylist);
