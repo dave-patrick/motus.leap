@@ -157,12 +157,10 @@
         async function scanForDuplicates() {
             toast('Scanning for duplicates...', 'info');
             try {
-                const resp = await fetch('/api/action', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'scan_duplicates', payload: {playlist_id: playlistId}})
-                });
-                toast('Scan complete - check logs for results', 'success');
+                const resp = await fetch(`/api/youtube/duplicates?playlist_id=${playlistId}`);
+                const result = await resp.json();
+                showScanResults('duplicates', result);
+                toast(`Scan complete - ${result.duplicates || 0} duplicates found`, 'success');
             } catch (e) {
                 toast('Scan failed', 'error');
             }
@@ -171,15 +169,30 @@
         async function scanForMisplaced() {
             toast('Scanning for misplaced videos...', 'info');
             try {
-                const resp = await fetch('/api/action', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'scan_misplaced', payload: {playlist_id: playlistId}})
-                });
-                toast('Scan complete - check logs for results', 'success');
+                const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
+                const result = await resp.json();
+                showScanResults('misplaced', result);
+                toast(`Scan complete - ${result.misplaced?.length || 0} misplaced found`, 'success');
             } catch (e) {
                 toast('Scan failed', 'error');
             }
+        }
+
+        function showScanResults(type, result) {
+            const container = document.getElementById('videos-container');
+            const resultsDiv = document.createElement('div');
+            resultsDiv.id = 'scan-results';
+            resultsDiv.className = 'border-t border-blue-500/30 p-3';
+            if (type === 'duplicates' && result.duplicates > 0) {
+                resultsDiv.innerHTML = `<div class="text-[10px] text-white mb-2">Found ${result.duplicates} duplicates:</div>`;
+            } else if (type === 'misplaced' && result.misplaced && result.misplaced.length > 0) {
+                resultsDiv.innerHTML = `<div class="text-[10px] text-white mb-2">Misplaced videos:</div><div class="text-[10px] text-gray-400">${result.misplaced.map(v => `<div>${v.title}</div>`).join('')}</div>`;
+            } else {
+                resultsDiv.innerHTML = `<div class="text-[10px] text-gray-400">No ${type} found.</div>`;
+            }
+            const existing = document.getElementById('scan-results');
+            if (existing) existing.remove();
+            container.appendChild(resultsDiv);
         }
 
         document.addEventListener('DOMContentLoaded', loadPlaylist);

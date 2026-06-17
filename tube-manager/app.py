@@ -410,6 +410,41 @@ async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: b
     return result
 
 
+@app.get("/api/youtube/duplicates")
+async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
+    """Scan for duplicate videos in a playlist or all playlists."""
+    if not youtube_service:
+        return {"duplicates": 0, "error": "YouTube service not initialized"}
+    
+    videos = await youtube_service.get_videos(playlist_id=playlist_id)
+    video_ids = [v.get("video_id") for v in videos.get("videos", [])]
+    duplicates = len(video_ids) - len(set(video_ids))
+    
+    return {"duplicates": duplicates, "total_videos": len(video_ids), "playlist_id": playlist_id}
+
+
+@app.get("/api/youtube/misplaced")
+async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
+    """Scan for misplaced videos based on channel mappings."""
+    if not youtube_service:
+        return {"misplaced": [], "error": "YouTube service not initialized"}
+    
+    config = config_manager.config
+    mappings = config.channel_mappings if hasattr(config, 'channel_mappings') else {}
+    
+    videos = await youtube_service.get_videos(playlist_id=playlist_id)
+    misplaced = []
+    for v in videos.get("videos", []):
+        video_playlist_id = v.get("playlist_id")
+        if video_playlist_id and video_playlist_id in mappings:
+            expected_channel = mappings[video_playlist_id]
+            video_channel = v.get("channel_title", "")
+            if expected_channel and video_channel and expected_channel not in video_channel:
+                misplaced.append({"video_id": v.get("video_id"), "title": v.get("title"), "reason": f"Expected channel: {expected_channel}"})
+    
+    return {"misplaced": misplaced, "count": len(misplaced)}
+
+
 # Stats endpoint
 @app.get("/api/stats")
 async def stats() -> dict[str, Any]:
