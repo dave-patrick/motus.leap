@@ -29,6 +29,7 @@
     
     <link rel="stylesheet" href="/static/ux-enhancements.css">
     <script src="/static/ux-enhancements.js"></script>
+    <script src="/static/auth-check.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 </head>
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
@@ -149,39 +150,28 @@
     </div>
 
     <script>
-        // Auto-renew token on dashboard load to keep user logged in
-        (async function renewSession() {
+        // Refresh token on dashboard load. Auth redirect is handled by auth-check.js
+        // in the <head>, so this function only issues a new 7-day token when possible.
+        (async function refreshSessionToken() {
             const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/auth';
-                return;
-            }
+            if (!token) return;
             try {
                 const resp = await fetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
                 });
-                if (resp.ok) {
-                    // Token still valid — issue a fresh 7-day token
-                    const refreshResp = await fetch('/api/auth/refresh', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-                    });
-                    if (refreshResp.ok) {
-                        const data = await refreshResp.json();
-                        localStorage.setItem('token', data.access_token);
-                        localStorage.setItem('user', JSON.stringify(data.user));
-                        document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
-                    }
-                } else {
-                    // Token invalid — redirect to login
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    document.cookie = 'token=; path=/; max-age=0';
-                    window.location.href = '/auth';
+                if (!resp.ok) return;  // auth-check.js will handle redirect if needed
+                const refreshResp = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+                });
+                if (refreshResp.ok) {
+                    const data = await refreshResp.json();
+                    localStorage.setItem('token', data.access_token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
                 }
             } catch (e) {
-                // Network error — stay on page but log
-                console.warn('Session renewal failed:', e);
+                console.warn('Token refresh failed:', e);
             }
         })();
 
