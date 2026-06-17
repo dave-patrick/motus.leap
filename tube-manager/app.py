@@ -511,7 +511,7 @@ async def api_maintenance() -> dict[str, Any]:
         "move_from_x_to_y": [],
         "duplicated_videos": [],
         "misplaced_videos": [],
-        "info": "Maintenance analysis requires full video scan. Run Full Playlists Scan first."
+        "info": "Maintenance analysis requires full video scan. Run Full Playlist Sync first."
     }
 
 
