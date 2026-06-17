@@ -2,6 +2,7 @@
 # Deploy v2.1
 
 import asyncio
+from datetime import datetime
 import json
 import logging
 import hashlib
@@ -330,6 +331,16 @@ async def full_cluster_scan(payload):
                 break
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"}))
         
+        # Real duplicate and misplaced detection
+        video_to_playlists = {} # video_id -> list of (playlist_id, playlist_title)
+        video_titles = {} # video_id -> video_title
+        misplaced_videos = []
+        
+        # Load mappings from config
+        config = config_manager.config
+        mappings = config.channel_mappings if hasattr(config, 'channel_mappings') else {}
+        playlist_titles = {pl.get("id"): pl.get("snippet", {}).get("title", pl.get("id")) for pl in playlists}
+        
         total_videos = 0
         for pl in playlists:
             pl_id = pl.get("id")
@@ -337,11 +348,70 @@ async def full_cluster_scan(payload):
             items_resp = client.list_videos(pl_id, max_results=50)
             items = items_resp.get("items", [])
             total_videos += len(items)
+            
+            for item in items:
+                video_id = item.get("contentDetails", {}).get("videoId")
+                video_title = item.get("snippet", {}).get("title", "Untitled")
+                if video_id:
+                    video_titles[video_id] = video_title
+                    video_to_playlists.setdefault(video_id, []).append((pl_id, pl_title))
+                    
+                    # Misplaced video check
+                    owner_channel_id = item.get("snippet", {}).get("videoOwnerChannelId")
+                    if owner_channel_id and owner_channel_id in mappings:
+                        mapped_playlist_id = mappings[owner_channel_id]
+                        if mapped_playlist_id and pl_id != mapped_playlist_id:
+                            mapped_pl_title = playlist_titles.get(mapped_playlist_id, mapped_playlist_id)
+                            misplaced_videos.append({
+                                "video_id": video_id,
+                                "video_title": video_title,
+                                "current_playlist_id": pl_id,
+                                "current_playlist_title": pl_title,
+                                "mapped_playlist_id": mapped_playlist_id,
+                                "mapped_playlist_title": mapped_pl_title
+                            })
+            
             await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
             await asyncio.sleep(0.1)
         
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."}))
         await asyncio.sleep(1)
+        
+        # Filter duplicates
+        duplicated_videos = []
+        for video_id, pls in video_to_playlists.items():
+            if len(pls) > 1:
+                duplicated_videos.append({
+                    "video_id": video_id,
+                    "video_title": video_titles[video_id],
+                    "playlists": [{"id": p[0], "title": p[1]} for p in pls]
+                })
+                
+        # Build move suggestions
+        move_suggestions = []
+        for mv in misplaced_videos:
+            move_suggestions.append({
+                "video_id": mv["video_id"],
+                "video_title": mv["video_title"],
+                "source_playlist_id": mv["current_playlist_id"],
+                "source_playlist_title": mv["current_playlist_title"],
+                "target_playlist_id": mv["mapped_playlist_id"],
+                "target_playlist_title": mv["mapped_playlist_title"]
+            })
+            
+        # Save maintenance analysis
+        maintenance_data = {
+            "move_from_x_to_y": move_suggestions,
+            "duplicated_videos": duplicated_videos,
+            "misplaced_videos": misplaced_videos,
+            "info": f"Analysis complete on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}. Found {len(duplicated_videos)} duplicates and {len(misplaced_videos)} misplaced videos."
+        }
+        maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
+        try:
+            maintenance_file.parent.mkdir(parents=True, exist_ok=True)
+            maintenance_file.write_text(json.dumps(maintenance_data, indent=2))
+        except Exception as e:
+            log.error(f"Failed to save maintenance data: {e}")
         
         # Real scan statistics (no fake clustering)
         await manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Building scan statistics..."}))
@@ -861,6 +931,12 @@ async def api_subscriptions() -> dict[str, Any]:
 @app.get("/api/maintenance")
 async def api_maintenance() -> dict[str, Any]:
     """Get maintenance data."""
+    maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
+    if maintenance_file.exists():
+        try:
+            return json.loads(maintenance_file.read_text())
+        except Exception:
+            pass
     return {
         "move_from_x_to_y": [],
         "duplicated_videos": [],
