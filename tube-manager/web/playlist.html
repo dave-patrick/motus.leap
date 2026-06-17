@@ -317,7 +317,7 @@ async function rescanPlaylist() {
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> Scanning...';
             
-            toast('Scanning for duplicates...', 'info');
+            toast(`Scanning ${allVideos.length} videos for duplicates...`, 'info');
             try {
                 // Client-side detection over allVideos
                 const counts = {};
@@ -366,7 +366,7 @@ async function rescanPlaylist() {
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-yellow-500"></i> Scanning...';
             
-            toast('Scanning for misplaced videos...', 'info');
+            toast(`Scanning ${allVideos.length} videos for misplacements...`, 'info');
             try {
                 const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
                 if (!resp.ok) throw new Error('API failed');
