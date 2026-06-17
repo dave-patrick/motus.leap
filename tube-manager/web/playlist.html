@@ -56,7 +56,7 @@
                 <div class="bento-card p-4 flex flex-col gap-3 shrink-0">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h3 class="text-xs font-semibold text-white">Diagnostic Operations</h3>
+                            <h3 class="text-xs font-semibold text-white">Scan Playlist</h3>
                             <p class="text-[10px] text-gray-400">Scan this playlist for duplicates and misplaced videos based on your channel mapping rules.</p>
                         </div>
                         <div class="flex gap-2">
@@ -69,7 +69,7 @@
                     <div id="scan-results-box" class="hidden border border-[#2a2f3a] bg-[#16191f] rounded-lg p-3">
                         <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-[#2a2f3a]">
                             <div class="flex items-center gap-2">
-                                <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-blue-400"></i> Scan Diagnostic Results</span>
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-blue-400"></i> Scan Results</span>
                                 <span id="scan-results-summary" class="text-[9px] text-gray-400 px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
                             </div>
                             <div class="flex items-center gap-2">
@@ -147,14 +147,47 @@
 
         async function loadPlaylist() {
             try {
+                // 1. Load playlists list to get metadata (title & privacy)
+                const plistResp = await fetch('/api/playlists');
+                if (plistResp.ok) {
+                    const plistData = await plistResp.json();
+                    allPlaylists = plistData.playlists || [];
+                    
+                    const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
+                    if (currentPlaylist) {
+                        document.getElementById('playlist-title').textContent = currentPlaylist.title;
+                        
+                        const privacy = currentPlaylist.privacy || 'private';
+                        const badgeColor = privacy === 'public' ? 'bg-green-600/20 text-green-400 border-green-600/30' : 
+                                           privacy === 'unlisted' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' : 
+                                           'bg-gray-600/20 text-gray-400 border-gray-600/30';
+                        
+                        document.getElementById('playlist-meta').innerHTML = `
+                            loading... • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacy}</span>
+                        `;
+                    }
+                }
+                
+                // 2. Load the videos inside this playlist
                 const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}`);
                 const data = await resp.json();
                 allVideos = data.videos || [];
-                document.getElementById('playlist-title').textContent = allVideos[0]?.playlist_title || 'Unknown Playlist';
-                document.getElementById('playlist-meta').textContent = `${allVideos.length} videos`;
+                
+                // 3. Update metadata count text with real values
+                const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
+                const privacyBadge = currentPlaylist ? (currentPlaylist.privacy || 'private') : 'private';
+                const badgeColor = privacyBadge === 'public' ? 'bg-green-600/20 text-green-400 border-green-600/30' : 
+                                   privacyBadge === 'unlisted' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' : 
+                                   'bg-gray-600/20 text-gray-400 border-gray-600/30';
+                
+                document.getElementById('playlist-meta').innerHTML = `
+                    ${allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacyBadge}</span>
+                `;
+                
                 renderVideos();
             } catch (e) {
-                document.getElementById('videos-container').innerHTML = '<div class="text-center p-8 text-red-400">Failed to load videos</div>';
+                console.error(e);
+                document.getElementById('videos-container').innerHTML = '<div class="text-center p-8 text-red-400">Failed to load playlist</div>';
             }
         }
 
@@ -187,28 +220,11 @@
             loadPlaylistsDropdown();
         }
 
-        async function loadPlaylistsDropdown() {
-            try {
-                const resp = await fetch('/api/playlists');
-                const data = await resp.json();
-                allPlaylists = data.playlists || [];
-                const select = document.getElementById('target-playlist');
+        function loadPlaylistsDropdown() {
+            const select = document.getElementById('target-playlist');
+            if (select) {
                 select.innerHTML = '<option value="">Select target playlist...</option>' + 
                     allPlaylists.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
-                
-                // Display playlist privacy status on the page
-                const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
-                if (currentPlaylist) {
-                    const privacy = currentPlaylist.privacy || 'private';
-                    const badgeColor = privacy === 'public' ? 'bg-green-600/20 text-green-400 border-green-600/30' : 
-                                       privacy === 'unlisted' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' : 
-                                       'bg-gray-600/20 text-gray-400 border-gray-600/30';
-                    document.getElementById('playlist-meta').innerHTML = `
-                        ${allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacy}</span>
-                    `;
-                }
-            } catch (e) {
-                console.error('Failed to load playlists');
             }
         }
 
