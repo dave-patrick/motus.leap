@@ -368,7 +368,7 @@
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `tube-manager-${type}-${Date.now()}.${format}`;
+            a.download = `motus-leap-${type}-${Date.now()}.${format}`;
             a.click();
             window.URL.revokeObjectURL(url);
         }
