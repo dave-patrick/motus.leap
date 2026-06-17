@@ -570,15 +570,10 @@ async def trigger_action(request: Request, body: ActionIn):
 
 
 # Playlist detail page
-@app.get("/playlist/{playlist_id}", response_class=HTMLResponse)
+@app.get("/playlist/{playlist_id}")
 async def playlist_detail(playlist_id: str):
     """Serve playlist detail page."""
-    try:
-        playlist_html = (WEB_DIR / "playlist.html").read_text()
-        return playlist_html
-    except Exception as e:
-        log.error(f"Failed to load playlist page: {e}")
-        return HTMLResponse("<h1>Error loading playlist</h1>", status_code=500)
+    return await no_cache_file_response(WEB_DIR / "playlist.html")
 
 
 @app.get("/api/actions/status")
