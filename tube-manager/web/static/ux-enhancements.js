@@ -1088,7 +1088,7 @@ async function loadPageContent(url) {
         const doc = parser.parseFromString(html, 'text/html');
         
         // 1. Update document title
-        document.title = doc.title || 'Tube Manager';
+        document.title = doc.title || 'motus.leap';
         
         // 2. Update main section
         const newMain = doc.querySelector('main');
