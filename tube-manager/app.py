@@ -889,6 +889,7 @@ async def stats() -> dict[str, Any]:
     # Calculate real stats from config
     ai_learning_active = getattr(config, 'ai_learning_enabled', False)
     channel_mappings_count = len(config.channel_mappings) if hasattr(config, 'channel_mappings') else 0
+    total_subscriptions = yt_stats.get("total_subscriptions", 0)
 
     # Get real cache stats
     cache_hit_rate = "N/A"
@@ -902,7 +903,7 @@ async def stats() -> dict[str, Any]:
         "running_tasks": 1 if current_task_name else 0,
         "current_task": current_task_name,
         "ai_learning": ai_learning_active,
-        "learning_rate": f"{channel_mappings_count / max(channel_mappings_count, 1) * 100:.1f}%" if channel_mappings_count > 0 else "0%",
+        "learning_rate": f"{(channel_mappings_count / max(total_subscriptions, 1) * 100):.1f}%" if total_subscriptions > 0 else "0%",
         "learning_rates": str(channel_mappings_count),
         "cache_hit_rate": cache_hit_rate,
         "last_scan": config.last_scan_time if hasattr(config, 'last_scan_time') else "Never",
