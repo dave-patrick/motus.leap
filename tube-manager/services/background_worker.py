@@ -74,8 +74,6 @@ class BackgroundWorker:
                 # Process different actions
                 if action == "full_cluster_scan":
                     await self.full_cluster_scan(payload)
-                elif action == "force_auto_sort":
-                    await self.force_auto_sort(payload)
                 elif action == "watch_later_sync":
                     await self.watch_later_sync(payload)
                 elif action == "diagnose_failures":
@@ -237,58 +235,6 @@ class BackgroundWorker:
             except Exception as t_err:
                 log.error(f"Error formatting traceback: {t_err}")
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Scan failed: {error_details}"}))
-
-    async def force_auto_sort(self, payload):
-        """Force auto-sort of playlists."""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SORT] Forcing Auto-Sort All playlists..."}))
-        
-        client = self.youtube_service.get_client(require_oauth=True) if self.youtube_service else None
-        if not client:
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] OAuth required for write operations. Connect YouTube in Settings."}))
-            return
-        
-        try:
-            config = self.config_manager.config
-            mappings = config.channel_mappings
-            if not mappings:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SORT] No channel mappings configured. Add mappings in Rules page."}))
-                return
-            
-            # Get all playlists
-            playlists = await self.youtube_service.list_playlists() if self.youtube_service else []
-            all_videos = []
-            
-            # Fetch all videos from all playlists
-            for pl in playlists.get("playlists", []):
-                pl_videos = await self.youtube_service.get_videos(playlist_id=pl.get("id"))
-                for v in pl_videos.get("videos", []):
-                    v["_playlist_id"] = pl.get("id")
-                    all_videos.append(v)
-            
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SORT] Fetched {len(all_videos)} videos across all playlists"}))
-            
-            # Find and move misplaced videos
-            moved = []
-            for v in all_videos:
-                video_channel_id = v.get("channel_id")
-                current_playlist = v.get("_playlist_id")
-                if video_channel_id and current_playlist:
-                    target = mappings.get(video_channel_id)
-                    if target and target != current_playlist:
-                        try:
-                            client.move_video_to_playlist(v.get("video_id"), target)
-                            # Note: Would need playlist_item_id to remove - skipping for safety
-                            moved.append({"video_id": v.get("video_id"), "to": target})
-                        except Exception as e:
-                            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {v.get('video_id')}: {e}"}))
-            
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SORT] Moved {len(moved)} video(s) to correct playlists"}))
-            for m in moved[:20]:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SORT] {m['video_id']} -> {m['to']}"}))
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SORT] Complete"}))
-            
-        except Exception as e:
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Sort failed: {str(e)}"}))
 
     async def watch_later_sync(self, payload):
         """Sync Watch Later playlist."""
