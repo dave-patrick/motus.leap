@@ -195,6 +195,18 @@
                 const select = document.getElementById('target-playlist');
                 select.innerHTML = '<option value="">Select target playlist...</option>' + 
                     allPlaylists.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
+                
+                // Display playlist privacy status on the page
+                const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
+                if (currentPlaylist) {
+                    const privacy = currentPlaylist.privacy || 'private';
+                    const badgeColor = privacy === 'public' ? 'bg-green-600/20 text-green-400 border-green-600/30' : 
+                                       privacy === 'unlisted' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' : 
+                                       'bg-gray-600/20 text-gray-400 border-gray-600/30';
+                    document.getElementById('playlist-meta').innerHTML = `
+                        ${allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacy}</span>
+                    `;
+                }
             } catch (e) {
                 console.error('Failed to load playlists');
             }
