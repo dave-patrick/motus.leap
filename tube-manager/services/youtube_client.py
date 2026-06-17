@@ -132,7 +132,10 @@ class YouTubeClient:
             if self._ensure_oauth_client():
                 return self._youtube_oauth
             return None
-        return self._youtube or (self._ensure_oauth_client() and self._youtube_oauth)
+        # Prefer OAuth client if authenticated; fall back to API Key client
+        if self._ensure_oauth_client():
+            return self._youtube_oauth
+        return self._youtube
 
     def _oauth_request(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any]:
         """Make an OAuth-authenticated request to the YouTube Data API via httpx.
