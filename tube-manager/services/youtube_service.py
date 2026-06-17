@@ -151,6 +151,8 @@ class YouTubeService:
         duration_str = content.get("duration", "PT0S")
         duration_seconds = self._parse_duration(duration_str)
         return {
+            "id": item.get("id", ""),
+            "playlist_item_id": item.get("id", ""),
             "video_id": content.get("videoId", ""),
             "title": snippet.get("title", "Unknown"),
             "description": snippet.get("description", "")[:200],

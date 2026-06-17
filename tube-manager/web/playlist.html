@@ -97,6 +97,9 @@
                                 <span id="scan-results-summary" class="text-[9px] text-gray-400 px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
                             </div>
                             <div class="flex items-center gap-2">
+                                <button id="delete-duplicates-btn" onclick="deleteDuplicateItems()" class="hidden bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
+                                    <i class="fa-solid fa-trash-can"></i> Delete Duplicates
+                                </button>
                                 <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>
                                 <select id="scan-filter" onchange="filterScanResults()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2.5 py-1 outline-none font-semibold cursor-pointer">
                                     <option value="all">All Issues</option>
@@ -357,36 +360,38 @@
             toast(`Scanning ${allVideos.length} videos for duplicates...`, 'info');
             try {
                 // Client-side detection over allVideos
-                const counts = {};
+                const videoIdToItems = {};
                 allVideos.forEach(v => {
-                    counts[v.video_id] = (counts[v.video_id] || 0) + 1;
+                    if (!videoIdToItems[v.video_id]) {
+                        videoIdToItems[v.video_id] = [];
+                    }
+                    videoIdToItems[v.video_id].push({
+                        playlist_item_id: v.playlist_item_id,
+                        title: v.title,
+                        channel: v.channel_title
+                    });
                 });
-                
+
                 currentScanResults.duplicates = [];
-                allVideos.forEach(v => {
-                    if (counts[v.video_id] > 1) {
-                        currentScanResults.duplicates.push({
-                            video_id: v.video_id,
-                            title: v.title,
-                            channel: v.channel_title,
-                            reason: `Duplicate entry (${counts[v.video_id]} occurrences)`,
-                            type: 'duplicate'
+                for (const video_id in videoIdToItems) {
+                    const items = videoIdToItems[video_id];
+                    if (items.length > 1) {
+                        // All items except the first one are considered duplicates to be deleted.
+                        const itemsToDelete = items.slice(1);
+                        itemsToDelete.forEach(item => {
+                            currentScanResults.duplicates.push({
+                                video_id: video_id,
+                                playlist_item_id: item.playlist_item_id,
+                                title: item.title,
+                                channel: item.channel,
+                                reason: `Duplicate entry (${items.length} occurrences)`,
+                                type: 'duplicate'
+                            });
                         });
                     }
-                });
+                }
                 
-                // Deduplicate items in list by video_id
-                const uniqueDups = [];
-                const addedIds = new Set();
-                currentScanResults.duplicates.forEach(item => {
-                    if (!addedIds.has(item.video_id)) {
-                        addedIds.add(item.video_id);
-                        uniqueDups.push(item);
-                    }
-                });
-                currentScanResults.duplicates = uniqueDups;
-                
-                toast(`Scan complete - ${currentScanResults.duplicates.length} duplicate videos found`, 'success');
+                toast(`Scan complete - ${currentScanResults.duplicates.length} duplicate items found`, 'success');
                 showScanBox('duplicates');
             } catch (e) {
                 toast('Scan failed', 'error');
@@ -437,6 +442,12 @@
             
             updateScanSummary();
             filterScanResults();
+
+            // Show/hide the delete duplicates button
+            const deleteBtn = document.getElementById('delete-duplicates-btn');
+            if (deleteBtn) {
+                deleteBtn.classList.toggle('hidden', currentScanResults.duplicates.length === 0);
+            }
         }
 
         function updateScanSummary() {
