@@ -164,6 +164,33 @@
             return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
         }
 
+const activityLog = document.getElementById('activity-log');
+
+async function rescanPlaylist() {
+    activityLog.textContent = 'Rescanning playlist...';
+    const btn = document.getElementById('rescan-playlist-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Rescanning...';
+    }
+    try {
+        const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
+        const data = await resp.json();
+        allVideos = data.videos || [];
+        document.getElementById('playlist-meta').innerHTML = `${allVideos.length} videos`;
+        renderVideos();
+        activityLog.textContent = 'Rescan complete.';
+    } catch (e) {
+        console.error(e);
+        activityLog.textContent = 'Rescan failed.';
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-arrows-rotate text-blue-400"></i> Rescan Playlist';
+        }
+    }
+}
+
         async function loadPlaylist() {
             try {
                 // 1. Load playlists list to get metadata (title & privacy)
