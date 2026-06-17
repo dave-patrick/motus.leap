@@ -222,7 +222,17 @@ class BackgroundWorker:
             
             await self.manager.broadcast(json.dumps({"type": "log", "message": "[LEARN] Processing statistics..."}))
             await asyncio.sleep(1)
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Complete • {total_videos} videos analyzed • Next auto-scan: 1 hour"}))
+            
+            # Populate the persistent cache so subsequent reads don't hit the API
+            if self.youtube_service:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[CACHE] Updating local data cache..."}))
+                try:
+                    await self.youtube_service.fetch_all_data(force_refresh=True)
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[CACHE] Local cache updated. All reads will use cached data."}))
+                except Exception as cache_err:
+                    log.warning(f"Failed to update cache after scan: {cache_err}")
+            
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Complete • {total_videos} videos analyzed • Cache updated • Next auto-scan: 1 hour"}))
             
         except Exception as e:
             error_details = f"{type(e).__name__}: {str(e)}"
@@ -454,10 +464,37 @@ class BackgroundWorker:
         await self.manager.broadcast(json.dumps({"type": "log", "message": "[RULES] Complete"}))
 
     async def sync_playlists(self, payload):
-        """Sync playlists."""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Syncing playlists from YouTube..."}))
-        await asyncio.sleep(1)
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete"}))
+        """Sync all playlists and videos, then cache everything."""
+        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Starting full playlist sync from YouTube..."}))
+        await asyncio.sleep(0.5)
+        
+        if not self.youtube_service:
+            await self.manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] YouTube service not initialized."}))
+            return
+        
+        try:
+            # Use fetch_all_data which populates the persistent cache
+            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Fetching playlists, videos, and subscriptions..."}))
+            result = await self.youtube_service.fetch_all_data(force_refresh=True)
+            
+            if "error" in result:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Sync failed: {result['error']}"}))
+                return
+            
+            total_playlists = result.get("stats", {}).get("total_playlists", 0)
+            total_videos = result.get("stats", {}).get("total_videos", 0)
+            total_subs = result.get("stats", {}).get("total_subscriptions", 0)
+            
+            await self.manager.broadcast(json.dumps({
+                "type": "log",
+                "message": f"[SYNC] Successfully synchronized {total_playlists} playlists, {total_videos} videos, {total_subs} subscriptions. Cache updated."
+            }))
+            await asyncio.sleep(0.5)
+            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete • All data cached locally. No further API calls needed for reads."}))
+            
+        except Exception as e:
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Sync failed: {error_msg}"}))
 
     async def scan_duplicates(self, payload):
         """Scan playlist for duplicate videos."""

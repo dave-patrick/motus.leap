@@ -26,8 +26,8 @@ class YouTubeService:
         self._client: Optional[YouTubeClient] = None
         
         # LRU cache to avoid redundant API calls with eviction policy
-        self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(minutes=10))
-        self._cache_ttl = timedelta(minutes=10)
+        self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(hours=6))
+        self._cache_ttl = timedelta(hours=6)
         
         # User-specific storage path
         self._user_data_dir = Path("/app/data/users") / self._get_user_id()
