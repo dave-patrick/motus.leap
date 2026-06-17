@@ -54,7 +54,7 @@
                         <button onclick="openNewPlaylistModal()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> New Playlist</button>
                     </div>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4" id="playlists-grid">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" id="playlists-grid">
                     <div class="col-span-full bento-card p-8 text-center text-gray-400">Loading playlists...</div>
                 </div>
             </div>
@@ -111,19 +111,19 @@
                 }
                 
                 grid.innerHTML = allPlaylists.map(p => `
-                    <div class="bento-card p-4 flex flex-col">
-                        <div class="flex items-start justify-between mb-3">
-                            <div class="w-16 h-9 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
-                            <span class="text-[10px] px-2 py-1 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a]">${p.privacy || 'private'}</span>
-                        </div>
-                        <h3 class="text-sm font-semibold text-white truncate mb-1">${p.title}</h3>
-                        <p class="text-[10px] text-gray-400 mb-3">${p.video_count} videos • ${p.channel}</p>
-                        <div class="flex items-center gap-2 mt-auto pt-2 border-t border-[#2a2f3a]">
-                            <button onclick="openPlaylist('${p.id}')" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1.5 rounded transition-colors"><i class="fa-solid fa-external-link"></i> Open</button>
-                            <button onclick="managePlaylist('${p.id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded transition-colors"><i class="fa-solid fa-cog"></i> Manage</button>
-                        </div>
-                    </div>
-                `).join('');
+                                    <div class="bento-card p-3 flex flex-col">
+                                        <div class="flex items-start justify-between mb-2">
+                                            <div class="w-12 h-7 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
+                                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a]">${p.privacy || 'private'}</span>
+                                        </div>
+                                        <h3 class="text-xs font-semibold text-white truncate mb-0.5">${p.title}</h3>
+                                        <p class="text-[9px] text-gray-400 mb-2">${p.video_count} videos • ${p.channel}</p>
+                                        <div class="flex items-center gap-1.5 mt-auto pt-1.5 border-t border-[#2a2f3a]">
+                                            <button onclick="openPlaylist('${p.id}')" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 rounded transition-colors"><i class="fa-solid fa-external-link text-[9px]"></i> Open</button>
+                                            <button onclick="managePlaylist('${p.id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded transition-colors"><i class="fa-solid fa-cog text-[9px]"></i> Manage</button>
+                                        </div>
+                                    </div>
+                                `).join('');
             } catch (e) {
                 grid.innerHTML = '<div class="col-span-full bento-card p-8 text-center text-red-400">Failed to load playlists</div>';
             }
@@ -169,24 +169,7 @@
         }
 
         function managePlaylist(playlistId) {
-            const playlist = allPlaylists.find(p => p.id === playlistId);
-            if (!playlist) return toast('Playlist not found', 'error');
-            const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50';
-            modal.innerHTML = `
-                <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-lg p-6 w-full max-w-md mx-4">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-bold text-white">Manage: ${playlist.title}</h3>
-                        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <div class="space-y-2">
-                        <button onclick="openPlaylist('${playlist.id}'); this.closest('.fixed').remove()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-external-link"></i> Open on YouTube</button>
-                        <button onclick="addVideoToPlaylist('${playlist.id}')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-plus"></i> Add Video</button>
-                        <button onclick="editPlaylist('${playlist.id}')" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-pen"></i> Edit Details</button>
-                        <button onclick="deletePlaylist('${playlist.id}')" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-trash"></i> Delete Playlist</button>
-                    </div>
-                </div>`;
-            document.body.appendChild(modal);
+            window.location.href = `/playlist/${playlistId}`;
         }
         
         // Create new playlist modal
