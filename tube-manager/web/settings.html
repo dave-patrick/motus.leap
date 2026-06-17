@@ -80,6 +80,15 @@
                         </div>
                     </div>
                     <div class="bento-card p-4">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-4">Diagnostics</h3>
+                        <div class="space-y-3">
+                            <button onclick="runDiagnose()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-stethoscope text-blue-400"></i> Diagnose Failures</button>
+                            <button onclick="runSurface()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-layer-group text-blue-400"></i> Surface diagnostics</button>
+                            <div id="diag-status" class="text-[10px] text-gray-400 text-center"></div>
+                            <div id="diag-log" class="bg-[#20242c] border border-[#2a2f3a] rounded p-3 h-48 overflow-y-auto font-mono text-[10px] text-gray-400"></div>
+                        </div>
+                    </div>
+                    <div class="bento-card p-4">
                         <h3 class="text-xs font-semibold text-gray-300 mb-4">General</h3>
                         <div class="space-y-4">
                             <div>
@@ -430,6 +439,67 @@
                 status.className = 'text-[10px] text-red-400 text-center mt-2';
             }
         });
+
+        async function runDiagnose() {
+            const log = document.getElementById('diag-log');
+            const status = document.getElementById('diag-status');
+            if (!log || !status) return;
+            log.textContent = '';
+            status.textContent = 'Running...';
+            status.className = 'text-[10px] text-yellow-300 text-center mt-2';
+            try {
+                const resp = await fetch('/api/action', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'diagnose_failures'})
+                });
+                const data = await resp.json();
+                appendLog(log, '[DIAG] Status: ' + (resp.ok ? 'OK' : 'Failed'));
+                if (data && typeof data === 'object') {
+                    appendLog(log, '[DIAG] Response: ' + JSON.stringify(data));
+                }
+                status.textContent = 'Complete';
+                status.className = 'text-[10px] text-green-400 text-center mt-2';
+            } catch (e) {
+                appendLog(log, '[DIAG ERROR] ' + (e && e.message ? e.message : String(e)));
+                status.textContent = 'Error';
+                status.className = 'text-[10px] text-red-400 text-center mt-2';
+            }
+        }
+
+        async function runSurface() {
+            const log = document.getElementById('diag-log');
+            const status = document.getElementById('diag-status');
+            if (!log || !status) return;
+            log.textContent = '';
+            status.textContent = 'Running...';
+            status.className = 'text-[10px] text-yellow-300 text-center mt-2';
+            try {
+                const resp = await fetch('/api/action', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'surface_diagnostics'})
+                });
+                const data = await resp.json();
+                appendLog(log, '[SURFACE] Status: ' + (resp.ok ? 'OK' : 'Failed'));
+                if (data && typeof data === 'object') {
+                    appendLog(log, '[SURFACE] Response: ' + JSON.stringify(data));
+                }
+                status.textContent = 'Complete';
+                status.className = 'text-[10px] text-green-400 text-center mt-2';
+            } catch (e) {
+                appendLog(log, '[SURFACE ERROR] ' + (e && e.message ? e.message : String(e)));
+                status.textContent = 'Error';
+                status.className = 'text-[10px] text-red-400 text-center mt-2';
+            }
+        }
+
+        function appendLog(el, text) {
+            const line = document.createElement('div');
+            line.textContent = text;
+            el.appendChild(line);
+            el.scrollTop = el.scrollHeight;
+        }
     </script>
 </body>
 </html>

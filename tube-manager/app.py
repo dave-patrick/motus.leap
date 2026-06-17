@@ -52,6 +52,12 @@ from slowapi.errors import RateLimitExceeded
 from api.bulk_operations import router as bulk_router
 from api.auth import router as auth_router
 
+# Injected dependencies for background worker
+config_manager = app.state.config_manager
+youtube_service_instance = None
+
+app.state.youtube_service = youtube_service
+
 # Core imports
 from core.http_client import shutdown_http_client
 from core.logger import setup_logging
