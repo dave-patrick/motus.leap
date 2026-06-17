@@ -1284,7 +1284,7 @@ async def test_webhook(body: dict):
     
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json={"test": True, "source": "tube-manager"})
+            resp = await client.post(url, json={"test": True, "source": "motus.leap"})
         return {"message": f"Webhook test sent. Status: {resp.status_code}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Webhook test failed: {str(e)}")
