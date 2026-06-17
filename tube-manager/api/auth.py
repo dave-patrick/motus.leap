@@ -32,7 +32,10 @@ log = logging.getLogger(__name__)
 # Persistent User Storage
 # =============================================================================
 
-USERS_DIR = Path(__file__).resolve().parent.parent / "data"
+# Use a directory that survives restarts on Render; project-root data/ is the
+# fallback for local development. Mount a Render disk at this path for persistence.
+TUBE_MANAGER_DATA_DIR = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+USERS_DIR = TUBE_MANAGER_DATA_DIR
 USERS_FILE = USERS_DIR / "users.json"
 
 def _ensure_users_dir():
@@ -83,12 +86,13 @@ def _load_secret_key() -> str:
         return key
     log.warning(
         "TUBE_MANAGER_SECRET_KEY env var is not set. "
-        "Falling back to .secret_key file. On Render this file is lost on redeploy, "
-        "which invalidates all login sessions. Set TUBE_MANAGER_SECRET_KEY in your "
-        "Render environment to keep sessions stable."
+        "Falling back to .secret_key file. On Render this file must be on a "
+        "persistent disk; set TUBE_MANAGER_SECRET_KEY env var to keep sessions stable."
     )
-    # Fallback: load from or generate into a local file so it persists across restarts
-    secret_file = Path(__file__).resolve().parent.parent / ".secret_key"
+    # Fallback: load from or generate into the persistent data directory so it
+    # survives restarts when that directory is mounted on a Render disk.
+    secret_file = TUBE_MANAGER_DATA_DIR / ".secret_key"
+    TUBE_MANAGER_DATA_DIR.mkdir(parents=True, exist_ok=True)
     if secret_file.exists():
         return secret_file.read_text().strip()
     # Generate a new one
