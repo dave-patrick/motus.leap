@@ -619,6 +619,31 @@ async def duplicate_playlist_endpoint(payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/youtube/playlistitems/delete")
+async def delete_playlist_item_endpoint(payload: dict):
+    playlist_item_id = payload.get("playlist_item_id")
+    playlist_id = payload.get("playlist_id")
+    if not playlist_item_id:
+        raise HTTPException(status_code=400, detail="Missing playlist_item_id")
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    try:
+        yt_client.remove_video_from_playlist(playlist_item_id)
+        if playlist_id:
+            # Invalidate the specific playlist's cache key so the change is shown immediately
+            await youtube_service._set_cached(f"playlist_videos_{playlist_id}", None)
+            
+        return {"status": "success", "message": "Video removed from playlist"}
+    except Exception as e:
+        log.error(f"Error removing video from playlist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Subscriptions endpoint
 @app.get("/api/subscriptions")
 async def api_subscriptions() -> dict[str, Any]:
