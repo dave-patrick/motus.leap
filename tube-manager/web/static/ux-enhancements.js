@@ -671,34 +671,84 @@ function initSystemActivityController() {
     const box = document.getElementById('system-activity-box');
     if (!box) return;
 
+    const taskDescEl = document.getElementById('activity-task-desc');
     const taskEl = document.getElementById('activity-task');
-    const logEl = document.getElementById('activity-log');
     const pingColor = document.getElementById('activity-ping-color');
     const pingAnimate = document.getElementById('activity-ping-animate');
+    
+    // Progress elements
+    const progressContainer = document.getElementById('activity-progress-container');
+    const progressBar = document.getElementById('activity-progress-bar');
+    const progressText = document.getElementById('activity-progress-text');
+    const timeEstimate = document.getElementById('activity-time-estimate');
 
-    let ws = null;
-    function connectWS() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
-        ws.onopen = () => {
-            if (logEl) logEl.textContent = 'Connected. Listening to system logs...';
-        };
-        ws.onmessage = (event) => {
-            let msg;
-            try {
-                msg = JSON.parse(event.data);
-            } catch (e) {
-                if (logEl) logEl.textContent = event.data;
-                return;
+    let progressInterval = null;
+    let currentPercent = 0;
+    let currentTaskName = '';
+
+    function startProgress(taskName) {
+        if (progressInterval && currentTaskName === taskName) return;
+        
+        clearInterval(progressInterval);
+        currentTaskName = taskName;
+        currentPercent = 0;
+        
+        if (progressContainer) progressContainer.classList.remove('hidden');
+        
+        let estSeconds = 30;
+        let ratePerSec = 3.3;
+        
+        if (taskName.includes('Full Playlist') || taskName.includes('Sync')) {
+            estSeconds = 45;
+            ratePerSec = 2.2;
+        } else if (taskName.includes('Watch Later')) {
+            estSeconds = 15;
+            ratePerSec = 6.6;
+        } else if (taskName.includes('Scan') || taskName.includes('Duplicate') || taskName.includes('Misplaced')) {
+            estSeconds = 5;
+            ratePerSec = 20;
+        }
+        
+        if (timeEstimate) timeEstimate.textContent = `Est: ~${estSeconds}s`;
+        
+        progressInterval = setInterval(() => {
+            if (currentPercent < 90) {
+                currentPercent += ratePerSec;
+            } else if (currentPercent < 98) {
+                currentPercent += 0.2; // slow down crawl as we get close
             }
-            if (msg.type === 'log' && logEl) {
-                logEl.textContent = msg.message;
+            
+            const percentRounded = Math.min(Math.round(currentPercent), 99);
+            if (progressBar) progressBar.style.width = `${percentRounded}%`;
+            if (progressText) progressText.textContent = `Progress: ${percentRounded}%`;
+            
+            const remaining = Math.max(0, Math.round(estSeconds - (currentPercent / ratePerSec)));
+            if (timeEstimate && remaining > 0) {
+                timeEstimate.textContent = `Est: ~${remaining}s`;
             }
-        };
-        ws.onclose = () => {
-            setTimeout(connectWS, 5000);
-        };
-        ws.onerror = () => {};
+        }, 1000);
+    }
+
+    function stopProgress(isComplete = true) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+        
+        if (isComplete && currentPercent > 0) {
+            if (progressBar) progressBar.style.width = '100%';
+            if (progressText) progressText.textContent = 'Progress: 100%';
+            if (timeEstimate) timeEstimate.textContent = 'Complete';
+            
+            setTimeout(() => {
+                if (progressContainer) progressContainer.classList.add('hidden');
+                if (progressBar) progressBar.style.width = '0%';
+                currentPercent = 0;
+                currentTaskName = '';
+            }, 3000);
+        } else {
+            if (progressContainer) progressContainer.classList.add('hidden');
+            currentPercent = 0;
+            currentTaskName = '';
+        }
     }
 
     async function pollStats() {
@@ -706,18 +756,27 @@ function initSystemActivityController() {
             const resp = await fetch('/api/stats');
             if (resp.ok) {
                 const data = await resp.json();
-                if (taskEl) {
-                    taskEl.textContent = data.current_task || 'Idle';
-                }
-                const isRunning = data.running_tasks > 0 && data.current_task;
-                if (pingColor && pingAnimate) {
-                    if (isRunning) {
-                        pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-yellow-500";
-                        pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75";
-                    } else {
-                        pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-green-500";
-                        pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75";
+                const activeTask = data.current_task || '';
+                const isRunning = data.running_tasks > 0 && activeTask;
+                
+                if (taskEl) taskEl.textContent = activeTask || 'Idle';
+                
+                if (isRunning) {
+                    if (taskDescEl) {
+                        taskDescEl.textContent = `${activeTask} • In progress...`;
                     }
+                    if (pingColor) pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-yellow-500";
+                    if (pingAnimate) pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75";
+                    
+                    startProgress(activeTask);
+                } else {
+                    if (taskDescEl) {
+                        taskDescEl.textContent = currentPercent > 0 ? 'Idle • Complete!' : 'Idle • System is ready.';
+                    }
+                    if (pingColor) pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-green-500";
+                    if (pingAnimate) pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75";
+                    
+                    stopProgress(true);
                 }
             }
         } catch (e) {
@@ -725,9 +784,8 @@ function initSystemActivityController() {
         }
     }
 
-    connectWS();
     pollStats();
-    setInterval(pollStats, 10000);
+    setInterval(pollStats, 5000);
 }
 
 document.addEventListener('DOMContentLoaded', initSystemActivityController);
