@@ -1,4 +1,4 @@
-# Tube Manager
+# motus.leap
 
 A playlist-backed saved-video manager with YouTube-style task flows.
 

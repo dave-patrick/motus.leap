@@ -1,4 +1,4 @@
-"""Configuration manager for Tube Manager."""
+"""Configuration manager for motus.leap."""
 
 import json
 import logging
