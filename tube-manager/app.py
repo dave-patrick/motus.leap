@@ -443,7 +443,7 @@ async def watch_later_sync(payload):
 
         # Preload channel metadata for OAuth-based channel lookup
         channel_key = "__watchlater_channels__"
-        channel_cache = await self._get_cached(channel_key) if hasattr(youtube_service, "_get_cached") else None
+        channel_cache = await youtube_service._get_cached(channel_key) if hasattr(youtube_service, "_get_cached") else None
         if not channel_cache:
             channel_cache = {}
             # Refresh via YouTubeService if available
