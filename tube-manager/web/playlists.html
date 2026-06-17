@@ -142,8 +142,8 @@
                                         <p class="text-[9px] text-gray-400 mb-2">${p.video_count} videos</p>
                                         <div class="flex items-center gap-1 mt-auto pt-1.5 border-t border-[#2a2f3a]">
                                             <button onclick="event.stopPropagation(); rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 px-2.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
-                                            <div class="relative">
-                                                <button onclick="event.stopPropagation(); togglePlaylistMenu('${p.id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded transition-colors"><i class="fa-solid fa-ellipsis text-[9px]"></i></button>
+                                            <div class="relative flex-1">
+                                                <button onclick="event.stopPropagation(); togglePlaylistMenu('${p.id}')" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded transition-colors flex items-center justify-center gap-1" title="Playlist Actions"><i class="fa-solid fa-sliders text-[9px]"></i> Actions</button>
                                                 <div id="menu-${p.id}" class="hidden absolute bottom-full left-0 mb-1 w-28 rounded-lg border border-[#2a2f3a] bg-[#1a1d24] shadow-xl text-[10px] text-gray-200 z-20 overflow-hidden">
                                                     <button onclick="event.stopPropagation(); renamePlaylistPrompt('${p.id}')" class="w-full text-left px-3 py-1.5 hover:bg-[#2a2f3a]">Rename</button>
                                                     <button onclick="event.stopPropagation(); duplicatePlaylistPrompt('${p.id}')" class="w-full text-left px-3 py-1.5 hover:bg-[#2a2f3a]">Duplicate</button>
