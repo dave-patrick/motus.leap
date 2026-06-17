@@ -86,21 +86,29 @@ def _load_secret_key() -> str:
         return key
     log.warning(
         "TUBE_MANAGER_SECRET_KEY env var is not set. "
-        "Falling back to .secret_key file. On Render this file must be on a "
-        "persistent disk; set TUBE_MANAGER_SECRET_KEY env var to keep sessions stable."
+        "Sessions will be invalidated on every Render restart/deploy. "
+        "Set TUBE_MANAGER_SECRET_KEY in the Render Dashboard to keep sessions stable."
     )
-    # Fallback: load from or generate into the persistent data directory so it
-    # survives restarts when that directory is mounted on a Render disk.
-    secret_file = TUBE_MANAGER_DATA_DIR / ".secret_key"
-    TUBE_MANAGER_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if secret_file.exists():
-        return secret_file.read_text().strip()
-    # Generate a new one
+    # Fallback: try several candidate directories that may be persistent.
+    candidate_dirs = [
+        TUBE_MANAGER_DATA_DIR,
+        Path(__file__).resolve().parent.parent / "data",
+        Path.home() / ".tube-manager",
+    ]
+    for directory in candidate_dirs:
+        directory.mkdir(parents=True, exist_ok=True)
+        secret_file = directory / ".secret_key"
+        if secret_file.exists():
+            return secret_file.read_text().strip()
+    # No existing secret; generate a new one in the first writable candidate dir.
     key = secrets.token_hex(32)
-    try:
-        secret_file.write_text(key)
-    except Exception:
-        pass
+    for directory in candidate_dirs:
+        secret_file = directory / ".secret_key"
+        try:
+            secret_file.write_text(key)
+            return key
+        except Exception:
+            continue
     return key
 
 SECRET_KEY = _load_secret_key()
@@ -426,6 +434,28 @@ async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_activ
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: Dict[str, Any] = Depends(get_current_active_user)):
     return UserResponse(**current_user)
+
+
+@router.get("/security/status")
+async def security_status():
+    """Expose whether the JWT secret is configured for stable sessions."""
+    secret_from_env = bool(os.getenv("TUBE_MANAGER_SECRET_KEY", "").strip())
+    secret_files = [
+        TUBE_MANAGER_DATA_DIR / ".secret_key",
+        Path(__file__).resolve().parent.parent / "data" / ".secret_key",
+        Path.home() / ".tube-manager" / ".secret_key",
+    ]
+    secret_persisted = any(f.exists() for f in secret_files)
+    return {
+        "secret_key_from_env": secret_from_env,
+        "secret_key_persisted": secret_persisted,
+        "sessions_stable": secret_from_env or secret_persisted,
+        "warning": None if (secret_from_env or secret_persisted) else (
+            "TUBE_MANAGER_SECRET_KEY is not set. Sessions will be invalidated on every "
+            "Render restart or deploy. Add TUBE_MANAGER_SECRET_KEY to your Render "
+            "Dashboard Environment Variables to keep sessions stable."
+        ),
+    }
 
 
 @router.put("/me", response_model=UserResponse)
