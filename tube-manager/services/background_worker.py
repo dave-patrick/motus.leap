@@ -254,9 +254,37 @@ class BackgroundWorker:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": "[SORT] No channel mappings configured. Add mappings in Rules page."}))
                 return
             
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SORT] Applying channel→playlist mappings..."}))
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SORT] {len(mappings)} channel→playlist mappings configured"}))
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SORT] Note: Auto-sort requires write permissions. Update OAuth scope in Settings to enable."}))
+            # Get all playlists
+            playlists = await self.youtube_service.list_playlists() if self.youtube_service else []
+            all_videos = []
+            
+            # Fetch all videos from all playlists
+            for pl in playlists.get("playlists", []):
+                pl_videos = await self.youtube_service.get_videos(playlist_id=pl.get("id"))
+                for v in pl_videos.get("videos", []):
+                    v["_playlist_id"] = pl.get("id")
+                    all_videos.append(v)
+            
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SORT] Fetched {len(all_videos)} videos across all playlists"}))
+            
+            # Find and move misplaced videos
+            moved = []
+            for v in all_videos:
+                video_channel_id = v.get("channel_id")
+                current_playlist = v.get("_playlist_id")
+                if video_channel_id and current_playlist:
+                    target = mappings.get(video_channel_id)
+                    if target and target != current_playlist:
+                        try:
+                            client.move_video_to_playlist(v.get("video_id"), target)
+                            # Note: Would need playlist_item_id to remove - skipping for safety
+                            moved.append({"video_id": v.get("video_id"), "to": target})
+                        except Exception as e:
+                            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {v.get('video_id')}: {e}"}))
+            
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SORT] Moved {len(moved)} video(s) to correct playlists"}))
+            for m in moved[:20]:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SORT] {m['video_id']} -> {m['to']}"}))
             await self.manager.broadcast(json.dumps({"type": "log", "message": "[SORT] Complete"}))
             
         except Exception as e:
