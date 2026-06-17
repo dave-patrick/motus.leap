@@ -169,32 +169,33 @@
             return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
         }
 
-const activityLog = document.getElementById('activity-log');
+        const activityLog = document.getElementById('activity-log');
 
-async function rescanPlaylist() {
-    activityLog.textContent = 'Rescanning playlist...';
-    const btn = document.getElementById('rescan-playlist-btn');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Rescanning...';
-    }
-    try {
-        const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
-        const data = await resp.json();
-        allVideos = data.videos || [];
-        document.getElementById('playlist-meta').innerHTML = `${allVideos.length} videos`;
-        renderVideos();
-        activityLog.textContent = 'Rescan complete.';
-    } catch (e) {
-        console.error(e);
-        activityLog.textContent = 'Rescan failed.';
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-arrows-rotate text-blue-400"></i> Rescan Playlist';
+        async function rescanPlaylist() {
+            if (activityLog) activityLog.textContent = 'Rescanning playlist...';
+            const btn = document.getElementById('rescan-playlist-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Rescanning...';
+            }
+            try {
+                const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
+                const data = await resp.json();
+                allVideos = data.videos || [];
+                const metaEl = document.getElementById('playlist-meta');
+                if (metaEl) metaEl.innerHTML = `${allVideos.length} videos`;
+                renderVideos();
+                if (activityLog) activityLog.textContent = 'Rescan complete.';
+            } catch (e) {
+                console.error(e);
+                if (activityLog) activityLog.textContent = 'Rescan failed.';
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-arrows-rotate text-blue-400"></i> Rescan Playlist';
+                }
+            }
         }
-    }
-}
 
         async function loadPlaylist() {
             try {
@@ -206,14 +207,16 @@ async function rescanPlaylist() {
                     
                     const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
                     if (currentPlaylist) {
-                        document.getElementById('playlist-title').textContent = currentPlaylist.title;
+                        const titleEl = document.getElementById('playlist-title');
+                        if (titleEl) titleEl.textContent = currentPlaylist.title;
                         
                         const privacy = currentPlaylist.privacy || 'private';
                         const badgeColor = privacy === 'public' ? 'bg-green-600/20 text-green-400 border-green-600/30' : 
                                            privacy === 'unlisted' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' : 
                                            'bg-gray-600/20 text-gray-400 border-gray-600/30';
                         
-                        document.getElementById('playlist-meta').innerHTML = `
+                        const metaEl = document.getElementById('playlist-meta');
+                        if (metaEl) metaEl.innerHTML = `
                             loading... • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacy}</span>
                         `;
                     }
@@ -221,8 +224,19 @@ async function rescanPlaylist() {
                 
                 // 2. Load the videos inside this playlist
                 const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}`);
+                if (!resp.ok) {
+                    console.error('Videos API error:', resp.status, resp.statusText);
+                    const container = document.getElementById('videos-container');
+                    if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">API error: ${resp.status}</div>`;
+                    return;
+                }
                 const data = await resp.json();
-                allVideos = data.videos || [];
+                if (data.error) {
+                    console.error('Videos API returned error:', data.error);
+                    const container = document.getElementById('videos-container');
+                    if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">${data.error}</div>`;
+                    return;
+                }
                 
                 // 3. Update metadata count text with real values
                 const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
@@ -231,14 +245,16 @@ async function rescanPlaylist() {
                                    privacyBadge === 'unlisted' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' : 
                                    'bg-gray-600/20 text-gray-400 border-gray-600/30';
                 
-                document.getElementById('playlist-meta').innerHTML = `
+                const metaEl = document.getElementById('playlist-meta');
+                if (metaEl) metaEl.innerHTML = `
                     ${allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacyBadge}</span>
                 `;
                 
                 renderVideos();
             } catch (e) {
                 console.error(e);
-                document.getElementById('videos-container').innerHTML = '<div class="text-center p-8 text-red-400">Failed to load playlist</div>';
+                const container = document.getElementById('videos-container');
+                if (container) container.innerHTML = '<div class="text-center p-8 text-red-400">Failed to load playlist</div>';
             }
         }
 
@@ -452,6 +468,11 @@ async function rescanPlaylist() {
         }
 
         document.addEventListener('DOMContentLoaded', loadPlaylist);
+        
+        // Fallback: if DOMContentLoaded already fired (e.g. SPA navigation), run immediately
+        if (document.readyState === 'interactive' || document.readyState === 'complete') {
+            loadPlaylist();
+        }
     </script>
 </body>
 </html>
