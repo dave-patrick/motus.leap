@@ -1,5 +1,5 @@
 """
-Pytest configuration and fixtures for Tube Manager test suite.
+Pytest configuration and fixtures for motus.leap test suite.
 """
 
 import asyncio

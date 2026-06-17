@@ -1,4 +1,4 @@
-"""Centralized logging configuration for Tube Manager."""
+"""Centralized logging configuration for motus.leap."""
 
 import logging
 import sys

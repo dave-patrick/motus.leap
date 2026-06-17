@@ -1,5 +1,5 @@
 /**
- * Auth check for Tube Manager pages.
+ * Auth check for motus.leap pages.
  * - Extracts token from URL fragment (OAuth redirect).
  * - Verifies the token with /api/auth/me.
  * - Redirects to /auth only when the token is confirmed invalid.

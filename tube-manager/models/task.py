@@ -1,4 +1,4 @@
-"""Task models for Tube Manager."""
+"""Task models for motus.leap."""
 
 import uuid
 import datetime

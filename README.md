@@ -1,4 +1,4 @@
-# Tube Manager
+# motus.leap
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
@@ -7,7 +7,7 @@
 
 **Automated YouTube Playlist Orchestrator**
 
-Tube Manager is a modern web application for managing YouTube playlists, subscriptions, and video organization. It provides automated playlist management with intelligent channel-to-playlist mappings, AI-powered video classification, and bulk operations.
+motus.leap is a modern web application for managing YouTube playlists, subscriptions, and video organization. It provides automated playlist management with intelligent channel-to-playlist mappings, AI-powered video classification, and bulk operations.
 
 🌐 **Live Demo:** [https://tubemanager.onrender.com](https://tubemanager.onrender.com)
 

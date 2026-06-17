@@ -1,4 +1,4 @@
-"""YouTube service for Tube Manager - Optimized with Aggressive Caching."""
+"""YouTube service for motus.leap - Optimized with Aggressive Caching."""
 
 import json
 import hashlib

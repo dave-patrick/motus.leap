@@ -1,4 +1,4 @@
-"""Background worker service for Tube Manager."""
+"""Background worker service for motus.leap."""
 
 import asyncio
 import json

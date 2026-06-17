@@ -1,4 +1,4 @@
-"""Configuration models for Tube Manager."""
+"""Configuration models for motus.leap."""
 
 from pydantic import BaseModel, Field, SecretStr
 from typing import Optional, Dict, Any, List

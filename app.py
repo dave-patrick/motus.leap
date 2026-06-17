@@ -1,4 +1,4 @@
-"""Render entrypoint — re-exports the real Tube Manager app.
+"""Render entrypoint — re-exports the real motus.leap app.
 
 Render's Dashboard RootDir is set to the repo root, so uvicorn loads THIS file.
 It loads the maintained application from tube-manager/app.py via importlib
