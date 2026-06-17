@@ -330,8 +330,15 @@
                         const resp = await fetch('/api/youtube/duplicates');
                         const result = await resp.json();
                         const panel = document.getElementById('duplicates-panel');
-                        panel.innerHTML = `<div class="text-[10px] text-white mb-2">Found ${result.duplicates} duplicates in ${result.total_videos} videos</div>`;
-                        toast('Duplicate scan complete', 'success');
+                        panel.innerHTML = `<div class="text-[10px] text-white mb-2">Found ${result.duplicates} duplicates in ${result.total_videos} videos</div>` +
+                            (result.duplicates?.length ? result.duplicates.map(v => 
+                                `<div class="flex items-center gap-2 p-2 hover:bg-[#20242c] rounded text-xs">
+                                    <input type="checkbox" class="w-3 h-3 rounded" data-video="${v.video_id}">
+                                    <img src="${v.thumbnail}" class="w-8 h-4 rounded object-cover">
+                                    <div class="flex-1 truncate">${v.title}</div>
+                                    <span class="text-gray-400 text-[10px]">${v.duration}</span>
+                                </div>`).join('') : '');
+                        toast(`Found ${result.duplicates} duplicates`, 'success');
                     } catch (e) {
                         toast('Scan failed', 'error');
                     }
