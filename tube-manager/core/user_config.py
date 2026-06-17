@@ -1,4 +1,4 @@
-"""Multi-user configuration extensions for Tube Manager."""
+"""Multi-user configuration extensions for motus.leap."""
 
 from __future__ import annotations
 
