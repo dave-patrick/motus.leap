@@ -367,6 +367,9 @@ async def bulk():
 async def settings():
     """Settings page."""
     return await no_cache_file_response(WEB_DIR / "settings.html")
+@app.get("/roadmap")
+async def roadmap_page() -> Response:
+    return await no_cache_file_response(WEB_DIR / "roadmap.html")
 
 
 @app.get("/test")
