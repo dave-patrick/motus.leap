@@ -754,17 +754,18 @@ async function navigateSPA(url) {
         // Update body class if different
         document.body.className = doc.body.className;
 
-        // 1. Keep current aside, remove all other body children
+        // 1. Keep current aside and global agent drawer, remove all other body children
+        const globalDrawer = document.getElementById('global-agent-drawer');
         Array.from(document.body.children).forEach(child => {
-            if (child !== currentAside && child.tagName !== 'SCRIPT') {
+            if (child !== currentAside && child !== globalDrawer && child.tagName !== 'SCRIPT') {
                 document.body.removeChild(child);
             }
         });
 
-        // 2. Add all new body children except its ASIDE
+        // 2. Add all new body children except its ASIDE and global drawer
         const scriptsToRun = [];
         Array.from(doc.body.children).forEach(child => {
-            if (child.tagName !== 'ASIDE') {
+            if (child.tagName !== 'ASIDE' && child.id !== 'global-agent-drawer') {
                 // Find scripts inside the child
                 child.querySelectorAll('script').forEach(s => {
                     scriptsToRun.push(s);
@@ -842,3 +843,122 @@ document.addEventListener('click', (e) => {
 window.addEventListener('popstate', () => {
     navigateSPA(window.location.pathname);
 });
+
+
+// ============================================
+// GLOBAL AGENT DRAWER CONTROLLER
+// ============================================
+
+function initGlobalAgentDrawer() {
+    let drawer = document.getElementById('global-agent-drawer');
+    if (!drawer) {
+        drawer = document.createElement('div');
+        drawer.id = 'global-agent-drawer';
+        drawer.className = 'fixed bottom-0 left-0 right-0 h-12 bg-[#16191f] border-t border-[#2a2f3a] z-50 flex items-center justify-between px-6 font-sans text-xs';
+        drawer.innerHTML = `
+            <!-- Left: Status & Current Task -->
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <span class="relative flex h-2 w-2">
+                        <span id="agent-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span id="agent-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    <span class="font-bold text-blue-400 uppercase tracking-wider text-[9px]">Agent Status:</span>
+                </div>
+                <span id="agent-task" class="text-white font-semibold truncate max-w-xs font-mono bg-[#20242c] border border-[#2a2f3a] px-2 py-0.5 rounded text-[10px]">Idle</span>
+            </div>
+            
+            <!-- Center: Live Logs Stream -->
+            <div class="flex-1 min-w-0 mx-6 flex items-center gap-2 border-l border-r border-[#2a2f3a]/60 px-4 font-mono text-[9px] text-gray-400">
+                <i class="fa-solid fa-terminal text-blue-500 shrink-0"></i>
+                <span id="agent-log" class="truncate">Listening to live log stream...</span>
+            </div>
+            
+            <!-- Right: Latest Completed Task Summary -->
+            <div class="shrink-0 flex items-center gap-2 text-gray-400 max-w-xs truncate">
+                <span class="text-[9px] uppercase tracking-wider font-bold text-gray-500 shrink-0">Last Task:</span>
+                <span id="agent-summary" class="text-[10px] font-medium text-green-400 truncate">None</span>
+            </div>
+        `;
+        document.body.appendChild(drawer);
+        
+        // Compensate for the sticky drawer height by adding margin/padding to body
+        document.body.style.paddingBottom = '48px';
+    }
+    
+    startAgentActivityTracker();
+}
+
+function startAgentActivityTracker() {
+    const taskEl = document.getElementById('agent-task');
+    const logEl = document.getElementById('agent-log');
+    const summaryEl = document.getElementById('agent-summary');
+    const pingColor = document.getElementById('agent-ping-color');
+    const pingAnimate = document.getElementById('agent-ping-animate');
+
+    let ws = null;
+    function connectWS() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
+        ws.onopen = () => {
+            if (logEl) logEl.textContent = 'Agent connected. Streaming telemetry...';
+        };
+        ws.onmessage = (event) => {
+            let msg;
+            try {
+                msg = JSON.parse(event.data);
+            } catch (e) {
+                if (logEl) logEl.textContent = event.data;
+                return;
+            }
+            if (msg.type === 'log') {
+                const text = msg.message;
+                if (logEl) logEl.textContent = text;
+                
+                // Extract task completion status
+                if (text.includes('Successfully synchronized') || text.includes('Scan complete') || text.includes('Operation completed') || text.includes('completed') || text.includes('Success')) {
+                    if (summaryEl) {
+                        summaryEl.textContent = text;
+                        summaryEl.classList.remove('text-green-400');
+                        void summaryEl.offsetWidth; // Trigger reflow to restart transition
+                        summaryEl.classList.add('text-green-400');
+                    }
+                }
+            }
+        };
+        ws.onclose = () => {
+            setTimeout(connectWS, 5000);
+        };
+        ws.onerror = () => {};
+    }
+
+    async function pollStats() {
+        try {
+            const resp = await fetch('/api/stats');
+            if (resp.ok) {
+                const data = await resp.json();
+                if (taskEl) {
+                    taskEl.textContent = data.current_task || 'Idle';
+                }
+                const isRunning = data.running_tasks > 0 && data.current_task;
+                if (pingColor && pingAnimate) {
+                    if (isRunning) {
+                        pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-yellow-500";
+                        pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75";
+                    } else {
+                        pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-green-500";
+                        pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75";
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to fetch stats', e);
+        }
+    }
+
+    connectWS();
+    pollStats();
+    setInterval(pollStats, 5000);
+}
+
+document.addEventListener('DOMContentLoaded', initGlobalAgentDrawer);
