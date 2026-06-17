@@ -1,6 +1,8 @@
 """Bulk operations API endpoints."""
 
 import logging
+import os
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
 from pydantic import BaseModel
@@ -98,11 +100,55 @@ class OperationStatusResponse(BaseModel):
 
 
 # =============================================================================
-# In-Memory Storage for Operations
+# Persistent Storage for Operations
 # =============================================================================
 
-# In production, use a database or Redis
-operations: Dict[str, BulkOperationResponse] = {}
+OPERATIONS_FILE = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "operations.json"
+
+class PersistentOperationsDict(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.load()
+
+    def load(self):
+        if OPERATIONS_FILE.exists():
+            try:
+                data = json.loads(OPERATIONS_FILE.read_text())
+                for k, v in data.items():
+                    # Handle datetime conversion
+                    if "started_at" in v and isinstance(v["started_at"], str):
+                        v["started_at"] = datetime.fromisoformat(v["started_at"])
+                    if "completed_at" in v and isinstance(v["completed_at"], str):
+                        v["completed_at"] = datetime.fromisoformat(v["completed_at"])
+                    super().__setitem__(k, BulkOperationResponse(**v))
+            except Exception as e:
+                log.warning("Failed to load operations: %s", e)
+
+    def save(self):
+        try:
+            OPERATIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            serializable = {}
+            for k, v in self.items():
+                d = v.model_dump()
+                # datetime ISO serialization
+                if isinstance(d.get("started_at"), datetime):
+                    d["started_at"] = d["started_at"].isoformat()
+                if isinstance(d.get("completed_at"), datetime):
+                    d["completed_at"] = d["completed_at"].isoformat()
+                serializable[k] = d
+            OPERATIONS_FILE.write_text(json.dumps(serializable, indent=2))
+        except Exception as e:
+            log.error("Failed to save operations: %s", e)
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        self.save()
+
+    def __delitem__(self, key):
+        super().__delitem__(key)
+        self.save()
+
+operations = PersistentOperationsDict()
 
 
 # =============================================================================
@@ -368,10 +414,12 @@ async def process_bulk_move(
         log.error("Config not provided for bulk move operation")
         operations[operation_id].status = "failed"
         operations[operation_id].completed_at = datetime.now()
+        operations.save()
         return
 
     operation = operations[operation_id]
     operation.status = "in_progress"
+    operations.save()
 
     service = BulkOperationsService(config, config_manager)
 
@@ -392,7 +440,7 @@ async def process_bulk_move(
 
             # Update progress every 10 items
             if i % 10 == 0:
-                pass  # Could emit WebSocket message here
+                operations.save()
 
         operation.status = "completed"
     except Exception as e:
@@ -400,6 +448,7 @@ async def process_bulk_move(
         operation.errors.append(f"Operation failed: {str(e)}")
     finally:
         operation.completed_at = datetime.now()
+        operations.save()
 
 
 async def process_bulk_delete(
@@ -414,10 +463,12 @@ async def process_bulk_delete(
         log.error("Config not provided for bulk delete operation")
         operations[operation_id].status = "failed"
         operations[operation_id].completed_at = datetime.now()
+        operations.save()
         return
 
     operation = operations[operation_id]
     operation.status = "in_progress"
+    operations.save()
 
     service = BulkOperationsService(config, config_manager)
 
@@ -435,6 +486,8 @@ async def process_bulk_delete(
                 operation.errors.append(f"Failed to delete {video_id}: {str(e)}")
 
             operation.processed += 1
+            if i % 10 == 0:
+                operations.save()
 
         operation.status = "completed"
     except Exception as e:
@@ -442,6 +495,7 @@ async def process_bulk_delete(
         operation.errors.append(f"Operation failed: {str(e)}")
     finally:
         operation.completed_at = datetime.now()
+        operations.save()
 
 
 async def process_bulk_tag(
@@ -457,10 +511,12 @@ async def process_bulk_tag(
         log.error("Config not provided for bulk tag operation")
         operations[operation_id].status = "failed"
         operations[operation_id].completed_at = datetime.now()
+        operations.save()
         return
 
     operation = operations[operation_id]
     operation.status = "in_progress"
+    operations.save()
 
     service = BulkOperationsService(config, config_manager)
 
@@ -478,6 +534,8 @@ async def process_bulk_tag(
                 operation.errors.append(f"Failed to tag {video_id}: {str(e)}")
 
             operation.processed += 1
+            if i % 10 == 0:
+                operations.save()
 
         operation.status = "completed"
     except Exception as e:
@@ -485,6 +543,7 @@ async def process_bulk_tag(
         operation.errors.append(f"Operation failed: {str(e)}")
     finally:
         operation.completed_at = datetime.now()
+        operations.save()
 
 
 async def process_import(
@@ -501,10 +560,12 @@ async def process_import(
         log.error("Config not provided for import operation")
         operations[operation_id].status = "failed"
         operations[operation_id].completed_at = datetime.now()
+        operations.save()
         return
 
     operation = operations[operation_id]
     operation.status = "in_progress"
+    operations.save()
 
     service = BulkOperationsService(config, config_manager)
 
@@ -545,6 +606,7 @@ async def process_import(
         operation.errors.append(f"Import failed: {str(e)}")
     finally:
         operation.completed_at = datetime.now()
+        operations.save()
 
 
 # =============================================================================
