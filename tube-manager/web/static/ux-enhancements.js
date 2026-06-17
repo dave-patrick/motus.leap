@@ -1070,3 +1070,94 @@ function startAgentActivityTracker() {
 }
 
 document.addEventListener('DOMContentLoaded', initGlobalAgentDrawer);
+
+
+// ============================================
+// SINGLE PAGE APPLICATION (SPA) ROUTER
+// ============================================
+
+async function loadPageContent(url) {
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            window.location.href = url; // Fallback to normal load
+            return;
+        }
+        const html = await resp.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // 1. Update document title
+        document.title = doc.title || 'Tube Manager';
+        
+        // 2. Update main section
+        const newMain = doc.querySelector('main');
+        const currentMain = document.querySelector('main');
+        if (newMain && currentMain) {
+            currentMain.innerHTML = newMain.innerHTML;
+        }
+        
+        // 3. Highlight the active link in sidebar
+        document.querySelectorAll('aside a').forEach(a => {
+            const href = a.getAttribute('href');
+            if (href === url || (url === '/' && href === '/') || (url.startsWith('/playlist') && href === '/playlists')) {
+                a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30";
+            } else {
+                a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors";
+            }
+        });
+        
+        // 4. Load and execute page-specific scripts
+        const docScripts = doc.querySelectorAll('script');
+        docScripts.forEach(oldScript => {
+            const src = oldScript.getAttribute('src');
+            if (src && (
+                src.includes('tailwindcss') || 
+                src.includes('font-awesome') || 
+                src.includes('dompurify') || 
+                src.includes('auth-check') || 
+                src.includes('ux-enhancements')
+            )) {
+                return;
+            }
+            const newScript = document.createElement('script');
+            if (src) {
+                newScript.src = src;
+            } else {
+                newScript.textContent = oldScript.textContent;
+            }
+            document.body.appendChild(newScript);
+        });
+        
+        // 5. Re-run initGlobalAgentDrawer so WebSocket and Stats poll are wired to the new elements
+        if (typeof initGlobalAgentDrawer === 'function') {
+            initGlobalAgentDrawer();
+        }
+        
+    } catch (e) {
+        console.error('SPA Navigation error:', e);
+        window.location.href = url; // Fallback
+    }
+}
+
+// Intercept clicks on local links
+document.addEventListener('click', (e) => {
+    const link = e.target.closest('a');
+    if (!link) return;
+    
+    const href = link.getAttribute('href');
+    if (!href || href.startsWith('http') || href.startsWith('//') || link.getAttribute('target') === '_blank') return;
+    if (href.startsWith('javascript:')) return;
+    
+    // Skip external OAuth/callback/disconnect routes
+    if (href.includes('/auth/google') || href.includes('/auth/youtube') || href.includes('/api/youtube/disconnect')) return;
+    
+    e.preventDefault();
+    loadPageContent(href);
+    window.history.pushState(null, '', href);
+});
+
+// Handle browser Back/Forward buttons
+window.addEventListener('popstate', () => {
+    loadPageContent(window.location.pathname);
+});
