@@ -90,6 +90,12 @@ class BackgroundWorker:
                     await self.apply_rules(payload)
                 elif action == "sync_playlists":
                     await self.sync_playlists(payload)
+                elif action == "scan_duplicates":
+                    result = await self.scan_duplicates(payload)
+                    await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
+                elif action == "scan_misplaced":
+                    result = await self.scan_misplaced(payload)
+                    await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
                 
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
                 self.task_queue.task_done()
@@ -478,3 +484,35 @@ class BackgroundWorker:
         await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Syncing playlists from YouTube..."}))
         await asyncio.sleep(1)
         await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete"}))
+
+    async def scan_duplicates(self, payload):
+        """Scan playlist for duplicate videos."""
+        playlist_id = payload.get("playlist_id") if payload else None
+        location = f" in playlist {playlist_id}" if playlist_id else ""
+        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Scanning for duplicates{location}..."}))
+        await asyncio.sleep(0.5)
+        duplicates = len(self.youtube_service.videos) - len(set(v.get("video_id") for v in self.youtube_service.videos)) if self.youtube_service else 0
+        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate videos"}))
+        return {"duplicates": duplicates}
+
+    async def scan_misplaced(self, payload):
+        """Scan playlist for misplaced videos based on rules."""
+        playlist_id = payload.get("playlist_id") if payload else None
+        location = f" in playlist {playlist_id}" if playlist_id else ""
+        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Scanning for misplaced videos{location}..."}))
+        await asyncio.sleep(0.5)
+        count = 0
+        if self.youtube_service and hasattr(self.youtube_service, 'config') and hasattr(self.youtube_service.config, 'channel_mappings'):
+            videos = self.youtube_service.videos
+            for v in videos:
+                if playlist_id and v.get("playlist_id") != playlist_id:
+                    continue
+                channel_id = v.get("channel_id")
+                playlist_id_v = v.get("playlist_id")
+                if channel_id and playlist_id_v:
+                    for ch, target_pl in self.youtube_service.config.channel_mappings.items():
+                        if channel_id == ch and target_pl and target_pl != playlist_id_v:
+                            count += 1
+                            break
+        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"}))
+        return {"misplaced": count}
