@@ -494,6 +494,59 @@
             }).join('');
         }
 
+        async function deleteDuplicateItems() {
+            const itemsToDelete = currentScanResults.duplicates;
+            if (itemsToDelete.length === 0) {
+                toast('No duplicates to delete', 'info');
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to delete ${itemsToDelete.length} duplicate video entries from this playlist? This cannot be undone.`)) {
+                return;
+            }
+
+            const activityLog = document.getElementById('activity-log');
+            if (activityLog) activityLog.textContent = `Deleting ${itemsToDelete.length} duplicates...`;
+            toast(`Deleting ${itemsToDelete.length} duplicates...`, 'info');
+            
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const item of itemsToDelete) {
+                try {
+                    const resp = await fetch('/api/youtube/playlistitems/delete', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            playlist_item_id: item.playlist_item_id,
+                            playlist_id: playlistId
+                        })
+                    });
+                    if (resp.ok) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } catch (e) {
+                    errorCount++;
+                    console.error('Failed to delete item', item.playlist_item_id, e);
+                }
+            }
+
+            if (errorCount > 0) {
+                toast(`${successCount} duplicates deleted, but ${errorCount} failed.`, 'warning');
+            } else {
+                toast(`Successfully deleted ${successCount} duplicates.`, 'success');
+            }
+
+            if (activityLog) activityLog.textContent = 'Duplicate deletion complete.';
+
+            // Hide the scan box and rescan the playlist to show the cleaned list
+            const box = document.getElementById('scan-results-box');
+            if(box) box.classList.add('hidden');
+            rescanPlaylist();
+        }
+
         document.addEventListener('DOMContentLoaded', loadPlaylist);
         
         // Fallback: if DOMContentLoaded already fired (e.g. SPA navigation), run immediately
