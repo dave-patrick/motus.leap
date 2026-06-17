@@ -101,7 +101,7 @@ class BackgroundWorker:
 
     async def full_cluster_scan(self, payload):
         """Perform a full cluster scan."""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Initiating Full Cluster Scan..."}))
+        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Initiating Full Playlists Scan..."}))
         
         client = self.youtube_service.get_client(require_oauth=True) if self.youtube_service else None
         if not client:

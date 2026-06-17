@@ -509,7 +509,7 @@ function showShortcutsHelp() {
                     <h3 class="text-lg font-semibold text-white mb-2">Dashboard</h3>
                     <ul class="space-y-2">
                         <li class="flex justify-between text-gray-300">
-                            <span>Full Cluster Scan</span>
+                            <span>Full Playlists Scan</span>
                             <kbd class="bg-gray-700 px-2 py-1 rounded text-sm">Ctrl + F</kbd>
                         </li>
                         <li class="flex justify-between text-gray-300">
