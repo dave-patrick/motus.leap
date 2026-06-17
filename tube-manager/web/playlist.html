@@ -172,22 +172,38 @@
         const activityLog = document.getElementById('activity-log');
 
         async function rescanPlaylist() {
+            const activityLog = document.getElementById('activity-log');
             if (activityLog) activityLog.textContent = 'Rescanning playlist...';
             const btn = document.getElementById('rescan-playlist-btn');
             if (btn) {
                 btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Rescanning...';
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-blue-400"></i> Rescanning...';
             }
+            toast('Rescanning playlist videos...', 'info');
             try {
                 const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
                 const data = await resp.json();
                 allVideos = data.videos || [];
+                
+                toast(`Rescan complete - ${allVideos.length} videos found`, 'success');
+                
+                // Update metadata count text with real values and keep privacy status badge
+                const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
+                const privacyBadge = currentPlaylist ? (currentPlaylist.privacy || 'private') : 'private';
+                const badgeColor = privacyBadge === 'public' ? 'bg-green-600/20 text-green-400 border-green-600/30' : 
+                                   privacyBadge === 'unlisted' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' : 
+                                   'bg-gray-600/20 text-gray-400 border-gray-600/30';
+                
                 const metaEl = document.getElementById('playlist-meta');
-                if (metaEl) metaEl.innerHTML = `${allVideos.length} videos`;
+                if (metaEl) metaEl.innerHTML = `
+                    ${allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacyBadge}</span>
+                `;
+                
                 renderVideos();
                 if (activityLog) activityLog.textContent = 'Rescan complete.';
             } catch (e) {
                 console.error(e);
+                toast('Rescan failed', 'error');
                 if (activityLog) activityLog.textContent = 'Rescan failed.';
             } finally {
                 if (btn) {
