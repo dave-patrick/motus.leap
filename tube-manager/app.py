@@ -1197,6 +1197,11 @@ async def diagnostics_youtube() -> dict[str, Any]:
     try:
         resp = client.list_mine_playlists(max_results=10)
         result["playlist_count"] = len(resp.get("items", []))
+        result["googleapi_items"] = len(resp.get("items", []))
+        if resp.get("items"):
+            first = resp["items"][0]
+            result["googleapi_first_item_id"] = first.get("id")
+            result["googleapi_first_item_title"] = first.get("snippet", {}).get("title")
         result["raw_response_keys"] = list(resp.keys())
         
         # Also fetch channel info to verify which account is connected
