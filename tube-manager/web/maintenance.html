@@ -32,7 +32,7 @@
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4"><div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white"><i class="fa-solid fa-play text-sm"></i></div><div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">Tube Manager</h1><p class="text-[10px] text-gray-400">Automated Playlist Orchestrator</p></div></div>
-        <div class="flex items-center gap-6"><div class="text-right hidden lg:block cursor-pointer" onclick="window.location.href='/'"><div class="text-[10px] text-blue-400 mt-0.5 flex items-center justify-end gap-1" title="Click to view scan details on Dashboard">[Idle • Last Full Scan: <span id="last-scan">loading...</span>] <i class="fa-solid fa-chevron-down text-[9px] opacity-50"></i></div></div><div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div><div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-border-all"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></div>
+        <div class="flex items-center gap-6"><div class="text-right hidden lg:block cursor-pointer" onclick="window.location.href='/'"><div class="text-[10px] text-blue-400 mt-0.5 flex items-center justify-end gap-1" title="Click to view scan details on Dashboard">[<span id="status-label">Idle</span> • Last Full Scan: <span id="last-scan">loading...</span>] <i class="fa-solid fa-chevron-down text-[9px] opacity-50"></i></div></div><div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div><div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-border-all"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></div>
     </header>
     <div class="flex flex-1 overflow-hidden">
         <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
@@ -155,7 +155,15 @@
                 const response = await fetch('/api/stats');
                 if (response.ok) {
                     const data = await response.json();
-                    document.getElementById('last-scan').textContent = data.last_scan || 'just now';
+                    document.getElementById('last-scan').textContent = data.last_scan || 'Never';
+                    const statusLabel = document.getElementById('status-label');
+                    if (statusLabel) {
+                        if (data.running_tasks > 0 && data.current_task) {
+                            statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
+                        } else {
+                            statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
+                        }
+                    }
                 }
             } catch (e) {
                 console.log('Stats endpoint not available');

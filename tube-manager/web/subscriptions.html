@@ -121,8 +121,21 @@
         async function loadDashboardStats() {
             try {
                 const response = await fetch('/api/stats');
-                if (response.ok) { const data = await response.json(); document.getElementById('last-scan').textContent = data.last_scan || 'just now'; }
-            } catch (e) { console.log('Stats endpoint not available'); }
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('last-scan').textContent = data.last_scan || 'Never';
+                    const statusLabel = document.getElementById('status-label');
+                    if (statusLabel) {
+                        if (data.running_tasks > 0 && data.current_task) {
+                            statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
+                        } else {
+                            statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('Stats endpoint not available');
+            }
         }
         document.addEventListener('DOMContentLoaded', () => { loadDashboardStats(); setInterval(loadDashboardStats, 30000); });
         document.addEventListener('DOMContentLoaded', () => { loadDashboardStats(); loadSubscriptions(); });
