@@ -118,7 +118,6 @@
                         <button data-action="force_auto_sort" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-solid fa-wand-magic-sparkles text-blue-400"></i> Force Auto-Sort All</button>
                         <button data-action="watch_later_sync" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-regular fa-clock text-blue-400"></i> Watch Later Sync</button>
                         <button data-action="diagnose_failures" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-solid fa-stethoscope text-blue-400"></i> Diagnose Failures</button>
-                        <button data-action="regenerate_queue" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-solid fa-rotate text-blue-400"></i> Regenerate Queue</button>
                         <button data-action="surface_diagnostics" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3"><i class="fa-solid fa-layer-group text-blue-400"></i> Surface diagnostics</button>
                     </div>
 
@@ -327,19 +326,16 @@
         }
 
         async function generateAndShowDuplicates() {
-            try {
-                const resp = await fetch('/api/action', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'scan_duplicates'})
-                });
-                const result = await resp.json();
-                toast('Duplicate scan complete - check logs for results', 'success');
-                setTimeout(() => toggleScanDetail(), 500);
-            } catch (e) {
-                toast('Scan failed', 'error');
-            }
-        }
+                    try {
+                        const resp = await fetch('/api/youtube/duplicates');
+                        const result = await resp.json();
+                        const panel = document.getElementById('duplicates-panel');
+                        panel.innerHTML = `<div class="text-[10px] text-white mb-2">Found ${result.duplicates} duplicates in ${result.total_videos} videos</div>`;
+                        toast('Duplicate scan complete', 'success');
+                    } catch (e) {
+                        toast('Scan failed', 'error');
+                    }
+                }
 
         function refreshSubscriptions() { toast('Use Subscriptions page for live mapping', 'info'); }
 
