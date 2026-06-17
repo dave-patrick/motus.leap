@@ -731,3 +731,114 @@ function initSystemActivityController() {
 }
 
 document.addEventListener('DOMContentLoaded', initSystemActivityController);
+
+
+// ============================================
+// SINGLE PAGE APPLICATION (SPA) ROUTER
+// ============================================
+
+async function navigateSPA(url) {
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            window.location.href = url; // Fallback to normal navigation
+            return;
+        }
+        const html = await resp.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        const currentAside = document.querySelector('aside');
+        const newAside = doc.querySelector('aside');
+
+        // Update body class if different
+        document.body.className = doc.body.className;
+
+        // 1. Keep current aside, remove all other body children
+        Array.from(document.body.children).forEach(child => {
+            if (child !== currentAside && child.tagName !== 'SCRIPT') {
+                document.body.removeChild(child);
+            }
+        });
+
+        // 2. Add all new body children except its ASIDE
+        const scriptsToRun = [];
+        Array.from(doc.body.children).forEach(child => {
+            if (child.tagName !== 'ASIDE') {
+                // Find scripts inside the child
+                child.querySelectorAll('script').forEach(s => {
+                    scriptsToRun.push(s);
+                    s.remove(); // Remove from markup so we don't double append
+                });
+                document.body.appendChild(child);
+            }
+        });
+
+        // 3. Update the active sidebar link highlighting
+        if (currentAside) {
+            currentAside.querySelectorAll('nav a').forEach(a => {
+                const path = a.getAttribute('href');
+                if (path === url || (path === '/' && url === '/dashboard') || (url.startsWith('/playlist') && path === '/playlists')) {
+                    a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30";
+                } else {
+                    a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors";
+                }
+            });
+        }
+
+        // 4. Run scripts in order
+        scriptsToRun.forEach(oldScript => {
+            const newScript = document.createElement('script');
+            Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+            if (oldScript.innerHTML) {
+                newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+            }
+            document.body.appendChild(newScript);
+        });
+
+        // 5. Fire DOMContentLoaded to trigger page initializations
+        setTimeout(() => {
+            document.dispatchEvent(new Event('DOMContentLoaded'));
+        }, 50);
+
+    } catch (e) {
+        console.error('SPA Navigation error:', e);
+        window.location.href = url; // Fallback
+    }
+}
+
+// Intercept clicks on links or button navigation
+document.addEventListener('click', (e) => {
+    // 1. Anchor tag clicks
+    let link = e.target.closest('a');
+    if (link && link.getAttribute('href')) {
+        const href = link.getAttribute('href');
+        if (href.startsWith('/') && !href.startsWith('/auth') && !href.startsWith('/oauth') && !href.startsWith('/api')) {
+            e.preventDefault();
+            window.history.pushState(null, '', href);
+            navigateSPA(href);
+            return;
+        }
+    }
+
+    // 2. Elements with inline onclick="window.location.href='...'"
+    let onclickEl = e.target.closest('[onclick]');
+    if (onclickEl) {
+        const onclickAttr = onclickEl.getAttribute('onclick');
+        const match = onclickAttr.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/);
+        if (match) {
+            const href = match[1];
+            if (href.startsWith('/') && !href.startsWith('/auth') && !href.startsWith('/oauth') && !href.startsWith('/api')) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.history.pushState(null, '', href);
+                navigateSPA(href);
+            }
+        }
+    }
+}, true); // Capture phase to run before inline handlers
+
+// Handle browser back/forward buttons
+window.addEventListener('popstate', () => {
+    navigateSPA(window.location.pathname);
+});
