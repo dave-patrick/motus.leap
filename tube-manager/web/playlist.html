@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playlist - Tube Manager</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        .video-row { @apply border-t border-[#2a2f3a] py-2 px-3 transition-colors; }
+        .video-row:hover { @apply bg-[#20242c]; }
+        .video-row.selected { @apply bg-blue-600/20; }
+        input[type="checkbox"]:checked + .video-checkbox { @apply bg-blue-600 border-blue-600; }
+    </style>
+    <link rel="stylesheet" href="/static/ux-enhancements.css">
+    <script src="/static/ux-enhancements.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/auth-check.js"></script>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-4">
+            <button onclick="window.location.href='/playlists'" class="text-gray-400 hover:text-white"><i class="fa-solid fa-arrow-left"></i></button>
+            <div><h1 class="text-sm font-bold tracking-wide text-white leading-tight" id="playlist-title">Loading...</h1><p class="text-[10px] text-gray-400" id="playlist-meta">-- videos • --</p></div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="moveSelectedVideos()" id="move-btn" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 hidden"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Move Selected</button>
+            <button onclick="scanForDuplicates()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5"><i class="fa-solid fa-copy"></i> Scan for Duplicates</button>
+            <button onclick="scanForMisplaced()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5"><i class="fa-solid fa-rectangle-history-circle-question"></i> Scan Misplaced</button>
+        </div>
+    </header>
+    <div class="flex flex-1 overflow-hidden">
+        <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
+            <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
+            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
+            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
+        </aside>
+        <main class="flex-1 overflow-y-auto p-4 bg-[#121419]">
+            <div class="flex flex-col gap-2 min-w-[800px]">
+                <div class="bento-card p-0" id="videos-container">
+                    <div class="text-center p-8 text-gray-400"><i class="fa-solid fa-spinner fa-spin"></i> Loading videos...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script>
+        let allVideos = [];
+        let selectedVideos = new Set();
+        let playlistId = window.location.pathname.split('/').pop();
+        let allPlaylists = [];
+
+        function formatDuration(seconds) {
+            seconds = parseInt(seconds) || 0;
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        async function loadPlaylist() {
+            try {
+                const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}`);
+                const data = await resp.json();
+                allVideos = data.videos || [];
+                document.getElementById('playlist-title').textContent = allVideos[0]?.playlist_title || 'Unknown Playlist';
+                document.getElementById('playlist-meta').textContent = `${allVideos.length} videos`;
+                renderVideos();
+            } catch (e) {
+                document.getElementById('videos-container').innerHTML = '<div class="text-center p-8 text-red-400">Failed to load videos</div>';
+            }
+        }
+
+        function renderVideos() {
+            const container = document.getElementById('videos-container');
+            if (!allVideos.length) {
+                container.innerHTML = '<div class="text-center p-8 text-gray-400">No videos in this playlist</div>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="p-3 border-b border-[#2a2f3a] flex items-center justify-between">
+                    <span class="text-[10px] text-gray-400">Select videos to move (click checkboxes)</span>
+                    <select id="target-playlist" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none">
+                        <option value="">Select target playlist...</option>
+                    </select>
+                </div>
+                ${allVideos.map((v, i) => `
+                    <div class="video-row flex items-center gap-2" data-video-id="${v.video_id}">
+                        <input type="checkbox" class="video-checkbox w-3 h-3 rounded" onchange="toggleVideo('${v.video_id}', this)">
+                        <img src="${v.thumbnail || 'https://picsum.photos/160/90'}" class="w-20 h-11 rounded object-cover flex-shrink-0">
+                        <div class="flex-1 min-w-0">
+                            <div class="text-[11px] text-white truncate">${v.title || 'Unknown title'}</div>
+                            <div class="text-[9px] text-gray-400">${v.channel_title || 'Unknown channel'}</div>
+                        </div>
+                        <span class="text-[9px] text-gray-300 font-mono bg-[#20242c] px-1.5 py-0.5 rounded">${formatDuration(v.duration)}</span>
+                        <span class="text-[9px] text-gray-500 w-12 text-right">${i + 1}</span>
+                    </div>
+                `).join('')}
+            `;
+            loadPlaylistsDropdown();
+        }
+
+        async function loadPlaylistsDropdown() {
+            try {
+                const resp = await fetch('/api/playlists');
+                const data = await resp.json();
+                allPlaylists = data.playlists || [];
+                const select = document.getElementById('target-playlist');
+                select.innerHTML = '<option value="">Select target playlist...</option>' + 
+                    allPlaylists.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
+            } catch (e) {
+                console.error('Failed to load playlists');
+            }
+        }
+
+        function toggleVideo(videoId, checkbox) {
+            if (checkbox.checked) {
+                selectedVideos.add(videoId);
+            } else {
+                selectedVideos.delete(videoId);
+            }
+            updateMoveButton();
+        }
+
+        function updateMoveButton() {
+            const moveBtn = document.getElementById('move-btn');
+            moveBtn.classList.toggle('hidden', selectedVideos.size === 0);
+        }
+
+        async function moveSelectedVideos() {
+            const targetId = document.getElementById('target-playlist').value;
+            if (!targetId || selectedVideos.size === 0) {
+                toast('Please select videos and target playlist', 'error');
+                return;
+            }
+            const videoIds = Array.from(selectedVideos);
+            try {
+                const resp = await fetch('/api/bulk/move', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({video_ids: videoIds, target_playlist_id: targetId, source_playlist_id: playlistId})
+                });
+                const result = await resp.json();
+                toast(`Moved ${videoIds.length} videos`, 'success');
+                selectedVideos.clear();
+                updateMoveButton();
+            } catch (e) {
+                toast('Failed to move videos', 'error');
+            }
+        }
+
+        async function scanForDuplicates() {
+            toast('Scanning for duplicates...', 'info');
+            try {
+                const resp = await fetch('/api/action', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'scan_duplicates', payload: {playlist_id: playlistId}})
+                });
+                toast('Scan complete - check logs for results', 'success');
+            } catch (e) {
+                toast('Scan failed', 'error');
+            }
+        }
+
+        async function scanForMisplaced() {
+            toast('Scanning for misplaced videos...', 'info');
+            try {
+                const resp = await fetch('/api/action', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'scan_misplaced', payload: {playlist_id: playlistId}})
+                });
+                toast('Scan complete - check logs for results', 'success');
+            } catch (e) {
+                toast('Scan failed', 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadPlaylist);
+    </script>
+</body>
+</html>
