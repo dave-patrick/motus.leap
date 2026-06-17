@@ -54,20 +54,25 @@
             <div class="flex flex-col gap-3 min-w-[800px]">
                 
                 <!-- Live System Activity Box -->
-                <div id="system-activity-box" class="bento-card p-3 flex flex-col gap-2 shrink-0 border border-blue-500/20 bg-[#16191f]">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-white flex items-center gap-2">
-                            <span class="relative flex h-2 w-2">
-                                <span id="activity-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span id="activity-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                            </span>
-                            Active Task: <span id="activity-task" class="text-blue-400 font-mono font-semibold">Idle</span>
+                <div id="system-activity-box" class="bento-card p-3.5 flex items-center justify-between gap-6 border border-blue-500/20 bg-[#16191f] shrink-0">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="relative flex h-2 w-2">
+                            <span id="activity-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span id="activity-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </span>
-                        <span class="text-[9px] text-gray-500 uppercase font-bold font-mono">Live Activity Stream</span>
+                        <div class="min-w-0">
+                            <div class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">System Status</div>
+                            <div id="activity-task-desc" class="text-xs font-semibold text-white truncate max-w-sm mt-0.5">Idle • System is ready.</div>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2 border-t border-[#2a2f3a]/50 pt-2 font-mono text-[10px] text-gray-400">
-                        <i class="fa-solid fa-terminal text-blue-500/70 shrink-0 animate-pulse"></i>
-                        <span id="activity-log" class="truncate">Listening to system log stream...</span>
+                    
+                    <div id="activity-progress-box" class="flex-1 min-w-0 mx-6 flex items-center gap-2 border-l border-r border-[#2a2f3a]/60 px-4 h-full">
+                        <!-- Space or empty placeholder for styling consistency with footer -->
+                    </div>
+                    
+                    <div id="activity-task-container" class="shrink-0 flex items-center gap-2 text-gray-400 max-w-xs truncate">
+                        <span class="text-[9px] uppercase tracking-wider font-bold text-gray-500 shrink-0">Active Task:</span>
+                        <span id="activity-task" class="text-blue-400 font-mono font-semibold text-[10px]">Idle</span>
                     </div>
                 </div>
 
