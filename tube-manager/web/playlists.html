@@ -77,7 +77,7 @@
                 <div class="flex items-center justify-between">
                     <h2 class="text-xl font-bold text-white">Playlists</h2>
                     <div class="flex gap-2">
-                        <button onclick="syncPlaylists()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Sync from YouTube</button>
+                        <button onclick="syncPlaylists(event)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Sync from YouTube</button>
                         <button onclick="openNewPlaylistModal()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> New Playlist</button>
                     </div>
                 </div>
@@ -362,8 +362,8 @@
             }
         }
         
-        async function syncPlaylists() {
-            const btn = event.target;
+        async function syncPlaylists(e) {
+            const btn = e.target.closest('button') || e.target;
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Syncing...';
             try {
@@ -373,9 +373,13 @@
                     body: JSON.stringify({action: 'sync_playlists'})
                 });
                 const result = await resp.json();
-                toast(`Sync queued: ${result.action}`, 'success');
-                loadPlaylists();
-            } catch (e) {
+                if (result.error) {
+                    toast(`Sync failed: ${result.error}`, 'error');
+                } else {
+                    toast(`Sync queued: ${result.action}`, 'success');
+                    loadPlaylists();
+                }
+            } catch (err) {
                 toast('Failed to queue sync', 'error');
             } finally {
                 btn.disabled = false;
