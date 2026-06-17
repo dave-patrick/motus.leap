@@ -493,6 +493,132 @@ async def api_playlists() -> dict[str, Any]:
     return {"playlists": [], "error": "YouTube service not available"}
 
 
+@app.post("/api/youtube/playlists/rename")
+async def rename_playlist_endpoint(payload: dict):
+    playlist_id = payload.get("playlist_id")
+    new_title = payload.get("new_title")
+    if not playlist_id or not new_title:
+        raise HTTPException(status_code=400, detail="Missing playlist_id or new_title")
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    try:
+        google_client = yt_client._get_client(require_oauth=True)
+        google_client.playlists().update(
+            part="snippet",
+            body={
+                "id": playlist_id,
+                "snippet": {
+                    "title": new_title
+                }
+            }
+        ).execute()
+        # Force cache refresh so the updated name shows up
+        await youtube_service.fetch_all_data(force_refresh=True)
+        return {"status": "success", "message": f"Playlist renamed to {new_title}"}
+    except Exception as e:
+        log.error(f"Error renaming playlist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/youtube/playlists/delete")
+async def delete_playlist_endpoint(payload: dict):
+    playlist_id = payload.get("playlist_id")
+    if not playlist_id:
+        raise HTTPException(status_code=400, detail="Missing playlist_id")
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    try:
+        google_client = yt_client._get_client(require_oauth=True)
+        google_client.playlists().delete(id=playlist_id).execute()
+        
+        # Force cache refresh
+        await youtube_service.fetch_all_data(force_refresh=True)
+        return {"status": "success", "message": "Playlist deleted successfully"}
+    except Exception as e:
+        log.error(f"Error deleting playlist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/youtube/playlists/duplicate")
+async def duplicate_playlist_endpoint(payload: dict):
+    playlist_id = payload.get("playlist_id")
+    new_title = payload.get("new_title")
+    if not playlist_id or not new_title:
+        raise HTTPException(status_code=400, detail="Missing playlist_id or new_title")
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    try:
+        google_client = yt_client._get_client(require_oauth=True)
+        
+        # 1. Create a new playlist
+        new_pl = google_client.playlists().insert(
+            part="snippet,status",
+            body={
+                "snippet": {
+                    "title": new_title,
+                    "description": "Duplicated from original"
+                },
+                "status": {
+                    "privacyStatus": "private"
+                }
+            }
+        ).execute()
+        new_playlist_id = new_pl["id"]
+        
+        # 2. Get videos from original playlist and copy them (in background task)
+        async def copy_videos_task():
+            try:
+                # Retrieve all videos of original playlist
+                orig_videos = await youtube_service.get_videos(playlist_id=playlist_id)
+                videos_list = orig_videos.get("videos", [])
+                
+                # Insert each video into the new playlist
+                for v in videos_list:
+                    try:
+                        google_client.playlistItems().insert(
+                            part="snippet",
+                            body={
+                                "snippet": {
+                                    "playlistId": new_playlist_id,
+                                    "resourceId": {
+                                        "kind": "youtube#video",
+                                        "videoId": v.get("video_id")
+                                    }
+                                }
+                            }
+                        ).execute()
+                    except Exception as ve:
+                        log.error(f"Error copying video {v.get('video_id')}: {ve}")
+                
+                # Force refresh cache
+                await youtube_service.fetch_all_data(force_refresh=True)
+            except Exception as te:
+                log.error(f"Error in background copy task: {te}")
+                
+        # Run copy task in background
+        asyncio.create_task(copy_videos_task())
+        
+        return {"status": "success", "message": f"Duplication started. Playlist '{new_title}' is being populated."}
+    except Exception as e:
+        log.error(f"Error duplicating playlist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Subscriptions endpoint
 @app.get("/api/subscriptions")
 async def api_subscriptions() -> dict[str, Any]:
