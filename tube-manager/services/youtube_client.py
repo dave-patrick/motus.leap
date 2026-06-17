@@ -79,8 +79,7 @@ class YouTubeClient:
                 client_id=self.oauth_client_id,
                 client_secret=self.oauth_client_secret,
             )
-            http = httplib2.Http(timeout=30) if httplib2 else None
-            self._youtube_oauth = build("youtube", "v3", credentials=creds, cache_discovery=False, http=http)
+            self._youtube_oauth = build("youtube", "v3", credentials=creds, cache_discovery=False)
             log.info("[YOUTUBE] _ensure_oauth_client: OAuth client built successfully")
             return True
         except Exception as e:
