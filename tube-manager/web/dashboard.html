@@ -54,12 +54,12 @@
                 <i class="fa-solid fa-user text-gray-400"></i>
             </div>
             <script>
-                            // Load user avatar
-                            fetch('/api/user').then(r => r.json()).then(data => {
-                                const avatar = document.getElementById('user-avatar');
-                                if (data.logged_in && data.channel_thumbnail) {
-                    avatar.innerHTML = `<img src="${data.channel_thumbnail}" class="w-full h-full object-cover rounded-full">`;
-                                }
+                // Load user avatar
+                fetch('/api/user').then(r => r.json()).then(data => {
+                    const avatar = document.getElementById('user-avatar');
+                    if (data.logged_in && data.channel_thumbnail) {
+                        avatar.innerHTML = `<img src="${data.channel_thumbnail}" class="w-full h-full object-cover rounded-full">`;
+                    }
                 }).catch(() => {});
             </script>
             <div class="flex gap-2">
