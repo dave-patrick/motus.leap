@@ -1,4 +1,4 @@
-"""Tube Manager Main Application."""
+"""motus.leap Main Application."""
 # Deploy v2.1
 
 import asyncio
@@ -77,7 +77,7 @@ youtube_service: Optional[YouTubeService] = None
 
 # Initialize app
 app = FastAPI(
-    title="Tube Manager",
+    title="motus.leap",
     description="YouTube Playlist Management System",
     version="2.0.0"
 )
@@ -114,8 +114,8 @@ async def no_cache_file_response(file_path: Path) -> Response:
 
         # Add a visible marker to confirm fresh deploy
         content = content.replace(
-            '<title>Tube Manager</title>',
-            '<title>Tube Manager</title>\n    <meta name="deploy-time" content="' + str(int(__import__('time').time())) + '">'
+            '<title>motus.leap</title>',
+            '<title>motus.leap</title>\n    <meta name="deploy-time" content="' + str(int(__import__('time').time())) + '">'
         )
         return Response(
             content=content,
@@ -212,12 +212,12 @@ async def lifespan(app: FastAPI):
     worker = BackgroundWorker(youtube_service, manager, config_manager, task_queue)
     asyncio.create_task(worker.process_background_tasks())
     
-    log.info("Tube Manager started successfully")
+    log.info("motus.leap started successfully")
     
     yield
     
     # Shutdown
-    log.info("Tube Manager shutting down")
+    log.info("motus.leap shutting down")
     await shutdown_http_client()
 
 
@@ -1196,7 +1196,7 @@ async def system_logs_page():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Logs - Tube Manager</title>
+    <title>System Logs - motus.leap</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
         body {{ font-family: 'JetBrains Mono', monospace; background: #0a0c10; color: #e5e5e5; margin: 0; padding: 0; }}
@@ -1214,7 +1214,7 @@ async def system_logs_page():
 </head>
 <body>
     <div class="header">
-        <h1>📋 System Logs — Tube Manager</h1>
+        <h1>📋 System Logs — motus.leap</h1>
         <a href="/settings">← Back to Settings</a>
     </div>
     <div class="controls">
