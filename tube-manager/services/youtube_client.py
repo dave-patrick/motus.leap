@@ -52,13 +52,15 @@ class YouTubeClient:
             return True
 
         if not self.oauth_access_token or not self.oauth_refresh_token:
+            log.debug("[YOUTUBE] _ensure_oauth_client: missing access_token or refresh_token")
             return False
 
         if build is None:
+            log.debug("[YOUTUBE] _ensure_oauth_client: googleapiclient not available")
             return False
 
         if self.token_expiry <= time.time():
-            log.warning("Access token expired, refreshing...")
+            log.warning("[YOUTUBE] _ensure_oauth_client: access token expired, refreshing...")
             return self._refresh_access_token()
 
         try:
@@ -72,9 +74,10 @@ class YouTubeClient:
             )
             http = httplib2.Http(timeout=30) if httplib2 else None
             self._youtube_oauth = build("youtube", "v3", credentials=creds, cache_discovery=False, http=http)
+            log.info("[YOUTUBE] _ensure_oauth_client: OAuth client built successfully")
             return True
         except Exception as e:
-            log.error(f"Failed to build OAuth client: {e}")
+            log.error(f"[YOUTUBE] _ensure_oauth_client: Failed to build OAuth client: {e}")
             self._youtube_oauth = None
             return False
 
@@ -172,6 +175,9 @@ class YouTubeClient:
                 pageToken=page_token or None,
             ).execute()
             log.info(f"[YOUTUBE] list_mine_playlists returned {len(resp.get('items', []))} items")
+            # Debug: log first item if any
+            if resp.get('items'):
+                log.info(f"[YOUTUBE] first item id: {resp['items'][0].get('id')}")
             return resp
         except HttpError as e:
             status_code = e.resp.status if hasattr(e, "resp") and e.resp else "unknown"
