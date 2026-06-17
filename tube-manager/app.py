@@ -180,7 +180,8 @@ manager = ConnectionManager()
 # Background task queue
 task_queue: asyncio.Queue = asyncio.Queue()
 background_tasks_running = False
-
+current_task_name: Optional[str] = None
+@asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -260,7 +261,7 @@ async def add_security_headers(request: Request, call_next):
 # Background task processor
 async def process_background_tasks():
     """Process background tasks from the queue."""
-    global background_tasks_running
+    global background_tasks_running, current_task_name
     background_tasks_running = True
     
     while True:
@@ -270,6 +271,8 @@ async def process_background_tasks():
             payload = task.get("payload", {})
             
             await manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Starting: {action}"}))
+            
+            current_task_name = action
             
             # Process different actions
             if action == "full_cluster_scan":
@@ -293,9 +296,11 @@ async def process_background_tasks():
             
             await manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
             task_queue.task_done()
+            current_task_name = None
         except Exception as e:
             log.error(f"Background task error: {e}")
             await manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] {str(e)}"}))
+            current_task_name = None
 
 
 async def full_cluster_scan(payload):
@@ -310,8 +315,15 @@ async def full_cluster_scan(payload):
     try:
         # Fetch user's playlists
         await manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Fetching playlist data from YouTube API..."}))
-        playlists_resp = client.list_mine_playlists(max_results=50)
-        playlists = playlists_resp.get("items", [])
+        playlists = []
+        page_token = None
+        while True:
+            playlists_resp = client.list_mine_playlists(max_results=50, page_token=page_token)
+            items = playlists_resp.get("items", [])
+            playlists.extend(items)
+            page_token = playlists_resp.get("nextPageToken")
+            if not page_token:
+                break
         await manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"}))
         
         total_videos = 0
@@ -813,7 +825,8 @@ async def stats() -> dict[str, Any]:
     return {
         **yt_stats,
         "pending_actions": task_queue.qsize(),
-        "running_tasks": 1 if background_tasks_running else 0,
+        "running_tasks": 1 if current_task_name else 0,
+        "current_task": current_task_name,
         "ai_learning": ai_learning_active,
         "learning_rate": f"{channel_mappings_count / max(channel_mappings_count, 1) * 100:.1f}%" if channel_mappings_count > 0 else "0%",
         "learning_rates": str(channel_mappings_count),
