@@ -42,12 +42,20 @@ def get_formatted_mappings(config) -> dict[str, Any]:
 
 class BackgroundWorker:
     def __init__(self, youtube_service, manager, config_manager, task_queue):
-        self.youtube_service = youtube_service
+        self._youtube_service = youtube_service
         self.manager = manager
         self.config_manager = config_manager
         self.task_queue = task_queue
         self.background_tasks_running = False
         self.current_task_name = None
+
+    @property
+    def youtube_service(self):
+        try:
+            import app
+            return getattr(app, "youtube_service", self._youtube_service)
+        except Exception:
+            return self._youtube_service
 
     async def process_background_tasks(self):
         """Process background tasks from the queue."""
