@@ -661,3 +661,73 @@ function initUXEnhancements() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', initUXEnhancements);
+
+
+// ============================================
+// SYSTEM ACTIVITY BOX CONTROLLER
+// ============================================
+
+function initSystemActivityController() {
+    const box = document.getElementById('system-activity-box');
+    if (!box) return;
+
+    const taskEl = document.getElementById('activity-task');
+    const logEl = document.getElementById('activity-log');
+    const pingColor = document.getElementById('activity-ping-color');
+    const pingAnimate = document.getElementById('activity-ping-animate');
+
+    let ws = null;
+    function connectWS() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
+        ws.onopen = () => {
+            if (logEl) logEl.textContent = 'Connected. Listening to system logs...';
+        };
+        ws.onmessage = (event) => {
+            let msg;
+            try {
+                msg = JSON.parse(event.data);
+            } catch (e) {
+                if (logEl) logEl.textContent = event.data;
+                return;
+            }
+            if (msg.type === 'log' && logEl) {
+                logEl.textContent = msg.message;
+            }
+        };
+        ws.onclose = () => {
+            setTimeout(connectWS, 5000);
+        };
+        ws.onerror = () => {};
+    }
+
+    async function pollStats() {
+        try {
+            const resp = await fetch('/api/stats');
+            if (resp.ok) {
+                const data = await resp.json();
+                if (taskEl) {
+                    taskEl.textContent = data.current_task || 'Idle';
+                }
+                const isRunning = data.running_tasks > 0 && data.current_task;
+                if (pingColor && pingAnimate) {
+                    if (isRunning) {
+                        pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-yellow-500";
+                        pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75";
+                    } else {
+                        pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-green-500";
+                        pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75";
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to fetch stats', e);
+        }
+    }
+
+    connectWS();
+    pollStats();
+    setInterval(pollStats, 10000);
+}
+
+document.addEventListener('DOMContentLoaded', initSystemActivityController);

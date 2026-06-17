@@ -497,13 +497,47 @@ class YouTubeService:
         Returns:
             Dictionary containing videos list or error
         """
-        all_data = await self.fetch_all_data(force_refresh=force_refresh)
-        if "error" in all_data:
-            return {"videos": [], "error": all_data["error"]}
+        # If no playlist_id is provided, use the global cache
+        if not playlist_id:
+            all_data = await self.fetch_all_data(force_refresh=force_refresh)
+            if "error" in all_data:
+                return {"videos": [], "error": all_data["error"]}
+            return {"videos": all_data.get("videos", [])}
         
-        videos = all_data.get("videos", [])
+        # If playlist_id is provided, check if we have cached videos for this specific playlist
+        cache_key = f"playlist_videos_{playlist_id}"
+        if not force_refresh:
+            cached_videos = await self._get_cached(cache_key)
+            if cached_videos is not None:
+                return {"videos": cached_videos}
         
-        if playlist_id:
-            videos = [v for v in videos if v.get("playlist_id") == playlist_id]
-        
-        return {"videos": videos}
+        # Otherwise, fetch fresh videos for this specific playlist directly
+        client = self.get_client(require_oauth=True)
+        if not client:
+            return {"videos": [], "error": "OAuth client not available"}
+            
+        try:
+            # Find the playlist title from list of playlists to preserve the video metadata
+            playlists_data = await self.list_playlists()
+            playlist_title = "Unknown Playlist"
+            for pl in playlists_data.get("playlists", []):
+                if pl.get("id") == playlist_id:
+                    playlist_title = pl.get("title", "Unknown Playlist")
+                    break
+                    
+            video_items = await self._fetch_all_paginated(
+                lambda max_results, page_token: client.list_videos(playlist_id, max_results=max_results, page_token=page_token),
+                max_results=50,
+                max_items=500,
+            )
+            videos = []
+            for vid in video_items:
+                video = self._video_item_to_dict(vid, playlist_id, playlist_title)
+                videos.append(video)
+                
+            # Cache the videos for this specific playlist
+            await self._set_cached(cache_key, videos)
+            return {"videos": videos}
+        except Exception as e:
+            log.error(f"Error fetching videos for playlist {playlist_id}: {e}")
+            return {"videos": [], "error": str(e)}
