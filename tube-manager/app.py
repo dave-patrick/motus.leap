@@ -182,8 +182,6 @@ task_queue: asyncio.Queue = asyncio.Queue()
 background_tasks_running = False
 current_task_name: Optional[str] = None
 @asynccontextmanager
-
-@asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     global youtube_service
