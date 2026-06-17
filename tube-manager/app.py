@@ -944,8 +944,33 @@ async def diagnostics_oauth_user() -> dict[str, Any]:
     except Exception as e:
         result["error"] = f"{type(e).__name__}: {str(e)}"
 
-    return result
+    
 
+@app.get("/api/user")
+async def api_user() -> dict[str, Any]:
+    """Return logged-in user info for header display."""
+    config = config_manager.config
+    if not (config.oauth.access_token and config.oauth.refresh_token):
+        return {"logged_in": False}
+    
+    result = {"logged_in": True, "channel_title": "Unknown Channel"}
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            channel_resp = await client.get(
+                "https://www.googleapis.com/youtube/v3/channels",
+                params={"part": "snippet", "mine": "true"},
+                headers={"Authorization": f"Bearer {config.oauth.access_token}"}
+            )
+            if channel_resp.status_code == 200:
+                data = channel_resp.json()
+                if data.get("items"):
+                    item = data["items"][0]
+                    result["channel_title"] = item.get("snippet", {}).get("title", "Unknown")
+                    result["channel_thumbnail"] = item.get("snippet", {}).get("thumbnails", {}).get("default", {}).get("url")
+    except Exception as e:
+        result["error"] = str(e)
+    return result
 
 # System endpoints
 @app.get("/api/system/logs")
