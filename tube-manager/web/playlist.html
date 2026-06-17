@@ -90,9 +90,9 @@
                     </select>
                 </div>
                 ${allVideos.map((v, i) => `
-                    <div class="video-row flex items-center gap-2" data-video-id="${v.video_id}">
-                        <input type="checkbox" class="video-checkbox w-3 h-3 rounded" onchange="toggleVideo('${v.video_id}', this)">
-                        <img src="${v.thumbnail || 'https://picsum.photos/160/90'}" class="w-20 h-11 rounded object-cover flex-shrink-0">
+                    <div class="video-row flex items-center gap-2 py-1" data-video-id="${v.video_id}">
+                        <input type="checkbox" class="video-checkbox w-4 h-4 rounded" onchange="toggleVideo('${v.video_id}', this)">
+                        <img src="${v.thumbnail || 'https://picsum.photos/160/90'}" class="w-24 h-14 rounded object-cover flex-shrink-0">
                         <div class="flex-1 min-w-0">
                             <div class="text-[11px] text-white truncate">${v.title || 'Unknown title'}</div>
                             <div class="text-[9px] text-gray-400">${v.channel_title || 'Unknown channel'}</div>
