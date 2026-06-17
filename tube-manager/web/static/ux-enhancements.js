@@ -849,40 +849,72 @@ window.addEventListener('popstate', () => {
 // GLOBAL AGENT DRAWER CONTROLLER
 // ============================================
 
+window.toggleAgentDrawer = function() {
+    const drawer = document.getElementById('global-agent-drawer');
+    const consoleEl = document.getElementById('agent-drawer-console');
+    const icon = document.getElementById('agent-drawer-toggle-icon');
+    if (!drawer || !consoleEl || !icon) return;
+    
+    const isExpanded = drawer.classList.contains('h-48');
+    if (isExpanded) {
+        drawer.className = 'fixed bottom-0 left-0 right-0 h-12 bg-[#16191f] border-t border-[#2a2f3a] z-50 flex flex-col font-sans text-xs transition-all duration-300';
+        consoleEl.classList.add('hidden');
+        icon.className = 'fa-solid fa-chevron-up text-[10px]';
+        document.body.style.paddingBottom = '48px';
+    } else {
+        drawer.className = 'fixed bottom-0 left-0 right-0 h-48 bg-[#16191f] border-t border-[#2a2f3a] z-50 flex flex-col font-sans text-xs transition-all duration-300';
+        consoleEl.classList.remove('hidden');
+        icon.className = 'fa-solid fa-chevron-down text-[10px]';
+        document.body.style.paddingBottom = '192px';
+        // Auto scroll console to bottom
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+};
+
 function initGlobalAgentDrawer() {
     let drawer = document.getElementById('global-agent-drawer');
     if (!drawer) {
         drawer = document.createElement('div');
         drawer.id = 'global-agent-drawer';
-        drawer.className = 'fixed bottom-0 left-0 right-0 h-12 bg-[#16191f] border-t border-[#2a2f3a] z-50 flex items-center justify-between px-6 font-sans text-xs';
+        drawer.className = 'fixed bottom-0 left-0 right-0 h-12 bg-[#16191f] border-t border-[#2a2f3a] z-50 flex flex-col font-sans text-xs transition-all duration-300';
         drawer.innerHTML = `
-            <!-- Left: Status & Current Task -->
-            <div class="flex items-center gap-2.5 min-w-0">
-                <div class="flex items-center gap-1.5 shrink-0">
-                    <span class="relative flex h-2 w-2">
-                        <span id="agent-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span id="agent-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    <span class="font-bold text-blue-400 uppercase tracking-wider text-[9px]">Agent Status:</span>
+            <div class="flex items-center justify-between w-full h-12 px-6">
+                <!-- Left: Status & Current Task -->
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <span class="relative flex h-2 w-2">
+                            <span id="agent-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span id="agent-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        <span class="font-bold text-blue-400 uppercase tracking-wider text-[9px]">Agent Status:</span>
+                    </div>
+                    <span id="agent-task" class="text-white font-semibold truncate max-w-xs font-mono bg-[#20242c] border border-[#2a2f3a] px-2 py-0.5 rounded text-[10px]">Idle</span>
                 </div>
-                <span id="agent-task" class="text-white font-semibold truncate max-w-xs font-mono bg-[#20242c] border border-[#2a2f3a] px-2 py-0.5 rounded text-[10px]">Idle</span>
+                
+                <!-- Center: Live Logs Stream -->
+                <div class="flex-1 min-w-0 mx-6 flex items-center gap-2 border-l border-r border-[#2a2f3a]/60 px-4 font-mono text-[9px] text-gray-400 h-full">
+                    <i class="fa-solid fa-terminal text-blue-500 shrink-0"></i>
+                    <span id="agent-log" class="truncate">Listening to live log stream...</span>
+                </div>
+                
+                <!-- Right: Latest Completed Task Summary & Chevron Toggle -->
+                <div class="shrink-0 flex items-center gap-2 text-gray-400 max-w-xs truncate">
+                    <span class="text-[9px] uppercase tracking-wider font-bold text-gray-500 shrink-0">Last Task:</span>
+                    <span id="agent-summary" class="text-[10px] font-medium text-green-400 truncate">None</span>
+                    <button onclick="event.stopPropagation(); toggleAgentDrawer()" id="agent-drawer-toggle" class="text-gray-400 hover:text-white p-1 rounded hover:bg-[#20242c] border border-transparent hover:border-[#2a2f3a] transition-all ml-2" title="Toggle Console">
+                        <i id="agent-drawer-toggle-icon" class="fa-solid fa-chevron-up text-[10px]"></i>
+                    </button>
+                </div>
             </div>
             
-            <!-- Center: Live Logs Stream -->
-            <div class="flex-1 min-w-0 mx-6 flex items-center gap-2 border-l border-r border-[#2a2f3a]/60 px-4 font-mono text-[9px] text-gray-400">
-                <i class="fa-solid fa-terminal text-blue-500 shrink-0"></i>
-                <span id="agent-log" class="truncate">Listening to live log stream...</span>
-            </div>
-            
-            <!-- Right: Latest Completed Task Summary -->
-            <div class="shrink-0 flex items-center gap-2 text-gray-400 max-w-xs truncate">
-                <span class="text-[9px] uppercase tracking-wider font-bold text-gray-500 shrink-0">Last Task:</span>
-                <span id="agent-summary" class="text-[10px] font-medium text-green-400 truncate">None</span>
+            <!-- Hidden full-size scrollable console -->
+            <div id="agent-drawer-console" class="hidden w-full h-36 bg-[#0e1014] border-t border-[#2a2f3a] p-3 overflow-y-auto font-mono text-[10px] text-gray-400 space-y-1">
+                <div class="text-blue-400/80">[SYSTEM] Live agent console initialized. Logs will stream below...</div>
             </div>
         `;
         document.body.appendChild(drawer);
         
-        // Compensate for the sticky drawer height by adding margin/padding to body
+        // Compensate for sticky drawer height
         document.body.style.paddingBottom = '48px';
     }
     
@@ -914,6 +946,24 @@ function startAgentActivityTracker() {
             if (msg.type === 'log') {
                 const text = msg.message;
                 if (logEl) logEl.textContent = text;
+                
+                // Append log line to expanded console
+                const consoleEl = document.getElementById('agent-drawer-console');
+                if (consoleEl) {
+                    const line = document.createElement('div');
+                    line.className = 'border-l-2 border-blue-500/30 pl-2 py-0.5 hover:bg-white/5 transition-colors';
+                    const time = new Date().toLocaleTimeString();
+                    line.innerHTML = `<span class="text-gray-500 text-[8px] mr-2">[${time}]</span> <span class="text-gray-300">${text}</span>`;
+                    consoleEl.appendChild(line);
+                    
+                    // Limit total logs in console to 100
+                    while (consoleEl.children.length > 100) {
+                        consoleEl.removeChild(consoleEl.firstChild);
+                    }
+                    
+                    // Auto scroll to bottom
+                    consoleEl.scrollTop = consoleEl.scrollHeight;
+                }
                 
                 // Extract task completion status
                 if (text.includes('Successfully synchronized') || text.includes('Scan complete') || text.includes('Operation completed') || text.includes('completed') || text.includes('Success')) {
