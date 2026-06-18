@@ -147,7 +147,8 @@ Return ONLY the playlist name or UNSURE."""
 
 def classify_video(title: str, channel: str, description: str,
                    playlists: list[dict], provider: str, api_key: str,
-                   prompt_template: str = DEFAULT_PROMPT) -> tuple[str | None, str | None]:
+                   prompt_template: str = DEFAULT_PROMPT,
+                   custom_endpoint: str = "", custom_model: str = "") -> tuple[str | None, str | None]:
     """Classify a video into a playlist using the configured AI provider.
     
     Returns (matched_playlist_name, error_message).
@@ -171,6 +172,8 @@ def classify_video(title: str, channel: str, description: str,
             return _classify_groq(prompt, api_key)
         elif provider == "google":
             return _classify_google(prompt, api_key)
+        elif provider == "custom":
+            return _classify_custom(prompt, api_key, custom_endpoint, custom_model)
         else:
             return None, f"Unknown provider: {provider}"
     except Exception as e:
@@ -252,4 +255,25 @@ def _classify_google(prompt: str, api_key: str) -> tuple[str | None, str | None]
     resp.raise_for_status()
     data = resp.json()
     text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    return (text if text != "UNSURE" else None), None
+
+
+def _classify_custom(prompt: str, api_key: str, endpoint: str, model: str) -> tuple[str | None, str | None]:
+    """Call a custom OpenAI-compatible API endpoint (Ollama, LM Studio, OpenRouter, etc.)."""
+    import httpx
+    url = endpoint.rstrip("/") + "/chat/completions"
+    resp = httpx.post(
+        url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "model": model or "default",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": 50,
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    text = data["choices"][0]["message"]["content"].strip()
     return (text if text != "UNSURE" else None), None
