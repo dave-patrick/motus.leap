@@ -3,12 +3,13 @@
   const hash = window.location.hash;
   if (hash && hash.includes('token=')) {
     const token = hash.split('token=')[1].split('&')[0];
+    localStorage.setItem('token', token);
     document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
     window.location.hash = '';
     // Continue below to validate the token
   }
 
-  // 2. Verify token from cookie
+  // 2. Verify token from cookie or localStorage
   function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -16,10 +17,15 @@
     return null;
   }
   
-  const token = getCookie('token');
+  const token = getCookie('token') || localStorage.getItem('token');
   if (!token) {
     window.location.href = '/auth';
     return;
+  }
+
+  // Auto-sync token from localStorage to cookie if it's missing in cookies
+  if (!getCookie('token') && localStorage.getItem('token')) {
+    document.cookie = `token=${localStorage.getItem('token')}; path=/; max-age=604800; SameSite=Lax`;
   }
 
   function clearAuthAndRedirect() {
@@ -30,8 +36,12 @@
   }
 
   function validateToken(attempt) {
+    const activeToken = getCookie('token') || localStorage.getItem('token');
     fetch('/api/auth/me', {
-      headers: { 'Accept': 'application/json' }
+      headers: { 
+        'Accept': 'application/json',
+        ...(activeToken ? { 'Authorization': `Bearer ${activeToken}` } : {})
+      }
     })
     .then(resp => {
       if (resp.status === 401) {

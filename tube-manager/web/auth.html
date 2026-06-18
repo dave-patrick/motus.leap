@@ -99,6 +99,7 @@
             if (hash && hash.includes('token=')) {
                 const token = hash.split('token=')[1].split('&')[0];
                 if (token) {
+                    localStorage.setItem('token', token);
                     document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
                     window.location.hash = '';
                     window.location.replace('/dashboard');
