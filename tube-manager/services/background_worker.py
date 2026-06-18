@@ -349,74 +349,45 @@ class BackgroundWorker:
                         pass
 
             # Use extracted classify method
-            classify = self._classify_video
-            
+            def classify(item):
+                owner_id = ""
+                owner_title = ""
+                owner = item.get("contentDetails", {}).get("videoOwnerChannelId") or item.get("snippet", {}).get("videoOwnerChannelId")
+                if owner:
+                    owner_id = owner.strip()
+                channel_obj = (item.get("snippet", {}) or {}).get("videoOwnerChannelName")
+                if isinstance(channel_obj, str):
+                    owner_title = channel_obj.strip()
+                if not owner_id:
+                    owner_id = owner_title
+
+                if owner_id:
+                    if owner_id in mapping_by_channel_id:
+                        return owner_id, mapping_by_channel_id[owner_id]
+                    meta = channel_cache.get(owner_id)
+                    if meta:
+                        if meta.get("channel_id") in mapping_by_channel_id:
+                            return meta.get("channel_id"), mapping_by_channel_id[meta.get("channel_id")]
+                        title_for_match = meta.get("title", owner_title or "").lower()
+                        for channel_title_id, channel_playlist_id, title_len in mapping_channel_title_scores:
+                            if title_for_match and channel_title_id.lower() in title_for_match:
+                                return channel_title_id, channel_playlist_id
+
+                snippet = item.get("snippet", {}) or {}
+                candidates: list[str] = []
+                for key in ("title", "description"):
+                    val = snippet.get(key, "")
+                    if isinstance(val, str):
+                        candidates.append(val)
+                lower_candidates = [c.lower() for c in candidates]
+
+                for candidate in lower_candidates:
+                    for channel_title_id, channel_playlist_id, title_len in mapping_channel_title_scores:
+                        if channel_title_id.lower() in candidate:
+                            return channel_title_id, channel_playlist_id
+                return None, None
+
             # Pre-build playlist lookup data for AI classification
-        """Classify a video item to determine target playlist.
-        
-        Args:
-            item: Video item from Watch Later playlist
-            mapping_by_channel_id: Dict mapping channel_id -> playlist_id
-            channel_cache: Cached channel metadata
-            mapping_channel_title_scores: List of (channel_title, playlist_id, title_len) tuples
-            config: Application config
-            playlist_id_title_pairs: List of (playlist_id, playlist_title) tuples
-            playlist_title_list: List of playlist dicts for AI classification
-            
-        Returns:
-            Tuple of (channel_id, playlist_id) or (None, None)
-        """
-        owner_id = ""
-        owner_title = ""
-        owner = item.get("contentDetails", {}).get("videoOwnerChannelId") or item.get("snippet", {}).get("videoOwnerChannelId")
-        if owner:
-            owner_id = owner.strip()
-        channel_obj = (item.get("snippet", {}) or {}).get("videoOwnerChannelName")
-        if isinstance(channel_obj, str):
-            owner_title = channel_obj.strip()
-        if not owner_id:
-            owner_id = owner_title
-
-        if owner_id:
-            if owner_id in mapping_by_channel_id:
-                return owner_id, mapping_by_channel_id[owner_id]
-            meta = channel_cache.get(owner_id)
-            if meta:
-                if meta.get("channel_id") in mapping_by_channel_id:
-                    return meta.get("channel_id"), mapping_by_channel_id[meta.get("channel_id")]
-                title_for_match = meta.get("title", owner_title or "").lower()
-                for channel_title_id, channel_playlist_id, title_len in mapping_channel_title_scores:
-                    if title_for_match and channel_title_id.lower() in title_for_match:
-                        return channel_title_id, channel_playlist_id
-
-        snippet = item.get("snippet", {}) or {}
-        candidates: list[str] = []
-        for key in ("title", "description"):
-            val = snippet.get(key, "")
-            if isinstance(val, str):
-                candidates.append(val)
-        lower_candidates = [c.lower() for c in candidates]
-
-        for candidate in lower_candidates:
-            for channel_title_id, channel_playlist_id, title_len in mapping_channel_title_scores:
-                if channel_title_id.lower() in candidate:
-                    return channel_title_id, channel_playlist_id
-        
-        # If AI mode is enabled and channel mapping didn't match, try AI classification
-        if getattr(config, "ai_mode", "channel") == "ai":
-            ai_provider = getattr(config, "ai_provider", "")
-            raw_key = getattr(config, "ai_api_key", "")
-            ai_api_key = raw_key.get_secret_value() if hasattr(raw_key, 'get_secret_value') else str(raw_key)
-            ai_prompt = getattr(config, "ai_classification_prompt", "")
-            ai_endpoint = getattr(config, "ai_custom_endpoint", "")
-            ai_model = getattr(config, "ai_custom_model", "")
-            if ai_provider and ai_api_key:
-                try:
-                    # Use extracted classify method
-                    classify = self._classify_video
-            
-                    # Pre-build playlist lookup data for AI classification
-            # AI classification - use cached playlist list
             playlist_id_title_pairs: list[tuple[str, str]] = []
             playlist_title_list: list[dict] = []
             await self._ensure_playlist_cache(client)
