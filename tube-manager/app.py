@@ -1341,22 +1341,6 @@ async def clear_thumbnails():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/storage/vacuum")
-async def vacuum_database():
-    """Vacuum the database."""
-    try:
-        db_path = Path("/app/data/tube_manager.db")
-        if db_path.exists():
-            import sqlite3
-            conn = sqlite3.connect(str(db_path))
-            conn.execute("VACUUM")
-            conn.close()
-            return {"message": "Database vacuumed successfully"}
-        return {"message": "No database to vacuum"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get("/api/storage/export")
 async def export_data():
     """Export all data as JSON."""

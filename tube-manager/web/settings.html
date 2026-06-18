@@ -165,7 +165,6 @@
                                     <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Thumbnails</div><div class="text-lg font-bold text-white" id="thumb-count">1,331 files</div></div>
                                     <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
                                         <button onclick="clearThumbnailCache()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Thumbnail Cache</button>
-                                        <button onclick="vacuumDatabase()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Vacuum Database</button>
                                         <button onclick="exportAllData()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Export All Data (JSON)</button>
                                     </div>
                                 </div>
@@ -604,14 +603,6 @@
                 const resp = await fetch('/api/storage/clear-thumbnails', {method: 'POST'});
                 const data = await resp.json();
                 toast(data.message || 'Cache cleared', 'success');
-            } catch (e) { toast('Failed: ' + e.message, 'error'); }
-        }
-        
-        async function vacuumDatabase() {
-            try {
-                const resp = await fetch('/api/storage/vacuum', {method: 'POST'});
-                const data = await resp.json();
-                toast(data.message || 'Database vacuumed', 'success');
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
         
