@@ -400,6 +400,20 @@ async def fetch_all_youtube_data(request: Request, force_refresh: bool = False):
     return result
 
 
+@app.get("/api/playlists/names")
+async def api_playlist_names():
+    """Return lightweight playlist ID+name pairs for dropdowns (fast, cached)."""
+    if not youtube_service:
+        return {"playlists": []}
+    try:
+        data = await youtube_service.list_playlists()
+        playlists = data.get("playlists", [])
+        return {"playlists": [{"id": p["id"], "title": p["title"], "video_count": p.get("video_count", 0)} for p in playlists]}
+    except Exception as e:
+        log.warning(f"Failed to load playlist names: {e}")
+        return {"playlists": []}
+
+
 @app.get("/api/watch-later")
 async def get_watch_later():
     """Fetch Watch Later playlist contents using browser scraper (bypasses API restriction)."""
@@ -413,8 +427,18 @@ async def get_watch_later():
                 if client:
                     resp = client.list_watch_later_items(max_results=50, playlist_id=configured_id)
                     items = resp.get("items", [])
+                    # Try to get the playlist title for the display badge
+                    pl_name = configured_id
+                    try:
+                        pl_data = await youtube_service.list_playlists()
+                        for p in pl_data.get("playlists", []):
+                            if p.get("id") == configured_id:
+                                pl_name = p.get("title", configured_id)
+                                break
+                    except Exception:
+                        pass
                     if items:
-                        return {"items": items, "source": f"configured ({configured_id})"}
+                        return {"items": items, "source": f"configured: {pl_name}"}
         
         # 2. Try browser scraper for native Watch Later
         from services.browser_scraper import has_cookies, scrape_watch_later_videos

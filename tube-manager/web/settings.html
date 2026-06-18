@@ -143,6 +143,7 @@
                                             <option value="">-- Auto-detect (Watch Later / Queue / Sort) --</option>
                                         </select>
                                         <div class="flex items-center gap-1 mt-1.5">
+                                            <button onclick="loadPlaylistNames()" class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-blue-400 hover:text-white hover:border-[#374151] transition-colors" title="Refresh playlist list"><i class="fa-solid fa-rotate text-[9px] mr-1"></i>Refresh</button>
                                             <input type="text" id="watch-later-id-manual" placeholder="Or paste playlist ID..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none">
                                             <button onclick="document.getElementById('watch-later-source').value = document.getElementById('watch-later-id-manual').value; toast('Manual ID set', 'success')" class="bg-blue-600 hover:bg-blue-500 text-white text-[9px] px-2 py-1 rounded">Set</button>
                                         </div>
@@ -406,28 +407,38 @@
         }
 
         // Settings actions
-        async function loadSettings() {
+        async function loadPlaylistNames() {
             try {
-                // Populate playlists dropdown first for Watch Later / Sync Source selection
-                try {
-                    const plResp = await fetch('/api/playlists');
-                    if (plResp.ok) {
-                        const plData = await plResp.json();
-                        const playlists = plData.playlists || [];
-                        const select = document.getElementById('watch-later-source');
-                        if (select) {
-                            select.innerHTML = '<option value="">-- Auto-detect (Watch Later / Queue / Sort) --</option>';
-                            playlists.forEach(p => {
-                                const opt = document.createElement('option');
-                                opt.value = p.id;
-                                opt.textContent = `${p.title} (${p.video_count} videos)`;
-                                select.appendChild(opt);
-                            });
+                const plResp = await fetch('/api/playlists/names');
+                if (plResp.ok) {
+                    const plData = await plResp.json();
+                    const playlists = plData.playlists || [];
+                    const select = document.getElementById('watch-later-source');
+                    if (select) {
+                        const currentVal = select.value;
+                        select.innerHTML = '<option value="">-- Auto-detect (Watch Later / Queue / Sort) --</option>';
+                        playlists.forEach(p => {
+                            const opt = document.createElement('option');
+                            opt.value = p.id;
+                            opt.textContent = `${p.title} (${p.video_count} videos)`;
+                            select.appendChild(opt);
+                        });
+                        // Restore selection if the value still exists in the list
+                        if (currentVal) {
+                            const exists = playlists.some(p => p.id === currentVal);
+                            if (exists) select.value = currentVal;
                         }
                     }
-                } catch (pe) {
-                    console.warn('Failed to load playlists list for dropdown', pe);
                 }
+            } catch (e) {
+                console.warn('Failed to load playlist names', e);
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                // Load all playlists by name for the Watch Later Source dropdown
+                await loadPlaylistNames();
 
                 const response = await fetch('/api/settings');
                 if (!response.ok) return;
