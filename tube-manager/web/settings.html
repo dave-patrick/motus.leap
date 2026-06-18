@@ -14,6 +14,16 @@
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
         ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateX(100%); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slide-out {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100%); }
+        }
+        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        .animate-slide-out { animation: slide-out 0.3s ease-in; }
     </style>
     <link rel="stylesheet" href="/static/ux-enhancements.css">
     <script src="/static/ux-enhancements.js"></script>
@@ -31,13 +41,20 @@
             <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
             <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <a href="/rules" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings</a>
-            <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration</a>
             <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
         </aside>
+        
         <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
             <div class="flex flex-col gap-4 min-w-[1200px]">
-                <h2 class="text-xl font-bold text-white">Settings</h2>
+                <!-- Tabs Navigation -->
+                <div class="flex items-center justify-between border-b border-[#2a2f3a] pb-2 shrink-0">
+                    <div class="flex gap-4">
+                        <button onclick="switchTab('general')" id="tab-btn-general" class="text-sm font-bold tracking-wide text-white border-b-2 border-blue-500 pb-2 px-1 focus:outline-none transition-colors">General & API</button>
+                        <button onclick="switchTab('rules')" id="tab-btn-rules" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">Rules & Mappings</button>
+                        <button onclick="switchTab('ai')" id="tab-btn-ai" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">AI Integration</button>
+                    </div>
+                </div>
+
                 <div id="security-warning" class="hidden rounded-lg border border-yellow-600/50 bg-yellow-900/20 px-4 py-3 text-xs text-yellow-200">
                     <div class="flex items-start gap-3">
                         <i class="fa-solid fa-triangle-exclamation mt-0.5 text-yellow-400"></i>
@@ -47,113 +64,292 @@
                         </div>
                     </div>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div class="bento-card p-4">
-                        <h3 class="text-xs font-semibold text-gray-300 mb-4">YouTube API</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">API Key</label>
-                                <input type="password" id="yt-api-key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="Enter API key">
-                            </div>
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client ID</label>
-                                <input type="text" id="oauth-client-id" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="xxxxx.apps.googleusercontent.com">
-                            </div>
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client Secret</label>
-                                <div class="relative">
-                                    <input type="password" id="oauth-client-secret" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none pr-10" placeholder="••••••••">
-                                    <button type="button" onclick="toggleSecretVisibility('oauth-client-secret', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors" title="Show/Hide secret">
-                                        <i class="fa-solid fa-eye" id="oauth-secret-eye"></i>
-                                    </button>
+
+                <!-- TABS CONTAINER -->
+                <div>
+                    <!-- TAB 1: GENERAL & API -->
+                    <div id="tab-content-general" class="tab-pane space-y-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div class="bento-card p-4">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">YouTube API</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">API Key</label>
+                                        <input type="password" id="yt-api-key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="Enter API key">
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client ID</label>
+                                        <input type="text" id="oauth-client-id" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="xxxxx.apps.googleusercontent.com">
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client Secret</label>
+                                        <div class="relative">
+                                            <input type="password" id="oauth-client-secret" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none pr-10" placeholder="••••••••">
+                                            <button type="button" onclick="toggleSecretVisibility('oauth-client-secret', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors" title="Show/Hide secret">
+                                                <i class="fa-solid fa-eye" id="oauth-secret-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="pt-2 border-t border-[#2a2f3a] space-y-3">
+                                        <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded"><i class="fa-solid fa-floppy-disk mr-2"></i>Save All Settings</button>
+                                        <div class="border-t border-[#2a2f3a] pt-2 space-y-2">
+                                            <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="api-first" class="accent-blue-500" checked> Use API-first mode (fallback to headless)</label>
+                                            <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-refresh" class="accent-blue-500" checked> Auto-refresh tokens</label>
+                                        </div>
+                                        <button onclick="connectYouTube()" class="w-full bg-[#c8102e] hover:bg-[#b00f2a] text-white text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-brands fa-youtube"></i> Connect YouTube Account (OAuth)</button>
+                                        <button onclick="disconnectYouTube()" class="w-full bg-[#2a2f3a] hover:bg-red-600/20 border border-[#374151] text-gray-300 hover:text-red-400 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-unlink"></i> Disconnect YouTube</button>
+                                        <div id="yt-status" class="text-[10px] text-gray-400 text-center"></div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="pt-2 border-t border-[#2a2f3a] space-y-3">
-                                <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded"><i class="fa-solid fa-floppy-disk mr-2"></i>Save All Settings</button>
-                                <div class="border-t border-[#2a2f3a] pt-2 space-y-2">
-                                    <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="api-first" class="accent-blue-500" checked> Use API-first mode (fallback to headless)</label>
-                                    <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-refresh" class="accent-blue-500" checked> Auto-refresh tokens</label>
+                            
+                            <div class="bento-card p-4">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Diagnostics</h3>
+                                <div class="space-y-3">
+                                    <button onclick="runDiagnose()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-stethoscope text-blue-400"></i> Diagnose Failures</button>
+                                    <button onclick="runSurface()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-layer-group text-blue-400"></i> Surface diagnostics</button>
+                                    <div id="diag-status" class="text-[10px] text-gray-400 text-center"></div>
+                                    <div id="diag-log" class="bg-[#20242c] border border-[#2a2f3a] rounded p-3 h-48 overflow-y-auto font-mono text-[10px] text-gray-400"></div>
                                 </div>
-                                <button onclick="connectYouTube()" class="w-full bg-[#c8102e] hover:bg-[#b00f2a] text-white text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-brands fa-youtube"></i> Connect YouTube Account (OAuth)</button>
-                                <button onclick="disconnectYouTube()" class="w-full bg-[#2a2f3a] hover:bg-red-600/20 border border-[#374151] text-gray-300 hover:text-red-400 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-unlink"></i> Disconnect YouTube</button>
-                                <div id="yt-status" class="text-[10px] text-gray-400 text-center"></div>
+                            </div>
+
+                            <div class="bento-card p-4">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">General</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Default Playlist Privacy</label>
+                                        <select id="default-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <option value="private">Private</option>
+                                            <option value="unlisted">Unlisted</option>
+                                            <option value="public">Public</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Scan Interval</label>
+                                        <select id="scan-interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <option value="15min">Every 15 minutes</option>
+                                            <option value="hourly" selected>Every hour</option>
+                                            <option value="6hour">Every 6 hours</option>
+                                            <option value="daily">Daily</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Max Concurrent Operations</label>
+                                        <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                    </div>
+                                    <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
+                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-sort" class="accent-blue-500" checked> Auto-sort new videos</label>
+                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="sync-watch-later" class="accent-blue-500" checked> Sync Watch Later on scan</label>
+                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="notify-failures" class="accent-blue-500"> Notify on failures</label>
+                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="dark-mode" class="accent-blue-500" checked> Dark mode only</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bento-card p-4">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Storage & Data</h3>
+                                <div class="space-y-4">
+                                    <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Database Size</div><div class="text-lg font-bold text-white" id="db-size">47.3 MB</div></div>
+                                    <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Cache Size</div><div class="text-lg font-bold text-white" id="cache-size">12.1 MB</div></div>
+                                    <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Thumbnails</div><div class="text-lg font-bold text-white" id="thumb-count">1,331 files</div></div>
+                                    <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
+                                        <button onclick="clearThumbnailCache()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Thumbnail Cache</button>
+                                        <button onclick="vacuumDatabase()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Vacuum Database</button>
+                                        <button onclick="exportAllData()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Export All Data (JSON)</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bento-card p-4">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Advanced</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Log Level</label>
+                                        <select id="log-level" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <option value="DEBUG">DEBUG</option>
+                                            <option value="INFO" selected>INFO</option>
+                                            <option value="WARNING">WARNING</option>
+                                            <option value="ERROR">ERROR</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Webhook URL (optional)</label>
+                                        <input type="url" id="webhook-url" placeholder="https://your-webhook.com/endpoint" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                    </div>
+                                    <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
+                                        <button onclick="testWebhook()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Test Webhook</button>
+                                        <button onclick="viewSystemLogs()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">View System Logs</button>
+                                        <button onclick="resetAllSettings()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Reset All Settings</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="bento-card p-4">
-                        <h3 class="text-xs font-semibold text-gray-300 mb-4">Diagnostics</h3>
-                        <div class="space-y-3">
-                            <button onclick="runDiagnose()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-stethoscope text-blue-400"></i> Diagnose Failures</button>
-                            <button onclick="runSurface()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-layer-group text-blue-400"></i> Surface diagnostics</button>
-                            <div id="diag-status" class="text-[10px] text-gray-400 text-center"></div>
-                            <div id="diag-log" class="bg-[#20242c] border border-[#2a2f3a] rounded p-3 h-48 overflow-y-auto font-mono text-[10px] text-gray-400"></div>
+
+                    <!-- TAB 2: RULES & MAPPINGS -->
+                    <div id="tab-content-rules" class="tab-pane hidden space-y-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div class="bento-card flex flex-col overflow-hidden h-[550px]">
+                                <div class="px-4 py-3 border-b border-[#2a2f3a] flex items-center justify-between">
+                                    <h3 class="text-xs font-semibold text-gray-300">JSON Editor</h3>
+                                    <button onclick="beautifyJson()" class="text-[10px] px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-blue-400 hover:text-white hover:border-[#374151] transition-colors"><i class="fa-solid fa-code text-[9px] mr-1"></i>Beautify</button>
+                                </div>
+                                <textarea id="rules-editor" class="flex-1 p-3 bg-[#0a0c10] font-mono text-[10px] text-gray-300 border-none outline-none resize-none" style="min-height: 400px;" spellcheck="false">{
+  "category": {
+    "regex": "\\w+"
+  },
+  "channel": {
+    "UC_x5XG1OV2P6uZZ5FSM9Ttw": {
+      "playlist": "PL_tech"
+    },
+    "UC_latest": {
+      "playlist": "PL_learning"
+    }
+  },
+  "title_patterns": [
+    { "regex": "(?i)\\b(Music Video|Official Video|Official Music Video|lyric video)\\b", "playlist": "PL7y0zeb_CORJPWvCa3H1PgYo6weywtEYO" },
+    { "regex": "(?i)\\b(AI|Artificial Intelligence|Machine Learning|LLM|GPT|Claude|OpenAI|DeepMind|AI tool|AI news|Large Language Model)\\b", "playlist": "PL7y0zeb_CORL1pSvjlwSusYNmG6KoRJup" },
+    { "regex": "(?i)\\b(Mobile|Smartphone|iPhone|Android|iOS|Samsung Galaxy|Galaxy Watch|Galaxy Buds|phone review|phone comparison)\\b", "playlist": "PL7y0zeb_CORIpkrNA-VHc-QwaSjPAgCgj" },
+    { "regex": "(?i)\\b(Star Wars|Sith|Jedi|Mandalorian|Clone Wars|Lightsaber|Star Wars game|Star Wars lore)\\b", "playlist": "PL7y0zeb_CORJfHQ5pA5vzS3qgqTPHxGWV" },
+    { "regex": "(?i)\\b(Bigfoot|Sasquatch|cryptid|sighting|evidence)\\b", "playlist": "PL7y0zeb_CORK5-7EsxSKzWhfHLvUbcdwP" },
+    { "regex": "(?i)\\b(Concert|Live Performance|Live at|Tour|Setlist)\\b", "playlist": "PL7y0zeb_CORKC5X2X44vqUaNRNFrGsiT1" },
+    { "regex": "(?i)\\b(Auto|Car|Engine|Automotive|Car Review|Vehicle)\\b", "playlist": "PL7y0zeb_CORLCAcUEZvAwuuU6blZ58vH7" },
+    { "regex": "(?i)\\b(Tutorial|How.to|Guide|Science|History|Educational|Lecture|Explainer)\\b", "playlist": "PL7y0zeb_CORLXj5a_QPWbHvJqgemcaXlr" },
+    { "regex": "(?i)\\b(Aviation|Plane|Jet|Dogfight|Aviation History|Airport|Airbus|Boeing)\\b", "playlist": "PL7y0zeb_CORLXLj16aOlXZRNAKcNJhLoy" },
+    { "regex": "(?i)\\b(Football|NFL|49ers|Game Highlights|Football Game)\\b", "playlist": "PL7y0zeb_CORKoxZUO3457C3b6WrIefFk8" },
+    { "regex": "(?i)\\b(Music|Analysis|Song|Album|Artist|Band)\\b", "playlist": "PL7y0zeb_CORJpW-fQMHT1R9r60JkY3PTS" },
+    { "regex": "(?i)\\b(Drone|FPV|UAV|Quadcopter)\\b", "playlist": "PL7y0zeb_CORIwTikMFo1ebprLKAz5j_Pc" },
+    { "regex": "(?i)\\b(Blacksmith|Forging|Metalworking|Anvil|Hammer)\\b", "playlist": "PL7y0zeb_CORIvSnQBPcX6xkqoB9mTgJqM" },
+    { "regex": "(?i)\\b(Short Film|Short|Indie Film|Student Film)\\b", "playlist": "PL7y0zeb_CORIyz05Jb4KPpec2K65Zfm07" },
+    { "regex": "(?i)\\b(Truck|Toyota Tacoma|Tacoma|Tundra|F-150|Silverado|Ram|Cybertruck)\\b", "playlist": "PL7y0zeb_CORJ7sbSZjPao9RNbbHHCy1-a" },
+    { "regex": "(?i)\\b(Camping|Tent|Campfire|Outdoor|Hiking|Backpacking)\\b", "playlist": "PL7y0zeb_CORJOl3fCuY7YmuqQWoBPTeJ_" },
+    { "regex": "(?i)\\b(Raspberry Pi|Pi|Arduino|ESP32|Microcontroller|Soldering|Electronics Project)\\b", "playlist": "PL7y0zeb_CORIU5WgWv3hEuk2Yy8DpRDrM" },
+    { "regex": "(?i)\\b(Workout|Fitness|Gym|Exercise Routine|Bodybuilding|Strength Training)\\b", "playlist": "PL7y0zeb_CORInIcNSp0aAl2yL5rTHkreV" },
+    { "regex": "(?i)\\b(GX7|Lumix GX7|Panasonic GX7|Micro Four Thirds)\\b", "playlist": "PL7y0zeb_CORLbijxL9CPao7hWBdiXFlQI" },
+    { "regex": "(?i)\\b(Exercise|Workout|Fitness|Calisthenics|Yoga|Pilates)\\b", "playlist": "PL7y0zeb_CORI-OPTi75AfsqjFzt64oiN7" },
+    { "regex": "(?i)\\b(Laser|Engraving|Cutting|CNC Laser|Diode Laser|CO2 Laser)\\b", "playlist": "PL7y0zeb_CORIlvnYNGTTbWChapJ8OGrD5" },
+    { "regex": "(?i)\\b(Manifestation|Law of Attraction|Affirmations|Meditation|Spirituality)\\b", "playlist": "PL7y0zeb_CORItnOrKBTFNaQIw0qhcCtXH" },
+    { "regex": "(?i)\\b(Photo Tutorial|Photography Tutorial|Camera Tutorial|Lightroom|Photoshop)\\b", "playlist": "PL7y0zeb_CORIL3EdriFAO6CNpz-DRQFVs" },
+    { "regex": "(?i)\\b(Kira|Kira Kira|Kira Video)\\b", "playlist": "PL7y0zeb_CORIfrJi2yt158QliAPNCFcCF" },
+    { "regex": "(?i)\\b(Overland|Off-Road|Offroad|Rock Crawling|Expedition|Vehicle Camping)\\b", "playlist": "PL7y0zeb_CORL676RR_pq_GLzP733705GD" },
+    { "regex": "(?i)\\b(Tech|Gadget|Hardware Review|PC Build|CPU|GPU|Motherboard|RAM|SSD|Keyboard|Mouse|Monitor)\\b", "playlist": "PL7y0zeb_CORJUcSZBAb4vVhOxKE9ZBSGB" },
+    { "regex": "(?i)\\b(Maker|DIY|Crafts|Woodworking|3D Print|CNC|Welding|Soldering|Electronics)\\b", "playlist": "PL7y0zeb_CORJHIOjTtI7SPtjqSwQRr8Dv" },
+    { "regex": "(?i)\\b(3D Printing|Slicer|CAD|STL|FDM|Resin|Filament|Printer|Ender|Prusa|Bambu)\\b", "playlist": "PL7y0zeb_CORLpATW8g5_9pvhqyOk7HlkB" },
+    { "regex": "(?i)\\b(Home Improvement|Remodeling|Home Repair|Renovation|Plumbing|Electrical|Drywall|Flooring)\\b", "playlist": "PL7y0zeb_CORKaNonAmTculyIhdrgCiLsJ" },
+    { "regex": "(?i)\\b(Productivity|Workflow|Note Taking|Obsidian|Notion|Roam|Logseq|Todoist|Time Management)\\b", "playlist": "PL7y0zeb_CORLiQSf5expC4gxWvXuHQX6V" },
+    { "regex": "(?i)\\b(Cosplay|Costume|Prop Making|Armor|Sewing|Foam Smithing)\\b", "playlist": "PL7y0zeb_CORKA_K267f-P7KAsxKlyG97M" },
+    { "regex": "(?i)\\b(Blackstone|Griddle|Seasoning|Outdoor Cooking|Flat Top)\\b", "playlist": "PL7y0zeb_CORI80nlSgSzoumw-KoFx0LZ-" },
+    { "regex": "(?i)\\b(Food|Cooking|Recipe|Food Review|Baking|Restaurant|Meal Prep)\\b", "playlist": "PL7y0zeb_CORIJAzUcZAeuyMuPmg2MI360" },
+    { "regex": "(?i)\\b(Arizona|Phoenix|Tucson|Sedona|Grand Canyon|Arizona Travel)\\b", "playlist": "PL7y0zeb_CORJ5hv1dfAjmAMVNDP_iUwlw" },
+    { "regex": "(?i)\\b(Smart Home|Automation|IoT|Home Assistant|HomeKit|Zigbee|Z-Wave|Matter|Smart Light|Smart Lock|Smart Thermostat)\\b", "playlist": "PL7y0zeb_CORKDinVAv761LrHyJkKjJqsW" },
+    { "regex": "(?i)\\b(Photo|Photography|Camera|Lens|Lightroom|Photoshop|Composition|Portrait|Landscape)\\b", "playlist": "PL7y0zeb_CORL8WT86VDIVcrwxu1yBHSf1" },
+    { "regex": "(?i)\\b(Entertainment|Movie|TV Show|Series|Review|Trailer|Netflix|Disney|HBO|Amazon Prime)\\b", "playlist": "PL7y0zeb_CORLzH9tFD4_zEAH9GVAznjAI" },
+    { "regex": "(?i)\\b(Woodworking|Woodwork|Carpentry|Joinery|Furniture Making|Lathe|Router|Table Saw|Band Saw|Planer)\\b", "playlist": "PL7y0zeb_CORItyD4kCnlQrVcE-tzgQhup" },
+    { "regex": "(?i)\\b(Health|Medical|Fitness|Nutrition|Diet|Supplements|Wellness|Mental Health|Doctor)\\b", "playlist": "PL7y0zeb_CORLDzpejAmTKZ_-tRPhJpCVI" },
+    { "regex": "(?i)\\b(Tana|Tana Workflow|Tana Command|Tana Node|Supertag|Tana Inc)\\b", "playlist": "PL7y0zeb_CORK47v9jis0X0xKF1rP6u" }
+  ],
+  "duration_rules": {
+    "short": { "max_seconds": 300, "playlist": "PL_shorts" },
+    "long": { "min_seconds": 3600, "playlist": "PL_deep_dive" }
+  }
+}</textarea>
+                                <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex gap-2">
+                                    <button onclick="applyRules()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Apply Rules</button>
+                                    <button onclick="validateRules()" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1.5 rounded">Validate JSON</button>
+                                </div>
+                            </div>
+                            <div class="bento-card flex flex-col overflow-hidden h-[550px]">
+                                <div class="px-4 py-3 border-b border-[#2a2f3a]"><h3 class="text-xs font-semibold text-gray-300">Channel → Playlist Mappings</h3></div>
+                                <div class="p-3 overflow-y-auto flex-1" id="mappings-list">Loading...</div>
+                                <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
+                                    <div class="text-[10px] text-gray-400">These mappings override the JSON rules above. Channel ID → Playlist ID</div>
+                                    <button onclick="loadChannelMappings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Load from Channel Map</button>
+                                    <button onclick="saveMappings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-1.5 rounded">Save Mappings</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="bento-card p-4">
-                        <h3 class="text-xs font-semibold text-gray-300 mb-4">General</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">Default Playlist Privacy</label>
-                                <select id="default-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                    <option value="private">Private</option>
-                                    <option value="unlisted">Unlisted</option>
-                                    <option value="public">Public</option>
-                                </select>
+
+                    <!-- TAB 3: AI INTEGRATION -->
+                    <div id="tab-content-ai" class="tab-pane hidden space-y-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div class="bento-card p-4">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Model Configuration</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Classification Model</label>
+                                        <select id="model-classification" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <option>Gemini 2.0 Flash (Google AI Studio)</option>
+                                            <option>Llama 3.1 8B (Groq)</option>
+                                            <option>Mistral Small (Mistral AI)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Embedding Model</label>
+                                        <select id="model-embedding" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <option>text-embedding-3-small (OpenAI)</option>
+                                            <option>nomic-embed-text (local)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Reasoning Model</label>
+                                        <select id="model-reasoning" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <option>DeepSeek-R1-Distill (Groq)</option>
+                                            <option>Nemotron 3 Ultra (OpenRouter)</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">Scan Interval</label>
-                                <select id="scan-interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                    <option value="15min">Every 15 minutes</option>
-                                    <option value="hourly" selected>Every hour</option>
-                                    <option value="6hour">Every 6 hours</option>
-                                    <option value="daily">Daily</option>
-                                </select>
+                            <div class="bento-card p-4">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Learning Parameters</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <div class="flex justify-between text-[10px] mb-1"><span>Learning Rate</span><span id="lr-value">0.00225</span></div>
+                                        <input type="range" min="0.0001" max="0.01" step="0.0001" value="0.00225" class="w-full accent-blue-500" oninput="document.getElementById('lr-value').textContent=this.value">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-[10px] mb-1"><span>Confidence Threshold</span><span id="ct-value">0.75</span></div>
+                                        <input type="range" min="0.1" max="0.99" step="0.01" value="0.75" class="w-full accent-blue-500" oninput="document.getElementById('ct-value').textContent=this.value">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-[10px] mb-1"><span>Cluster Similarity</span><span id="cs-value">0.82</span></div>
+                                        <input type="range" min="0.1" max="0.99" step="0.01" value="0.82" class="w-full accent-blue-500" oninput="document.getElementById('cs-value').textContent=this.value">
+                                    </div>
+                                    <div>
+                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500" checked> Auto-retrain on new data</label>
+                                    </div>
+                                    <div>
+                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500"> Enable semantic deduplication</label>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">Max Concurrent Operations</label>
-                                <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                            <div class="bento-card p-4 lg:col-span-2">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Training Data & Feedback Loop</h3>
+                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                    <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-2xl font-bold text-blue-400" id="stat-samples">1,922</div><div class="text-[10px] text-gray-400">Training Samples</div></div>
+                                    <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-2xl font-bold text-green-400" id="stat-lr">2.225%</div><div class="text-[10px] text-gray-400">Learning Rate</div></div>
+                                    <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-2xl font-bold text-purple-400" id="stat-acc">94.3%</div><div class="text-[10px] text-gray-400">Classification Accuracy</div></div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="retrainModel(this)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-4 py-2 rounded">Retrain Model</button>
+                                    <button onclick="exportWeights()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Export Weights</button>
+                                    <button onclick="importDataset()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Import Dataset</button>
+                                </div>
                             </div>
-                            <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-sort" class="accent-blue-500" checked> Auto-sort new videos</label>
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="sync-watch-later" class="accent-blue-500" checked> Sync Watch Later on scan</label>
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="notify-failures" class="accent-blue-500"> Notify on failures</label>
-                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="dark-mode" class="accent-blue-500" checked> Dark mode only</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bento-card p-4">
-                        <h3 class="text-xs font-semibold text-gray-300 mb-4">Storage & Data</h3>
-                        <div class="space-y-4">
-                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Database Size</div><div class="text-lg font-bold text-white" id="db-size">47.3 MB</div></div>
-                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Cache Size</div><div class="text-lg font-bold text-white" id="cache-size">12.1 MB</div></div>
-                            <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Thumbnails</div><div class="text-lg font-bold text-white" id="thumb-count">1,331 files</div></div>
-                            <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
-                                <button onclick="clearThumbnailCache()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Thumbnail Cache</button>
-                                <button onclick="vacuumDatabase()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Vacuum Database</button>
-                                <button onclick="exportAllData()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Export All Data (JSON)</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bento-card p-4">
-                        <h3 class="text-xs font-semibold text-gray-300 mb-4">Advanced</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">Log Level</label>
-                                <select id="log-level" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                    <option value="DEBUG">DEBUG</option>
-                                    <option value="INFO" selected>INFO</option>
-                                    <option value="WARNING">WARNING</option>
-                                    <option value="ERROR">ERROR</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">Webhook URL (optional)</label>
-                                <input type="url" id="webhook-url" placeholder="https://your-webhook.com/endpoint" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                            </div>
-                            <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
-                                <button onclick="testWebhook()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Test Webhook</button>
-                                <button onclick="viewSystemLogs()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">View System Logs</button>
-                                <button onclick="resetAllSettings()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Reset All Settings</button>
+                            <div class="bento-card p-4 lg:col-span-2">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-3">AI Agent Log</h3>
+                                <div id="ai-log" class="bg-[#0a0c10] p-3 font-mono text-[10px] leading-relaxed text-green-300 h-64 overflow-y-auto whitespace-pre-wrap">
+[AI] Initializing classification pipeline...
+[AI] Loading embeddings cache (1,922 vectors)
+[AI] Gemini 2.0 Flash connected • 1500 req/day quota
+[CLUSTER] Processing playlist "PL_tech" — 347 videos
+[CLUSTER] Similarity matrix computed • 0.82 threshold
+[LEARN] Batch 1/8 complete • accuracy: 94.1%
+[LEARN] Batch 2/8 complete • accuracy: 94.3%
+[DEDUPE] Found 23 semantic duplicates across playlists
+[RULE] Generated 12 new regex patterns from clusters
+[AI] Model checkpoint saved • next retrain: 24h
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -161,7 +357,26 @@
             </div>
         </main>
     </div>
+
     <script>
+        // Tab switching logic
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => {
+                btn.className = "text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors border-b-2 border-transparent";
+            });
+            
+            const activePane = document.getElementById(`tab-content-${tabId}`);
+            if (activePane) activePane.classList.remove('hidden');
+            
+            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+            if (activeBtn) {
+                activeBtn.className = "text-sm font-bold tracking-wide text-white border-b-2 border-blue-500 pb-2 px-1 focus:outline-none transition-colors";
+            }
+            
+            window.location.hash = tabId;
+        }
+
         // Toast notification system
         function toast(message, type = 'info', duration = 4000) {
             let container = document.getElementById('toast-container');
@@ -180,6 +395,7 @@
             setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, duration);
         }
 
+        // Settings actions
         async function loadSettings() {
             try {
                 const response = await fetch('/api/settings');
@@ -209,6 +425,9 @@
                 document.getElementById('dark-mode').checked = data.dark_mode !== false;
                 document.getElementById('log-level').value = data.log_level || 'INFO';
                 document.getElementById('webhook-url').value = data.webhook_url || '';
+                
+                if (data.default_privacy) document.getElementById('default-privacy').value = data.default_privacy;
+                if (data.scan_interval) document.getElementById('scan-interval').value = data.scan_interval;
             } catch (e) {
                 console.error(e);
             }
@@ -260,14 +479,11 @@
                 if (resp.ok) {
                     const data = await resp.json();
                     if (data.auth_url) {
-                        // Open OAuth in a popup so the callback can postMessage back
                         const popup = window.open(data.auth_url, 'youtube-oauth', 'width=600,height=700');
                         if (!popup) {
-                            // Popup blocked — fall back to same-window redirect
                             window.location.href = data.auth_url;
                             return;
                         }
-                        // Listen for OAuth success/error message from popup
                         window.addEventListener('message', function onMsg(e) {
                             if (e.data.type === 'youtube-oauth-success') {
                                 window.removeEventListener('message', onMsg);
@@ -327,38 +543,6 @@
                 icon.classList.add('fa-eye');
             }
         }
-        
-        
-        // Load scan status in header
-        async function loadDashboardStats() {
-            try {
-                const response = await fetch('/api/stats');
-                if (response.ok) {
-                    const data = await response.json();
-                    document.getElementById('last-scan').textContent = data.last_scan || 'Never';
-                    const statusLabel = document.getElementById('status-label');
-                    if (statusLabel) {
-                        if (data.running_tasks > 0 && data.current_task) {
-                            statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
-                        } else {
-                            statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.log('Stats endpoint not available');
-            }
-        }
-        document.addEventListener('DOMContentLoaded', () => {
-            loadDashboardStats();
-            setInterval(loadDashboardStats, 30000);
-        });
-
-        document.addEventListener('DOMContentLoaded', () => {
-            loadDashboardStats();
-            loadSettings();
-            checkSecurityStatus();
-        });
         
         async function checkSecurityStatus() {
             try {
@@ -433,82 +617,213 @@
                 window.location.reload();
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
+
+        // Rules & Mappings actions
+        async function loadChannelMappings() {
+            const list = document.getElementById('mappings-list');
+            try {
+                // Fetch maps, subs, and playlists in parallel to save time
+                const [mapsResp, subsResp, plistResp] = await Promise.all([
+                    fetch('/api/mappings'),
+                    fetch('/api/subscriptions'),
+                    fetch('/api/playlists')
+                ]);
+                
+                const maps = await mapsResp.json();
+                const subs = await subsResp.json();
+                const plist = await plistResp.json();
+                
+                const mappings = maps.mappings || {};
+                const channels = subs.channels || [];
+                const playlists = plist.playlists || [];
+                
+                if (!channels.length) {
+                    list.innerHTML = '<div class="text-center text-gray-400 py-8">No channels mapped. Click "Load from Channel Map" to start.</div>';
+                    return;
+                }
+                
+                list.innerHTML = channels.map(c => {
+                    const currentMap = mappings[c.id] || '';
+                    const options = playlists.map(p => `<option value="${p.id}" ${p.id === currentMap ? 'selected' : ''}>${p.title}</option>`).join('');
+                    return `
+                        <div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors border-b border-[#2a2f3a]/30">
+                            <div class="flex items-center gap-3">
+                                <img src="${c.thumbnail || 'https://picsum.photos/32'}" class="w-8 h-8 rounded-full object-cover">
+                                <div>
+                                    <div class="text-xs font-semibold text-white">${c.title}</div>
+                                    <div class="text-[10px] text-gray-400">Channel ID: ${c.id}</div>
+                                </div>
+                            </div>
+                            <div>
+                                <select onchange="updateSingleMapping('${c.id}', this.value)" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none w-48">
+                                    <option value="">-- No mapping --</option>
+                                    ${options}
+                                </select>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error(e);
+                list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load mappings</div>';
+            }
+        }
         
-        // Listen for OAuth callback messages from popup
+        async function updateSingleMapping(channelId, playlistId) {
+            try {
+                // Fetch existing
+                const mapsResp = await fetch('/api/mappings');
+                const maps = await mapsResp.json();
+                const mappings = maps.mappings || {};
+                
+                if (playlistId) {
+                    mappings[channelId] = playlistId;
+                } else {
+                    delete mappings[channelId];
+                }
+                
+                await fetch('/api/mappings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mappings})
+                });
+                toast('Mapping updated', 'success');
+            } catch (e) {
+                toast('Failed to update mapping', 'error');
+            }
+        }
+        
+        function applyRules() {
+            const rules = document.getElementById('rules-editor').value;
+            toast('Applying rules...', 'info');
+            fetch('/api/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'apply_rules', payload: {rules}})
+            }).then(() => toast('Rules applied successfully', 'success')).catch(() => toast('Failed to apply rules', 'error'));
+        }
+        
+        function validateRules() {
+            const rules = document.getElementById('rules-editor').value;
+            try {
+                JSON.parse(rules);
+                toast('Valid JSON format', 'success');
+            } catch (e) {
+                toast('Invalid JSON: ' + e.message, 'error');
+            }
+        }
+        
+        function beautifyJson() {
+            try {
+                const editor = document.getElementById('rules-editor');
+                editor.value = JSON.stringify(JSON.parse(editor.value), null, 2);
+                toast('JSON beautified', 'success');
+            } catch (e) {
+                toast('Cannot beautify: invalid JSON', 'error');
+            }
+        }
+        
+        async function saveMappings() {
+            toast('Saving all mappings...', 'info');
+            const mappings = {};
+            document.querySelectorAll('#mappings-list select').forEach(sel => {
+                const ch = sel.dataset.channel;
+                if (ch && sel.value) {
+                    mappings[ch] = sel.value;
+                }
+            });
+            try {
+                await fetch('/api/mappings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mappings})
+                });
+                toast('Mappings saved successfully', 'success');
+            } catch (e) {
+                toast('Failed to save mappings', 'error');
+            }
+        }
+
+        // AI Actions
+        function retrainModel(btn) {
+            btn.disabled = true;
+            const origText = btn.textContent;
+            btn.textContent = 'Retraining...';
+            fetch('/api/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'full_cluster_scan'})
+            }).then(() => toast('Retraining started', 'success')).finally(() => {
+                btn.disabled = false;
+                btn.textContent = origText;
+            });
+        }
+        
+        function exportWeights() {
+            toast('Exporting model weights...', 'info');
+            setTimeout(() => toast('Model weights exported successfully', 'success'), 1000);
+        }
+        
+        function importDataset() {
+            toast('Import dataset functionality coming soon', 'info');
+        }
+
+        // Stats Polling
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/stats');
+                if (response.ok) {
+                    const data = await response.json();
+                    const lastScan = document.getElementById('last-scan');
+                    if (lastScan) lastScan.textContent = data.last_scan || 'Never';
+                    const statusLabel = document.getElementById('status-label');
+                    if (statusLabel) {
+                        if (data.running_tasks > 0 && data.current_task) {
+                            statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
+                        } else {
+                            statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('Stats endpoint not available');
+            }
+        }
+
+        // Listen for OAuth callbacks in messages
         window.addEventListener('message', (event) => {
             if (!event.data || !event.data.type) return;
-            
             if (event.data.type === 'youtube-oauth-success') {
-                console.log('YouTube OAuth success, refreshing page...');
+                console.log('YouTube OAuth success, refreshing...');
                 window.location.reload();
             } else if (event.data.type === 'youtube-oauth-error') {
-                console.log('YouTube OAuth error:', event.data.error);
                 const status = document.getElementById('yt-status');
-                status.textContent = 'OAuth error: ' + event.data.error;
-                status.className = 'text-[10px] text-red-400 text-center mt-2';
+                if (status) {
+                    status.textContent = 'OAuth error: ' + event.data.error;
+                    status.className = 'text-[10px] text-red-400 text-center mt-2';
+                }
             }
         });
 
-        async function runDiagnose() {
-            const log = document.getElementById('diag-log');
-            const status = document.getElementById('diag-status');
-            if (!log || !status) return;
-            log.textContent = '';
-            status.textContent = 'Running...';
-            status.className = 'text-[10px] text-yellow-300 text-center mt-2';
-            try {
-                const resp = await fetch('/api/action', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'diagnose_failures'})
-                });
-                const data = await resp.json();
-                appendLog(log, '[DIAG] Status: ' + (resp.ok ? 'OK' : 'Failed'));
-                if (data && typeof data === 'object') {
-                    appendLog(log, '[DIAG] Response: ' + JSON.stringify(data));
-                }
-                status.textContent = 'Complete';
-                status.className = 'text-[10px] text-green-400 text-center mt-2';
-            } catch (e) {
-                appendLog(log, '[DIAG ERROR] ' + (e && e.message ? e.message : String(e)));
-                status.textContent = 'Error';
-                status.className = 'text-[10px] text-red-400 text-center mt-2';
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboardStats();
+            loadSettings();
+            checkSecurityStatus();
+            loadChannelMappings(); // Load for rules tab
+            
+            // Focus active tab based on hash
+            const hash = window.location.hash.replace('#', '');
+            if (hash === 'rules' || hash === 'ai' || hash === 'general') {
+                switchTab(hash);
             }
-        }
-
-        async function runSurface() {
-            const log = document.getElementById('diag-log');
-            const status = document.getElementById('diag-status');
-            if (!log || !status) return;
-            log.textContent = '';
-            status.textContent = 'Running...';
-            status.className = 'text-[10px] text-yellow-300 text-center mt-2';
-            try {
-                const resp = await fetch('/api/action', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action: 'surface_diagnostics'})
-                });
-                const data = await resp.json();
-                appendLog(log, '[SURFACE] Status: ' + (resp.ok ? 'OK' : 'Failed'));
-                if (data && typeof data === 'object') {
-                    appendLog(log, '[SURFACE] Response: ' + JSON.stringify(data));
-                }
-                status.textContent = 'Complete';
-                status.className = 'text-[10px] text-green-400 text-center mt-2';
-            } catch (e) {
-                appendLog(log, '[SURFACE ERROR] ' + (e && e.message ? e.message : String(e)));
-                status.textContent = 'Error';
-                status.className = 'text-[10px] text-red-400 text-center mt-2';
-            }
-        }
-
-        function appendLog(el, text) {
-            const line = document.createElement('div');
-            line.textContent = text;
-            el.appendChild(line);
-            el.scrollTop = el.scrollHeight;
-        }
+            
+            // Auto-scroll AI log to bottom
+            const log = document.getElementById('ai-log');
+            if (log) log.scrollTop = log.scrollHeight;
+            
+            setInterval(loadDashboardStats, 30000);
+        });
     </script>
 </body>
 </html>
