@@ -70,6 +70,28 @@ def scrape_watch_later_videos(max_items: int = 200) -> dict:
         return {"items": [], "error": str(e)}
 
 
+def _sanitize_cookies(cookies: list[dict]) -> list[dict]:
+    """Sanitize exported browser cookies for Playwright/Camoufox compatibility."""
+    sanitized = []
+    for c in cookies:
+        sc = dict(c)
+        # Playwright expects "Strict", "Lax", or "None"
+        if sc.get("sameSite") in ("no_restriction", None, ""):
+            sc["sameSite"] = "None"
+        elif sc.get("sameSite") not in ("Strict", "Lax", "None"):
+            sc["sameSite"] = "Lax"
+        # Remove fields Playwright doesn't accept
+        sc.pop("storeId", None)
+        sc.pop("hostOnly", None)
+        sc.pop("session", None)
+        # Ensure required fields
+        if "name" in sc and "value" in sc and "domain" in sc:
+            if "path" not in sc or not sc.get("path"):
+                sc["path"] = "/"
+            sanitized.append(sc)
+    return sanitized
+
+
 def _scrape_with_camoufox(cookies_path: Path, max_items: int) -> dict:
     """Use Camoufox (stealth browser) to scrape Watch Later."""
     log.info("[BROWSER] Launching Camoufox browser...")
@@ -80,7 +102,7 @@ def _scrape_with_camoufox(cookies_path: Path, max_items: int) -> dict:
         
         # Load saved cookies
         with open(cookies_path) as f:
-            cookies = json.load(f)
+            cookies = _sanitize_cookies(json.load(f))
         context.add_cookies(cookies)
         
         page = context.new_page()
@@ -151,7 +173,7 @@ def _scrape_with_playwright(cookies_path: Path, max_items: int) -> dict:
         context = browser.new_context()
         
         with open(cookies_path) as f:
-            cookies = json.load(f)
+            cookies = _sanitize_cookies(json.load(f))
         context.add_cookies(cookies)
         
         page = context.new_page()
