@@ -142,6 +142,10 @@
                                         <select id="watch-later-source" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
                                             <option value="">-- Auto-detect (Watch Later / Queue / Sort) --</option>
                                         </select>
+                                        <div class="flex items-center gap-1 mt-1.5">
+                                            <input type="text" id="watch-later-id-manual" placeholder="Or paste playlist ID..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none">
+                                            <button onclick="document.getElementById('watch-later-source').value = document.getElementById('watch-later-id-manual').value; toast('Manual ID set', 'success')" class="bg-blue-600 hover:bg-blue-500 text-white text-[9px] px-2 py-1 rounded">Set</button>
+                                        </div>
                                     </div>
                                     <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
                                         <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-sort" class="accent-blue-500" checked> Auto-sort new videos</label>
@@ -475,7 +479,7 @@
                 max_concurrent: parseInt(document.getElementById('max-concurrent').value),
                 auto_sort: document.getElementById('auto-sort').checked,
                 sync_watch_later: document.getElementById('sync-watch-later').checked,
-                watch_later_playlist_id: document.getElementById('watch-later-source').value,
+                watch_later_playlist_id: document.getElementById('watch-later-source').value || document.getElementById('watch-later-id-manual').value || undefined,
                 notify_failures: document.getElementById('notify-failures').checked,
                 dark_mode: document.getElementById('dark-mode').checked,
                 log_level: document.getElementById('log-level').value,
