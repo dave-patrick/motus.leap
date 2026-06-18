@@ -365,6 +365,8 @@ class BackgroundWorker:
                     raw_key = getattr(config, "ai_api_key", "")
                     ai_api_key = raw_key.get_secret_value() if hasattr(raw_key, 'get_secret_value') else str(raw_key)
                     ai_prompt = getattr(config, "ai_classification_prompt", "")
+                    ai_endpoint = getattr(config, "ai_custom_endpoint", "")
+                    ai_model = getattr(config, "ai_custom_model", "")
                     if ai_provider and ai_api_key:
                         try:
                             from services.ai_classifier import classify_video
@@ -375,6 +377,7 @@ class BackgroundWorker:
                                 title=title, channel=channel, description=desc,
                                 playlists=playlist_title_list, provider=ai_provider,
                                 api_key=ai_api_key, prompt_template=ai_prompt,
+                                custom_endpoint=ai_endpoint, custom_model=ai_model,
                             )
                             if matched_name:
                                 for pl_id, pl_title in playlist_id_title_pairs:
@@ -460,6 +463,23 @@ class BackgroundWorker:
                     if playlist_item_id:
                         client.remove_video_from_playlist(playlist_item_id)
                     moved.append({"video_id": video_id, "from": origin, "to": playlist_id, "channel_id": channel_id})
+                    # Record move for AI training memory
+                    try:
+                        from services.ai_classifier import record_move
+                        item_snippet = item.get("snippet", {}) or {}
+                        record_move(
+                            video_id=video_id,
+                            title=item_snippet.get("title", ""),
+                            channel_id=channel_id or "",
+                            channel_title=item_snippet.get("videoOwnerChannelTitle", ""),
+                            from_playlist_name="Watch Later",
+                            from_playlist_id=origin,
+                            to_playlist_name="",
+                            to_playlist_id=playlist_id,
+                            source="sync",
+                        )
+                    except Exception:
+                        pass
                 except Exception as move_error:
                     failed.append({"video_id": video_id, "error": str(move_error)})
                     await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {video_id}: {move_error}"}))

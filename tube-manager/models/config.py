@@ -30,6 +30,9 @@ class TubeManagerConfig(BaseModel):
     ai_api_key: SecretStr = Field(default="")
     ai_mode: str = Field(default="channel")
     ai_classification_prompt: str = Field(default="Classify this YouTube video into one of my playlists based on its title and description. Return ONLY the playlist name, nothing else. If unsure, return 'UNSURE'.")
+    ai_custom_endpoint: str = Field(default="")
+    ai_custom_model: str = Field(default="")
+    ai_auto_apply_mappings: bool = Field(default=False)
 
     def to_dict_for_storage(self) -> Dict[str, Any]:
         """Convert to dictionary for safe storage, excluding secrets."""

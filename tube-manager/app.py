@@ -848,6 +848,13 @@ async def trigger_action(request: Request, body: ActionIn):
     return {"status": "queued", "action": body.action}
 
 
+# Watch Later page with AI scan
+@app.get("/watch-later")
+async def watch_later_page():
+    """Serve the Watch Later full page with AI scan and correction UI."""
+    return await no_cache_file_response(WEB_DIR / "watch-later.html")
+
+
 # Playlist detail page
 @app.get("/playlist/{playlist_id}")
 async def playlist_detail(playlist_id: str):
@@ -1035,6 +1042,9 @@ class SettingsIn(BaseModel):
     ai_api_key: str | None = None
     ai_mode: str | None = None
     ai_classification_prompt: str | None = None
+    ai_custom_endpoint: str | None = None
+    ai_custom_model: str | None = None
+    ai_auto_apply_mappings: bool | None = None
 
 
 @app.get("/api/settings")
@@ -1058,6 +1068,9 @@ async def get_settings():
         "ai_api_key": "••••••••" if _secret_val(config.ai_api_key) else "",
         "ai_mode": config.ai_mode,
         "ai_classification_prompt": config.ai_classification_prompt,
+        "ai_custom_endpoint": config.ai_custom_endpoint,
+        "ai_custom_model": config.ai_custom_model,
+        "ai_auto_apply_mappings": config.ai_auto_apply_mappings,
     }
 
 
