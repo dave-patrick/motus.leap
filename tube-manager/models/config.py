@@ -22,6 +22,7 @@ class TubeManagerConfig(BaseModel):
     max_concurrent: int = Field(default=3)
     auto_sort: bool = Field(default=True)
     sync_watch_later: bool = Field(default=True)
+    watch_later_playlist_id: str = Field(default="")
     notify_failures: bool = Field(default=False)
     dark_mode: bool = Field(default=True)
     log_level: str = Field(default="INFO")
