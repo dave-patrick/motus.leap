@@ -48,6 +48,20 @@ class BackgroundWorker:
         self.task_queue = task_queue
         self.background_tasks_running = False
         self.current_task_name = None
+        self._cancel_requested = False
+    
+    def cancel_current_task(self):
+        """Request cancellation of the currently running task."""
+        self._cancel_requested = True
+        self.current_task_name = None
+        # Drain the queue so pending tasks are cleared
+        while not self.task_queue.empty():
+            try:
+                self.task_queue.get_nowait()
+                self.task_queue.task_done()
+            except asyncio.QueueEmpty:
+                break
+        log.info("[WORKER] Cancel requested — current task will stop, queue drained")
 
     @property
     def youtube_service(self):
@@ -63,9 +77,20 @@ class BackgroundWorker:
         
         while True:
             try:
+                # Check if cancel was requested before picking up a new task
+                if self._cancel_requested:
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[AGENT] Cancel acknowledged — no new tasks will run."}))
+                    self._cancel_requested = False
+                
                 task = await self.task_queue.get()
                 action = task.get("action")
                 payload = task.get("payload", {})
+                
+                # If cancel was requested while waiting in queue, skip this task
+                if self._cancel_requested:
+                    self._cancel_requested = False
+                    self.task_queue.task_done()
+                    continue
                 
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Starting: {action}"}))
                 
