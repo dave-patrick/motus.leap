@@ -35,12 +35,15 @@ def has_cookies() -> bool:
     """Check if YouTube browser cookies are saved."""
     cp = _cookies_path()
     if not cp.exists():
+        log.warning("[BROWSER] Cookie file not found: %s", cp)
         return False
     try:
         with open(cp) as f:
             cookies = json.load(f)
+        log.info("[BROWSER] Loaded %d cookies from %s", len(cookies), cp)
         return len(cookies) > 0
     except (json.JSONDecodeError, OSError):
+        log.error("[BROWSER] Failed to read cookies from %s", cp)
         return False
 
 
