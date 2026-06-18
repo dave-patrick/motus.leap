@@ -957,6 +957,7 @@ function initGlobalAgentDrawer() {
                 
                 <!-- Right: Latest Completed Task Summary & Chevron Toggle -->
                 <div class="shrink-0 flex items-center gap-2 text-gray-400 max-w-xs truncate">
+                    <button id="agent-cancel-btn" onclick="cancelCurrentTask()" class="hidden bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-[9px] font-bold px-2 py-1 rounded transition-colors flex items-center gap-1"><i class="fa-solid fa-stop-circle text-[8px]"></i> Cancel</button>
                     <span class="text-[9px] uppercase tracking-wider font-bold text-gray-500 shrink-0">Last Task:</span>
                     <span id="agent-summary" class="text-[10px] font-medium text-green-400 truncate">None</span>
                     <button onclick="event.stopPropagation(); toggleAgentDrawer()" id="agent-drawer-toggle" class="text-gray-400 hover:text-white p-1 rounded hover:bg-[#20242c] border border-transparent hover:border-[#2a2f3a] transition-all ml-2" title="Toggle Console">
@@ -1058,6 +1059,15 @@ function startAgentActivityTracker() {
                         pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75";
                     }
                 }
+                // Show/hide cancel button based on running state
+                const cancelBtn = document.getElementById('agent-cancel-btn');
+                if (cancelBtn) {
+                    if (isRunning) {
+                        cancelBtn.classList.remove('hidden');
+                    } else {
+                        cancelBtn.classList.add('hidden');
+                    }
+                }
             }
         } catch (e) {
             console.error('Failed to fetch stats', e);
@@ -1068,6 +1078,26 @@ function startAgentActivityTracker() {
     pollStats();
     setInterval(pollStats, 5000);
 }
+
+// Cancel current task
+window.cancelCurrentTask = async function() {
+    const btn = document.getElementById('agent-cancel-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[8px]"></i> Cancelling...';
+    }
+    try {
+        await fetch('/api/action/cancel', { method: 'POST' });
+        toast('Task cancelled', 'warning');
+    } catch (e) {
+        console.error('Cancel failed:', e);
+    }
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-stop-circle text-[8px]"></i> Cancel';
+        btn.classList.add('hidden');
+    }
+};
 
 document.addEventListener('DOMContentLoaded', initGlobalAgentDrawer);
 

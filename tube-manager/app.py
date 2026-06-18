@@ -861,6 +861,16 @@ async def action_status():
     return {"queue_size": task_queue.qsize(), "running": worker.background_tasks_running if worker else False}
 
 
+@app.post("/api/action/cancel")
+async def cancel_action():
+    """Cancel the currently running background task."""
+    if worker:
+        worker.cancel_current_task()
+        await manager.broadcast(json.dumps({"type": "log", "message": "[CANCEL] Current task cancelled by user."}))
+        return {"status": "cancelled"}
+    return {"error": "No worker available"}
+
+
 # YouTube OAuth
 @app.get("/auth/youtube")
 async def youtube_auth():
