@@ -100,56 +100,9 @@
                     <div class="absolute top-0 right-1/4 w-80 h-80 bg-blue-500/5 rounded-full blur-[100px] pointer-events-none"></div>
                     <div class="absolute -bottom-10 left-10 w-60 h-60 bg-indigo-500/5 rounded-full blur-[80px] pointer-events-none"></div>
                     
-                    <!-- Far Left: Real-time SVG 3D Logo Icon -->
-                    <div class="relative w-32 h-32 shrink-0 flex items-center justify-center select-none z-10">
-                        <svg class="w-28 h-28 drop-shadow-[0_8px_16px_rgba(0,0,0,0.75)]" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <linearGradient id="blueGlow" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
-                                    <stop offset="0%" stop-color="#3b82f6" />
-                                    <stop offset="100%" stop-color="#1d4ed8" />
-                                </linearGradient>
-                                <linearGradient id="blueGlowLight" x1="0" y1="0" x2="200" y2="100" gradientUnits="userSpaceOnUse">
-                                    <stop offset="0%" stop-color="#60a5fa" />
-                                    <stop offset="100%" stop-color="#2563eb" />
-                                </linearGradient>
-                                <linearGradient id="greyGlow" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
-                                    <stop offset="0%" stop-color="#64748b" />
-                                    <stop offset="100%" stop-color="#334155" />
-                                </linearGradient>
-                                <linearGradient id="greyGlowDark" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
-                                    <stop offset="0%" stop-color="#334155" />
-                                    <stop offset="100%" stop-color="#1e293b" />
-                                </linearGradient>
-                                <filter id="3dShadow" x="-10%" y="-10%" width="130%" height="130%">
-                                    <feDropShadow dx="3" dy="6" stdDeviation="5" flood-color="#000000" flood-opacity="0.9" />
-                                </filter>
-                            </defs>
-
-                            <!-- Shards flying leftwards (from the mockup design) -->
-                            <path d="M20 70 L35 60 L30 85 Z" fill="url(#blueGlow)" opacity="0.8" />
-                            <path d="M15 105 L28 100 L25 120 Z" fill="url(#blueGlowLight)" opacity="0.7" />
-                            <path d="M25 135 L40 125 L35 145 Z" fill="url(#blueGlow)" opacity="0.6" />
-                            <path d="M10 120 A5 5 0 1 1 10 110 A5 5 0 1 1 10 120 Z" fill="#475569" />
-
-                            <!-- Segmented 3D Play Button Facets (The Outer Triangle Pieces) -->
-                            <path d="M45 25 L155 90 L130 105 L45 55 Z" fill="url(#blueGlowLight)" filter="url(#3dShadow)" />
-                            <path d="M40 30 L60 40 L60 140 L40 130 Z" fill="url(#blueGlow)" filter="url(#3dShadow)" />
-                            <path d="M45 145 L130 95 L155 110 L45 175 Z" fill="url(#blueGlow)" filter="url(#3dShadow)" />
-                            
-                            <!-- Inner Grey/Metal Triangle Play Button -->
-                            <path d="M85 70 L125 95 L85 120 Z" fill="url(#greyGlow)" filter="url(#3dShadow)" />
-                            <path d="M85 70 L95 76 L95 114 L85 120 Z" fill="url(#greyGlowDark)" />
-
-                            <!-- Server / Playlist Racks (3D Separation Blocks) on bottom-right -->
-                            <rect x="110" y="110" width="60" height="15" rx="4" fill="url(#blueGlowLight)" filter="url(#3dShadow)" />
-                            <rect x="150" y="114" width="12" height="7" rx="1.5" fill="#0f172a" opacity="0.6" />
-                            
-                            <rect x="110" y="130" width="60" height="15" rx="4" fill="url(#blueGlow)" filter="url(#3dShadow)" />
-                            <rect x="150" y="134" width="12" height="7" rx="1.5" fill="#0f172a" opacity="0.6" />
-                            
-                            <rect x="110" y="150" width="60" height="15" rx="4" fill="url(#greyGlow)" filter="url(#3dShadow)" />
-                            <rect x="150" y="154" width="12" height="7" rx="1.5" fill="#0f172a" opacity="0.6" />
-                        </svg>
+                    <!-- Far Left: Real Premium 3D Logo Icon -->
+                    <div class="relative w-36 h-36 shrink-0 flex items-center justify-center select-none z-10">
+                        <img src="/static/banner_logo.png" class="w-full h-full object-contain filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.65)]" alt="motus.leap logo icon">
                     </div>
 
                     <!-- Right of Logo: Brand copy stack -->
@@ -161,9 +114,9 @@
                         <h1 class="text-3xl font-bold text-white tracking-tight flex items-center leading-none select-none"
                              style="font-family: 'Inter', sans-serif; letter-spacing: -0.03em;
                                     text-shadow: 0 4px 10px rgba(0,0,0,0.55);">
-                            mot<span class="text-[#3b82f6]">u</span>s.leap <span class="text-xs font-normal text-gray-500 bg-[#1e232d] px-2 py-0.5 rounded-md border border-[#2a2f3a] ml-3">v2.1</span>
+                            mot<span class="text-[#3b82f6]">u</span>s<span class="text-gray-500">.</span>leap <span class="text-xs font-normal text-gray-500 bg-[#1e232d] px-2 py-0.5 rounded-md border border-[#2a2f3a] ml-3">v2.1</span>
                         </h1>
-                        <p class="text-xs text-gray-400 leading-relaxed max-w-[800px]">
+                        <p class="text-xs text-gray-400 leading-relaxed max-w-[500px]">
                             A next-generation, high-performance automated YouTube playlist orchestrator. Powering seamless, multi-playlist synchronization, auto-sorting heuristics, and AI-assisted metadata curation.
                         </p>
                     </div>
