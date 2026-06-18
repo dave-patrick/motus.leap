@@ -42,7 +42,6 @@
         </div>
         <div class="flex items-center gap-2">
             <button onclick="moveSelectedVideos()" id="move-btn" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 hidden"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Move Selected</button>
-            <button onclick="rescanPlaylist()" id="rescan-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-arrows-rotate text-blue-400"></i> Rescan Playlist</button>
         </div>
     </header>
     <div class="flex flex-1 overflow-hidden">
@@ -81,10 +80,11 @@
                 <div class="bento-card p-4 flex flex-col gap-3 shrink-0">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h3 class="text-xs font-semibold text-white">Scan Playlist</h3>
-                            <p class="text-[10px] text-gray-400">Scan this playlist for duplicates and misplaced videos based on your channel mapping rules.</p>
+                            <h3 class="text-xs font-semibold text-white">Playlist Operations</h3>
+                            <p class="text-[10px] text-gray-400">Rescan videos from YouTube, scan for duplicate entries, or detect misplaced videos based on your rules.</p>
                         </div>
                         <div class="flex gap-2">
+                            <button onclick="rescanPlaylist()" id="rescan-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-arrows-rotate text-blue-400"></i> Rescan Playlist</button>
                             <button onclick="scanForDuplicates()" id="btn-scan-dup" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-copy text-blue-400"></i> Scan Duplicates</button>
                             <button onclick="scanForMisplaced()" id="btn-scan-mis" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-triangle-exclamation text-yellow-500"></i> Scan Misplaced</button>
                         </div>
@@ -352,47 +352,62 @@
             }
         }
 
+        async function performFullScan() {
+            // 1. Client-side duplicate detection
+            const videoIdToItems = {};
+            allVideos.forEach(v => {
+                if (!videoIdToItems[v.video_id]) {
+                    videoIdToItems[v.video_id] = [];
+                }
+                videoIdToItems[v.video_id].push({
+                    playlist_item_id: v.playlist_item_id,
+                    title: v.title,
+                    channel: v.channel_title
+                });
+            });
+
+            currentScanResults.duplicates = [];
+            for (const video_id in videoIdToItems) {
+                const items = videoIdToItems[video_id];
+                if (items.length > 1) {
+                    const itemsToDelete = items.slice(1);
+                    itemsToDelete.forEach(item => {
+                        currentScanResults.duplicates.push({
+                            video_id: video_id,
+                            playlist_item_id: item.playlist_item_id,
+                            title: item.title,
+                            channel: item.channel,
+                            reason: `Duplicate entry (${items.length} occurrences)`,
+                            type: 'duplicate'
+                        });
+                    });
+                }
+            }
+
+            // 2. Misplaced detection via API
+            const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
+            if (!resp.ok) throw new Error('Misplaced API failed');
+            const result = await resp.json();
+            
+            currentScanResults.misplaced = (result.misplaced || []).map(v => ({
+                video_id: v.video_id,
+                title: v.title,
+                channel: v.channel || '',
+                reason: v.reason || 'Misplaced channel',
+                type: 'misplaced'
+            }));
+        }
+
         async function scanForDuplicates() {
             const btn = document.getElementById('btn-scan-dup');
             const origHTML = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> Scanning...';
             
-            toast(`Scanning ${allVideos.length} videos for duplicates...`, 'info');
+            toast(`Scanning playlist for duplicates and misplaced videos...`, 'info');
             try {
-                // Client-side detection over allVideos
-                const videoIdToItems = {};
-                allVideos.forEach(v => {
-                    if (!videoIdToItems[v.video_id]) {
-                        videoIdToItems[v.video_id] = [];
-                    }
-                    videoIdToItems[v.video_id].push({
-                        playlist_item_id: v.playlist_item_id,
-                        title: v.title,
-                        channel: v.channel_title
-                    });
-                });
-
-                currentScanResults.duplicates = [];
-                for (const video_id in videoIdToItems) {
-                    const items = videoIdToItems[video_id];
-                    if (items.length > 1) {
-                        // All items except the first one are considered duplicates to be deleted.
-                        const itemsToDelete = items.slice(1);
-                        itemsToDelete.forEach(item => {
-                            currentScanResults.duplicates.push({
-                                video_id: video_id,
-                                playlist_item_id: item.playlist_item_id,
-                                title: item.title,
-                                channel: item.channel,
-                                reason: `Duplicate entry (${items.length} occurrences)`,
-                                type: 'duplicate'
-                            });
-                        });
-                    }
-                }
-                
-                toast(`Scan complete - ${currentScanResults.duplicates.length} duplicate items found`, 'success');
+                await performFullScan();
+                toast(`Scan complete - ${currentScanResults.duplicates.length} duplicates, ${currentScanResults.misplaced.length} misplaced found`, 'success');
                 showScanBox('duplicates');
             } catch (e) {
                 toast('Scan failed', 'error');
@@ -409,21 +424,10 @@
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-yellow-500"></i> Scanning...';
             
-            toast(`Scanning ${allVideos.length} videos for misplacements...`, 'info');
+            toast(`Scanning playlist for duplicates and misplaced videos...`, 'info');
             try {
-                const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
-                if (!resp.ok) throw new Error('API failed');
-                const result = await resp.json();
-                
-                currentScanResults.misplaced = (result.misplaced || []).map(v => ({
-                    video_id: v.video_id,
-                    title: v.title,
-                    channel: v.channel || '',
-                    reason: v.reason || 'Misplaced channel',
-                    type: 'misplaced'
-                }));
-                
-                toast(`Scan complete - ${currentScanResults.misplaced.length} misplaced videos found`, 'success');
+                await performFullScan();
+                toast(`Scan complete - ${currentScanResults.duplicates.length} duplicates, ${currentScanResults.misplaced.length} misplaced found`, 'success');
                 showScanBox('misplaced');
             } catch (e) {
                 toast('Scan failed', 'error');
