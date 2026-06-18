@@ -400,6 +400,32 @@ async def fetch_all_youtube_data(request: Request, force_refresh: bool = False):
     return result
 
 
+@app.get("/api/watch-later")
+async def get_watch_later():
+    """Fetch Watch Later playlist contents using browser scraper (bypasses API restriction)."""
+    try:
+        from services.browser_scraper import has_cookies, scrape_watch_later_videos
+        
+        if has_cookies():
+            # Run in thread to avoid blocking
+            result = await asyncio.to_thread(scrape_watch_later_videos, 100)
+            if result.get("items"):
+                return {"items": result["items"], "source": "browser"}
+        
+        # Fall back to API
+        if youtube_service:
+            client = youtube_service.get_client(require_oauth=True)
+            if client:
+                resp = client.list_watch_later_items(max_results=50)
+                items = resp.get("items", [])
+                return {"items": items, "source": "api"}
+        
+        return {"items": [], "source": "none", "error": "No Watch Later access available"}
+    except Exception as e:
+        log.error(f"Watch Later fetch failed: {e}")
+        return {"items": [], "error": str(e), "source": "error"}
+
+
 @app.get("/api/youtube/videos")
 async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: bool = False):
     """Get videos with duration (cached).
