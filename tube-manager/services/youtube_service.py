@@ -209,12 +209,14 @@ class YouTubeService:
         """List user's playlists with lightweight change detection (renames/removals force a sync)."""
         cached_playlists = []
         cached_stats = {}
+        cache_source = None  # 'memory', 'disk', or None
         
         # 1. Try memory cache
         cached = await self._get_cached("playlists")
         if cached:
             cached_playlists = cached.get("playlists", [])
             cached_stats = cached.get("stats", {})
+            cache_source = 'memory'
         
         # 2. Try playlists disk cache
         if not cached_playlists:
@@ -236,6 +238,11 @@ class YouTubeService:
                 }
                 cached_stats = cached_stats or basic_stats
                 await self._set_cached("playlists", {"playlists": cached_playlists, "stats": cached_stats})
+        
+        # If we have data from memory cache (recently accessed, TTL still valid),
+        # skip the YouTube API call entirely for instant response
+        if cache_source == 'memory' and not force_refresh:
+            return {"playlists": cached_playlists, "stats": cached_stats}
 
         client = self.get_client(require_oauth=True)
         if not client:

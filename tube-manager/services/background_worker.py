@@ -335,13 +335,34 @@ class BackgroundWorker:
                             return channel_title_id, channel_playlist_id
                 return None, None
 
-            # Fetch watch later items
+            # Fetch watch later items - try browser scraper first (bypasses API restriction)
+            watch_later_items = []
             configured_id = getattr(config, "watch_later_playlist_id", "")
+            
             if configured_id:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Using configured playlist source: {configured_id}"}))
+                watch_later_resp = client.list_watch_later_items(max_results=50, playlist_id=configured_id)
+                watch_later_items = watch_later_resp.get("items", [])
+            else:
+                # Try browser scraper for native Watch Later access
+                from services.browser_scraper import has_cookies, scrape_watch_later_videos
                 
-            watch_later_resp = client.list_watch_later_items(max_results=50, playlist_id=configured_id)
-            watch_later_items = watch_later_resp.get("items", [])
+                if has_cookies():
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] YouTube cookies found. Attempting browser scrape for native Watch Later..."}))
+                    try:
+                        scraped = await asyncio.to_thread(scrape_watch_later_videos, 200)
+                        if scraped.get("items"):
+                            watch_later_items = scraped["items"]
+                            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Browser scrape retrieved {len(watch_later_items)} videos from native Watch Later!"}))
+                        else:
+                            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Browser scrape returned 0 videos. Falling back to API..."}))
+                    except Exception as browse_err:
+                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Browser scrape failed ({browse_err}). Falling back to API..."}))
+                
+                if not watch_later_items:
+                    watch_later_resp = client.list_watch_later_items(max_results=50)
+                    watch_later_items = watch_later_resp.get("items", [])
+            
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from sync source"}))
             
             moved = []
