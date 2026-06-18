@@ -176,6 +176,7 @@
                                             <button onclick="uploadCookies()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-4 py-2 rounded">Upload Cookies</button>
                                         </div>
                                         <div id="cookie-status" class="text-[9px] text-gray-500 min-h-[14px]"></div>
+                                        <div id="cookie-location" class="text-[9px] text-gray-500"></div>
                                     </div>
                                 </div>
                             </div>
@@ -672,13 +673,16 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ cookies })
                 });
-                const data = await resp.json();
+                const text = await resp.text();
+                let data;
+                try { data = JSON.parse(text); } catch { data = { raw: text }; }
                 if (resp.ok) {
                     statusEl.textContent = 'Cookies uploaded successfully';
                     statusEl.className = 'text-[9px] text-green-400 min-h-[14px]';
                     toast('Cookies uploaded successfully', 'success');
+                    if (data?.path) console.info('[cookies] saved to', data.path);
                 } else {
-                    throw new Error(data.error || 'Upload failed');
+                    throw new Error((data && data.error) || text || 'Upload failed');
                 }
             } catch (e) {
                 statusEl.textContent = 'Error: ' + e.message;

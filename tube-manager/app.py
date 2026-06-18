@@ -1469,21 +1469,19 @@ async def save_cookies(request: Request):
         body = await request.json()
         cookies = body.get("cookies", [])
         if not isinstance(cookies, list):
-            return {"error": "Invalid cookie format: expected array"}
-        
-        # Save cookies to data directory
-        data_dir = Path("/app/data")
-        data_dir.mkdir(parents=True, exist_ok=True)
-        cookies_file = data_dir / "youtube_cookies.json"
-        
+            return JSONResponse(status_code=400, content={"error": "Invalid cookie format: expected array"})
+
+        cookies_file = Path(__file__).resolve().parent / "data" / "youtube_cookies.json"
+        cookies_file.parent.mkdir(parents=True, exist_ok=True)
+
         with open(cookies_file, 'w') as f:
             json.dump(cookies, f, indent=2)
-        
-        log.info(f"Saved {len(cookies)} YouTube cookies")
-        return {"status": "success", "count": len(cookies)}
+
+        log.info(f"Saved {len(cookies)} YouTube cookies to {cookies_file}")
+        return {"status": "success", "count": len(cookies), "path": str(cookies_file)}
     except Exception as e:
         log.error(f"Failed to save cookies: {e}")
-        return {"error": str(e)}
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/api/user")
