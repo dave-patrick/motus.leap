@@ -358,7 +358,46 @@ class BackgroundWorker:
                     for channel_title_id, channel_playlist_id, title_len in mapping_channel_title_scores:
                         if channel_title_id.lower() in candidate:
                             return channel_title_id, channel_playlist_id
+                
+                # If AI mode is enabled and channel mapping didn't match, try AI classification
+                if getattr(config, "ai_mode", "channel") == "ai":
+                    ai_provider = getattr(config, "ai_provider", "")
+                    raw_key = getattr(config, "ai_api_key", "")
+                    ai_api_key = raw_key.get_secret_value() if hasattr(raw_key, 'get_secret_value') else str(raw_key)
+                    ai_prompt = getattr(config, "ai_classification_prompt", "")
+                    if ai_provider and ai_api_key:
+                        try:
+                            from services.ai_classifier import classify_video
+                            title = snippet.get("title", "") or ""
+                            channel = owner_title or ""
+                            desc = snippet.get("description", "") or ""
+                            matched_name, _ = classify_video(
+                                title=title, channel=channel, description=desc,
+                                playlists=playlist_title_list, provider=ai_provider,
+                                api_key=ai_api_key, prompt_template=ai_prompt,
+                            )
+                            if matched_name:
+                                for pl_id, pl_title in playlist_id_title_pairs:
+                                    if pl_title.lower() == matched_name.lower():
+                                        return pl_id, pl_id
+                        except Exception:
+                            pass
+                
                 return None, None
+            
+            # Pre-build playlist lookup data for AI classification
+            playlist_id_title_pairs: list[tuple[str, str]] = []
+            playlist_title_list: list[dict] = []
+            try:
+                pl_data = client.list_mine_playlists(max_results=50)
+                for pl in pl_data.get("items", []):
+                    pid = pl.get("id", "")
+                    pt = pl.get("snippet", {}).get("title", "")
+                    if pid and pt:
+                        playlist_id_title_pairs.append((pid, pt))
+                        playlist_title_list.append({"id": pid, "title": pt})
+            except Exception:
+                pass
 
             # Fetch watch later items - try browser scraper first (bypasses API restriction)
             watch_later_items = []

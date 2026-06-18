@@ -26,7 +26,10 @@ class TubeManagerConfig(BaseModel):
     notify_failures: bool = Field(default=False)
     dark_mode: bool = Field(default=True)
     log_level: str = Field(default="INFO")
-    webhook_url: str = Field(default="")
+    ai_provider: str = Field(default="")
+    ai_api_key: SecretStr = Field(default="")
+    ai_mode: str = Field(default="channel")
+    ai_classification_prompt: str = Field(default="Classify this YouTube video into one of my playlists based on its title and description. Return ONLY the playlist name, nothing else. If unsure, return 'UNSURE'.")
 
     def to_dict_for_storage(self) -> Dict[str, Any]:
         """Convert to dictionary for safe storage, excluding secrets."""
@@ -44,6 +47,7 @@ class TubeManagerConfig(BaseModel):
             'token_expiry': self.oauth.token_expiry,
         }
         data['youtube_api_key'] = _secret(self.youtube_api_key)
+        data['ai_api_key'] = _secret(self.ai_api_key)
         return data
 
     @classmethod
