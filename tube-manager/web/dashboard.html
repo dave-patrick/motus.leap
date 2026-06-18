@@ -95,8 +95,29 @@
                 </div>
 
                 <!-- Rebranded Brand Hero Banner with 3D separation -->
-                <div class="bento-card overflow-hidden relative h-[220px] w-full" style="border: 1px solid #2a2f3a; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.5);">
-                    <img src="/static/brand_banner.png" class="w-full h-full object-cover object-[center_38%]" alt="motus.leap brand banner">
+                <div class="bento-card p-6 flex items-center justify-between overflow-hidden relative min-h-[190px]" style="background: linear-gradient(135deg, #16191f 0%, #0a0c10 100%); border: 1px solid #2a2f3a; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.5);">
+                    <!-- Light glow background effects -->
+                    <div class="absolute top-0 right-1/4 w-80 h-80 bg-blue-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+                    <div class="absolute -bottom-10 left-10 w-60 h-60 bg-indigo-500/5 rounded-full blur-[80px] pointer-events-none"></div>
+                    
+                    <!-- Left side: Brand copy -->
+                    <div class="relative z-10 flex flex-col gap-2 max-w-[600px]">
+                        <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold tracking-wide uppercase w-fit">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                            System Status: Active & Synced
+                        </div>
+                        <h1 class="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                            motus.leap <span class="text-xs font-normal text-gray-500 bg-[#1e232d] px-2 py-0.5 rounded-md border border-[#2a2f3a]">v2.1</span>
+                        </h1>
+                        <p class="text-xs text-gray-400 leading-relaxed">
+                            A next-generation, high-performance automated YouTube playlist orchestrator. Powering seamless, multi-playlist synchronization, auto-sorting heuristics, and AI-assisted metadata curation.
+                        </p>
+                    </div>
+
+                    <!-- Right side: Real Premium Brand Graphic smaller and aligned to the right -->
+                    <div class="relative w-[460px] h-[140px] shrink-0 rounded-xl overflow-hidden border border-[#2a2f3a]" style="box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+                        <img src="/static/brand_banner.png" class="w-full h-full object-cover object-[center_38%]" alt="motus.leap brand banner">
+                    </div>
                 </div>
 
                 <h2 class="text-xl font-bold text-white mb-2">Dashboard</h2>
