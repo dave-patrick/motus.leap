@@ -967,8 +967,17 @@ function initGlobalAgentDrawer() {
             </div>
             
             <!-- Hidden full-size scrollable console -->
-            <div id="agent-drawer-console" class="hidden w-full h-36 bg-[#0e1014] border-t border-[#2a2f3a] p-3 overflow-y-auto font-mono text-[10px] text-gray-400 space-y-1">
-                <div class="text-blue-400/80">[SYSTEM] Live agent console initialized. Logs will stream below...</div>
+            <div id="agent-drawer-console" class="hidden w-full h-36 bg-[#0e1014] border-t border-[#2a2f3a] flex flex-col">
+                <div class="flex items-center justify-between px-3 py-1 border-b border-[#2a2f3a/50] shrink-0">
+                    <span class="text-[9px] text-gray-500 font-mono">Live Console</span>
+                    <div class="flex items-center gap-1">
+                        <button onclick="exportLogs()" class="text-gray-500 hover:text-white text-[9px] px-1.5 py-0.5 rounded hover:bg-[#20242c] transition-colors" title="Export logs"><i class="fa-solid fa-download text-[8px] mr-1"></i>Export</button>
+                        <button onclick="clearLogs()" class="text-gray-500 hover:text-red-400 text-[9px] px-1.5 py-0.5 rounded hover:bg-[#20242c] transition-colors" title="Clear logs"><i class="fa-solid fa-eraser text-[8px] mr-1"></i>Clear</button>
+                    </div>
+                </div>
+                <div class="flex-1 p-3 overflow-y-auto font-mono text-[10px] text-gray-400 space-y-1" id="agent-drawer-log-content">
+                    <div class="text-blue-400/80">[SYSTEM] Live agent console initialized. Logs will stream below...</div>
+                </div>
             </div>
         `;
         document.body.appendChild(drawer);
@@ -1007,21 +1016,21 @@ function startAgentActivityTracker() {
                 if (logEl) logEl.textContent = text;
                 
                 // Append log line to expanded console
-                const consoleEl = document.getElementById('agent-drawer-console');
-                if (consoleEl) {
+                const logContent = document.getElementById('agent-drawer-log-content');
+                if (logContent) {
                     const line = document.createElement('div');
                     line.className = 'border-l-2 border-blue-500/30 pl-2 py-0.5 hover:bg-white/5 transition-colors';
                     const time = new Date().toLocaleTimeString();
                     line.innerHTML = `<span class="text-gray-500 text-[8px] mr-2">[${time}]</span> <span class="text-gray-300">${text}</span>`;
-                    consoleEl.appendChild(line);
+                    logContent.appendChild(line);
                     
                     // Limit total logs in console to 100
-                    while (consoleEl.children.length > 100) {
-                        consoleEl.removeChild(consoleEl.firstChild);
+                    while (logContent.children.length > 100) {
+                        logContent.removeChild(logContent.firstChild);
                     }
                     
                     // Auto scroll to bottom
-                    consoleEl.scrollTop = consoleEl.scrollHeight;
+                    logContent.scrollTop = logContent.scrollHeight;
                 }
                 
                 // Extract task completion status
@@ -1097,6 +1106,35 @@ window.cancelCurrentTask = async function() {
         btn.innerHTML = '<i class="fa-solid fa-stop-circle text-[8px]"></i> Cancel';
         btn.classList.add('hidden');
     }
+};
+
+// Export and clear log functions
+window.exportLogs = function() {
+    const logContent = document.getElementById('agent-drawer-log-content');
+    if (!logContent) return;
+    const lines = [];
+    for (let i = 0; i < logContent.children.length; i++) {
+        const text = logContent.children[i].textContent || '';
+        if (text) lines.push(text.replace(/^\[[\d:]+\]\s*/, '')); // strip timestamp prefix
+    }
+    if (!lines.length) { toast('No logs to export', 'info'); return; }
+    const blob = new Blob([lines.join('\n')], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `agent-logs-${new Date().toISOString().slice(0,19).replace(/[:]/g,'-')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast(`Exported ${lines.length} log lines`, 'success');
+};
+
+window.clearLogs = function() {
+    const logContent = document.getElementById('agent-drawer-log-content');
+    if (!logContent || !logContent.children.length) return;
+    logContent.innerHTML = '<div class="text-gray-500">[SYSTEM] Console cleared.</div>';
+    toast('Logs cleared', 'info');
 };
 
 document.addEventListener('DOMContentLoaded', initGlobalAgentDrawer);
