@@ -249,15 +249,39 @@ class YouTubeClient:
 
         return {"items": all_items}
 
+    def _get_watch_later_id(self, items: list[dict[str, Any]]) -> str | None:
+        if not items:
+            return None
+        related = items[0].get("contentDetails", {}).get("relatedPlaylists", {})
+        watch_later_id = related.get("watchLater")
+        if watch_later_id:
+            return watch_later_id
+            
+        log.info("[YOUTUBE] Native watchLater playlist not found (standard YouTube API limitation). Searching user playlists as fallback...")
+        try:
+            pl_resp = self.list_mine_playlists(max_results=50)
+            pl_items = pl_resp.get("items", [])
+            target_titles = {"watch later", "watchlater", "queue", "sync queue", "wl"}
+            for pl in pl_items:
+                title = pl.get("snippet", {}).get("title", "").strip().lower()
+                if title in target_titles:
+                    wlid = pl.get("id")
+                    log.info(f"[YOUTUBE] Found fallback watch later playlist: '{pl.get('snippet', {}).get('title')}' ({wlid})")
+                    return wlid
+        except Exception as e:
+            log.error(f"[YOUTUBE] Failed to search for fallback watch later playlist: {e}")
+            
+        return None
+
     def watch_later(self) -> dict[str, Any]:
         if not self.oauth_access_token or not self.oauth_refresh_token:
             return {}
         try:
             resp = self._oauth_request("channels", {"part": "contentDetails", "mine": "true"})
             items = resp.get("items", [])
-            if not items:
+            watch_later_id = self._get_watch_later_id(items)
+            if not watch_later_id:
                 return {}
-            watch_later_id = items[0]["contentDetails"]["relatedPlaylists"]["watchLater"]
             return self.get_playlist(watch_later_id)
         except Exception as e:
             log.error(f"[YOUTUBE] watch_later error: {e}")
@@ -269,9 +293,9 @@ class YouTubeClient:
         try:
             resp = self._oauth_request("channels", {"part": "contentDetails", "mine": "true"})
             items = resp.get("items", [])
-            if not items:
+            watch_later_id = self._get_watch_later_id(items)
+            if not watch_later_id:
                 return {"items": []}
-            watch_later_id = items[0]["contentDetails"]["relatedPlaylists"]["watchLater"]
             params = {"part": "snippet,contentDetails", "playlistId": watch_later_id, "maxResults": max_results}
             if page_token:
                 params["pageToken"] = page_token
