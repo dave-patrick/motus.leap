@@ -503,12 +503,8 @@
         
         document.addEventListener('DOMContentLoaded', () => {
             loadDashboardStats();
-            setInterval(loadDashboardStats, 30000);
-        });
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            loadDashboardStats();
             loadPlaylists();
+            setInterval(loadDashboardStats, 30000);
         });
     </script>
 </body>
