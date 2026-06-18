@@ -212,6 +212,28 @@ async def lifespan(app: FastAPI):
     worker = BackgroundWorker(youtube_service, manager, config_manager, task_queue)
     asyncio.create_task(worker.process_background_tasks())
     
+    # Start nightly auto-apply mappings job if enabled
+    async def nightly_auto_apply_mappings():
+        """Nightly job to auto-apply AI mapping suggestions."""
+        while True:
+            try:
+                await asyncio.sleep(86400)  # 24 hours
+                config = config_manager.config
+                if getattr(config, "ai_auto_apply_mappings", False):
+                    log.info("[NIGHTLY] Running auto-apply mappings job...")
+                    from services.ai_classifier import get_channel_mapping_suggestions
+                    suggestions = get_channel_mapping_suggestions()
+                    for s in suggestions:
+                        if s["move_count"] >= 3:
+                            config.channel_mappings[s["channel_id"]] = s["playlist_id"]
+                            log.info(f"[NIGHTLY] Auto-applied mapping: {s['channel_title']} -> {s['playlist_name']}")
+                    config_manager.save(config)
+                    log.info("[NIGHTLY] Auto-apply mappings complete")
+            except Exception as e:
+                log.error(f"[NIGHTLY] Auto-apply mappings failed: {e}")
+    
+    asyncio.create_task(nightly_auto_apply_mappings())
+    
     log.info("motus.leap started successfully")
     
     yield
@@ -1439,6 +1461,30 @@ async def api_user() -> dict[str, Any]:
     return result
 
 # System endpoints
+
+@app.post("/api/cookies/save")
+async def save_cookies(request: Request):
+    """Save YouTube cookies for browser scraper."""
+    try:
+        body = await request.json()
+        cookies = body.get("cookies", [])
+        if not isinstance(cookies, list):
+            return {"error": "Invalid cookie format: expected array"}
+        
+        # Save cookies to data directory
+        data_dir = Path("/app/data")
+        data_dir.mkdir(parents=True, exist_ok=True)
+        cookies_file = data_dir / "youtube_cookies.json"
+        
+        with open(cookies_file, 'w') as f:
+            json.dump(cookies, f, indent=2)
+        
+        log.info(f"Saved {len(cookies)} YouTube cookies")
+        return {"status": "success", "count": len(cookies)}
+    except Exception as e:
+        log.error(f"Failed to save cookies: {e}")
+        return {"error": str(e)}
+
 
 @app.get("/api/user")
 async def api_user() -> dict[str, Any]:
