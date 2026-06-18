@@ -24,6 +24,7 @@
 
   function clearAuthAndRedirect() {
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
     document.cookie = 'token=; path=/; max-age=0';
     window.location.href = '/auth';
   }

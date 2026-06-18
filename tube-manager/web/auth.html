@@ -147,6 +147,7 @@
 
                 if (response.ok) {
                     localStorage.setItem('user', JSON.stringify(data.user));
+                    localStorage.setItem('token', data.access_token);
                     // Set cookie for server-side auth
                     document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
                     window.location.href = '/dashboard';
@@ -189,6 +190,7 @@
 
                 if (response.ok) {
                     localStorage.setItem('user', JSON.stringify(data.user));
+                    localStorage.setItem('token', data.access_token);
                     document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
                     window.location.href = '/dashboard';
                 } else {
@@ -242,6 +244,7 @@
         // Logout function
         function logout() {
             localStorage.removeItem('user');
+            localStorage.removeItem('token');
             document.cookie = 'token=; path=/; max-age=0';
             window.location.href = '/auth';
         }

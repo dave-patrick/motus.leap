@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Cookie, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
@@ -117,7 +117,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 7 days
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -254,9 +254,25 @@ def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    request: Request = None,
+    token_cookie: Optional[str] = Cookie(default=None, alias="token"),
 ) -> Dict[str, Any]:
-    token = credentials.credentials
+    token = None
+    if credentials:
+        token = credentials.credentials
+    elif token_cookie:
+        token = token_cookie
+    elif request:
+        token = request.cookies.get("token")
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     payload = decode_access_token(token)
     username: str = payload.get("sub")
 
@@ -400,11 +416,21 @@ async def login(user_data: UserLogin):
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    token_cookie: Optional[str] = Cookie(default=None, alias="token"),
 ):
-    token = credentials.credentials
-    user_sessions.pop(token, None)
+    token = None
+    if credentials:
+        token = credentials.credentials
+    elif token_cookie:
+        token = token_cookie
+    elif request:
+        token = request.cookies.get("token")
+
+    if token:
+        user_sessions.pop(token, None)
     log.info("User '%s' logged out, token invalidated", current_user["username"])
     return {"message": "Successfully logged out"}
 
