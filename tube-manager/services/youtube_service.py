@@ -209,6 +209,7 @@ class YouTubeService:
         """List user's playlists with lightweight change detection (renames/removals force a sync)."""
         cached_playlists = []
         cached_stats = {}
+        cache_source = None
         
         # 1. Try memory cache
         cached = await self._get_cached("playlists")
@@ -224,6 +225,7 @@ class YouTubeService:
                 cached_playlists = disk_playlists.get("playlists", [])
                 cached_stats = disk_playlists.get("stats", {})
                 await self._set_cached("playlists", disk_playlists)
+                cache_source = 'disk'
         
         # 3. Fallback to global all_data disk cache
         if not cached_playlists:
@@ -237,10 +239,12 @@ class YouTubeService:
                 }
                 cached_stats = cached_stats or basic_stats
                 await self._set_cached("playlists", {"playlists": cached_playlists, "stats": cached_stats})
+                cache_source = 'disk_all'
         
         # If we have any cached data at all (from any source), return it immediately
         # without hitting the YouTube API. Change detection is handled by explicit syncs.
         if cached_playlists and not force_refresh:
+            log.info(f"list_playlists: returning {len(cached_playlists)} playlists from {cache_source} cache (force_refresh={force_refresh})")
             return {"playlists": cached_playlists, "stats": cached_stats}
 
         client = self.get_client(require_oauth=True)
@@ -450,22 +454,41 @@ class YouTubeService:
             max_total_videos = 2000 if force_refresh else 500
             
             # Process only the playlists needed to keep duration scans quota-safe.
-            for playlist in playlists[:max_playlists]:
+            # Use semaphore to limit concurrent playlist fetches (max 5 concurrent)
+            semaphore = asyncio.Semaphore(5)
+            
+            async def fetch_playlist_videos(playlist):
                 pl_id = playlist["id"]
-                try:
-                    video_items = await self._fetch_all_paginated(
-                        lambda max_results, page_token: client.list_videos(pl_id, max_results=max_results, page_token=page_token),
-                        max_results=50,
-                        max_items=max(0, max_total_videos - len(videos)),
-                    )
-                    for vid in video_items:
-                        video = self._video_item_to_dict(vid, pl_id, playlist["title"])
-                        total_duration += video["duration_seconds"]
-                        videos.append(video)
-                    if len(videos) >= max_total_videos:
-                        break
-                
-                except Exception as e:
+                async with semaphore:
+                    try:
+                        video_items = await self._fetch_all_paginated(
+                            lambda max_results, page_token: client.list_videos(pl_id, max_results=max_results, page_token=page_token),
+                            max_results=50,
+                            max_items=max(0, max_total_videos - len(videos)),
+                        )
+                        playlist_videos = []
+                        for vid in video_items:
+                            video = self._video_item_to_dict(vid, pl_id, playlist["title"])
+                            playlist_videos.append(video)
+                        return playlist_videos
+                    except Exception as e:
+                        log.warning(f"Failed to fetch videos for playlist {pl_id}: {e}")
+                        return []
+            
+            # Create tasks for all playlists
+            playlist_tasks = [fetch_playlist_videos(pl) for pl in playlists[:max_playlists]]
+            playlist_results = await asyncio.gather(*playlist_tasks, return_exceptions=True)
+            
+            videos = []
+            total_duration = 0
+            for playlist_videos in playlist_results:
+                if isinstance(playlist_videos, Exception):
+                    continue
+                for video in playlist_videos:
+                    total_duration += video["duration_seconds"]
+                    videos.append(video)
+                if len(videos) >= max_total_videos:
+                    break
                     log.warning(f"Failed to fetch videos for playlist {pl_id}: {e}")
             
             result["videos"] = videos

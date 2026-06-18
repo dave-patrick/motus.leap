@@ -75,21 +75,29 @@
             return container;
         }
 
-        async function loadSubscriptions() {
+        // Synchronous render of cached subscriptions for instant display
+        function renderCachedSubscriptions() {
             const list = document.getElementById('subscriptions-list');
-            
-            // Try loading from localStorage first for instantaneous navigation
             const cachedSubs = localStorage.getItem('cached_subscriptions');
             if (cachedSubs) {
                 try {
                     const data = JSON.parse(cachedSubs);
                     if (data && data.channels && data.channels.length) {
                         renderSubscriptionsList(data.channels);
+                        return true;
                     }
                 } catch (e) {
                     console.error("Error parsing cached subscriptions", e);
                 }
             }
+            return false;
+        }
+
+        async function loadSubscriptions() {
+            const list = document.getElementById('subscriptions-list');
+            
+            // If we already rendered cached data, skip rendering again unless API returns new data
+            const hasCached = renderCachedSubscriptions();
             
             try {
                 const response = await fetch('/api/subscriptions');
@@ -99,10 +107,10 @@
                 // Save to localStorage
                 localStorage.setItem('cached_subscriptions', JSON.stringify(data));
                 
+                // Always re-render with fresh data
                 renderSubscriptionsList(data.channels || []);
             } catch (e) {
-                const cachedSubs = localStorage.getItem('cached_subscriptions');
-                if (!cachedSubs) {
+                if (!hasCached) {
                     list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load subscriptions</div>';
                 }
             }

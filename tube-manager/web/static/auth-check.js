@@ -1,32 +1,28 @@
-/**
- * Auth check for motus.leap pages.
- * - Extracts token from URL fragment (OAuth redirect).
- * - Verifies the token with /api/auth/me.
- * - Redirects to /auth only when the token is confirmed invalid.
- * - Retries once on transient network errors (e.g., Render waking from cold start)
- *   to avoid kicking users out when the tab regains focus.
- * Include on every page that requires authentication.
- */
 (function() {
   // 1. Handle token from URL fragment (OAuth callback redirects here)
   const hash = window.location.hash;
   if (hash && hash.includes('token=')) {
     const token = hash.split('token=')[1].split('&')[0];
-    localStorage.setItem('token', token);
     document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
     window.location.hash = '';
     // Continue below to validate the token
   }
 
-  // 2. Verify stored token
-  const token = localStorage.getItem('token');
+  // 2. Verify token from cookie
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+  }
+  
+  const token = getCookie('token');
   if (!token) {
     window.location.href = '/auth';
     return;
   }
 
   function clearAuthAndRedirect() {
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
     document.cookie = 'token=; path=/; max-age=0';
     window.location.href = '/auth';
@@ -34,7 +30,7 @@
 
   function validateToken(attempt) {
     fetch('/api/auth/me', {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      headers: { 'Accept': 'application/json' }
     })
     .then(resp => {
       if (resp.status === 401) {

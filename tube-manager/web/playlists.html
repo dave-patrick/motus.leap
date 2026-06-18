@@ -125,21 +125,30 @@
         // Store all playlists for manage function
         let allPlaylists = [];
 
-        async function loadPlaylists() {
+        // Synchronous render of cached playlists for instant display
+        function renderCachedPlaylists() {
             const grid = document.getElementById('playlists-grid');
-            
-            // Try loading from localStorage first for instantaneous navigation
             const cachedPlaylists = localStorage.getItem('cached_playlists');
             if (cachedPlaylists) {
                 try {
-                    allPlaylists = JSON.parse(cachedPlaylists);
-                    if (allPlaylists.length) {
-                        renderPlaylistsGrid(allPlaylists);
+                    const playlists = JSON.parse(cachedPlaylists);
+                    if (playlists.length) {
+                        allPlaylists = playlists;
+                        renderPlaylistsGrid(playlists);
+                        return true;
                     }
                 } catch (e) {
                     console.error("Error parsing cached playlists", e);
                 }
             }
+            return false;
+        }
+
+        async function loadPlaylists() {
+            const grid = document.getElementById('playlists-grid');
+            
+            // If we already rendered cached data, skip rendering again unless API returns new data
+            const hasCached = renderCachedPlaylists();
             
             try {
                 const response = await fetch('/api/playlists');
@@ -150,10 +159,10 @@
                 // Save to localStorage
                 localStorage.setItem('cached_playlists', JSON.stringify(allPlaylists));
                 
+                // Always re-render with fresh data
                 renderPlaylistsGrid(allPlaylists);
             } catch (e) {
-                const cachedPlaylists = localStorage.getItem('cached_playlists');
-                if (!cachedPlaylists || !allPlaylists.length) {
+                if (!hasCached) {
                     grid.innerHTML = '<div class="col-span-full bento-card p-8 text-center text-red-400">Failed to load playlists</div>';
                 }
             }

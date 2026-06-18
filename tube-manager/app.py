@@ -913,6 +913,28 @@ async def cancel_action():
 
 
 # YouTube OAuth
+from secrets import token_urlsafe
+
+# In-memory state store (in production, use Redis or similar)
+_oauth_states = {}
+
+def _generate_state() -> str:
+    return token_urlsafe(32)
+
+def _store_state(state: str, data: dict = None):
+    _oauth_states[state] = {"data": data or {}, "created": time.time()}
+
+def _validate_and_consume_state(state: str) -> dict:
+    """Validate and remove state. Returns stored data or empty dict if invalid."""
+    if state not in _oauth_states:
+        return {}
+    stored = _oauth_states.pop(state)
+    # Check if state is older than 10 minutes
+    if time.time() - stored["created"] > 600:
+        return {}
+    return stored["data"]
+
+
 @app.get("/auth/youtube")
 async def youtube_auth():
     """Initiate Google OAuth flow for YouTube API."""
@@ -923,6 +945,11 @@ async def youtube_auth():
     
     redirect_uri = "https://tubemanager.onrender.com/auth/youtube/callback"
     scope = "https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid"
+    
+    # Generate and store state for CSRF protection
+    state = _generate_state()
+    _store_state(state)
+    
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
@@ -930,6 +957,7 @@ async def youtube_auth():
         "scope": scope,
         "access_type": "offline",
         "prompt": "consent select_account",
+        "state": state,
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
     return {"auth_url": auth_url}
@@ -943,10 +971,19 @@ def _secret_val(val):
 
 
 @app.get("/auth/youtube/callback")
-async def youtube_callback(code: str):
+async def youtube_callback(code: str, state: str = None):
     """Handle OAuth callback and exchange code for tokens."""
     import httpx
-
+    
+    # Validate OAuth state parameter (CSRF protection)
+    if not state or not _validate_and_consume_state(state):
+        log.error("Invalid or missing OAuth state parameter")
+        return HTMLResponse("""
+            <h1>❌ Invalid OAuth State</h1>
+            <p>The OAuth state parameter is missing or invalid. This may be a CSRF attack attempt.</p>
+            <p>Please <a href="/auth/youtube">try again</a>.</p>
+        """, status_code=400)
+    
     config = config_manager.config
 
     if not config.oauth.client_id or not _secret_val(config.oauth.client_secret):

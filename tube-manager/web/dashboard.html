@@ -202,21 +202,18 @@
         // Refresh token on dashboard load. Auth redirect is handled by auth-check.js
         // in the <head>, so this function only issues a new 7-day token when possible.
         (async function refreshSessionToken() {
-            const token = localStorage.getItem('token');
-            if (!token) return;
+            // Token is now stored in HttpOnly cookie only - no localStorage
             try {
                 const resp = await fetch('/api/auth/me', {
-                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+                    headers: { 'Accept': 'application/json' }
                 });
                 if (!resp.ok) return;  // auth-check.js will handle redirect if needed
                 const refreshResp = await fetch('/api/auth/refresh', {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+                    headers: { 'Accept': 'application/json' }
                 });
                 if (refreshResp.ok) {
                     const data = await refreshResp.json();
-                    localStorage.setItem('token', data.access_token);
-                    localStorage.setItem('user', JSON.stringify(data.user));
                     document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
                 }
             } catch (e) {
@@ -225,8 +222,8 @@
         })();
 
         function logout() {
-            localStorage.removeItem('token');
             localStorage.removeItem('user');
+            document.cookie = 'token=; path=/; max-age=0';
             document.cookie = 'token=; path=/; max-age=0';
             window.location.href = '/auth';
         }
