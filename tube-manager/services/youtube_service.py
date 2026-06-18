@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
+import asyncio
 
 from services.youtube_client import YouTubeClient
 from models.config import TubeManagerConfig
@@ -328,7 +329,8 @@ class YouTubeService:
             if channel_ids:
                 log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
                 try:
-                    enriched = client.list_channels_by_ids(channel_ids, max_results=50) or {}
+                    # Run blocking channel enrichment call in a separate thread to unblock the main FastAPI event loop
+                    enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
                     for item in enriched.get("items", []):
                         cid = item.get("id", "")
                         if cid:
@@ -481,7 +483,8 @@ class YouTubeService:
         page_token = None
 
         while len(all_items) < max_items:
-            resp = fetch_fn(max_results=max_results, page_token=page_token)
+            # Run the blocking sync fetch_fn in a separate thread to unblock the main FastAPI event loop
+            resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
             items = resp.get("items", [])
             all_items.extend(items)
 
