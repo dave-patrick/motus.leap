@@ -206,54 +206,102 @@ class YouTubeService:
             }
 
     async def list_playlists(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """List user's playlists without fetching every video duration."""
-        if not force_refresh:
-            # 1. Try memory cache
-            cached = await self._get_cached("playlists")
-            if cached:
-                return {"playlists": cached.get("playlists", []), "stats": cached.get("stats", {})}
-            
-            # 2. Try playlists disk cache
+        """List user's playlists with lightweight change detection (renames/removals force a sync)."""
+        cached_playlists = []
+        cached_stats = {}
+        
+        # 1. Try memory cache
+        cached = await self._get_cached("playlists")
+        if cached:
+            cached_playlists = cached.get("playlists", [])
+            cached_stats = cached.get("stats", {})
+        
+        # 2. Try playlists disk cache
+        if not cached_playlists:
             disk_playlists = self._load_from_disk("playlists")
             if disk_playlists:
+                cached_playlists = disk_playlists.get("playlists", [])
+                cached_stats = disk_playlists.get("stats", {})
                 await self._set_cached("playlists", disk_playlists)
-                return {"playlists": disk_playlists.get("playlists", []), "stats": disk_playlists.get("stats", {})}
-            
-            # 3. Fallback to global all_data disk cache
+        
+        # 3. Fallback to global all_data disk cache
+        if not cached_playlists:
             all_data = self._load_from_disk("all_data")
             if all_data and "playlists" in all_data:
-                playlists = all_data["playlists"]
-                stats = all_data.get("stats", {})
+                cached_playlists = all_data["playlists"]
+                cached_stats = all_data.get("stats", {})
                 basic_stats = {
-                    "total_playlists": len(playlists),
-                    "total_videos": sum(pl["video_count"] for pl in playlists),
+                    "total_playlists": len(cached_playlists),
+                    "total_videos": sum(pl["video_count"] for pl in cached_playlists),
                 }
-                cache_payload = {"playlists": playlists, "stats": stats or basic_stats}
-                await self._set_cached("playlists", cache_payload)
-                self._save_to_disk("playlists", cache_payload)
-                return cache_payload
+                cached_stats = cached_stats or basic_stats
+                await self._set_cached("playlists", {"playlists": cached_playlists, "stats": cached_stats})
 
         client = self.get_client(require_oauth=True)
         if not client:
+            if cached_playlists:
+                return {"playlists": cached_playlists, "stats": cached_stats}
             return {"playlists": [], "error": "YouTube not connected. OAuth required."}
 
         try:
+            # Fetch current playlists from YouTube (lightweight, 1 API call with pagination if >50)
             playlist_items = await self._fetch_all_paginated(
                 lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
                 max_results=50,
                 max_items=5000,
             )
-            playlists = sorted((self._playlist_item_to_dict(pl) for pl in playlist_items), key=lambda x: x["title"].lower())
+            current_playlists = sorted((self._playlist_item_to_dict(pl) for pl in playlist_items), key=lambda x: x["title"].lower())
+            
+            # Detect mismatch (addition, removal, or name changes)
+            mismatch = False
+            if not cached_playlists or len(cached_playlists) != len(current_playlists):
+                mismatch = True
+            else:
+                cached_by_id = {p["id"]: p for p in cached_playlists}
+                for curr in current_playlists:
+                    cid = curr["id"]
+                    if cid not in cached_by_id:
+                        mismatch = True
+                        break
+                    # Detect renaming
+                    if cached_by_id[cid]["title"] != curr["title"]:
+                        log.info(f"[SYNC DETECT] Playlist renamed: '{cached_by_id[cid]['title']}' -> '{curr['title']}'")
+                        mismatch = True
+                        break
+            
+            # If a change was detected externally or forced, run a full fresh sync
+            if mismatch or force_refresh:
+                log.info("[SYNC DETECT] Playlist change (rename, removal, or addition) detected! Performing full fresh sync...")
+                sync_result = await self.fetch_all_data(force_refresh=True)
+                if "error" not in sync_result:
+                    playlists = sync_result.get("playlists", [])
+                    stats = {
+                        "total_playlists": len(playlists),
+                        "total_videos": sum(pl["video_count"] for pl in playlists),
+                    }
+                    payload = {"playlists": playlists, "stats": stats}
+                    await self._set_cached("playlists", payload)
+                    self._save_to_disk("playlists", payload)
+                    return payload
+            
+            # If no change, return the cached playlists immediately!
+            if cached_playlists:
+                return {"playlists": cached_playlists, "stats": cached_stats}
+            
+            # If nothing was cached (first run), save current_playlists
             stats = {
-                "total_playlists": len(playlists),
-                "total_videos": sum(pl["video_count"] for pl in playlists),
+                "total_playlists": len(current_playlists),
+                "total_videos": sum(pl["video_count"] for pl in current_playlists),
             }
-            payload = {"playlists": playlists, "stats": stats}
+            payload = {"playlists": current_playlists, "stats": stats}
             await self._set_cached("playlists", payload)
             self._save_to_disk("playlists", payload)
             return payload
+
         except Exception as e:
-            log.warning(f"Failed to list playlists: {e}")
+            log.warning(f"Failed to check/list playlists: {e}")
+            if cached_playlists:
+                return {"playlists": cached_playlists, "stats": cached_stats}
             return {"playlists": [], "error": str(e)}
 
     async def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
