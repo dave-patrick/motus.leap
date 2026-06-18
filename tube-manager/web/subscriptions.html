@@ -38,10 +38,8 @@
             <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
             <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <a href="/rules" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings</a>
-            <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration</a>
             <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
-        </aside>
+</aside>
         <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
             <div class="flex flex-col gap-4 min-w-[1200px]">
                 <div class="flex items-center justify-between">
@@ -78,34 +76,65 @@
 
         async function loadSubscriptions() {
             const list = document.getElementById('subscriptions-list');
+            
+            // Try loading from localStorage first for instantaneous navigation
+            const cachedSubs = localStorage.getItem('cached_subscriptions');
+            if (cachedSubs) {
+                try {
+                    const data = JSON.parse(cachedSubs);
+                    if (data && data.channels && data.channels.length) {
+                        renderSubscriptionsList(data.channels);
+                    }
+                } catch (e) {
+                    console.error("Error parsing cached subscriptions", e);
+                }
+            }
+            
             try {
                 const response = await fetch('/api/subscriptions');
                 if (!response.ok) throw new Error('Failed to load');
                 const data = await response.json();
-                if (!data.channels || !data.channels.length) { list.innerHTML = '<div class="text-center text-gray-400 py-8">No subscriptions found. Connect YouTube in Settings.</div>'; return; }
-                list.innerHTML = data.channels.map((c) => {
-                    const saved = localStorage.getItem('sub-channel-' + c.id);
-                    const mappedPlaylist = saved || '';
-                    return `<div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors">
-                        <div class="flex items-center gap-3">
-                            <img src="${c.thumbnail || 'https://picsum.photos/32'}" class="w-8 h-8 rounded-full object-cover">
-                            <div>
-                                <div class="text-sm font-medium text-white">${c.title}</div>
-                                <div class="text-[10px] text-gray-400 flex items-center gap-2">
-                                    <a class="text-blue-400 hover:underline" href="${c.channel_url || ('https://www.youtube.com/channel/' + c.id)}" target="_blank" rel="noreferrer">Open channel</a>
-                                    ${c.description ? '<span class="text-gray-500">•</span><span class="text-gray-500 truncate max-w-[220px]">' + c.description.replace(/</g, '&lt;') + '</span>' : ''}
-                                    ${c.subscribers !== 'Unknown' || c.video_count ? '<span class="text-gray-500">•</span><span class="text-gray-500">' + [c.subscribers !== 'Unknown' ? c.subscribers + ' subs' : '', c.video_count ? c.video_count + ' videos' : ''].filter(Boolean).join(' • ') + '</span>' : ''}
-                                </div>
+                
+                // Save to localStorage
+                localStorage.setItem('cached_subscriptions', JSON.stringify(data));
+                
+                renderSubscriptionsList(data.channels || []);
+            } catch (e) {
+                const cachedSubs = localStorage.getItem('cached_subscriptions');
+                if (!cachedSubs) {
+                    list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load subscriptions</div>';
+                }
+            }
+        }
+
+        function renderSubscriptionsList(channels) {
+            const list = document.getElementById('subscriptions-list');
+            if (!channels || !channels.length) {
+                list.innerHTML = '<div class="text-center text-gray-400 py-8">No subscriptions found. Connect YouTube in Settings.</div>';
+                return;
+            }
+            list.innerHTML = channels.map((c) => {
+                const saved = localStorage.getItem('sub-channel-' + c.id);
+                const mappedPlaylist = saved || '';
+                return `<div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors">
+                    <div class="flex items-center gap-3">
+                        <img src="${c.thumbnail || 'https://picsum.photos/32'}" class="w-8 h-8 rounded-full object-cover">
+                        <div>
+                            <div class="text-sm font-medium text-white">${c.title}</div>
+                            <div class="text-[10px] text-gray-400 flex items-center gap-2">
+                                <a class="text-blue-400 hover:underline" href="${c.channel_url || ('https://www.youtube.com/channel/' + c.id)}" target="_blank" rel="noreferrer">Open channel</a>
+                                ${c.description ? '<span class="text-gray-500">•</span><span class="text-gray-500 truncate max-w-[220px]">' + c.description.replace(/</g, '&lt;') + '</span>' : ''}
+                                ${c.subscribers !== 'Unknown' || c.video_count ? '<span class="text-gray-500">•</span><span class="text-gray-500">' + [c.subscribers !== 'Unknown' ? c.subscribers + ' subs' : '', c.video_count ? c.video_count + ' videos' : ''].filter(Boolean).join(' • ') + '</span>' : ''}
                             </div>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <input type="text" id="map-${c.id}" value="${mappedPlaylist}" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-28" placeholder="Playlist ID" onchange="saveMapping('${c.id}', this.value)">
-                            <button onclick="saveMapping('${c.id}', document.getElementById('map-${c.id}').value)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded">Map</button>
-                            <button onclick="openMaintenance('${c.id}', '${(c.title || '').replace(/'/g, "\\'")}', '${mappedPlaylist}')" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Manage</button>
-                        </div>
-                    </div>`;
-                }).join('');
-            } catch (e) { list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load subscriptions</div>'; }
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="map-${c.id}" value="${mappedPlaylist}" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-28" placeholder="Playlist ID" onchange="saveMapping('${c.id}', this.value)">
+                        <button onclick="saveMapping('${c.id}', document.getElementById('map-${c.id}').value)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded">Map</button>
+                        <button onclick="openMaintenance('${c.id}', '${(c.title || '').replace(/'/g, "\\'")}', '${mappedPlaylist}')" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Manage</button>
+                    </div>
+                </div>`;
+            }).join('');
         }
 
         async function saveMapping(channelId, playlistId) {

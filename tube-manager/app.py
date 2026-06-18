@@ -344,13 +344,13 @@ async def maintenance():
 @app.get("/rules")
 async def rules():
     """Rules page."""
-    return await no_cache_file_response(WEB_DIR / "rules.html")
+    return RedirectResponse(url="/settings#rules")
 
 
 @app.get("/ai")
 async def ai():
     """AI page."""
-    return await no_cache_file_response(WEB_DIR / "ai.html")
+    return RedirectResponse(url="/settings#ai")
 
 
 @app.get("/bulk")

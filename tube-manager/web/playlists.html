@@ -42,10 +42,8 @@
             <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
             <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <a href="/rules" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings</a>
-            <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration</a>
             <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
-        </aside>
+</aside>
         <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
             <div class="flex flex-col gap-4 min-w-[1200px]">
                 
@@ -127,37 +125,61 @@
 
         async function loadPlaylists() {
             const grid = document.getElementById('playlists-grid');
+            
+            // Try loading from localStorage first for instantaneous navigation
+            const cachedPlaylists = localStorage.getItem('cached_playlists');
+            if (cachedPlaylists) {
+                try {
+                    allPlaylists = JSON.parse(cachedPlaylists);
+                    if (allPlaylists.length) {
+                        renderPlaylistsGrid(allPlaylists);
+                    }
+                } catch (e) {
+                    console.error("Error parsing cached playlists", e);
+                }
+            }
+            
             try {
                 const response = await fetch('/api/playlists');
                 if (!response.ok) throw new Error('Failed to load');
                 const data = await response.json();
                 allPlaylists = data.playlists || [];
                 
-                if (!allPlaylists.length) {
-                    grid.innerHTML = '<div class="col-span-full bento-card p-12 text-center text-gray-400">No playlists found. Create one to get started.</div>';
-                    return;
-                }
+                // Save to localStorage
+                localStorage.setItem('cached_playlists', JSON.stringify(allPlaylists));
                 
-                grid.innerHTML = allPlaylists.map(p => `
-                                    <a href="/playlist/${p.id}" title="Open playlist" class="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors p-1 rounded-md hover:bg-white/10">
-                                        <i class="fa-solid fa-external-link text-[10px]"></i>
-                                    </a>
-                                    <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-3 flex flex-col cursor-pointer hover:border-blue-500/50 transition-colors h-full relative">
-                                        <div class="flex items-start justify-between mb-2">
-                                            <div class="w-12 h-7 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
-                                            <button onclick="openPlaylist('${p.id}', event)" class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[8px] mr-1"></i> YouTube</button>
-                                        </div>
-                                        <h3 class="text-xs font-semibold text-white truncate mb-0.5">${p.title}</h3>
-                                        <p class="text-[9px] text-gray-400 mb-2">${p.video_count} videos</p>
-                                        <div class="flex items-center gap-1 mt-auto pt-1.5 border-t border-[#2a2f3a]" onclick="event.stopPropagation()">
-                                            <button onclick="rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 px-2.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
-                                            <button onclick="openManagePlaylistModal('${p.id}', \`${p.title.replace(/'/g, "\\'")}\`, event)" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 rounded transition-colors"><i class="fa-solid fa-cog text-[9px]"></i> Manage</button>
-                                        </div>
-                                    </div>
-                                `).join('');
+                renderPlaylistsGrid(allPlaylists);
             } catch (e) {
-                grid.innerHTML = '<div class="col-span-full bento-card p-8 text-center text-red-400">Failed to load playlists</div>';
+                const cachedPlaylists = localStorage.getItem('cached_playlists');
+                if (!cachedPlaylists || !allPlaylists.length) {
+                    grid.innerHTML = '<div class="col-span-full bento-card p-8 text-center text-red-400">Failed to load playlists</div>';
+                }
             }
+        }
+
+        function renderPlaylistsGrid(playlists) {
+            const grid = document.getElementById('playlists-grid');
+            if (!playlists.length) {
+                grid.innerHTML = '<div class="col-span-full bento-card p-12 text-center text-gray-400">No playlists found. Create one to get started.</div>';
+                return;
+            }
+            grid.innerHTML = playlists.map(p => `
+                <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-3 flex flex-col cursor-pointer hover:border-blue-500/50 transition-colors h-full relative">
+                    <a href="/playlist/${p.id}" title="Open playlist" class="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors p-1 rounded-md hover:bg-white/10" onclick="event.stopPropagation()">
+                        <i class="fa-solid fa-external-link text-[10px]"></i>
+                    </a>
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="w-12 h-7 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
+                        <button onclick="openPlaylist('${p.id}', event)" class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[8px] mr-1"></i> YouTube</button>
+                    </div>
+                    <h3 class="text-xs font-semibold text-white truncate mb-0.5">${p.title}</h3>
+                    <p class="text-[9px] text-gray-400 mb-2">${p.video_count} videos</p>
+                    <div class="flex items-center gap-1 mt-auto pt-1.5 border-t border-[#2a2f3a]" onclick="event.stopPropagation()">
+                        <button onclick="rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 px-2.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
+                        <button onclick="openManagePlaylistModal('${p.id}', \`${p.title.replace(/'/g, "\\'")}\`, event)" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 rounded transition-colors"><i class="fa-solid fa-cog text-[9px]"></i> Manage</button>
+                    </div>
+                </div>
+            `).join('');
         }
         
         // Open playlist on YouTube
