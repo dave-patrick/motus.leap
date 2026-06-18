@@ -279,10 +279,8 @@ class YouTubeService:
         if not force_refresh:
             disk_data = self._load_from_disk("all_data")
             if disk_data:
-                age_seconds = (datetime.now() - datetime.fromisoformat(disk_data.get("cached_at", "1970-01-01"))).total_seconds()
-                if age_seconds < self._cache_ttl.total_seconds():
-                    log.info(f"Using cached data from disk (age: {age_seconds:.0f}s)")
-                    return disk_data
+                log.info("Using cached data from disk (always returned on normal reads until a manual/background sync is done)")
+                return disk_data
 
         client = self.get_client(require_oauth=True)
         if not client:
