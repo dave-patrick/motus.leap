@@ -12,7 +12,7 @@
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         body { font-family: 'Inter', sans-serif; }
         .bento-card { background: #181c24; border: 1px solid #2a2f3a; border-radius: 0.75rem; }
-        .bento-card { background: #181c24; border: 1px solid #2a2f3a; border-radius: 0.75rem; }
+        .bento-card-dark { background: #0e1014; border: 1px solid #2a2f3a; border-radius: 0.75rem; }
     </style>
 </head>
 <body class="bg-[#0e1014] min-h-screen flex">
@@ -148,10 +148,21 @@
 
             try {
                 const videoIds = cachedVideos.map(v => v.contentDetails?.videoId || v.id || '').filter(Boolean);
+                // Build metadata inline to avoid YouTube API calls on the backend
+                const metadata = cachedVideos.map(v => ({
+                    video_id: v.contentDetails?.videoId || v.id || '',
+                    title: v.snippet?.title || '',
+                    channel: v.snippet?.videoOwnerChannelTitle || '',
+                    description: v.snippet?.description || '',
+                })).filter(m => m.video_id);
                 const resp = await fetch('/api/ai/classify', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({video_ids: videoIds.slice(0, 50), playlist_names: targetPlaylists.map(p => ({id: p.id, title: p.title}))})
+                    body: JSON.stringify({
+                        video_ids: videoIds.slice(0, 50),
+                        metadata: metadata.slice(0, 50),
+                        playlist_names: targetPlaylists.map(p => ({id: p.id, title: p.title}))
+                    })
                 });
                 const data = await resp.json();
                 const results = data.results || [];
@@ -288,23 +299,40 @@
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Moving ' + selectedPlans.size + '...';
 
             let moved = 0, failed = 0;
+            // Batch ALL selected videos in one API call
+            const batchVids = [];
+            const batchTargets = {};
             for (const vid of selectedPlans) {
                 const plan = aiPlans.find(p => p.video_id === vid);
                 if (!plan) continue;
                 const targetId = plan.corrected_playlist_id || (targetPlaylists.find(p => p.title === (plan.corrected_playlist || plan.suggested)) || {}).id;
                 if (!targetId) continue;
+                batchVids.push(vid);
+                batchTargets[vid] = targetId;
+            }
+            // Group by target playlist for batching
+            const byTarget = {};
+            for (const vid of batchVids) {
+                const tid = batchTargets[vid];
+                if (!byTarget[tid]) byTarget[tid] = [];
+                byTarget[tid].push(vid);
+            }
+            for (const [targetPlaylistId, vids] of Object.entries(byTarget)) {
                 try {
                     const resp = await fetch('/api/watch-later/move', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({video_ids: [vid], target_playlist_id: targetId})
+                        body: JSON.stringify({video_ids: vids, target_playlist_id: targetPlaylistId})
                     });
                     const data = await resp.json();
-                    if (data.moved?.length) moved++; else failed++;
-                    // Remove from UI
+                    if (data.moved?.length) moved += data.moved.length;
+                    if (data.failed?.length) failed += data.failed.length;
+                } catch(e) { failed += vids.length; }
+                // Remove from UI
+                vids.forEach(vid => {
                     const row = document.querySelector('[data-vid="' + vid + '"]');
                     if (row) row.style.opacity = '0.3';
-                } catch(e) { failed++; }
+                });
             }
 
             toast('Moved ' + moved + ' video(s), ' + failed + ' failed', moved > 0 ? 'success' : 'warning');
@@ -320,5 +348,6 @@
             fetchWatchLaterRaw();
         });
     </script>
+    <script src="/static/ux-enhancements.js"></script>
 </body>
 </html>

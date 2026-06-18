@@ -605,8 +605,26 @@ async def rename_playlist_endpoint(payload: dict):
                 }
             }
         ).execute()
-        # Force cache refresh so the updated name shows up
-        await youtube_service.fetch_all_data(force_refresh=True)
+        # In-place cache update: update the renamed playlist in caches
+        config = config_manager.config
+        user_id = hashlib.sha256((config.oauth.access_token or "").encode()).hexdigest()[:16]
+        all_key = f"all_data_{user_id}"
+        if youtube_service._cache:
+            cached_all = await youtube_service._get_cached(all_key)
+            if cached_all and "playlists" in cached_all:
+                for p in cached_all["playlists"]:
+                    if p.get("id") == playlist_id:
+                        p["title"] = new_title
+                        break
+                await youtube_service._set_cached(all_key, cached_all)
+            cached_pl = await youtube_service._get_cached("playlists")
+            if cached_pl and "playlists" in cached_pl:
+                for p in cached_pl["playlists"]:
+                    if p.get("id") == playlist_id:
+                        p["title"] = new_title
+                        break
+                cached_pl["playlists"].sort(key=lambda x: x["title"].lower())
+                await youtube_service._set_cached("playlists", cached_pl)
         return {"status": "success", "message": f"Playlist renamed to {new_title}"}
     except Exception as e:
         log.error(f"Error renaming playlist: {e}")
@@ -629,8 +647,24 @@ async def delete_playlist_endpoint(payload: dict):
         google_client = yt_client._get_client(require_oauth=True)
         google_client.playlists().delete(id=playlist_id).execute()
         
-        # Force cache refresh
-        await youtube_service.fetch_all_data(force_refresh=True)
+        # In-place cache update: remove the deleted playlist from caches
+        config = config_manager.config
+        user_id = hashlib.sha256((config.oauth.access_token or "").encode()).hexdigest()[:16]
+        all_key = f"all_data_{user_id}"
+        # Remove from memory cache
+        if youtube_service._cache:
+            cached_all = await youtube_service._get_cached(all_key)
+            if cached_all and "playlists" in cached_all:
+                cached_all["playlists"] = [p for p in cached_all["playlists"] if p.get("id") != playlist_id]
+                cached_all["stats"]["total_playlists"] = len(cached_all["playlists"])
+                await youtube_service._set_cached(all_key, cached_all)
+            # Also update playlists cache
+            cached_pl = await youtube_service._get_cached("playlists")
+            if cached_pl and "playlists" in cached_pl:
+                cached_pl["playlists"] = [p for p in cached_pl["playlists"] if p.get("id") != playlist_id]
+                cached_pl["stats"]["total_playlists"] = len(cached_pl["playlists"])
+                await youtube_service._set_cached("playlists", cached_pl)
+        
         return {"status": "success", "message": "Playlist deleted successfully"}
     except Exception as e:
         log.error(f"Error deleting playlist: {e}")
@@ -1104,15 +1138,22 @@ async def save_settings(body: SettingsIn):
 class AIClassifyIn(BaseModel):
     video_ids: list[str]
     playlist_names: list[dict] | None = None  # optional override
+    metadata: list[dict] | None = None  # [{video_id, title, channel, description}]
 
 
 @app.post("/api/ai/classify")
 async def ai_classify_videos(body: AIClassifyIn):
-    """Classify videos using the configured AI provider."""
+    """Classify videos using the configured AI provider.
+    
+    Accepts optional metadata to avoid extra YouTube API calls.
+    If metadata is provided, it is used directly instead of fetching from YouTube.
+    """
     config = config_manager.config
     provider = config.ai_provider
     api_key = _secret_val(config.ai_api_key)
     prompt = config.ai_classification_prompt
+    custom_endpoint = config.ai_custom_endpoint
+    custom_model = config.ai_custom_model
     
     if not provider or not api_key:
         return {"error": "AI provider not configured"}
@@ -1131,24 +1172,26 @@ async def ai_classify_videos(body: AIClassifyIn):
         return {"error": "No playlists available"}
     
     from services.ai_classifier import classify_video
-    from services.youtube_client import YouTubeClient
     
-    client = YouTubeClient(config, require_oauth=False)
     results = []
-    
-    for vid in body.video_ids:
+    for i, vid in enumerate(body.video_ids):
         try:
-            # Get video details using videos().list API
-            video_info = client.get_video(vid) if hasattr(client, "get_video") else {}
-            snippet = video_info.get("snippet", {}) if video_info else {}
-            title = snippet.get("title", "")
-            channel = snippet.get("channelTitle", "")
-            description = snippet.get("description", "")
+            # Use provided metadata if available (avoids YouTube API call)
+            if body.metadata and i < len(body.metadata):
+                meta = body.metadata[i]
+                title = meta.get("title", "")
+                channel = meta.get("channel", "")
+                description = meta.get("description", "")
+            else:
+                title = ""
+                channel = ""
+                description = ""
             
             matched_playlist, error = classify_video(
                 title=title, channel=channel, description=description,
                 playlists=playlists, provider=provider, api_key=api_key,
                 prompt_template=prompt,
+                custom_endpoint=custom_endpoint, custom_model=custom_model,
             )
             
             result = {

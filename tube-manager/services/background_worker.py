@@ -457,11 +457,11 @@ class BackgroundWorker:
                     continue
 
                 try:
-                    # Insert into target playlist
-                    client.move_video_to_playlist(video_id, playlist_id)
+                    # Insert into target playlist (offload sync call to thread)
+                    await asyncio.to_thread(client.move_video_to_playlist, video_id, playlist_id)
                     # Remove from Watch Later
                     if playlist_item_id:
-                        client.remove_video_from_playlist(playlist_item_id)
+                        await asyncio.to_thread(client.remove_video_from_playlist, playlist_item_id)
                     moved.append({"video_id": video_id, "from": origin, "to": playlist_id, "channel_id": channel_id})
                     # Record move for AI training memory
                     try:
