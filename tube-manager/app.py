@@ -404,21 +404,32 @@ async def fetch_all_youtube_data(request: Request, force_refresh: bool = False):
 async def get_watch_later():
     """Fetch Watch Later playlist contents using browser scraper (bypasses API restriction)."""
     try:
-        from services.browser_scraper import has_cookies, scrape_watch_later_videos
+        # 1. If user has configured a specific playlist in Settings, use that
+        configured_id = config_manager.config.watch_later_playlist_id if hasattr(config_manager.config, 'watch_later_playlist_id') else ""
+        if configured_id:
+            log.info(f"[WATCH LATER] Using configured playlist: {configured_id}")
+            if youtube_service:
+                client = youtube_service.get_client(require_oauth=True)
+                if client:
+                    resp = client.list_watch_later_items(max_results=50, playlist_id=configured_id)
+                    items = resp.get("items", [])
+                    if items:
+                        return {"items": items, "source": f"configured ({configured_id})"}
         
+        # 2. Try browser scraper for native Watch Later
+        from services.browser_scraper import has_cookies, scrape_watch_later_videos
         if has_cookies():
-            # Run in thread to avoid blocking
             result = await asyncio.to_thread(scrape_watch_later_videos, 100)
             if result.get("items"):
                 return {"items": result["items"], "source": "browser"}
         
-        # Fall back to API
+        # 3. Fall back to auto-detect API
         if youtube_service:
             client = youtube_service.get_client(require_oauth=True)
             if client:
                 resp = client.list_watch_later_items(max_results=50)
                 items = resp.get("items", [])
-                return {"items": items, "source": "api"}
+                return {"items": items, "source": "api-auto"}
         
         return {"items": [], "source": "none", "error": "No Watch Later access available"}
     except Exception as e:
