@@ -314,6 +314,9 @@
                                         </select>
                                         <p class="text-[9px] text-gray-500 mt-1">Channel mode uses your manual mappings. AI mode uses the provider to classify videos by title/description.</p>
                                     </div>
+                                    <div>
+                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="ai-auto-apply" class="accent-blue-500"> Auto-apply mappings: automatically create channel mappings after detecting patterns in your moves</label>
+                                    </div>
                                 </div>
                             </div>
                             <div class="bento-card p-4">
@@ -476,6 +479,8 @@
                 
                 if (data.default_privacy) document.getElementById('default-privacy').value = data.default_privacy;
                 if (data.scan_interval) document.getElementById('scan-interval').value = data.scan_interval;
+                const aiAutoApply = document.getElementById('ai-auto-apply');
+                if (aiAutoApply && data.ai_auto_apply_mappings !== undefined) aiAutoApply.checked = data.ai_auto_apply_mappings;
             } catch (e) {
                 console.error(e);
             }

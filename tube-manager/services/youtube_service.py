@@ -209,7 +209,6 @@ class YouTubeService:
         """List user's playlists with lightweight change detection (renames/removals force a sync)."""
         cached_playlists = []
         cached_stats = {}
-        cache_source = None  # 'memory', 'disk', or None
         
         # 1. Try memory cache
         cached = await self._get_cached("playlists")

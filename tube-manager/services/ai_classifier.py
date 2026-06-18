@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -32,6 +32,9 @@ def _load_memory() -> list[dict]:
 
 def _save_memory(memory: list[dict]):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # Remove entries older than 90 days
+    cutoff = (datetime.utcnow() - timedelta(days=90)).isoformat()
+    memory = [m for m in memory if m.get("timestamp", "") > cutoff]
     with open(MEMORY_FILE, "w") as f:
         json.dump(memory, f, indent=2)
 
