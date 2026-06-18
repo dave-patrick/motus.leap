@@ -929,6 +929,7 @@ class SettingsIn(BaseModel):
     max_concurrent: int | None = None
     auto_sort: bool | None = None
     sync_watch_later: bool | None = None
+    watch_later_playlist_id: str | None = None
     notify_failures: bool | None = None
     dark_mode: bool | None = None
     log_level: str | None = None
@@ -948,6 +949,7 @@ async def get_settings():
         "max_concurrent": config.max_concurrent,
         "auto_sort": config.auto_sort,
         "sync_watch_later": config.sync_watch_later,
+        "watch_later_playlist_id": getattr(config, "watch_later_playlist_id", ""),
         "notify_failures": config.notify_failures,
         "dark_mode": config.dark_mode,
         "log_level": config.log_level,

@@ -336,9 +336,13 @@ class BackgroundWorker:
                 return None, None
 
             # Fetch watch later items
-            watch_later_resp = client.list_watch_later_items(max_results=50)
+            configured_id = getattr(config, "watch_later_playlist_id", "")
+            if configured_id:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Using configured playlist source: {configured_id}"}))
+                
+            watch_later_resp = client.list_watch_later_items(max_results=50, playlist_id=configured_id)
             watch_later_items = watch_later_resp.get("items", [])
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from Watch Later"}))
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from sync source"}))
             
             moved = []
             skipped = []
@@ -352,6 +356,11 @@ class BackgroundWorker:
                     continue
                 channel_id, playlist_id = classify(item)
                 if not playlist_id:
+                    skipped.append(item)
+                    continue
+                
+                # Safeguard: skip if the target playlist is the same as the source playlist
+                if playlist_id == origin:
                     skipped.append(item)
                     continue
                 

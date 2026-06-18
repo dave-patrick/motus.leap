@@ -261,7 +261,7 @@ class YouTubeClient:
         try:
             pl_resp = self.list_mine_playlists(max_results=50)
             pl_items = pl_resp.get("items", [])
-            target_titles = {"watch later", "watchlater", "queue", "sync queue", "wl"}
+            target_titles = {"watch later", "watchlater", "queue", "sync queue", "wl", "sort", "1~sort", "triage"}
             for pl in pl_items:
                 title = pl.get("snippet", {}).get("title", "").strip().lower()
                 if title in target_titles:
@@ -287,13 +287,17 @@ class YouTubeClient:
             log.error(f"[YOUTUBE] watch_later error: {e}")
             return {}
 
-    def list_watch_later_items(self, max_results: int = 50, page_token: str | None = None) -> dict[str, Any]:
+    def list_watch_later_items(self, max_results: int = 50, page_token: str | None = None, playlist_id: str | None = None) -> dict[str, Any]:
         if not self.oauth_access_token or not self.oauth_refresh_token:
             return {"items": []}
         try:
-            resp = self._oauth_request("channels", {"part": "contentDetails", "mine": "true"})
-            items = resp.get("items", [])
-            watch_later_id = self._get_watch_later_id(items)
+            if playlist_id:
+                watch_later_id = playlist_id
+            else:
+                resp = self._oauth_request("channels", {"part": "contentDetails", "mine": "true"})
+                items = resp.get("items", [])
+                watch_later_id = self._get_watch_later_id(items)
+                
             if not watch_later_id:
                 return {"items": []}
             params = {"part": "snippet,contentDetails", "playlistId": watch_later_id, "maxResults": max_results}
