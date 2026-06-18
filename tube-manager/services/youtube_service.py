@@ -322,12 +322,20 @@ class YouTubeService:
             Dictionary containing all YouTube data
         """
         user_id = self._get_user_id()
+        cache_key = f"all_data_{user_id}"
         
-        # Try to load from persistent storage first (survives restarts)
+        # 1. Try memory cache first for instantaneous loads (0ms)
         if not force_refresh:
+            cached_data = await self._get_cached(cache_key)
+            if cached_data:
+                log.info("Using cached all_data from memory (0ms latency)")
+                return cached_data
+                
+            # 2. Try persistent disk cache if not in memory
             disk_data = self._load_from_disk("all_data")
             if disk_data:
-                log.info("Using cached data from disk (always returned on normal reads until a manual/background sync is done)")
+                log.info("Using cached all_data from disk, caching in memory")
+                await self._set_cached(cache_key, disk_data)
                 return disk_data
 
         client = self.get_client(require_oauth=True)
