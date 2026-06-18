@@ -165,9 +165,6 @@
             }
             grid.innerHTML = playlists.map(p => `
                 <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-3 flex flex-col cursor-pointer hover:border-blue-500/50 transition-colors h-full relative">
-                    <a href="/playlist/${p.id}" title="Open playlist" class="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors p-1 rounded-md hover:bg-white/10" onclick="event.stopPropagation()">
-                        <i class="fa-solid fa-external-link text-[10px]"></i>
-                    </a>
                     <div class="flex items-start justify-between mb-2">
                         <div class="w-12 h-7 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
                         <button onclick="openPlaylist('${p.id}', event)" class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[8px] mr-1"></i> YouTube</button>
