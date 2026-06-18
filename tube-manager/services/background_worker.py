@@ -434,7 +434,12 @@ class BackgroundWorker:
             await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete"}))
             
         except Exception as e:
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Sync failed: {str(e)}"}))
+            error_details = f"{type(e).__name__}: {str(e)}"
+            try:
+                error_details += f" | {traceback.format_exc()}"
+            except Exception:
+                pass
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Sync failed: {error_details}"}))
 
     async def diagnose_failures(self, payload):
         """Diagnose system health."""
