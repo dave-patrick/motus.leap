@@ -426,6 +426,33 @@ async def get_watch_later():
         return {"items": [], "error": str(e), "source": "error"}
 
 
+class WatchLaterMoveIn(BaseModel):
+    video_ids: list[str]
+    target_playlist_id: str
+
+
+@app.post("/api/watch-later/move")
+async def move_watch_later_videos(body: WatchLaterMoveIn):
+    """Move selected videos from Watch Later to a target playlist."""
+    if not youtube_service:
+        return {"error": "YouTube service not initialized"}
+    
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        return {"error": "OAuth required"}
+    
+    results = {"moved": [], "failed": []}
+    for video_id in body.video_ids:
+        try:
+            yt_client.move_video_to_playlist(video_id, body.target_playlist_id)
+            results["moved"].append(video_id)
+        except Exception as e:
+            log.error(f"Failed to move video {video_id}: {e}")
+            results["failed"].append({"video_id": video_id, "error": str(e)})
+    
+    return results
+
+
 @app.get("/api/youtube/videos")
 async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: bool = False):
     """Get videos with duration (cached).
