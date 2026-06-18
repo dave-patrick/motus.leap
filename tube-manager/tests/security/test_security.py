@@ -327,6 +327,37 @@ class TestAuthentication:
         # If auth is added, should be 401
         assert response.status_code in [200, 401]
 
+    def test_cookie_auth_fallback(self, test_client):
+        """Test authentication fallback to token cookie."""
+        from api.auth import create_access_token, users_db
+        from datetime import datetime, timedelta
+        
+        # Add a test user if not exists
+        username = "testuser_cookie_test"
+        if username not in users_db:
+            users_db[username] = {
+                "id": "test_id_123",
+                "username": username,
+                "email": "test@example.com",
+                "full_name": "Test User",
+                "hashed_password": "fake_hashed_password",
+                "role": "user",
+                "is_active": True,
+                "created_at": datetime.now(),
+            }
+            
+        token = create_access_token(data={"sub": username, "role": "user"}, expires_delta=timedelta(minutes=10))
+        
+        # Make a request using cookie 'token' without Authorization header
+        test_client.cookies.set("token", token)
+        response = test_client.get("/api/auth/me")
+        
+        # Clear the cookie from client for downstream tests
+        test_client.cookies.clear()
+        
+        assert response.status_code == 200
+        assert response.json()["username"] == username
+
 
 @pytest.mark.security
 class TestHTTPSOnly:
