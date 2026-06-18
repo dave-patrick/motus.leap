@@ -1031,6 +1031,10 @@ class SettingsIn(BaseModel):
     notify_failures: bool | None = None
     dark_mode: bool | None = None
     log_level: str | None = None
+    ai_provider: str | None = None
+    ai_api_key: str | None = None
+    ai_mode: str | None = None
+    ai_classification_prompt: str | None = None
 
 
 @app.get("/api/settings")
@@ -1050,6 +1054,10 @@ async def get_settings():
         "notify_failures": config.notify_failures,
         "dark_mode": config.dark_mode,
         "log_level": config.log_level,
+        "ai_provider": config.ai_provider,
+        "ai_api_key": "••••••••" if _secret_val(config.ai_api_key) else "",
+        "ai_mode": config.ai_mode,
+        "ai_classification_prompt": config.ai_classification_prompt,
     }
 
 
@@ -1078,6 +1086,117 @@ async def save_settings(body: SettingsIn):
         "oauth_client_id": config.oauth.client_id,
         "oauth_client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
     }
+
+
+class AIClassifyIn(BaseModel):
+    video_ids: list[str]
+    playlist_names: list[dict] | None = None  # optional override
+
+
+@app.post("/api/ai/classify")
+async def ai_classify_videos(body: AIClassifyIn):
+    """Classify videos using the configured AI provider."""
+    config = config_manager.config
+    provider = config.ai_provider
+    api_key = _secret_val(config.ai_api_key)
+    prompt = config.ai_classification_prompt
+    
+    if not provider or not api_key:
+        return {"error": "AI provider not configured"}
+    
+    # Get playlists for classification targets
+    playlists = []
+    if body.playlist_names:
+        playlists = body.playlist_names
+    else:
+        from services.youtube_service import YouTubeService
+        ys = YouTubeService(config)
+        pl_data = await ys.list_playlists()
+        playlists = [{"id": p["id"], "title": p["title"]} for p in pl_data.get("playlists", [])]
+    
+    if not playlists:
+        return {"error": "No playlists available"}
+    
+    from services.ai_classifier import classify_video
+    from services.youtube_client import YouTubeClient
+    
+    client = YouTubeClient(config, require_oauth=False)
+    results = []
+    
+    for vid in body.video_ids:
+        try:
+            # Get video details using videos().list API
+            video_info = client.get_video(vid) if hasattr(client, "get_video") else {}
+            snippet = video_info.get("snippet", {}) if video_info else {}
+            title = snippet.get("title", "")
+            channel = snippet.get("channelTitle", "")
+            description = snippet.get("description", "")
+            
+            matched_playlist, error = classify_video(
+                title=title, channel=channel, description=description,
+                playlists=playlists, provider=provider, api_key=api_key,
+                prompt_template=prompt,
+            )
+            
+            result = {
+                "video_id": vid,
+                "title": title,
+                "channel": channel,
+                "matched_playlist": matched_playlist,
+            }
+            if error:
+                result["error"] = error
+            results.append(result)
+        except Exception as e:
+            results.append({"video_id": vid, "error": str(e)})
+    
+    return {"results": results}
+
+
+class RecordMoveIn(BaseModel):
+    video_id: str
+    title: str = ""
+    channel_id: str = ""
+    channel_title: str = ""
+    from_playlist_name: str = ""
+    from_playlist_id: str = ""
+    to_playlist_name: str = ""
+    to_playlist_id: str = ""
+    source: str = "manual"
+
+
+@app.post("/api/ai/record-move")
+async def ai_record_move(body: RecordMoveIn):
+    """Record a video move for AI training memory."""
+    from services.ai_classifier import record_move
+    record_move(
+        video_id=body.video_id,
+        title=body.title,
+        channel_id=body.channel_id,
+        channel_title=body.channel_title,
+        from_playlist_name=body.from_playlist_name,
+        from_playlist_id=body.from_playlist_id,
+        to_playlist_name=body.to_playlist_name,
+        to_playlist_id=body.to_playlist_id,
+        source=body.source,
+    )
+    return {"status": "recorded"}
+
+
+@app.get("/api/ai/suggestions")
+async def ai_get_suggestions():
+    """Get channel mapping suggestions from training memory."""
+    from services.ai_classifier import get_channel_mapping_suggestions
+    suggestions = get_channel_mapping_suggestions()
+    return {"suggestions": suggestions}
+
+
+@app.get("/api/ai/memory")
+async def ai_get_memory():
+    """Get raw training memory entries."""
+    from services.ai_classifier import _load_memory
+    memory = _load_memory()
+    return {"moves": memory[-100:]}
 
 
 # Reset settings

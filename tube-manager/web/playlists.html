@@ -651,6 +651,32 @@
                 const moved = data.moved?.length || 0;
                 const failed = data.failed?.length || 0;
                 
+                // Record moves for AI training memory
+                if (moved > 0) {
+                    const targetName = playlist.options[playlist.selectedIndex]?.text || playlist.value;
+                    const selectedRows = document.querySelectorAll('.wl-cb:checked');
+                    selectedRows.forEach(cb => {
+                        const row = cb.closest('.wl-row');
+                        if (row) {
+                            const vid = row.dataset.videoId;
+                            const title = row.querySelector('.text-xs.font-medium')?.textContent || '';
+                            const channel = row.querySelector('.text-[10px].text-gray-400')?.textContent || '';
+                            fetch('/api/ai/record-move', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({
+                                    video_id: vid,
+                                    title: title,
+                                    channel_title: channel,
+                                    to_playlist_name: targetName,
+                                    to_playlist_id: playlist.value,
+                                    source: 'manual'
+                                })
+                            }).catch(() => {});
+                        }
+                    });
+                }
+                
                 // Remove moved rows from UI
                 document.querySelectorAll('.wl-cb:checked').forEach(cb => {
                     const row = cb.closest('.wl-row');

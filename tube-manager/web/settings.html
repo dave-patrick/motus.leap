@@ -279,81 +279,52 @@
                     <div id="tab-content-ai" class="tab-pane hidden space-y-4">
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <div class="bento-card p-4">
-                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Model Configuration</h3>
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">AI Provider</h3>
                                 <div class="space-y-4">
                                     <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Classification Model</label>
-                                        <select id="model-classification" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                            <option>Gemini 2.0 Flash (Google AI Studio)</option>
-                                            <option>Llama 3.1 8B (Groq)</option>
-                                            <option>Mistral Small (Mistral AI)</option>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Provider</label>
+                                        <select id="ai-provider" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <option value="">-- Disabled --</option>
+                                            <option value="openai">OpenAI (GPT-4o-mini)</option>
+                                            <option value="anthropic">Anthropic (Claude 3 Haiku)</option>
+                                            <option value="groq">Groq (Llama 3.3 70B)</option>
+                                            <option value="google">Google (Gemini 2.0 Flash)</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Embedding Model</label>
-                                        <select id="model-embedding" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                            <option>text-embedding-3-small (OpenAI)</option>
-                                            <option>nomic-embed-text (local)</option>
-                                        </select>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">API Key</label>
+                                        <input type="password" id="ai-api-key" placeholder="Enter your AI provider API key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
                                     </div>
                                     <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Reasoning Model</label>
-                                        <select id="model-reasoning" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                            <option>DeepSeek-R1-Distill (Groq)</option>
-                                            <option>Nemotron 3 Ultra (OpenRouter)</option>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Classification Mode</label>
+                                        <select id="ai-mode" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <option value="channel">Channel Mappings (current)</option>
+                                            <option value="ai">AI Classification</option>
                                         </select>
+                                        <p class="text-[9px] text-gray-500 mt-1">Channel mode uses your manual mappings. AI mode uses the provider to classify videos by title/description.</p>
                                     </div>
                                 </div>
                             </div>
                             <div class="bento-card p-4">
-                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Learning Parameters</h3>
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Classification Prompt</h3>
                                 <div class="space-y-4">
-                                    <div>
-                                        <div class="flex justify-between text-[10px] mb-1"><span>Learning Rate</span><span id="lr-value">0.00225</span></div>
-                                        <input type="range" min="0.0001" max="0.01" step="0.0001" value="0.00225" class="w-full accent-blue-500" oninput="document.getElementById('lr-value').textContent=this.value">
-                                    </div>
-                                    <div>
-                                        <div class="flex justify-between text-[10px] mb-1"><span>Confidence Threshold</span><span id="ct-value">0.75</span></div>
-                                        <input type="range" min="0.1" max="0.99" step="0.01" value="0.75" class="w-full accent-blue-500" oninput="document.getElementById('ct-value').textContent=this.value">
-                                    </div>
-                                    <div>
-                                        <div class="flex justify-between text-[10px] mb-1"><span>Cluster Similarity</span><span id="cs-value">0.82</span></div>
-                                        <input type="range" min="0.1" max="0.99" step="0.01" value="0.82" class="w-full accent-blue-500" oninput="document.getElementById('cs-value').textContent=this.value">
-                                    </div>
-                                    <div>
-                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500" checked> Auto-retrain on new data</label>
-                                    </div>
-                                    <div>
-                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" class="accent-blue-500"> Enable semantic deduplication</label>
-                                    </div>
+                                    <textarea id="ai-prompt" rows="6" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded px-3 py-2 outline-none font-mono resize-none">Classify this YouTube video into one of my playlists based on its title and description. Return ONLY the playlist name, nothing else. If unsure, return 'UNSURE'.</textarea>
+                                    <button onclick="resetPrompt()" class="text-[9px] px-2 py-1 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white hover:border-[#374151] transition-colors"><i class="fa-solid fa-rotate-left text-[8px] mr-1"></i>Reset to Default</button>
                                 </div>
                             </div>
                             <div class="bento-card p-4 lg:col-span-2">
-                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Training Data & Feedback Loop</h3>
-                                <div class="grid grid-cols-3 gap-4 mb-4">
-                                    <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-2xl font-bold text-blue-400" id="stat-samples">1,922</div><div class="text-[10px] text-gray-400">Training Samples</div></div>
-                                    <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-2xl font-bold text-green-400" id="stat-lr">2.225%</div><div class="text-[10px] text-gray-400">Learning Rate</div></div>
-                                    <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-2xl font-bold text-purple-400" id="stat-acc">94.3%</div><div class="text-[10px] text-gray-400">Classification Accuracy</div></div>
-                                </div>
-                                <div class="flex gap-2">
-                                    <button onclick="retrainModel(this)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-4 py-2 rounded">Retrain Model</button>
-                                    <button onclick="exportWeights()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Export Weights</button>
-                                    <button onclick="importDataset()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded">Import Dataset</button>
-                                </div>
-                            </div>
-                            <div class="bento-card p-4 lg:col-span-2">
-                                <h3 class="text-xs font-semibold text-gray-300 mb-3">AI Agent Log</h3>
-                                <div id="ai-log" class="bg-[#0a0c10] p-3 font-mono text-[10px] leading-relaxed text-green-300 h-64 overflow-y-auto whitespace-pre-wrap">
-[AI] Initializing classification pipeline...
-[AI] Loading embeddings cache (1,922 vectors)
-[AI] Gemini 2.0 Flash connected • 1500 req/day quota
-[CLUSTER] Processing playlist "PL_tech" — 347 videos
-[CLUSTER] Similarity matrix computed • 0.82 threshold
-[LEARN] Batch 1/8 complete • accuracy: 94.1%
-[LEARN] Batch 2/8 complete • accuracy: 94.3%
-[DEDUPE] Found 23 semantic duplicates across playlists
-[RULE] Generated 12 new regex patterns from clusters
-[AI] Model checkpoint saved • next retrain: 24h
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Training Memory</h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-center gap-4 text-[10px] text-gray-400">
+                                        <span>When you move videos manually, those actions are recorded here.</span>
+                                        <span class="text-blue-400 font-medium" id="ai-memory-count">0 moves</span>
+                                    </div>
+                                    <div id="ai-suggestions" class="space-y-1 max-h-40 overflow-y-auto">
+                                        <div class="text-[10px] text-gray-500 italic">Move videos to build up training data. Suggestions will appear here after 3+ moves from the same channel to the same playlist.</div>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button onclick="loadAiSuggestions()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] px-3 py-1.5 rounded flex items-center gap-1.5"><i class="fa-solid fa-rotate text-[9px]"></i> Refresh Suggestions</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -466,6 +437,27 @@
                     if (select) select.value = data.watch_later_playlist_id;
                 }
                 
+                // AI settings
+                const aiProvider = document.getElementById('ai-provider');
+                if (aiProvider && data.ai_provider) aiProvider.value = data.ai_provider;
+                const aiKey = document.getElementById('ai-api-key');
+                if (aiKey) {
+                    if (data.ai_api_key && data.ai_api_key.startsWith('••••')) {
+                        aiKey.placeholder = '•••••••• — previously saved';
+                        aiKey.value = '';
+                    } else {
+                        aiKey.placeholder = 'Enter your AI provider API key';
+                        aiKey.value = data.ai_api_key || '';
+                    }
+                }
+                const aiMode = document.getElementById('ai-mode');
+                if (aiMode && data.ai_mode) aiMode.value = data.ai_mode;
+                const aiPrompt = document.getElementById('ai-prompt');
+                if (aiPrompt && data.ai_classification_prompt) aiPrompt.value = data.ai_classification_prompt;
+                
+                // Load AI memory suggestions
+                loadAiSuggestions();
+                
                 if (data.default_privacy) document.getElementById('default-privacy').value = data.default_privacy;
                 if (data.scan_interval) document.getElementById('scan-interval').value = data.scan_interval;
             } catch (e) {
@@ -487,6 +479,10 @@
                 notify_failures: document.getElementById('notify-failures').checked,
                 dark_mode: document.getElementById('dark-mode').checked,
                 log_level: document.getElementById('log-level').value,
+                ai_provider: document.getElementById('ai-provider').value || undefined,
+                ai_api_key: document.getElementById('ai-api-key').value || undefined,
+                ai_mode: document.getElementById('ai-mode').value,
+                ai_classification_prompt: document.getElementById('ai-prompt').value,
             };
             
             try {
@@ -624,6 +620,51 @@
         // Advanced actions
         async function viewSystemLogs() {
             window.open('/system/logs', '_blank');
+        }
+        
+        // AI actions
+        async function loadAiSuggestions() {
+            const container = document.getElementById('ai-suggestions');
+            const countEl = document.getElementById('ai-memory-count');
+            if (!container) return;
+            
+            try {
+                const resp = await fetch('/api/ai/memory');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const moves = data.moves || [];
+                    if (countEl) countEl.textContent = moves.length + ' moves';
+                }
+                
+                const sugResp = await fetch('/api/ai/suggestions');
+                if (!sugResp.ok) return;
+                const sugData = await sugResp.json();
+                const suggestions = sugData.suggestions || [];
+                
+                if (!suggestions.length) {
+                    container.innerHTML = '<div class="text-[10px] text-gray-500 italic">Move videos to build up training data. Suggestions will appear here after 3+ moves from the same channel to the same playlist.</div>';
+                    return;
+                }
+                
+                container.innerHTML = suggestions.map(s => `
+                    <div class="flex items-center justify-between p-2 rounded bg-[#20242c] border border-[#2a2f3a]">
+                        <div class="flex-1 min-w-0">
+                            <div class="text-[10px] text-white font-medium truncate">${s.channel_title || s.channel_id}</div>
+                            <div class="text-[9px] text-gray-400">→ ${s.playlist_name} (${s.move_count} moves)</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.warn('Failed to load AI suggestions', e);
+            }
+        }
+        
+        async function resetPrompt() {
+            const prompt = document.getElementById('ai-prompt');
+            if (prompt) {
+                prompt.value = "Classify this YouTube video into one of my playlists based on its title and description. Return ONLY the playlist name, nothing else. If unsure, return 'UNSURE'.";
+                toast('Prompt reset to default', 'info');
+            }
         }
         
         async function resetAllSettings() {
