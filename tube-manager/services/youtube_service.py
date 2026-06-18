@@ -207,9 +207,30 @@ class YouTubeService:
     async def list_playlists(self, force_refresh: bool = False) -> Dict[str, Any]:
         """List user's playlists without fetching every video duration."""
         if not force_refresh:
+            # 1. Try memory cache
             cached = await self._get_cached("playlists")
             if cached:
                 return {"playlists": cached.get("playlists", []), "stats": cached.get("stats", {})}
+            
+            # 2. Try playlists disk cache
+            disk_playlists = self._load_from_disk("playlists")
+            if disk_playlists:
+                await self._set_cached("playlists", disk_playlists)
+                return {"playlists": disk_playlists.get("playlists", []), "stats": disk_playlists.get("stats", {})}
+            
+            # 3. Fallback to global all_data disk cache
+            all_data = self._load_from_disk("all_data")
+            if all_data and "playlists" in all_data:
+                playlists = all_data["playlists"]
+                stats = all_data.get("stats", {})
+                basic_stats = {
+                    "total_playlists": len(playlists),
+                    "total_videos": sum(pl["video_count"] for pl in playlists),
+                }
+                cache_payload = {"playlists": playlists, "stats": stats or basic_stats}
+                await self._set_cached("playlists", cache_payload)
+                self._save_to_disk("playlists", cache_payload)
+                return cache_payload
 
         client = self.get_client(require_oauth=True)
         if not client:
@@ -226,8 +247,10 @@ class YouTubeService:
                 "total_playlists": len(playlists),
                 "total_videos": sum(pl["video_count"] for pl in playlists),
             }
-            await self._set_cached("playlists", {"playlists": playlists, "stats": stats})
-            return {"playlists": playlists, "stats": stats}
+            payload = {"playlists": playlists, "stats": stats}
+            await self._set_cached("playlists", payload)
+            self._save_to_disk("playlists", payload)
+            return payload
         except Exception as e:
             log.warning(f"Failed to list playlists: {e}")
             return {"playlists": [], "error": str(e)}
@@ -360,20 +383,24 @@ class YouTubeService:
             videos = []
             total_duration = 0
             
-            # Process only the first playlists needed to keep duration scans quota-safe.
-            for playlist in playlists[:10]:
+            # Process more playlists and videos if force_refresh is True (explicit user sync)
+            max_playlists = 50 if force_refresh else 10
+            max_total_videos = 2000 if force_refresh else 500
+            
+            # Process only the playlists needed to keep duration scans quota-safe.
+            for playlist in playlists[:max_playlists]:
                 pl_id = playlist["id"]
                 try:
                     video_items = await self._fetch_all_paginated(
                         lambda max_results, page_token: client.list_videos(pl_id, max_results=max_results, page_token=page_token),
                         max_results=50,
-                        max_items=max(0, 500 - len(videos)),
+                        max_items=max(0, max_total_videos - len(videos)),
                     )
                     for vid in video_items:
                         video = self._video_item_to_dict(vid, pl_id, playlist["title"])
                         total_duration += video["duration_seconds"]
                         videos.append(video)
-                    if len(videos) >= 500:
+                    if len(videos) >= max_total_videos:
                         break
                 
                 except Exception as e:
@@ -511,9 +538,25 @@ class YouTubeService:
         # If playlist_id is provided, check if we have cached videos for this specific playlist
         cache_key = f"playlist_videos_{playlist_id}"
         if not force_refresh:
+            # 1. Try memory cache
             cached_videos = await self._get_cached(cache_key)
             if cached_videos is not None:
                 return {"videos": cached_videos}
+            
+            # 2. Try disk cache specifically for this playlist
+            disk_cached = self._load_from_disk(cache_key)
+            if disk_cached is not None:
+                await self._set_cached(cache_key, disk_cached)
+                return {"videos": disk_cached}
+            
+            # 3. Fallback to extracting from the global "all_data" disk cache
+            all_data = self._load_from_disk("all_data")
+            if all_data and "videos" in all_data:
+                playlist_videos = [v for v in all_data["videos"] if v.get("playlist_id") == playlist_id]
+                if playlist_videos:
+                    await self._set_cached(cache_key, playlist_videos)
+                    self._save_to_disk(cache_key, playlist_videos)
+                    return {"videos": playlist_videos}
         
         # Otherwise, fetch fresh videos for this specific playlist directly
         client = self.get_client(require_oauth=True)
@@ -539,8 +582,9 @@ class YouTubeService:
                 video = self._video_item_to_dict(vid, playlist_id, playlist_title)
                 videos.append(video)
                 
-            # Cache the videos for this specific playlist
+            # Cache the videos for this specific playlist in memory and disk
             await self._set_cached(cache_key, videos)
+            self._save_to_disk(cache_key, videos)
             return {"videos": videos}
         except Exception as e:
             log.error(f"Error fetching videos for playlist {playlist_id}: {e}")
