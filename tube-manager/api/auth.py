@@ -349,7 +349,7 @@ def get_user_permissions(role: str) -> List[str]:
 # Auth Endpoints
 # =============================================================================
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate):
     if get_user_by_username(user_data.username):
         raise HTTPException(
@@ -375,12 +375,31 @@ async def register(user_data: UserCreate):
         "role": "user",
         "is_active": True,
         "created_at": datetime.now(),
-        "last_login": None,
+        "last_login": datetime.now(),
     }
 
     users_db[user_data.username] = user
     _save_users(users_db)
-    return UserResponse(**user)
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["username"], "role": user["role"]},
+        expires_delta=access_token_expires,
+    )
+
+    user_sessions[access_token] = {
+        "user_id": user["id"],
+        "username": user["username"],
+        "created_at": datetime.now(),
+        "expires_at": datetime.now() + access_token_expires,
+    }
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=UserResponse(**user),
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
