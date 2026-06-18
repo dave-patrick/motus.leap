@@ -239,9 +239,9 @@ class YouTubeService:
                 cached_stats = cached_stats or basic_stats
                 await self._set_cached("playlists", {"playlists": cached_playlists, "stats": cached_stats})
         
-        # If we have data from memory cache (recently accessed, TTL still valid),
-        # skip the YouTube API call entirely for instant response
-        if cache_source == 'memory' and not force_refresh:
+        # If we have any cached data at all (from any source), return it immediately
+        # without hitting the YouTube API. Change detection is handled by explicit syncs.
+        if cached_playlists and not force_refresh:
             return {"playlists": cached_playlists, "stats": cached_stats}
 
         client = self.get_client(require_oauth=True)
