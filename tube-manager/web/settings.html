@@ -183,12 +183,7 @@
                                             <option value="ERROR">ERROR</option>
                                         </select>
                                     </div>
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Webhook URL (optional)</label>
-                                        <input type="url" id="webhook-url" placeholder="https://your-webhook.com/endpoint" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                                    </div>
                                     <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
-                                        <button onclick="testWebhook()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Test Webhook</button>
                                         <button onclick="viewSystemLogs()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">View System Logs</button>
                                         <button onclick="resetAllSettings()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Reset All Settings</button>
                                     </div>
@@ -466,7 +461,6 @@
                 document.getElementById('notify-failures').checked = data.notify_failures === true;
                 document.getElementById('dark-mode').checked = data.dark_mode !== false;
                 document.getElementById('log-level').value = data.log_level || 'INFO';
-                document.getElementById('webhook-url').value = data.webhook_url || '';
                 
                 if (data.watch_later_playlist_id) {
                     const select = document.getElementById('watch-later-source');
@@ -494,7 +488,6 @@
                 notify_failures: document.getElementById('notify-failures').checked,
                 dark_mode: document.getElementById('dark-mode').checked,
                 log_level: document.getElementById('log-level').value,
-                webhook_url: document.getElementById('webhook-url').value || undefined,
             };
             
             try {
@@ -638,20 +631,6 @@
         }
         
         // Advanced actions
-        async function testWebhook() {
-            const url = document.getElementById('webhook-url').value;
-            if (!url) { toast('Enter a webhook URL first', 'warning'); return; }
-            try {
-                const resp = await fetch('/api/webhook/test', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url, test: true})
-                });
-                const data = await resp.json();
-                toast(data.message || 'Webhook test sent', 'success');
-            } catch (e) { toast('Failed: ' + e.message, 'error'); }
-        }
-        
         async function viewSystemLogs() {
             window.open('/system/logs', '_blank');
         }

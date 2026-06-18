@@ -1031,7 +1031,6 @@ class SettingsIn(BaseModel):
     notify_failures: bool | None = None
     dark_mode: bool | None = None
     log_level: str | None = None
-    webhook_url: str | None = None
 
 
 @app.get("/api/settings")
@@ -1051,7 +1050,6 @@ async def get_settings():
         "notify_failures": config.notify_failures,
         "dark_mode": config.dark_mode,
         "log_level": config.log_level,
-        "webhook_url": config.webhook_url,
     }
 
 
