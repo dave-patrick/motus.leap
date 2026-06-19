@@ -44,9 +44,10 @@ async def require_auth(request: Request, token: str = Cookie(default=None), auth
         return RedirectResponse(url="/auth", status_code=302)
 
 # Rate limiting
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+
+# Import external limiter
+from core.limiter import limiter
 
 # Import routers
 from api.bulk_operations import router as bulk_router

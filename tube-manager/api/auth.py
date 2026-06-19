@@ -9,9 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import asyncio # Added for to_thread
-
-# Import limiter from app.py
-from app import limiter
+from core.limiter import limiter
 
 from fastapi import APIRouter, Depends, HTTPException, status, Cookie, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
