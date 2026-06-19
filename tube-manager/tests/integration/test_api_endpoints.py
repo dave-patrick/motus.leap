@@ -82,11 +82,37 @@ class TestAPIEndpoints:
         assert response.status_code in [200, 401, 403, 422]
 
     def test_save_mappings_endpoint(self, test_client, sample_channel_mappings):
-        """Test save channel mappings endpoint."""
-        response = test_client.post("/api/mappings", json={
-            "mappings": sample_channel_mappings
-        })
-
+        """Test save channel mappings endpoint with authentication."""
+        # Register a test user
+        register_response = test_client.post(
+            "/api/auth/register",
+            json={
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "testpassword"
+            }
+        )
+        assert register_response.status_code == 201
+        
+        # Login to get a token
+        login_response = test_client.post(
+            "/api/auth/login",
+            json={
+                "username": "testuser",
+                "password": "testpassword"
+            }
+        )
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+        
+        response = test_client.post(
+            "/api/mappings", 
+            json={
+                "mappings": sample_channel_mappings
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+    
         assert_response_success(response, 200)
         data = response.json()
         assert "message" in data or "status" in data
