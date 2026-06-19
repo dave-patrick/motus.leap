@@ -810,7 +810,10 @@ async def delete_playlist_item_endpoint(payload: dict):
 async def api_subscriptions() -> dict[str, Any]:
     """Get subscriptions data."""
     if youtube_service:
-        return await youtube_service.list_subscriptions()
+        result = await youtube_service.list_subscriptions()
+        # The list_subscriptions method returns {"channels": [], "total_subscriptions": N}
+        # Ensure we return only the "channels" list or an empty list if an error occurred
+        return {"channels": result.get("channels", []), "error": result.get("error")}
     return {"channels": [], "error": "YouTube service not available"}
 
 
