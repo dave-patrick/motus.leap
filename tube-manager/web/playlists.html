@@ -17,10 +17,6 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-        @keyframes slide-in { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes slide-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100%); } }
-        .animate-slide-in { animation: slide-in 0.3s ease-out; }
-        .animate-slide-out { animation: slide-out 0.3s ease-in; }
         .logo-glow { box-shadow: 0 0 40px rgba(6, 182, 212, 0.15), 0 0 80px rgba(6, 182, 212, 0.05); }
     </style>
     <link rel="stylesheet" href="/static/ux-enhancements.css">
@@ -42,6 +38,7 @@
                 </svg>
             </div>
             <span class="text-sm font-semibold text-gray-200 tracking-wide">motus.leap</span>
+            <span id="app-status" class="text-[10px] text-green-400 font-bold ml-2"></span>
         </div>
     </header>
 
@@ -54,7 +51,6 @@
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
             <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
-            
             <div class="flex-1"></div>
             <div class="border-t border-[#2a2f3a] pt-3 mt-2">
                 <button onclick="logoutUser()" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 text-xs font-medium transition-colors w-full">
@@ -65,39 +61,6 @@
 
         <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
             <div class="flex flex-col gap-4 min-w-[900px] max-w-[1800px] mx-auto w-full">
-                <!-- Live System Activity Box -->
-                <div id="system-activity-box" class="bento-card p-3.5 flex items-center justify-between gap-6 border border-cyan-500/20 bg-[#16191f] shrink-0">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="relative flex h-2 w-2">
-                            <span id="activity-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span id="activity-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                        </span>
-                        <div class="min-w-0">
-                            <div class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">System Status</div>
-                            <div id="activity-task-desc" class="text-xs font-semibold text-white truncate max-w-sm mt-0.5">Idle • System is ready.</div>
-                        </div>
-                    </div>
-                    <div id="activity-progress-container" class="hidden flex items-center gap-4 w-72 shrink-0">
-                        <div class="flex-1">
-                            <div class="flex justify-between text-[9px] font-bold font-mono text-cyan-400 mb-1">
-                                <span id="activity-progress-text">Progress: 0%</span>
-                                <span id="activity-time-estimate">Est: ~45s</span>
-                            </div>
-                            <div class="w-full bg-[#20242c] h-1.5 rounded-full overflow-hidden border border-[#2a2f3a]">
-                                <div id="activity-progress-bar" class="bg-cyan-500 h-full rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-between">
-                    <h2 class="text-xl font-bold text-white">Playlists</h2>
-                    <div class="flex gap-2">
-                        <button id="view-watch-later-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-regular fa-clock text-cyan-400"></i> View Watch Later</button>
-                        <button id="sync-playlists-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Sync from YouTube</button>
-                        <button id="new-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> New Playlist</button>
-                    </div>
-                </div>
                 <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3" id="playlists-skeleton">
                     <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
                     <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>

@@ -6,7 +6,6 @@
     <title>motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=7">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/ux-enhancements.js /static/auth-check.js; style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -18,8 +17,6 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-        
-        /* Scan detail panel */
         #scan-detail-panel { position: fixed; top: 60px; right: 20px; width: 420px; max-height: 80vh; background: #16191f; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); z-index: 1000; display: none; flex-direction: column; overflow: hidden; }
         #scan-detail-panel.visible { display: flex; }
         #scan-detail-header { padding: 12px 16px; border-bottom: 1px solid #2a2f3a; display: flex; justify-content: space-between; align-items: center; }
@@ -30,13 +27,8 @@
         .scan-entry.error { border-left-color: #ff4444; }
         .scan-entry.warn { border-left-color: #ffaa00; }
         .scan-entry.success { border-left-color: #44ff88; }
-
-        /* Logo glow */
-        .logo-glow {
-            box-shadow: 0 0 40px rgba(6, 182, 212, 0.15), 0 0 80px rgba(6, 182, 212, 0.05);
-        }
+        .logo-glow { box-shadow: 0 0 40px rgba(6, 182, 212, 0.15), 0 0 80px rgba(6, 182, 212, 0.05); }
     </style>
-    
     <link rel="stylesheet" href="/static/ux-enhancements.css">
     <script src="/static/ux-enhancements.js"></script>
     <script src="/static/auth-check.js"></script>
@@ -57,17 +49,28 @@
                 </svg>
             </div>
             <span class="text-sm font-semibold text-gray-200 tracking-wide">motus.leap</span>
+            <span id="app-status" class="text-[10px] text-green-400 font-bold ml-2"></span>
         </div>
     </header>
 
+    <div id="scan-detail-panel">
+        <div id="scan-detail-header">
+            <span class="text-xs font-semibold text-gray-300">Scan Details</span>
+            <button onclick="toggleScanDetail()" class="text-gray-400 hover:text-white p-1" title="Close" aria-label="Close scan details"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="scan-detail-content"><div class="text-[10px] text-gray-500 text-center py-8">No scan data yet. Run a Full Playlist Sync to see details here.</div></div>
+    </div>
+
     <div class="flex flex-1 overflow-hidden">
-        <!-- Left Sidebar -->
         <aside class="w-52 border-r border-[#2a2f3a] bg-[#0f1115] p-3 flex flex-col gap-1 shrink-0 overflow-y-auto">
             <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-cyan-600/15 text-cyan-400 text-xs font-semibold border border-cyan-500/25 transition-colors">
                 <i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard
             </a>
             <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
                 <i class="fa-solid fa-list w-5 text-center"></i> Playlists
+            </a>
+            <a href="/watch-later" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
+                <i class="fa-regular fa-clock w-5 text-center"></i> Watch Later
             </a>
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
                 <i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions
@@ -81,11 +84,7 @@
             <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
                 <i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration
             </a>
-            
-            <!-- Spacer -->
             <div class="flex-1"></div>
-            
-            <!-- User / Account area at sidebar bottom -->
             <div class="border-t border-[#2a2f3a] pt-3 mt-2">
                 <button onclick="logoutUser()" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 text-xs font-medium transition-colors w-full">
                     <i class="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i> Logout
@@ -93,16 +92,21 @@
             </div>
         </aside>
 
-        <!-- Main Content -->
         <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
             <div class="flex flex-col gap-6 min-w-[900px] max-w-[1800px] mx-auto w-full">
-                
+                <div id="security-warning" class="hidden rounded-lg border border-yellow-600/50 bg-yellow-900/20 px-4 py-3 text-xs text-yellow-200">
+                    <div class="flex items-start gap-3">
+                        <i class="fa-solid fa-triangle-exclamation mt-0.5 text-yellow-400"></i>
+                        <div>
+                            <p class="font-semibold text-yellow-100">Session stability warning</p>
+                            <p id="security-warning-text"></p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Hero Card -->
                 <div class="rounded-xl border border-[#2a2f3a] bg-[#16191f] p-8 flex items-center gap-8 relative overflow-hidden">
-                    <!-- Subtle background effect -->
                     <div class="absolute top-0 right-0 w-96 h-96 bg-cyan-500/3 rounded-full blur-[120px] pointer-events-none"></div>
-                    
-                    <!-- Logo -->
                     <div class="relative w-24 h-24 shrink-0 flex items-center justify-center select-none z-10">
                         <div class="w-20 h-20 rounded-xl bg-[#1a1d24] border border-[#2a2f3a] flex items-center justify-center logo-glow">
                             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -111,7 +115,6 @@
                                 <rect x="6" y="19" width="12" height="2" rx="0.5" fill="#06b6d4" opacity="0.3"/>
                             </svg>
                         </div>
-                        <!-- Decorative stack icons -->
                         <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-md bg-[#1a1d24] border border-[#2a2f3a] flex items-center justify-center">
                             <div class="w-2 h-0.5 bg-[#06b6d4]/40 rounded-full"></div>
                         </div>
@@ -119,41 +122,30 @@
                             <div class="w-1.5 h-0.5 bg-[#06b6d4]/30 rounded-full"></div>
                         </div>
                     </div>
-
-                    <!-- Text Stack -->
                     <div class="relative z-10 flex flex-col gap-3 justify-center h-full">
-                        <!-- Status Badge -->
                         <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold tracking-wide uppercase w-fit" role="status" aria-live="polite">
                             <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" aria-hidden="true"></span>
-                            System Status: Active & Synced
+                            <span id="status-label">System Status: Active & Synced</span>
                         </div>
-                        
-                        <!-- Title -->
                         <h1 class="text-4xl font-extrabold text-white tracking-tight flex items-center leading-none select-none">
-                            motus<span class="text-cyan-400">.</span>leap 
+                            motus<span class="text-cyan-400">.</span>leap
                             <span class="text-xs font-normal text-gray-500 bg-[#1a1d24] px-2 py-0.5 rounded-md border border-[#2a2f3a] ml-3">v2.1</span>
                         </h1>
-                        
-                        <!-- Description -->
                         <p class="text-sm text-gray-400 leading-relaxed max-w-[580px] tracking-wide">
                             A next-generation, high-performance automated YouTube playlist orchestrator. Powering seamless, multi-playlist synchronization, auto-sorting heuristics, and AI-assisted metadata curation.
                         </p>
                     </div>
                 </div>
 
-                <!-- Dashboard heading -->
                 <h2 class="text-2xl font-bold text-white tracking-tight">Dashboard</h2>
 
-                <!-- Bento Stats Grid -->
                 <div class="grid grid-cols-4 gap-4">
                     <div class="bento-card p-5">
                         <div class="flex items-center gap-2 mb-3">
                             <i class="fa-solid fa-list text-cyan-500/70 text-xs"></i>
                             <span class="text-xs text-gray-300 font-semibold">Total Playlists</span>
                         </div>
-                        <div class="flex items-end gap-3">
-                            <div class="text-4xl font-bold text-white" id="stat-playlists">--</div>
-                        </div>
+                        <div class="flex items-end gap-3"><div class="text-4xl font-bold text-white" id="stat-playlists">--</div></div>
                     </div>
                     <div class="bento-card p-5">
                         <div class="flex items-center gap-2 mb-3">
@@ -184,19 +176,22 @@
                         <div class="text-[11px] text-gray-400 flex flex-col gap-2 mt-3">
                             <span>Learning rate: <span id="ai-rate" class="text-cyan-400">--</span></span>
                             <span>Learning rates: <span id="ai-rates" class="text-cyan-400">--</span></span>
+                            <span>Last scan: <span id="last-scan" class="text-cyan-400">Never</span></span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Agent Control Center -->
-                <div class="bento-card p-5 flex flex-col gap-3 max-w-md">
-                    <h3 class="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">Agent Control Center</h3>
-                    <button data-action="full_cluster_scan" class="action-btn w-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2" aria-label="Full Playlist Sync">
-                        <i class="fa-solid fa-magnifying-glass"></i> Full Playlist Sync
-                    </button>
-                    <button data-action="watch_later_sync" class="action-btn w-full bg-[#1a1d24] hover:bg-[#22262e] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-3 rounded-lg transition-colors flex items-center gap-2 px-4" aria-label="Watch Later Sync">
-                        <i class="fa-regular fa-clock text-cyan-400"></i> Watch Later Sync
-                    </button>
+                <div class="grid grid-cols-5 gap-4 h-[250px]">
+                    <div class="bento-card p-4 flex flex-col gap-2 col-span-1">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-2">Agent Control Center</h3>
+                        <button data-action="full_cluster_scan" class="action-btn w-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2" aria-label="Full Playlist Sync"><i class="fa-solid fa-magnifying-glass"></i> Full Playlist Sync</button>
+                        <button data-action="watch_later_sync" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3" aria-label="Watch Later Sync"><i class="fa-regular fa-clock text-cyan-400"></i> Watch Later Sync</button>
+                    </div>
+                    <div class="bento-card flex flex-col items-center justify-center col-span-4 border border-dashed border-[#2a2f3a] bg-transparent opacity-60" role="presentation" aria-hidden="true">
+                        <i class="fa-solid fa-cubes text-gray-600 text-2xl mb-2" aria-hidden="true"></i>
+                        <div class="text-xs text-gray-400 font-medium">Additional Module Placeholder</div>
+                        <div class="text-[10px] text-gray-500 mt-1">Custom modules and integrations TBD.</div>
+                    </div>
                 </div>
             </div>
         </main>
