@@ -187,17 +187,29 @@ async def get_users_db() -> Dict[str, Dict[str, Any]]:
 # This list can be dynamically loaded from config or environment variables for more flexibility.
 ALLOWED_ORIGINS = [
     "https://tubemanager.onrender.com",
+    "https://motus-leap.onrender.com",
     "http://localhost:8000",
     "http://localhost:3000",
     "http://127.0.0.1:8000",
     "http://127.0.0.1:3000",
     "http://localhost",
+    "http://0.0.0.0:8000",
 ]
 
 async def verify_origin(request: Request):
     origin = request.headers.get("origin")
-    if origin not in ALLOWED_ORIGINS:
-        raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
+    # Allow if origin is in ALLOWED_ORIGINS or if it's a Render subdomain
+    if origin:
+        # Check exact match first
+        if origin in ALLOWED_ORIGINS:
+            return
+        # Allow any onrender.com subdomain (Render deploys)
+        if ".onrender.com" in origin:
+            return
+        # Allow any localhost
+        if "localhost" in origin or "127.0.0.1" in origin:
+            return
+    raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
 
 user_sessions: Dict[str, Dict[str, Any]] = {}
 
