@@ -297,6 +297,124 @@ class YouTubeService:
                 return disk_playlists_payload
             return {"playlists": [], "error": str(e)}
 
+    @cache_result("subscriptions", ttl=timedelta(minutes=10))
+    async def list_subscriptions(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """List user's subscriptions with channel stats (cached)."""
+        client = self.get_client(require_oauth=True)
+        if not client:
+            return {"channels": [], "error": "YouTube not connected. OAuth required."}
+        
+        try:
+            all_subs = await self._fetch_all_paginated(
+                lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
+                max_results=50,
+                max_items=5000,
+            )
+            
+            channel_ids = []
+            seen_channels = set()
+            for sub in all_subs:
+                snippet = sub.get("snippet", {}) or {}
+                resource = snippet.get("resourceId", {}) or {}
+                cid = resource.get("channelId", "")
+                if cid and cid not in seen_channels:
+                    seen_channels.add(cid)
+                    channel_ids.append(cid)
+            
+            channel_stats = {}
+            if channel_ids:
+                log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
+                try:
+                    enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
+                    for item in enriched.get("items", []):
+                        cid = item.get("id", "")
+                        if cid:
+                            channel_stats[cid] = item
+                except Exception as e:
+                    log.warning(f"Channel enrichment failed: {e}")
+            
+            subscriptions = []
+            for cid in channel_ids:
+                stats = channel_stats.get(cid, {})
+                snippet = stats.get("snippet", {}) or {}
+                statistics = stats.get("statistics", {}) or {}
+                
+                subscriptions.append({
+                    "id": cid,
+                    "title": snippet.get("title", "Unknown"),
+                    "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
+                    "description": snippet.get("description", ""),
+                    "subscribers": statistics.get("subscriberCount", "0"),
+                    "video_count": int(statistics.get("videoCount", "0") or "0"),
+                    "view_count": statistics.get("viewCount", "0"),
+                    "channel_url": f"https://www.youtube.com/channel/{cid}",
+                })
+            
+            subscriptions.sort(key=lambda x: x["title"].lower())
+            return {"channels": subscriptions, "total_subscriptions": len(subscriptions)}
+        except Exception as e:
+            log.warning(f"Failed to list subscriptions: {e}")
+            return {"channels": [], "error": str(e)}
+
+    @cache_result("subscriptions", ttl=timedelta(minutes=10))
+    async def list_subscriptions(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """List user's subscriptions with channel stats (cached)."""
+        client = self.get_client(require_oauth=True)
+        if not client:
+            return {"channels": [], "error": "YouTube not connected. OAuth required."}
+        
+        try:
+            all_subs = await self._fetch_all_paginated(
+                lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
+                max_results=50,
+                max_items=5000,
+            )
+            
+            channel_ids = []
+            seen_channels = set()
+            for sub in all_subs:
+                snippet = sub.get("snippet", {}) or {}
+                resource = snippet.get("resourceId", {}) or {}
+                cid = resource.get("channelId", "")
+                if cid and cid not in seen_channels:
+                    seen_channels.add(cid)
+                    channel_ids.append(cid)
+            
+            channel_stats = {}
+            if channel_ids:
+                log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
+                try:
+                    enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
+                    for item in enriched.get("items", []):
+                        cid = item.get("id", "")
+                        if cid:
+                            channel_stats[cid] = item
+                except Exception as e:
+                    log.warning(f"Channel enrichment failed: {e}")
+            
+            subscriptions = []
+            for cid in channel_ids:
+                stats = channel_stats.get(cid, {})
+                snippet = stats.get("snippet", {}) or {}
+                statistics = stats.get("statistics", {}) or {}
+                
+                subscriptions.append({
+                    "id": cid,
+                    "title": snippet.get("title", "Unknown"),
+                    "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
+                    "description": snippet.get("description", ""),
+                    "subscribers": statistics.get("subscriberCount", "0"),
+                    "video_count": int(statistics.get("videoCount", "0") or "0"),
+                    "view_count": statistics.get("view_count", "0"),
+                    "channel_url": f"https://www.youtube.com/channel/{cid}",
+                })
+            
+            subscriptions.sort(key=lambda x: x["title"].lower())
+            return {"channels": subscriptions, "total_subscriptions": len(subscriptions)}
+        except Exception as e:
+            log.warning(f"Failed to list subscriptions: {e}")
+            return {"channels": [], "error": str(e)}
+
     @cache_result("playlist_videos", ttl=timedelta(minutes=10)) # Cache playlist videos for 10 minutes
     async def get_videos(self, playlist_id: str, force_refresh: bool = False) -> Dict[str, Any]:
         """Get videos for a specific playlist (cached)."""
@@ -434,57 +552,9 @@ class YouTubeService:
             # Step 1: Fetch all subscriptions (1 API call with pagination)
             log.info("[FETCH] Getting subscriptions...")
             
-            all_subs = await self._fetch_all_paginated(
-                lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
-                max_results=50,
-                max_items=5000,
-            )
-            
-            # Extract channel IDs for batch lookup
-            channel_ids = []
-            seen_channels = set()
-            
-            for sub in all_subs:
-                snippet = sub.get("snippet", {}) or {}
-                resource = snippet.get("resourceId", {}) or {}
-                cid = resource.get("channelId", "")
-                if cid and cid not in seen_channels:
-                    seen_channels.add(cid)
-                    channel_ids.append(cid)
-            
-            # Batch fetch channel stats (1 API call)
-            channel_stats = {}
-            if channel_ids:
-                log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
-                try:
-                    # Run blocking channel enrichment call in a separate thread to unblock the main FastAPI event loop
-                    enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
-                    for item in enriched.get("items", []):
-                        cid = item.get("id", "")
-                        if cid:
-                            channel_stats[cid] = item
-                except Exception as e:
-                    log.warning(f"Channel enrichment failed: {e}")
-            
-            # Build subscriptions list with stats
-            subscriptions = []
-            for cid in channel_ids:
-                stats = channel_stats.get(cid, {})
-                snippet = stats.get("snippet", {}) or {}
-                statistics = stats.get("statistics", {}) or {}
-                
-                subscriptions.append({
-                    "id": cid,
-                    "title": snippet.get("title", "Unknown"),
-                    "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
-                    "description": snippet.get("description", ""),
-                    "subscribers": statistics.get("subscriberCount", "0"),
-                    "video_count": int(statistics.get("videoCount", "0") or "0"),
-                    "view_count": statistics.get("viewCount", "0"),
-                    "channel_url": f"https://www.youtube.com/channel/{cid}",
-                })
-            
-            subscriptions.sort(key=lambda x: x["title"].lower())
+            # Use the cached list_subscriptions method
+            subscriptions_data = await self.list_subscriptions(force_refresh=force_refresh)
+            subscriptions = subscriptions_data.get("channels", [])
             result["subscriptions"] = subscriptions
             result["stats"]["total_subscriptions"] = len(subscriptions)
             
@@ -589,7 +659,7 @@ class YouTubeService:
         return await self.get_basic_stats(force_refresh=False)
 
     @cache_result("playlist_videos", ttl=timedelta(minutes=5)) # Cache playlist videos for 5 minutes
-    async def get_videos(self, playlist_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
+    async def get_videos(self, playlist_id: str, force_refresh: bool = False) -> Dict[str, Any]:
         """Get videos with duration (cached)."""
 
         # Args:
