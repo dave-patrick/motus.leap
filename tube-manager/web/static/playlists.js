@@ -5,7 +5,13 @@ let allPlaylists = [];
 
 // Synchronous render of cached playlists for instant display
 function renderCachedPlaylists() {
-    const grid = document.getElementById('playlists-grid');
+    const skeleton = document.getElementById('playlists-skeleton');
+    const playlistsList = document.getElementById('playlists-list');
+
+    // Show skeleton initially
+    if (skeleton) skeleton.classList.remove('hidden');
+    if (playlistsList) playlistsList.classList.add('hidden');
+
     const raw = localStorage.getItem('playlists') || localStorage.getItem('cached_playlists');
     if (raw) {
         try {
@@ -13,6 +19,8 @@ function renderCachedPlaylists() {
             if (Array.isArray(playlists) && playlists.length) {
                 allPlaylists = playlists;
                 renderPlaylistsGrid(playlists);
+                if (skeleton) skeleton.classList.add('hidden');
+                if (playlistsList) playlistsList.classList.remove('hidden');
                 return true;
             }
         } catch (e) {
@@ -23,11 +31,15 @@ function renderCachedPlaylists() {
 }
 
 async function loadPlaylists() {
-    const grid = document.getElementById('playlists-grid');
-    
-    // If we already rendered cached data, skip rendering again unless API returns new data
-    const hasCached = renderCachedPlaylists();
-    
+    const skeleton = document.getElementById('playlists-skeleton');
+    const playlistsList = document.getElementById('playlists-list');
+
+    // Show skeleton if no cached data was rendered
+    if (skeleton && !playlistsList.classList.contains('hidden')) {
+        skeleton.classList.remove('hidden');
+        playlistsList.classList.add('hidden');
+    }
+
     try {
         const response = await fetch('/api/playlists');
         if (!response.ok) throw new Error('Failed to load');
@@ -39,20 +51,24 @@ async function loadPlaylists() {
         
         // Always re-render with fresh data
         renderPlaylistsGrid(allPlaylists);
+        if (skeleton) skeleton.classList.add('hidden');
+        if (playlistsList) playlistsList.classList.remove('hidden');
     } catch (e) {
-        if (!hasCached) {
-            grid.innerHTML = '<div class="col-span-full bento-card p-8 text-center text-red-400">Failed to load playlists</div>';
-        }
+        if (skeleton) skeleton.classList.add('hidden'); // Hide skeleton on error
+        if (playlistsList) playlistsList.classList.remove('hidden'); // Show actual list (empty or error message)
+        playlistsList.innerHTML = '<div class="col-span-full bento-card p-8 text-center text-red-400">Failed to load playlists</div>';
     }
 }
 
 function renderPlaylistsGrid(playlists) {
-    const grid = document.getElementById('playlists-grid');
+    const playlistsList = document.getElementById('playlists-list');
+    if (!playlistsList) return; // Safeguard
+
     if (!playlists.length) {
-        grid.innerHTML = '<div class="col-span-full bento-card p-12 text-center text-gray-400">No playlists found. Create one to get started.</div>';
+        playlistsList.innerHTML = '<div class="col-span-full bento-card p-12 text-center text-gray-400">No playlists found. Create one to get started.</div>';
         return;
     }
-    grid.innerHTML = playlists.map(p => `
+    playlistsList.innerHTML = playlists.map(p => `
         <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-3 flex flex-col cursor-pointer hover:border-blue-500/50 transition-colors h-full relative">
             <div class="flex items-start justify-between mb-2">
                 <div class="w-12 h-7 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
