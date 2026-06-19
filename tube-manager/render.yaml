@@ -5,7 +5,7 @@ services:
     runtimeVersion: "3.11"
     plan: starter
     buildCommand: pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt
-    startCommand: uvicorn tube-manager.app:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: YOUTUBE_CLIENT_ID
         sync: false
