@@ -197,8 +197,11 @@ ALLOWED_ORIGINS = [
 ]
 
 async def verify_origin(request: Request):
-    origin = request.headers.get("origin")
+    origin = request.headers.get("origin", "")
     referer = request.headers.get("referer", "")
+
+    # Debug logging
+    log.debug(f"verify_origin: origin={origin}, referer={referer}")
 
     # If origin is present, validate it
     if origin:
@@ -211,16 +214,18 @@ async def verify_origin(request: Request):
         # Allow any localhost
         if "localhost" in origin or "127.0.0.1" in origin:
             return
+        log.warning(f"verify_origin: BLOCKED origin={origin}")
         raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
 
     # If no origin header (same-origin POST forms), check referer
     if referer:
         if ".onrender.com" in referer or "localhost" in referer or "127.0.0.1" in referer:
             return
+        log.warning(f"verify_origin: BLOCKED referer={referer}")
         raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
 
-    # No origin and no referer — Render internal or direct API call
-    # Allow through (session cookie will be validated separately)
+    # No origin and no referer — likely Render health check or internal call. Allow through.
+    log.debug("verify_origin: ALLOWED (no origin/referer)")
     return
 
 user_sessions: Dict[str, Dict[str, Any]] = {}
