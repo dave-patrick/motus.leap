@@ -83,7 +83,7 @@
                         <button id="new-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> New Playlist</button>
                     </div>
                 </div>
-                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3" id="playlists-grid">
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3" id="playlists-skeleton">
                     <div class="space-y-2">
                         <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
                         <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
@@ -145,6 +145,7 @@
                         <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
                     </div>
                 </div>
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3 hidden" id="playlists-list"></div>
             </div>
         </main>
     </div>
