@@ -98,15 +98,21 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+# Get allowed origins from environment or use defaults
+_render_url = os.environ.get("RENDER_EXTERNAL_URL", "https://tubemanager.onrender.com")
+_extra_origins = os.environ.get("EXTRA_ALLOWED_ORIGINS", "").split(",") if os.environ.get("EXTRA_ALLOWED_ORIGINS") else []
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://tubemanager.onrender.com",
+        _render_url,
+        "https://motus-leap.onrender.com",
         "http://localhost:8000",
         "http://localhost:3000",
         "http://127.0.0.1:8000",
         "http://127.0.0.1:3000",
-    ],
+        "http://localhost",
+    ] + [o.strip() for o in _extra_origins if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
