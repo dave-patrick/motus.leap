@@ -162,11 +162,7 @@ class RoleEnum:
 # In-Memory Storage (will be loaded via dependency)
 _cached_users_db: Optional[Dict[str, Dict[str, Any]]] = None
 
-async def get_users_db() -> Dict[str, Dict[str, Any]]:
-    global _cached_users_db
-    if _cached_users_db is None:
-        _cached_users_db = await _load_users()
-    return _cached_users_db
+
 
 # Allowed origins for CSRF protection. In production, this should be the domain of your frontend.
 # For local development, include localhost:PORT.

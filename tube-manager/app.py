@@ -44,9 +44,7 @@ async def require_auth(request: Request, token: str = Cookie(default=None), auth
         return RedirectResponse(url="/auth", status_code=302)
 
 # Rate limiting
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+
 
 # Import external limiter
 from core.limiter import limiter
@@ -251,7 +249,7 @@ async def lifespan(app: FastAPI):
 
 
 # Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
+
 
 # Rate limit exceeded handler
 async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
@@ -886,7 +884,7 @@ async def api_mappings() -> dict[str, Any]:
     return {"mappings": _normalize_mappings(formatted)}
 
 
-@app.post("/api/mappings")
+@app.post("/api/mappings", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 @limiter.limit("30/minute")  # Rate limit: 30 save operations per minute
 async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any]:
     """Save channel mappings."""
@@ -925,7 +923,7 @@ async def action_status():
     return {"queue_size": task_queue.qsize(), "running": worker.background_tasks_running if worker else False}
 
 
-@app.post("/api/action/cancel")
+@app.post("/api/action/cancel", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def cancel_action():
     """Cancel the currently running background task."""
     if worker:
@@ -1104,7 +1102,7 @@ async def youtube_status():
     }
 
 
-@app.post("/api/youtube/disconnect")
+@app.post("/api/youtube/disconnect", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def youtube_disconnect():
     """Clear stored YouTube OAuth tokens."""
     global youtube_service
@@ -1201,7 +1199,7 @@ class AIClassifyIn(BaseModel):
     metadata: list[dict] | None = None  # [{video_id, title, channel, description}]
 
 
-@app.post("/api/ai/classify")
+@app.post("/api/ai/classify", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def ai_classify_videos(body: AIClassifyIn):
     """Classify videos using the configured AI provider.
     
@@ -1316,7 +1314,7 @@ async def ai_get_memory():
 
 
 # Reset settings
-@app.post("/api/settings/reset")
+@app.post("/api/settings/reset", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def reset_settings():
     """Reset all settings to defaults."""
     config = TubeManagerConfig()
@@ -1463,7 +1461,7 @@ async def api_user() -> dict[str, Any]:
 
 # System endpoints
 
-@app.post("/api/cookies/save")
+@app.post("/api/cookies/save", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def save_cookies(request: Request):
     """Save YouTube cookies for browser scraper."""
     try:
@@ -1584,7 +1582,7 @@ async def system_logs_page():
 
 
 # Storage endpoints
-@app.post("/api/storage/clear-thumbnails")
+@app.post("/api/storage/clear-thumbnails", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def clear_thumbnails():
     """Clear thumbnail cache."""
     import shutil
@@ -1613,7 +1611,7 @@ async def export_data():
 
 
 # Webhook endpoints
-@app.post("/api/webhook/test")
+@app.post("/api/webhook/test", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def test_webhook(body: dict):
     """Test webhook URL."""
     import httpx
