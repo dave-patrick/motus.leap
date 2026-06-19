@@ -10,7 +10,7 @@ const API_BASE = '/api/auth';
             document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
             window.location.hash = '';
             window.location.replace('/dashboard');
-            return;
+            return; // Exit after successful token processing
         }
     }
 })();
@@ -126,15 +126,23 @@ async function handleRegister() {
         } else {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
-            // Stay on /auth for fresh login
+            // Stay on /auth for fresh login, but clear any 'reason' param if it exists
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('reason')) {
+                url.searchParams.delete('reason');
+                window.history.replaceState({}, document.title, url.toString());
+            }
         }
-    } catch {
+    } catch (e) {
+        console.error("Session check failed:", e);
         // Stay on /auth
     }
 })();
 
 function handleGoogleLogin() {
-    fetch('/api/auth/google')
+    // Pass the current URL as redirect_uri to the backend
+    const redirectUri = window.location.origin + window.location.pathname;
+    fetch(`/api/auth/google?redirect_uri=${encodeURIComponent(redirectUri)}`)
         .then(response => response.json())
         .then(data => {
             if (data.auth_url) {
@@ -178,6 +186,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 message = 'You are not authenticated. Please log in.';
             } else if (reason === 'disabled') {
                 message = 'Your account is disabled. Please contact support.';
+            } else if (reason === 'error') {
+                message = 'An unexpected authentication error occurred. Please try again.';
             }
             errorEl.textContent = DOMPurify.sanitize(message);
             errorEl.classList.remove('hidden');
