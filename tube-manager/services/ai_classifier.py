@@ -19,35 +19,39 @@ MAPPING_THRESHOLD = 3  # Moves from same channel to same playlist triggers mappi
 
 # ─── Memory / Training Data ───────────────────────────────────────
 
-def _load_memory() -> list[dict]:
-    """Load recorded move examples."""
-    if not MEMORY_FILE.exists():
+async def _load_memory() -> list[dict]:
+    """Load recorded move examples asynchronously."""
+    if not await asyncio.to_thread(MEMORY_FILE.exists):
         return []
     try:
-        with open(MEMORY_FILE) as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
+        content = await asyncio.to_thread(MEMORY_FILE.read_text)
+        return json.loads(content)
+    except (json.JSONDecodeError, OSError) as e:
+        log.warning(f"Failed to load AI memory: {e}")
         return []
 
 
-def _save_memory(memory: list[dict]):
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+async def _save_memory(memory: list[dict]):
+    """Save recorded move examples asynchronously."""
+    await asyncio.to_thread(DATA_DIR.mkdir, parents=True, exist_ok=True)
     # Remove entries older than 90 days
     cutoff = (datetime.utcnow() - timedelta(days=90)).isoformat()
     memory = [m for m in memory if m.get("timestamp", "") > cutoff]
-    with open(MEMORY_FILE, "w") as f:
-        json.dump(memory, f, indent=2)
+    try:
+        await asyncio.to_thread(MEMORY_FILE.write_text, json.dumps(memory, indent=2))
+    except OSError as e:
+        log.error(f"Failed to save AI memory: {e}")
 
 
-def record_move(video_id: str, title: str, channel_id: str, channel_title: str,
+async def record_move(video_id: str, title: str, channel_id: str, channel_title: str,
                 from_playlist_name: str, from_playlist_id: str,
                 to_playlist_name: str, to_playlist_id: str,
                 source: str = "manual"):
-    """Record a video move for training memory.
+    """Record a video move for training memory asynchronously.
     
     source: 'manual' (single move from Watch Later modal) or 'sync' (batch sync operation)
     """
-    memory = _load_memory()
+    memory = await _load_memory()
     memory.append({
         "video_id": video_id,
         "title": title,
@@ -63,16 +67,16 @@ def record_move(video_id: str, title: str, channel_id: str, channel_title: str,
     # Keep last 1000 moves
     if len(memory) > 1000:
         memory = memory[-1000:]
-    _save_memory(memory)
+    await _save_memory(memory)
 
 
-def get_channel_mapping_suggestions() -> list[dict]:
-    """Analyze training memory and suggest channel -> playlist mappings.
+async def get_channel_mapping_suggestions() -> list[dict]:
+    """Analyze training memory and suggest channel -> playlist mappings asynchronously.
     
     If a channel has >= MAPPING_THRESHOLD moves to the same playlist,
     suggest creating a permanent mapping.
     """
-    memory = _load_memory()
+    memory = await _load_memory()
     if not memory:
         return []
     
