@@ -39,7 +39,9 @@ async def require_auth(request: Request, response: Response, token: str = Cookie
         username = payload.get("sub")
         if username is None:
             raise HTTPException(status_code=401, detail="Could not validate credentials")
-        user = await get_user_by_username(username)
+        from api.auth import get_users_db
+        users_db = await get_users_db()
+        user = users_db.get(username)
         if user is None:
             raise HTTPException(status_code=401, detail="User not found")
         request.state.user = user
