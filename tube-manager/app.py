@@ -22,7 +22,7 @@ from pydantic import BaseModel
 import aiofiles
 
 # Auth dependency
-from api.auth import get_current_user
+from api.auth import get_current_user, verify_origin, create_default_admin # Import create_default_admin
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Auth dependency for page routes (redirects to /auth if not authenticated)
@@ -44,6 +44,8 @@ async def require_auth(request: Request, token: str = Cookie(default=None), auth
         return RedirectResponse(url="/auth", status_code=302)
 
 # Rate limiting
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 # Import external limiter
@@ -206,9 +208,10 @@ async def lifespan(app: FastAPI):
 
     config = await config_manager.load()
     youtube_service = YouTubeService(config)
+    await create_default_admin()
     
-    # Store in app state for routers (now awaiting the config property)
-    app.state.config = await config_manager.config
+    # Store in app state for routers
+    app.state.config = config_manager.config
     app.state.config_manager = config_manager
 
     # Start background task processor
@@ -222,7 +225,7 @@ async def lifespan(app: FastAPI):
         while True:
             try:
                 await asyncio.sleep(86400)  # 24 hours
-                config = await config_manager.config
+                config = config_manager.config
                 if getattr(config, "ai_auto_apply_mappings", False):
                     log.info("[NIGHTLY] Running auto-apply mappings job...")
                     from services.ai_classifier import get_channel_mapping_suggestions
@@ -249,6 +252,11 @@ async def lifespan(app: FastAPI):
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
+
+# Rate limit exceeded handler
+async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
+    """Handle rate limit exceeded errors."""
+    return PlainTextResponse(f"Rate limit exceeded: {exc.detail}", status_code=429)
 
 # Configure existing FastAPI app
 app.router.lifespan_context = lifespan

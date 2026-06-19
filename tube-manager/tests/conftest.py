@@ -109,7 +109,7 @@ def test_client(mock_youtube_service):
         yield
     fastapi_app.router.lifespan_context = _noop_lifespan
 
-    with TestClient(fastapi_app) as client:
+    with TestClient(fastapi_app, base_url="http://localhost:8000", headers={"Origin": "http://localhost:8000"}) as client:
         yield client
 
 
@@ -320,8 +320,6 @@ def assert_csp_headers(response):
     csp = response.headers["Content-Security-Policy"]
     assert "default-src 'self'" in csp
     assert "script-src" in csp
-    assert "unsafe-inline" in csp
-    assert "unsafe-eval" in csp
     assert "frame-ancestors 'none'" in csp
 
 

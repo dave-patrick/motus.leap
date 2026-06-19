@@ -84,12 +84,13 @@ class YouTubeService:
         """
         return await self._cache.get(key)
 
-    async def _set_cached(self, key: str, data: Any) -> None:
+    async def _set_cached(self, key: str, data: Any, ttl: Optional[timedelta] = None) -> None:
         """Cache data with timestamp.
 
         Args:
             key: Cache key
             data: Data to cache
+            ttl: Ignored (LRUAsyncCache uses a fixed TTL set at initialization)
         """
         await self._cache.set(key, data)
         log.debug(f"Cached: {key}")
@@ -253,7 +254,7 @@ class YouTubeService:
         
         # 2. Try playlists disk cache
         if not cached_playlists:
-            disk_playlists = self._load_from_disk("playlists")
+            disk_playlists = await self._load_from_disk("playlists")
             if disk_playlists:
                 cached_playlists = disk_playlists.get("playlists", [])
                 cached_stats = disk_playlists.get("stats", {})
@@ -262,7 +263,7 @@ class YouTubeService:
         
         # 3. Fallback to global all_data disk cache
         if not cached_playlists:
-            all_data = self._load_from_disk("all_data")
+            all_data = await self._load_from_disk("all_data")
             if all_data and "playlists" in all_data:
                 cached_playlists = all_data["playlists"]
                 cached_stats = all_data.get("stats", {})
@@ -324,7 +325,7 @@ class YouTubeService:
                     }
                     payload = {"playlists": playlists, "stats": stats}
                     await self._set_cached("playlists", payload)
-                    self._save_to_disk("playlists", payload)
+                    await self._save_to_disk("playlists", payload)
                     return payload
             
             # If no change, return the cached playlists immediately!
@@ -338,7 +339,7 @@ class YouTubeService:
             }
             payload = {"playlists": current_playlists, "stats": stats}
             await self._set_cached("playlists", payload)
-            self._save_to_disk("playlists", payload)
+            await self._save_to_disk("playlists", payload)
             return payload
 
         except Exception as e:
@@ -347,9 +348,6 @@ class YouTubeService:
                 return {"playlists": cached_playlists, "stats": cached_stats}
             return {"playlists": [], "error": str(e)}
 
-    async def list_playlists(self, force_refresh: bool = False) -> Dict[str, Any]:
-        # ... (existing list_playlists method content) ...
-
     async def list_watch_later_items_cached(self, playlist_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
         user_id = self._get_user_id()
         cache_key = f"watch_later_items_{user_id}_{playlist_id or 'auto'}"
@@ -372,7 +370,7 @@ class YouTubeService:
                     log.info("[WATCH LATER CACHE] YouTube cookies found. Attempting browser scrape for native Watch Later...")
                     scraped = await asyncio.to_thread(scrape_watch_later_videos, 200)
                     if scraped.get("items"):
-                        log.info(f"[WATCH LATER CACHE] Browser scrape retrieved {len(scraped["items"])} videos from native Watch Later!")
+                        log.info(f"[WATCH LATER CACHE] Browser scrape retrieved {len(scraped['items'])} videos from native Watch Later!")
                         await self._set_cached(cache_key, scraped, ttl=self._watch_later_cache_ttl)
                         return scraped
                     else:
@@ -389,45 +387,37 @@ class YouTubeService:
             log.error(f"Failed to fetch Watch Later items (cached): {e}")
             return {"items": [], "error": str(e)}
 
+    async def _fetch_all_paginated(self, fetch_fn, max_results: int = 50, max_items: int = 500) -> List[Any]:
+        """Fetch paginated results with caps and early exit.
 
-    async def list_watch_later_items_cached(self, playlist_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
-        user_id = self._get_user_id()
-        cache_key = f"watch_later_items_{user_id}_{playlist_id or 'auto'}"
+        Args:
+            fetch_fn: Function to fetch paginated results (takes max_results, page_token)
+            max_results: Results per page
+            max_items: Maximum total items to fetch
 
-        if not force_refresh:
-            cached_data = await self._get_cached(cache_key)
-            if cached_data:
-                log.info(f"Using cached Watch Later items for {playlist_id or 'auto'}")
-                return cached_data
+        Returns:
+            List of items
+        """
+        all_items = []
+        page_token = None
 
-        client = self.get_client(require_oauth=True)
-        if not client:
-            return {"items": [], "error": "YouTube not connected. OAuth required."}
-
-        try:
-            # Try browser scraper first (bypasses API restriction) if no specific playlist_id is provided
-            if not playlist_id:
-                from services.browser_scraper import has_cookies, scrape_watch_later_videos
-                if has_cookies():
-                    log.info("[WATCH LATER CACHE] YouTube cookies found. Attempting browser scrape for native Watch Later...")
-                    scraped = await asyncio.to_thread(scrape_watch_later_videos, 200)
-                    if scraped.get("items"):
-                        log.info(f"[WATCH LATER CACHE] Browser scrape retrieved {len(scraped["items"])} videos from native Watch Later!")
-                        await self._set_cached(cache_key, scraped, ttl=self._watch_later_cache_ttl)
-                        return scraped
-                    else:
-                        log.info("[WATCH LATER CACHE] Browser scrape returned 0 videos. Falling back to API...")
-
-            # Fallback to API if no cookies, scrape failed, or specific playlist_id was requested
-            resp = await asyncio.to_thread(client.list_watch_later_items, max_results=50, playlist_id=playlist_id)
+        while len(all_items) < max_items:
+            # Run the blocking sync fetch_fn in a separate thread to unblock the main FastAPI event loop
+            resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
             items = resp.get("items", [])
-            result = {"items": items}
-            await self._set_cached(cache_key, result, ttl=self._watch_later_cache_ttl)
-            log.info(f"Fetched {len(items)} Watch Later items via API for {playlist_id or 'auto'}")
-            return result
-        except Exception as e:
-            log.error(f"Failed to fetch Watch Later items (cached): {e}")
-            return {"items": [], "error": str(e)}
+            all_items.extend(items)
+
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                break
+
+            # Early exit if approaching quota
+            if len(all_items) + max_results > max_items:
+                log.warning(f"Approaching item cap {max_items}, stopping pagination")
+                break
+
+        return all_items[:max_items]
+
 
     async def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Fetch ALL YouTube data in one optimized request sequence with caching.
@@ -457,7 +447,7 @@ class YouTubeService:
                 return cached_data
                 
             # 2. Try persistent disk cache if not in memory
-            disk_data = self._load_from_disk("all_data")
+            disk_data = await self._load_from_disk("all_data")
             if disk_data:
                 log.info("Using cached all_data from disk, caching in memory")
                 await self._set_cached(cache_key, disk_data)
@@ -604,14 +594,13 @@ class YouTubeService:
                     videos.append(video)
                 if len(videos) >= max_total_videos:
                     break
-                    log.warning(f"Failed to fetch videos for playlist {pl_id}: {e}")
             
             result["videos"] = videos
             result["stats"]["total_duration_seconds"] = total_duration
             result["stats"]["total_duration_formatted"] = self._format_duration(total_duration)
             
             # Save to persistent disk storage
-            self._save_to_disk("all_data", result)
+            await self._save_to_disk("all_data", result)
             
             # Also cache in memory
             await self._set_cached(f"all_data_{user_id}", result)
@@ -623,80 +612,6 @@ class YouTubeService:
         except Exception as e:
             log.error(f"Failed to fetch all data: {e}")
             return {"error": str(e)}
-
-    def _parse_duration(self, duration_str: str) -> int:
-        """Parse ISO 8601 duration string to seconds.
-
-        Args:
-            duration_str: Duration string like "PT10M30S"
-
-        Returns:
-            Duration in seconds
-        """
-        import re
-        match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration_str)
-        if not match:
-            return 0
-        
-        hours = int(match.group(1) or 0)
-        minutes = int(match.group(2) or 0)
-        seconds = int(match.group(3) or 0)
-        
-        return hours * 3600 + minutes * 60 + seconds
-
-    def _format_duration(self, seconds: int) -> str:
-        """Format seconds to human-readable duration.
-
-        Args:
-            seconds: Duration in seconds
-
-        Returns:
-            Formatted string like "1h 30m 15s"
-        """
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        secs = seconds % 60
-        
-        parts = []
-        if hours > 0:
-            parts.append(f"{hours}h")
-        if minutes > 0:
-            parts.append(f"{minutes}m")
-        if secs > 0 or not parts:
-            parts.append(f"{secs}s")
-        
-        return " ".join(parts)
-    async def _fetch_all_paginated(self, fetch_fn, max_results: int = 50, max_items: int = 500):
-        """Fetch paginated results with caps and early exit.
-
-        Args:
-            fetch_fn: Function to fetch paginated results
-            max_results: Results per page
-            max_items: Maximum total items to fetch
-
-        Returns:
-            List of items
-        """
-        all_items = []
-        page_token = None
-
-        while len(all_items) < max_items:
-            # Run the blocking sync fetch_fn in a separate thread to unblock the main FastAPI event loop
-            resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
-            items = resp.get("items", [])
-            all_items.extend(items)
-
-            page_token = resp.get("nextPageToken")
-            if not page_token:
-                break
-
-            # Early exit if approaching quota
-            if len(all_items) + max_results > max_items:
-                log.warning(f"Approaching item cap {max_items}, stopping pagination")
-                break
-
-        return all_items[:max_items]
-
 
     async def list_subscriptions(self, force_refresh: bool = False) -> Dict[str, Any]:
         """List user's subscriptions with channel stats (cached).
@@ -713,7 +628,6 @@ class YouTubeService:
             return {"channels": [], "error": all_data["error"]}
         
         return {"channels": all_data.get("subscriptions", [])}
-
 
     async def get_stats(self) -> Dict[str, Any]:
         """Get YouTube statistics without fetching every video duration."""
@@ -745,18 +659,18 @@ class YouTubeService:
                 return {"videos": cached_videos}
             
             # 2. Try disk cache specifically for this playlist
-            disk_cached = self._load_from_disk(cache_key)
+            disk_cached = await self._load_from_disk(cache_key)
             if disk_cached is not None:
                 await self._set_cached(cache_key, disk_cached)
                 return {"videos": disk_cached}
             
             # 3. Fallback to extracting from the global "all_data" disk cache
-            all_data = self._load_from_disk("all_data")
+            all_data = await self._load_from_disk("all_data")
             if all_data and "videos" in all_data:
                 playlist_videos = [v for v in all_data["videos"] if v.get("playlist_id") == playlist_id]
                 if playlist_videos:
                     await self._set_cached(cache_key, playlist_videos)
-                    self._save_to_disk(cache_key, playlist_videos)
+                    await self._save_to_disk(cache_key, playlist_videos)
                     return {"videos": playlist_videos}
         
         # Otherwise, fetch fresh videos for this specific playlist directly
@@ -785,7 +699,7 @@ class YouTubeService:
                 
             # Cache the videos for this specific playlist in memory and disk
             await self._set_cached(cache_key, videos)
-            self._save_to_disk(cache_key, videos)
+            await self._save_to_disk(cache_key, videos)
             return {"videos": videos}
         except Exception as e:
             log.error(f"Error fetching videos for playlist {playlist_id}: {e}")

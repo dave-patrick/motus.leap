@@ -183,7 +183,7 @@ class BackgroundWorker:
             misplaced_videos = []
             
             # Load mappings from config
-            config = await self.config_manager.config # Await the config property
+            config = self.config_manager.config
             mappings = config.channel_mappings if hasattr(config, 'channel_mappings') else {}
             playlist_titles = {pl.get("id"): pl.get("snippet", {}).get("title", pl.get("id")) for pl in playlists}
             

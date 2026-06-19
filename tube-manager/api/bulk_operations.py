@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/bulk", tags=["bulk"])
 
 async def get_config(request: Request) -> TubeManagerConfig:
     """Dependency to get current config from app state."""
-    return await request.app.state.config_manager.config
+    return request.app.state.config_manager.config
 
 async def get_config_manager(request: Request) -> ConfigManager:
     """Dependency to get config manager from app state."""

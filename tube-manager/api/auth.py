@@ -8,10 +8,11 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import asyncio # Added for to_thread
-from core.limiter import limiter
+import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, status, Cookie, Request
+from core.limiter import limiter # Import limiter from core.limiter
+
+from fastapi import APIRouter, Depends, HTTPException, status, Cookie, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
@@ -161,7 +162,11 @@ class RoleEnum:
 # In-Memory Storage (will be loaded via dependency)
 _cached_users_db: Optional[Dict[str, Dict[str, Any]]] = None
 
-
+async def get_users_db() -> Dict[str, Dict[str, Any]]:
+    global _cached_users_db
+    if _cached_users_db is None:
+        _cached_users_db = await _load_users()
+    return _cached_users_db
 
 # Allowed origins for CSRF protection. In production, this should be the domain of your frontend.
 # For local development, include localhost:PORT.
@@ -314,7 +319,6 @@ def check_role(required_roles: List[str]):
                 detail="Not enough permissions",
             )
         return current_user
-
     return role_checker
 
 
@@ -351,7 +355,7 @@ def get_user_permissions(role: str) -> List[str]:
 # Auth Endpoints
 # =============================================================================
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_origin)])
 @limiter.limit("5/minute")
 async def register(user_data: UserCreate, request: Request, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
     if await get_user_by_username(user_data.username, users_db):
@@ -360,7 +364,7 @@ async def register(user_data: UserCreate, request: Request, users_db: Dict[str, 
             detail="Username already registered",
         )
 
-    for user_entry in users_db.values(): # Iterate over users_db directly
+    for user_entry in users_db.values():
         if user_entry["email"] == user_data.email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -405,8 +409,9 @@ async def register(user_data: UserCreate, request: Request, users_db: Dict[str, 
     )
 
 
-@router.post("/login", response_model=TokenResponse)
-async def login(user_data: UserLogin, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(verify_origin)])
+@limiter.limit("5/minute")
+async def login(user_data: UserLogin, request: Request, response: Response, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
     user = await authenticate_user(user_data.username, user_data.password, users_db)
     if not user:
         raise HTTPException(
@@ -428,6 +433,18 @@ async def login(user_data: UserLogin, users_db: Dict[str, Dict[str, Any]] = Depe
         "expires_at": datetime.now() + access_token_expires,
     }
 
+    # Set the token in a secure, http-only cookie
+    response.set_cookie(
+        key="token",
+        value=access_token,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+        httponly=True,
+        samesite="Lax",
+        secure=os.getenv("VERCEL_ENV") == "production" # Use secure in production
+    )
+
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
@@ -436,9 +453,10 @@ async def login(user_data: UserLogin, users_db: Dict[str, Dict[str, Any]] = Depe
     )
 
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(verify_origin)])
 async def logout(
     request: Request,
+    response: Response, # Add response to clear cookie
     current_user: Dict[str, Any] = Depends(get_current_user),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     token_cookie: Optional[str] = Cookie(default=None, alias="token"),
@@ -453,11 +471,15 @@ async def logout(
 
     if token:
         user_sessions.pop(token, None)
+    
+    # Clear the cookie on logout
+    response.delete_cookie(key="token", path="/")
+
     log.info("User '%s' logged out, token invalidated", current_user["username"])
     return {"message": "Successfully logged out"}
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(verify_origin)])
 async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_active_user)):
     """Issue a fresh 7-day token to keep the user logged in."""
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -499,7 +521,7 @@ async def security_status():
     }
 
 
-@router.put("/me", response_model=UserResponse)
+@router.put("/me", response_model=UserResponse, dependencies=[Depends(verify_origin)])
 async def update_me(
     user_update: UserUpdate,
     current_user: Dict[str, Any] = Depends(get_current_active_user),
@@ -519,8 +541,8 @@ async def update_me(
     if user_update.role:
         current_user["role"] = user_update.role
     
-    users_db[current_user["username"]] = current_user # Update the entry in the in-memory db
-    await _save_users(users_db) # Persist the changes
+    users_db[current_user["username"]] = current_user
+    await _save_users(users_db)
 
     return UserResponse(**current_user)
 
@@ -531,6 +553,7 @@ async def update_me(
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
     current_user: Dict[str, Any] = Depends(check_role(["admin"])),
+    users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db), # Add users_db dependency
 ):
     return [UserResponse(**user) for user in users_db.values()]
 
@@ -539,8 +562,9 @@ async def list_users(
 async def get_user(
     user_id: str,
     current_user: Dict[str, Any] = Depends(check_role(["admin"])),
+    users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db), # Add users_db dependency
 ):
-    user = get_user_by_id(user_id)
+    user = await get_user_by_id(user_id, users_db) # Await call
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -549,13 +573,14 @@ async def get_user(
     return UserResponse(**user)
 
 
-@router.put("/users/{user_id}", response_model=UserResponse)
+@router.put("/users/{user_id}", response_model=UserResponse, dependencies=[Depends(verify_origin)])
 async def update_user(
     user_id: str,
     user_update: UserUpdate,
     current_user: Dict[str, Any] = Depends(check_role(["admin"])),
+    users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db), # Add users_db dependency
 ):
-    user = get_user_by_id(user_id)
+    user = await get_user_by_id(user_id, users_db) # Await call
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -571,16 +596,18 @@ async def update_user(
     if user_update.role:
         user["role"] = user_update.role
 
-    _save_users(users_db)
+    users_db[user["username"]] = user # Update the entry in the in-memory db
+    await _save_users(users_db) # Persist the changes
     return UserResponse(**user)
 
 
-@router.delete("/users/{user_id}")
+@router.delete("/users/{user_id}", dependencies=[Depends(verify_origin)])
 async def delete_user(
     user_id: str,
     current_user: Dict[str, Any] = Depends(check_role(["admin"])),
+    users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db), # Add users_db dependency
 ):
-    user = get_user_by_id(user_id)
+    user = await get_user_by_id(user_id, users_db) # Await call
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -595,7 +622,7 @@ async def delete_user(
 
     username_to_delete = user["username"]
     del users_db[username_to_delete]
-    _save_users(users_db)
+    await _save_users(users_db) # Persist the changes
     return {"message": f"User {username_to_delete} deleted"}
 
 
@@ -603,7 +630,8 @@ async def delete_user(
 # Initialization
 # =============================================================================
 
-def create_default_admin() -> None:
+async def create_default_admin() -> None:
+    users_db = await get_users_db() # Get the users_db
     if not users_db:
         default_password = os.getenv("TUBE_MANAGER_ADMIN_PASSWORD", "admin")
         if default_password == "admin":
@@ -624,7 +652,7 @@ def create_default_admin() -> None:
             "created_at": datetime.now(),
             "last_login": None,
         }
-        _save_users(users_db)
+        await _save_users(users_db) # Save changes
         log.info("Default admin user created (username: admin)")
 
 
@@ -686,7 +714,7 @@ _youtube_oauth_states: dict[str, bool] = {}
 
 
 @router.get("/google/callback")
-async def google_oauth_callback(code: str, state: str = None):
+async def google_oauth_callback(code: str, state: str = None, response: Response = None): # Added response here
     """Handle Google OAuth callback. If state is a YouTube OAuth state, save YouTube tokens."""
     if not GOOGLE_OAUTH_CLIENT_ID or not GOOGLE_OAUTH_CLIENT_SECRET:
         return HTMLResponse("""
@@ -735,7 +763,7 @@ async def google_oauth_callback(code: str, state: str = None):
             config.oauth.access_token = tokens["access_token"]
             config.oauth.refresh_token = tokens.get("refresh_token", "")
             config.oauth.token_expiry = int(time.time()) + tokens.get("expires_in", 3600)
-            cm.save(config)
+            await cm.save(config) # Await the save
 
             # Force the running YouTubeService to rebuild its client with new tokens
             if app_youtube_service is not None:
@@ -772,7 +800,8 @@ async def google_oauth_callback(code: str, state: str = None):
 
         # Check if user exists by email
         existing_user = None
-        for user in users_db.values():
+        users_db_loaded = await get_users_db() # Load users_db
+        for user in users_db_loaded.values():
             if user["email"] == email:
                 existing_user = user
                 break
@@ -789,7 +818,7 @@ async def google_oauth_callback(code: str, state: str = None):
             # Ensure unique username
             base_username = username
             counter = 1
-            while get_user_by_username(username):
+            while await get_user_by_username(username, users_db_loaded): # Await get_user_by_username
                 username = f"{base_username}{counter}"
                 counter += 1
 
@@ -806,10 +835,11 @@ async def google_oauth_callback(code: str, state: str = None):
                 "created_at": datetime.now(),
                 "last_login": datetime.now(),
             }
-            users_db[username] = user
-            _save_users(users_db)
+            users_db_loaded[username] = user
+            await _save_users(users_db_loaded)
 
         user["last_login"] = datetime.now()
+        await _save_users(users_db_loaded) # Save updated user data
 
         # Create access token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -824,6 +854,19 @@ async def google_oauth_callback(code: str, state: str = None):
             "created_at": datetime.now(),
             "expires_at": datetime.now() + access_token_expires,
         }
+
+        # Set the token in a secure, http-only cookie for OAuth login
+        if response:
+            response.set_cookie(
+                key="token",
+                value=app_token,
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                path="/",
+                httponly=True,
+                samesite="Lax",
+                secure=os.getenv("VERCEL_ENV") == "production"
+            )
 
         # Redirect to auth page with token in URL fragment.
         # auth.html handles extracting the token from the hash and redirecting to dashboard.
@@ -847,4 +890,6 @@ async def google_oauth_callback(code: str, state: str = None):
         """, status_code=500)
 
 
-create_default_admin()
+# Call this at startup to ensure a default admin user exists
+# But make sure it's awaited if called from an async context or run in a thread
+
