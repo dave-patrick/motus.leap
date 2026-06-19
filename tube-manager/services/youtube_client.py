@@ -29,19 +29,19 @@ except Exception:  # pragma: no cover
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 
 if httpx is not None:
-    _shared_client = httpx.AsyncClient(timeout=45.0)  # reuse connections across calls
+    _shared_client = httpx.Client(timeout=45.0)  # reuse connections across calls
 else:  # pragma: no cover
     _shared_client = None  # type: ignore
 
 
-async def _with_retry(async_func, *args, **kwargs):
+def _with_retry(sync_func, *args, **kwargs):
     for attempt in range(RETRY_ATTEMPTS):
         try:
-            return await async_func(*args, **kwargs)
+            return sync_func(*args, **kwargs)
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
             if attempt < RETRY_ATTEMPTS - 1:
                 log.warning(f"API call failed (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
-                await asyncio.sleep(RETRY_DELAY_SECONDS)
+                time.sleep(RETRY_DELAY_SECONDS)
             else:
                 log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
                 raise
@@ -125,8 +125,8 @@ class YouTubeClient:
                 "refresh_token": self.oauth_refresh_token,
                 "grant_type": "refresh_token",
             }
-            client = _shared_client or httpx.AsyncClient(timeout=45.0)
-            resp = await _with_retry(client.post, "https://oauth2.googleapis.com/token", data=data)
+            client = _shared_client or httpx.Client(timeout=45.0)
+            resp = _with_retry(client.post, "https://oauth2.googleapis.com/token", data=data)
             resp.raise_for_status()
             tokens = resp.json()
 
@@ -178,8 +178,8 @@ class YouTubeClient:
         url = f"{YOUTUBE_API_BASE}/{endpoint}"
         headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
         log.debug(f"[YOUTUBE] _oauth_request GET {url} params={params}")
-        client = _shared_client or httpx.AsyncClient(timeout=45.0)
-        resp = await _with_retry(client.get, url, headers=headers, params=params)
+        client = _shared_client or httpx.Client(timeout=45.0)
+        resp = _with_retry(client.get, url, headers=headers, params=params)
         log.debug(f"[YOUTUBE] _oauth_request response status={resp.status_code}")
         resp.raise_for_status()
         return resp.json()

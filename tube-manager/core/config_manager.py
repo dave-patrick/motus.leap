@@ -66,8 +66,11 @@ class ConfigManager:
             raise
 
     @property
-    async def config(self) -> TubeManagerConfig:
-        """Get current configuration, loading if necessary."""
+    def config(self) -> TubeManagerConfig:
+        """Get current configuration. Auto-loads if not yet initialized."""
         if self._config is None:
-            self._config = await self.load()
+            # For backward compatibility in tests/edge cases, create default config
+            # Note: This should not happen in production as load() is called in lifespan
+            self._config = TubeManagerConfig()
+            log.warning("Config accessed before load() - using defaults")
         return self._config
