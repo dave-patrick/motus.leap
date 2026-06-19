@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import asyncio # Added for to_thread
 
+# Import limiter from app.py
+from app import limiter
+
 from fastapi import APIRouter, Depends, HTTPException, status, Cookie, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -160,11 +163,23 @@ class RoleEnum:
 # In-Memory Storage (will be loaded via dependency)
 _cached_users_db: Optional[Dict[str, Dict[str, Any]]] = None
 
-async def get_users_db() -> Dict[str, Dict[str, Any]]:
-    global _cached_users_db
-    if _cached_users_db is None:
-        _cached_users_db = await _load_users()
-    return _cached_users_db
+
+
+# Allowed origins for CSRF protection. In production, this should be the domain of your frontend.
+# For local development, include localhost:PORT.
+# This list can be dynamically loaded from config or environment variables for more flexibility.
+ALLOWED_ORIGINS = [
+    "https://tubemanager.onrender.com",
+    "http://localhost:8000",
+    "http://localhost:3000",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:3000",
+]
+
+async def verify_origin(request: Request):
+    origin = request.headers.get("origin")
+    if origin not in ALLOWED_ORIGINS:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
 
 user_sessions: Dict[str, Dict[str, Any]] = {}
 
@@ -339,7 +354,8 @@ def get_user_permissions(role: str) -> List[str]:
 # =============================================================================
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
+@limiter.limit("5/minute")
+async def register(user_data: UserCreate, request: Request, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
     if await get_user_by_username(user_data.username, users_db):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -470,21 +486,14 @@ async def get_me(current_user: Dict[str, Any] = Depends(get_current_active_user)
     return UserResponse(**current_user)
 
 
-@router.get("/security/status")
+@router.get("/security/status", response_model=Dict[str, Any], dependencies=[Depends(check_role([RoleEnum.ADMIN]))])
 async def security_status():
     """Expose whether the JWT secret is configured for stable sessions."""
     secret_from_env = bool(os.getenv("TUBE_MANAGER_SECRET_KEY", "").strip())
-    secret_files = [
-        TUBE_MANAGER_DATA_DIR / ".secret_key",
-        Path(__file__).resolve().parent.parent / "data" / ".secret_key",
-        Path.home() / ".tube-manager" / ".secret_key",
-    ]
-    secret_persisted = any(f.exists() for f in secret_files)
     return {
         "secret_key_from_env": secret_from_env,
-        "secret_key_persisted": secret_persisted,
-        "sessions_stable": secret_from_env or secret_persisted,
-        "warning": None if (secret_from_env or secret_persisted) else (
+        "sessions_stable": secret_from_env,
+        "warning": None if secret_from_env else (
             "TUBE_MANAGER_SECRET_KEY is not set. Sessions will be invalidated on every "
             "Render restart or deploy. Add TUBE_MANAGER_SECRET_KEY to your Render "
             "Dashboard Environment Variables to keep sessions stable."

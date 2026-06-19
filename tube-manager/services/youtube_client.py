@@ -8,6 +8,10 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
+# Retry configuration
+RETRY_ATTEMPTS = 3
+RETRY_DELAY_SECONDS = 5
+
 try:
     from googleapiclient.discovery import build  # type: ignore
     from googleapiclient.errors import HttpError  # type: ignore
@@ -28,6 +32,19 @@ if httpx is not None:
     _shared_client = httpx.AsyncClient(timeout=45.0)  # reuse connections across calls
 else:  # pragma: no cover
     _shared_client = None  # type: ignore
+
+
+async def _with_retry(async_func, *args, **kwargs):
+    for attempt in range(RETRY_ATTEMPTS):
+        try:
+            return await async_func(*args, **kwargs)
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            if attempt < RETRY_ATTEMPTS - 1:
+                log.warning(f"API call failed (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
+                raise
 
 
 class YouTubeClient:
@@ -109,7 +126,7 @@ class YouTubeClient:
                 "grant_type": "refresh_token",
             }
             client = _shared_client or httpx.AsyncClient(timeout=45.0)
-            resp = await client.post("https://oauth2.googleapis.com/token", data=data)
+            resp = await _with_retry(client.post, "https://oauth2.googleapis.com/token", data=data)
             resp.raise_for_status()
             tokens = resp.json()
 
@@ -162,7 +179,7 @@ class YouTubeClient:
         headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
         log.debug(f"[YOUTUBE] _oauth_request GET {url} params={params}")
         client = _shared_client or httpx.AsyncClient(timeout=45.0)
-        resp = await client.get(url, headers=headers, params=params)
+        resp = await _with_retry(client.get, url, headers=headers, params=params)
         log.debug(f"[YOUTUBE] _oauth_request response status={resp.status_code}")
         resp.raise_for_status()
         return resp.json()
