@@ -26,22 +26,33 @@ from api.auth import get_current_user, verify_origin, create_default_admin # Imp
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Auth dependency for page routes (redirects to /auth if not authenticated)
-async def require_auth(request: Request, token: str = Cookie(default=None), authorization: str = Header(default=None), _=Depends(verify_origin)):
+async def require_auth(request: Request, response: Response, token: str = Cookie(default=None), authorization: str = Header(default=None), _=Depends(verify_origin)):
     """Require authentication for page routes. Redirects to /auth if not authenticated."""
-    # Check cookie first, then Authorization header
-    auth_token = token or (authorization.replace("Bearer ", "") if authorization and authorization.startswith("Bearer ") else None)
-    if not auth_token:
-        return RedirectResponse(url="/auth", status_code=302)
+    auth_token = None
+    if token: # Prefer cookie token
+        auth_token = token
+        log.debug("Auth: Using token from cookie.")
+    elif authorization and authorization.startswith("Bearer "): # Fallback to Authorization header
+        auth_token = authorization.replace("Bearer ", "")
+        log.debug("Auth: Using token from Authorization header.")
     
-    # Validate token
+    if not auth_token:
+        log.warning("Auth: No token found. Redirecting to /auth.")
+        return RedirectResponse(url="/auth?reason=unauthenticated", status_code=302)
+    
     try:
         user = await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=auth_token))
         request.state.user = user
+        log.debug(f"Auth: User {user['username']} authenticated.")
         return user
-    except HTTPException:
-        return RedirectResponse(url="/auth", status_code=302)
-    except Exception:
-        return RedirectResponse(url="/auth", status_code=302)
+    except HTTPException as e:
+        log.warning(f"Auth: Token validation failed: {e.detail}. Clearing token and redirecting to /auth.")
+        response.delete_cookie(key="token", path="/") # Clear invalid token
+        return RedirectResponse(url=f"/auth?reason={e.detail.lower().replace(' ', '')}", status_code=302)
+    except Exception as e:
+        log.error(f"Auth: Unexpected error during authentication: {e}. Clearing token and redirecting to /auth.")
+        response.delete_cookie(key="token", path="/") # Clear invalid token
+        return RedirectResponse(url="/auth?reason=error", status_code=302)
 
 # Rate limiting
 
@@ -336,7 +347,7 @@ class ConfigUpdateIn(BaseModel):
 # =============================================================================
 
 
-@app.get("/")
+@app.get("/", dependencies=[Depends(require_auth)])
 async def index():
     """Serve root page."""
     return await no_cache_file_response(WEB_DIR / "dashboard.html")
@@ -348,63 +359,63 @@ async def auth():
     return await no_cache_file_response(WEB_DIR / "auth.html")
 
 
-@app.get("/dashboard")
+@app.get("/dashboard", dependencies=[Depends(require_auth)])
 async def dashboard():
     """Dashboard page."""
     return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
 
-@app.get("/playlists")
+@app.get("/playlists", dependencies=[Depends(require_auth)])
 async def playlists():
     """Playlists page."""
     return await no_cache_file_response(WEB_DIR / "playlists.html")
 
 
-@app.get("/subscriptions")
+@app.get("/subscriptions", dependencies=[Depends(require_auth)])
 async def subscriptions():
     """Subscriptions page."""
     return await no_cache_file_response(WEB_DIR / "subscriptions.html")
 
 
-@app.get("/maintenance")
+@app.get("/maintenance", dependencies=[Depends(require_auth)])
 async def maintenance():
     """Maintenance page."""
     return await no_cache_file_response(WEB_DIR / "maintenance.html")
 
 
-@app.get("/rules")
+@app.get("/rules", dependencies=[Depends(require_auth)])
 async def rules():
     """Rules page."""
     return RedirectResponse(url="/settings#rules")
 
 
-@app.get("/ai")
+@app.get("/ai", dependencies=[Depends(require_auth)])
 async def ai():
     """AI page."""
     return RedirectResponse(url="/settings#ai")
 
 
-@app.get("/bulk")
+@app.get("/bulk", dependencies=[Depends(require_auth)])
 async def bulk():
     """Bulk operations page."""
     return await no_cache_file_response(WEB_DIR / "bulk.html")
 
 
-@app.get("/settings")
+@app.get("/settings", dependencies=[Depends(require_auth)])
 async def settings():
     """Settings page."""
     return await no_cache_file_response(WEB_DIR / "settings.html")
-@app.get("/roadmap")
+
+
+@app.get("/roadmap", dependencies=[Depends(require_auth)])
 async def roadmap_page() -> Response:
     return await no_cache_file_response(WEB_DIR / "roadmap.html")
 
 
-@app.get("/test")
+@app.get("/test", dependencies=[Depends(require_auth)])
 async def test_page():
     """Test page."""
     return await no_cache_file_response(WEB_DIR / "test.html")
-
-
 # Health check
 @app.get("/health")
 async def health() -> dict[str, str]:
