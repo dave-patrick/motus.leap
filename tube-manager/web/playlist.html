@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Playlist - motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=7">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/ux-enhancements.js /static/auth-check.js /static/playlist.js; style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/ux-enhancements.js /static/auth-check.js /static/global_scripts.js /static/playlist.js; style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -32,13 +32,14 @@
     <link rel="stylesheet" href="/static/ux-enhancements.css">
     <script src="/static/ux-enhancements.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/global_scripts.js"></script>
     <script src="/static/auth-check.js"></script>
     <script src="/static/playlist.js"></script>
 </head>
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4">
-            <button class="text-gray-400 hover:text-white back-to-playlists-btn"><i class="fa-solid fa-arrow-left"></i></button>
+            <button onclick="window.location.href='/playlists'" class="text-gray-400 hover:text-white"><i class="fa-solid fa-arrow-left"></i></button>
             <div><h1 class="text-sm font-bold tracking-wide text-white leading-tight" id="playlist-title">Loading...</h1><p class="text-[10px] text-gray-400" id="playlist-meta">-- videos</p></div>
         </div>
         <div class="flex items-center gap-2">
@@ -102,8 +103,11 @@
                                 <button id="delete-duplicates-btn" class="hidden bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
                                     <i class="fa-solid fa-trash-can"></i> Delete Duplicates
                                 </button>
+                                <button id="move-misplaced-btn" class="hidden bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
+                                    <i class="fa-solid fa-share-from-square"></i> Move Misplaced
+                                </button>
                                 <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>
-                                <select id="scan-filter" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2.5 py-1 outline-none font-semibold cursor-pointer">
+                                <select id="scan-filter" onchange="filterScanResults()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2.5 py-1 outline-none font-semibold cursor-pointer">
                                     <option value="all">All Issues</option>
                                     <option value="duplicates">Duplicates only</option>
                                     <option value="misplaced">Misplaced only</option>

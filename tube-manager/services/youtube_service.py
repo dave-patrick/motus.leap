@@ -29,7 +29,8 @@ class YouTubeService:
         # LRU cache to avoid redundant API calls with eviction policy
         self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(hours=6))
         self._cache_ttl = timedelta(hours=6)
-        
+        self._watch_later_cache_ttl = timedelta(minutes=15) # Shorter TTL for Watch Later
+
         # User-specific storage path
         self._user_data_dir = Path("/app/data/users") / self._get_user_id()
         self._user_data_dir.mkdir(parents=True, exist_ok=True)
@@ -345,6 +346,88 @@ class YouTubeService:
             if cached_playlists:
                 return {"playlists": cached_playlists, "stats": cached_stats}
             return {"playlists": [], "error": str(e)}
+
+    async def list_playlists(self, force_refresh: bool = False) -> Dict[str, Any]:
+        # ... (existing list_playlists method content) ...
+
+    async def list_watch_later_items_cached(self, playlist_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
+        user_id = self._get_user_id()
+        cache_key = f"watch_later_items_{user_id}_{playlist_id or 'auto'}"
+
+        if not force_refresh:
+            cached_data = await self._get_cached(cache_key)
+            if cached_data:
+                log.info(f"Using cached Watch Later items for {playlist_id or 'auto'}")
+                return cached_data
+
+        client = self.get_client(require_oauth=True)
+        if not client:
+            return {"items": [], "error": "YouTube not connected. OAuth required."}
+
+        try:
+            # Try browser scraper first (bypasses API restriction) if no specific playlist_id is provided
+            if not playlist_id:
+                from services.browser_scraper import has_cookies, scrape_watch_later_videos
+                if has_cookies():
+                    log.info("[WATCH LATER CACHE] YouTube cookies found. Attempting browser scrape for native Watch Later...")
+                    scraped = await asyncio.to_thread(scrape_watch_later_videos, 200)
+                    if scraped.get("items"):
+                        log.info(f"[WATCH LATER CACHE] Browser scrape retrieved {len(scraped["items"])} videos from native Watch Later!")
+                        await self._set_cached(cache_key, scraped, ttl=self._watch_later_cache_ttl)
+                        return scraped
+                    else:
+                        log.info("[WATCH LATER CACHE] Browser scrape returned 0 videos. Falling back to API...")
+
+            # Fallback to API if no cookies, scrape failed, or specific playlist_id was requested
+            resp = await asyncio.to_thread(client.list_watch_later_items, max_results=50, playlist_id=playlist_id)
+            items = resp.get("items", [])
+            result = {"items": items}
+            await self._set_cached(cache_key, result, ttl=self._watch_later_cache_ttl)
+            log.info(f"Fetched {len(items)} Watch Later items via API for {playlist_id or 'auto'}")
+            return result
+        except Exception as e:
+            log.error(f"Failed to fetch Watch Later items (cached): {e}")
+            return {"items": [], "error": str(e)}
+
+
+    async def list_watch_later_items_cached(self, playlist_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
+        user_id = self._get_user_id()
+        cache_key = f"watch_later_items_{user_id}_{playlist_id or 'auto'}"
+
+        if not force_refresh:
+            cached_data = await self._get_cached(cache_key)
+            if cached_data:
+                log.info(f"Using cached Watch Later items for {playlist_id or 'auto'}")
+                return cached_data
+
+        client = self.get_client(require_oauth=True)
+        if not client:
+            return {"items": [], "error": "YouTube not connected. OAuth required."}
+
+        try:
+            # Try browser scraper first (bypasses API restriction) if no specific playlist_id is provided
+            if not playlist_id:
+                from services.browser_scraper import has_cookies, scrape_watch_later_videos
+                if has_cookies():
+                    log.info("[WATCH LATER CACHE] YouTube cookies found. Attempting browser scrape for native Watch Later...")
+                    scraped = await asyncio.to_thread(scrape_watch_later_videos, 200)
+                    if scraped.get("items"):
+                        log.info(f"[WATCH LATER CACHE] Browser scrape retrieved {len(scraped["items"])} videos from native Watch Later!")
+                        await self._set_cached(cache_key, scraped, ttl=self._watch_later_cache_ttl)
+                        return scraped
+                    else:
+                        log.info("[WATCH LATER CACHE] Browser scrape returned 0 videos. Falling back to API...")
+
+            # Fallback to API if no cookies, scrape failed, or specific playlist_id was requested
+            resp = await asyncio.to_thread(client.list_watch_later_items, max_results=50, playlist_id=playlist_id)
+            items = resp.get("items", [])
+            result = {"items": items}
+            await self._set_cached(cache_key, result, ttl=self._watch_later_cache_ttl)
+            log.info(f"Fetched {len(items)} Watch Later items via API for {playlist_id or 'auto'}")
+            return result
+        except Exception as e:
+            log.error(f"Failed to fetch Watch Later items (cached): {e}")
+            return {"items": [], "error": str(e)}
 
     async def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Fetch ALL YouTube data in one optimized request sequence with caching.

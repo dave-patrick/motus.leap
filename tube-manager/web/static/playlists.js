@@ -1,35 +1,4 @@
-// Toast notification system
-function toast(message, type = 'info', duration = 4000) {
-    const container = document.getElementById('toast-container') || createToastContainer();
-    const toast = document.createElement('div');
-    const icons = {
-        success: 'fa-check-circle',
-        error: 'fa-times-circle',
-        warning: 'fa-exclamation-triangle',
-        info: 'fa-info-circle'
-    };
-    const colors = {
-        success: 'bg-green-600',
-        error: 'bg-red-600',
-        warning: 'bg-yellow-600',
-        info: 'bg-blue-600'
-    };
-    toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
-    toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${DOMPurify.sanitize(message, {USE_PROFILES: {html: true}})}</span>`;
-    container.appendChild(toast);
-    setTimeout(() => {
-        toast.classList.add('animate-slide-out');
-        setTimeout(() => toast.remove(), 300);
-    }, duration);
-}
-
-function createToastContainer() {
-    const container = document.createElement('div');
-    container.id = 'toast-container';
-    container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
-    document.body.appendChild(container);
-    return container;
-}
+// playlists.js - Playlists specific scripts
 
 // Store all playlists for manage function
 let allPlaylists = [];
@@ -84,16 +53,16 @@ function renderPlaylistsGrid(playlists) {
         return;
     }
     grid.innerHTML = playlists.map(p => `
-        <div class="bento-card p-3 flex flex-col cursor-pointer hover:border-blue-500/50 transition-colors h-full relative playlist-card" data-playlist-id="${DOMPurify.sanitize(p.id)}">
+        <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-3 flex flex-col cursor-pointer hover:border-blue-500/50 transition-colors h-full relative">
             <div class="flex items-start justify-between mb-2">
-                <div class="w-12 h-7 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${DOMPurify.sanitize(p.thumbnail || 'https://picsum.photos/160/90')}" class="w-full h-full object-cover"></div>
-                <button class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors open-youtube-btn" data-playlist-id="${DOMPurify.sanitize(p.id)}" title="Open on YouTube"><i class="fa-solid fa-external-link text-[8px] mr-1"></i> YouTube</button>
+                <div class="w-12 h-7 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
+                <button onclick="openPlaylist('${p.id}', event)" class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[8px] mr-1"></i> YouTube</button>
             </div>
-            <h3 class="text-xs font-semibold text-white truncate mb-0.5">${DOMPurify.sanitize(p.title)}</h3>
-            <p class="text-[9px] text-gray-400 mb-2">${DOMPurify.sanitize(p.video_count)} videos</p>
-            <div class="flex items-center gap-1 mt-auto pt-1.5 border-t border-[#2a2f3a]">
-                <button class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 px-2.5 rounded transition-colors rescan-playlist-btn" data-playlist-id="${DOMPurify.sanitize(p.id)}" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
-                <button class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 rounded transition-colors manage-playlist-btn" data-playlist-id="${DOMPurify.sanitize(p.id)}" data-playlist-title="${DOMPurify.sanitize(p.title.replace(/\'/g, "\\'"), {USE_PROFILES: {html: true}})}"><i class="fa-solid fa-cog text-[9px]"></i> Manage</button>
+            <h3 class="text-xs font-semibold text-white truncate mb-0.5">${p.title}</h3>
+            <p class="text-[9px] text-gray-400 mb-2">${p.video_count} videos</p>
+            <div class="flex items-center gap-1 mt-auto pt-1.5 border-t border-[#2a2f3a]" onclick="event.stopPropagation()">
+                <button onclick="rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 px-2.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
+                <button onclick="openManagePlaylistModal('${p.id}', \`${p.title.replace(/\'/g, "\\'")}\`, event)" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] py-1 rounded transition-colors"><i class="fa-solid fa-cog text-[9px]"></i> Manage</button>
             </div>
         </div>
     `).join('');
@@ -102,7 +71,7 @@ function renderPlaylistsGrid(playlists) {
 // Open playlist on YouTube
 function openPlaylist(playlistId, event) {
     if (event) event.stopPropagation();
-    window.open(`https://www.youtube.com/playlist?list=${DOMPurify.sanitize(playlistId)}`, '_blank');
+    window.open(`https://www.youtube.com/playlist?list=${playlistId}`, '_blank');
 }
 
 async function rescanPlaylist(playlistId, event) {
@@ -114,14 +83,22 @@ async function rescanPlaylist(playlistId, event) {
     
     toast('Rescanning playlist videos...', 'info');
     try {
-        const resp = await fetch(`/api/youtube/videos?playlist_id=${DOMPurify.sanitize(playlistId)}&force_refresh=true`);
+        const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
         if (!resp.ok) throw new Error('Failed to refresh');
         const data = await resp.json();
-        const count = data.videos?.length || 0;
-        toast(`Rescan complete - ${DOMPurify.sanitize(count)} videos found`, 'success');
+        // Instead of directly assigning allVideos, update specific playlist in allPlaylists
+        const playlistIndex = allPlaylists.findIndex(p => p.id === playlistId);
+        if (playlistIndex !== -1) {
+            allPlaylists[playlistIndex].video_count = data.videos?.length || 0;
+        }
+        
+        toast(`Rescan complete - ${data.videos?.length || 0} videos found`, 'success');
+        
+        // Re-render only necessary parts or refresh all playlists for consistency
         loadPlaylists();
     } catch (e) {
         toast('Rescan failed', 'error');
+        console.error(e);
     } finally {
         btn.disabled = false;
         btn.innerHTML = origHTML;
@@ -133,7 +110,7 @@ function closeAllMenus() {
 }
 
 function togglePlaylistMenu(playlistId) {
-    const menu = document.getElementById(`menu-${DOMPurify.sanitize(playlistId)}`);
+    const menu = document.getElementById(`menu-${playlistId}`);
     if (!menu) return;
     document.querySelectorAll('[id^="menu-"]').forEach(el => {
         if (el !== menu) el.classList.add('hidden');
@@ -152,7 +129,7 @@ async function renamePlaylistPrompt(playlistId) {
             body: JSON.stringify({playlist_id: playlistId, new_title: newTitle.trim()})
         });
         const data = await resp.json();
-        toast(DOMPurify.sanitize(data.message || data.error, {USE_PROFILES: {html: true}}), data.status === 'success' ? 'success' : 'error');
+        toast(data.message || data.error, data.status === 'success' ? 'success' : 'error');
         closeAllMenus();
         loadPlaylists();
     } catch (e) {
@@ -162,7 +139,7 @@ async function renamePlaylistPrompt(playlistId) {
 
 async function duplicatePlaylistPrompt(playlistId) {
     const current = allPlaylists.find(p => p.id === playlistId);
-    const newTitle = prompt(`Duplicate playlist: ${DOMPurify.sanitize(current ? current.title : '')}`, `${DOMPurify.sanitize(current ? current.title : 'Playlist')} (copy)`);
+    const newTitle = prompt(`Duplicate playlist: ${current ? current.title : ''}`, `${current ? current.title : 'Playlist'} (copy)`);
     if (newTitle === null || !newTitle.trim()) return;
     try {
         const resp = await fetch('/api/youtube/playlists/duplicate', {
@@ -171,7 +148,7 @@ async function duplicatePlaylistPrompt(playlistId) {
             body: JSON.stringify({playlist_id: playlistId, new_title: newTitle.trim()})
         });
         const data = await resp.json();
-        toast(DOMPurify.sanitize(data.message || data.error, {USE_PROFILES: {html: true}}), data.status === 'success' ? 'success' : 'error');
+        toast(data.message || data.error, data.status === 'success' ? 'success' : 'error');
         closeAllMenus();
         loadPlaylists();
     } catch (e) {
@@ -188,7 +165,7 @@ async function deletePlaylistConfirmed(playlistId) {
             body: JSON.stringify({playlist_id: playlistId})
         });
         const data = await resp.json();
-        toast(DOMPurify.sanitize(data.message || data.error, {USE_PROFILES: {html: true}}), data.status === 'success' ? 'success' : 'error');
+        toast(data.message || data.error, data.status === 'success' ? 'success' : 'error');
         closeAllMenus();
         loadPlaylists();
     } catch (e) {
@@ -231,7 +208,7 @@ async function deletePlaylist(playlistId) {
 }
 
 function managePlaylist(playlistId) {
-    window.location.href = `/playlist/${DOMPurify.sanitize(playlistId)}`;
+    window.location.href = `/playlist/${playlistId}`;
 }
 
 function openManagePlaylistModal(playlistId, playlistTitle, event) {
@@ -244,19 +221,19 @@ function openManagePlaylistModal(playlistId, playlistTitle, event) {
             <div class="flex items-center justify-between mb-4">
                 <div class="min-w-0">
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Manage Playlist</h3>
-                    <p class="text-sm font-bold text-white truncate">${DOMPurify.sanitize(playlistTitle)}</p>
+                    <p class="text-sm font-bold text-white truncate">${playlistTitle}</p>
                 </div>
                 <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white p-1 transition-colors"><i class="fa-solid fa-xmark"></i></button>
             </div>
             
             <div class="space-y-2.5">
-                <button onclick="actionRenamePlaylist('${DOMPurify.sanitize(playlistId)}', \`${DOMPurify.sanitize(playlistTitle.replace(/\'/g, "\\'"), {USE_PROFILES: {html: true}})}\`); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
+                <button onclick="actionRenamePlaylist('${playlistId}', \`${playlistTitle.replace(/\'/g, "\\'")}\`); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
                     <i class="fa-solid fa-pen-to-square text-blue-400 w-4 text-center"></i> Rename Playlist
                 </button>
-                <button onclick="actionDuplicatePlaylist('${DOMPurify.sanitize(playlistId)}', \`${DOMPurify.sanitize(playlistTitle.replace(/\'/g, "\\'"), {USE_PROFILES: {html: true}})}\`); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
+                <button onclick="actionDuplicatePlaylist('${playlistId}', \`${playlistTitle.replace(/\'/g, "\\'")}\`); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
                     <i class="fa-solid fa-copy text-green-400 w-4 text-center"></i> Duplicate Playlist
                 </button>
-                <button onclick="actionDeletePlaylist('${DOMPurify.sanitize(playlistId)}', \`${DOMPurify.sanitize(playlistTitle.replace(/\'/g, "\\'"), {USE_PROFILES: {html: true}})}\`); this.closest('.fixed').remove()" class="w-full bg-red-950/20 hover:bg-red-900/30 border border-red-900/30 text-red-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
+                <button onclick="actionDeletePlaylist('${playlistId}', \`${playlistTitle.replace(/\'/g, "\\'")}\`); this.closest('.fixed').remove()" class="w-full bg-red-950/20 hover:bg-red-900/30 border border-red-900/30 text-red-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
                     <i class="fa-solid fa-trash-can text-red-500 w-4 text-center"></i> Delete Playlist
                 </button>
             </div>
@@ -278,10 +255,10 @@ async function actionRenamePlaylist(playlistId, currentTitle) {
         });
         const res = await resp.json();
         if (resp.ok) {
-            toast(DOMPurify.sanitize(res.message, {USE_PROFILES: {html: true}}), 'success');
+            toast(res.message, 'success');
             loadPlaylists();
         } else {
-            toast(DOMPurify.sanitize(res.detail || 'Rename failed', {USE_PROFILES: {html: true}}), 'error');
+            toast(res.detail || 'Rename failed', 'error');
         }
     } catch (e) {
         toast('Failed to rename playlist', 'error');
@@ -289,7 +266,7 @@ async function actionRenamePlaylist(playlistId, currentTitle) {
 }
 
 async function actionDuplicatePlaylist(playlistId, currentTitle) {
-    const newTitle = prompt('Duplicate Playlist - Enter name for duplicate:', `${DOMPurify.sanitize(currentTitle, {USE_PROFILES: {html: true}})} Copy`);
+    const newTitle = prompt('Duplicate Playlist - Enter name for duplicate:', `${currentTitle} Copy`);
     if (!newTitle) return;
     
     toast('Initiating playlist duplication...', 'info');
@@ -301,10 +278,10 @@ async function actionDuplicatePlaylist(playlistId, currentTitle) {
         });
         const res = await resp.json();
         if (resp.ok) {
-            toast(DOMPurify.sanitize(res.message, {USE_PROFILES: {html: true}}), 'success');
+            toast(res.message, 'success');
             loadPlaylists();
         } else {
-            toast(DOMPurify.sanitize(res.detail || 'Duplication failed', {USE_PROFILES: {html: true}}), 'error');
+            toast(res.detail || 'Duplication failed', 'error');
         }
     } catch (e) {
         toast('Failed to duplicate playlist', 'error');
@@ -312,7 +289,7 @@ async function actionDuplicatePlaylist(playlistId, currentTitle) {
 }
 
 async function actionDeletePlaylist(playlistId, title) {
-    if (!confirm(`Are you absolutely sure you want to delete '${DOMPurify.sanitize(title, {USE_PROFILES: {html: true}})}' from YouTube?\n\nThis action cannot be undone.`)) return;
+    if (!confirm(`Are you absolutely sure you want to delete '${title}' from YouTube?\n\nThis action cannot be undone.`)) return;
     
     toast('Deleting playlist...', 'info');
     try {
@@ -323,10 +300,10 @@ async function actionDeletePlaylist(playlistId, title) {
         });
         const res = await resp.json();
         if (resp.ok) {
-            toast(DOMPurify.sanitize(res.message, {USE_PROFILES: {html: true}}), 'success');
+            toast(res.message, 'success');
             loadPlaylists();
         } else {
-            toast(DOMPurify.sanitize(res.detail || 'Delete failed', {USE_PROFILES: {html: true}}), 'error');
+            toast(res.detail || 'Delete failed', 'error');
         }
     } catch (e) {
         toast('Failed to delete playlist', 'error');
@@ -381,13 +358,13 @@ async function createPlaylist() {
     }
     
     try {
-        const resp = await fetch('/youtube/actions/create-playlist', {
+        const resp = await fetch('/api/youtube/playlists', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({title, description, privacy})
         });
         const result = await resp.json();
-        toast(`Playlist created: ${DOMPurify.sanitize(result.title || 'New playlist', {USE_PROFILES: {html: true}})}`, 'success');
+        toast(`Playlist created: ${result.title || 'New playlist'}`, 'success');
         loadPlaylists();
     } catch (e) {
         toast('Failed to create playlist', 'error');
@@ -406,58 +383,16 @@ async function syncPlaylists(e) {
         });
         const result = await resp.json();
         if (result.error) {
-            toast(`Sync failed: ${DOMPurify.sanitize(result.error, {USE_PROFILES: {html: true}})}`, 'error');
+            toast(`Sync failed: ${result.error}`, 'error');
         } else {
-            toast(`Sync started. Check dashboard for progress.`, 'success');
+            toast(`Playlist sync started`, 'info');
         }
     } catch (e) {
-        toast('Failed to start sync', 'error');
+        toast(`Sync failed: ${e.message}`, 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-sync"></i> Sync from YouTube';
     }
 }
 
-function openWatchLaterModal() {
-    // This will navigate to the watch-later page, no modal needed here
-    window.location.href = '/watch-later';
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    loadPlaylists();
-
-    // Event listeners for top-level buttons
-    document.getElementById('view-watch-later-btn')?.addEventListener('click', openWatchLaterModal);
-    document.getElementById('sync-playlists-btn')?.addEventListener('click', syncPlaylists);
-    document.getElementById('new-playlist-btn')?.addEventListener('click', openNewPlaylistModal);
-
-    // Event delegation for playlist cards and their buttons
-    const playlistsGrid = document.getElementById('playlists-grid');
-    if (playlistsGrid) {
-        playlistsGrid.addEventListener('click', (event) => {
-            const target = event.target;
-
-            // Handle playlist card click (navigation)
-            const playlistCard = target.closest('.playlist-card');
-            if (playlistCard && !target.closest('button')) { // Don't navigate if a button inside the card was clicked
-                window.location.href = `/playlist/${DOMPurify.sanitize(playlistCard.dataset.playlistId)}`;
-                return;
-            }
-
-            // Handle buttons within playlist cards
-            if (target.classList.contains('open-youtube-btn') || target.closest('.open-youtube-btn')) {
-                event.stopPropagation();
-                const btn = target.closest('.open-youtube-btn');
-                openPlaylist(btn.dataset.playlistId, event);
-            } else if (target.classList.contains('rescan-playlist-btn') || target.closest('.rescan-playlist-btn')) {
-                event.stopPropagation();
-                const btn = target.closest('.rescan-playlist-btn');
-                rescanPlaylist(btn.dataset.playlistId, event);
-            } else if (target.classList.contains('manage-playlist-btn') || target.closest('.manage-playlist-btn')) {
-                event.stopPropagation();
-                const btn = target.closest('.manage-playlist-btn');
-                openManagePlaylistModal(btn.dataset.playlistId, btn.dataset.playlistTitle, event);
-            }
-        });
-    }
-});
+document.addEventListener('DOMContentLoaded', loadPlaylists);

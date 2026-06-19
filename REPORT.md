@@ -1,94 +1,107 @@
-# Code Scan Report for motus.leap (tube-manager)
+**UX Functionality Scan Report (Phase 3: Initial Review)**
 
-## Security Vulnerabilities
+**Overview:**
+This report outlines the findings from an initial scan of the `motus.leap` application's user experience (UX) elements. The goal is to identify whether interactive components function as expected, data is displayed correctly, and overall user flow is intuitive. This analysis is based on reviewing the HTML and associated JavaScript for key user-facing pages.
 
-1. **Potential XSS via innerHTML**
-   - Files: `dashboard.html`, `playlists.html`, `playlist.html`
-   - User-controlled data (playlist titles, video titles, channel names) is inserted into the DOM via `innerHTML` or template literals without sanitization in several places.
-   - Mitigation: Use `textContent` where possible, or sanitize with DOMPurify (already imported) before setting `innerHTML`.
+---
 
-2. **Token Storage Vulnerabilities**
-   - Auth tokens are stored in `localStorage` and a non-HttpOnly cookie (` SameSite=Lax` but accessible via JavaScript).
-   - If an XSS attack occurs, tokens can be stolen.
-   - Mitigation: Consider using HttpOnly, Secure cookies for tokens and avoid storing tokens in localStorage.
+**Findings (Phase 3):**
 
-3. **Missing CSRF Protection**
-   - State-changing endpoints (e.g., `/api/action`, bulk operations) rely solely on Bearer token in `Authorization` header (from localStorage). While this mitigates CSRF if the token is not automatically sent by the browser, the application also uses cookies for authentication (see cookie set on login). If both are used, CSRF protection is needed.
-   - Mitigation: Implement double-submit cookie or require a custom header (e.g., `X-CSRF-Token`) for mutating endpoints.
+**1. General UX Elements (Across Pages):**
 
-4. **Unrestricted File Upload**
-   - Settings page allows uploading YouTube cookies JSON file; no validation of file type beyond extension `.json` and no size limit.
-   - Mitigation: Validate file size, content structure, and sanitize filename.
+*   **Header Navigation (`dashboard.html`, `playlists.html`, `settings.html`, etc.):**
+    *   The header (e.g., `header` tag, `h1` `motus.leap`) consistently displays the application title and a user avatar/logout button. Navigation links to different sections (Dashboard, Playlists, Watch Later, Subscriptions, Maintenance Queue, Settings) are present and appear functional.
+    *   **Observation:** Consistent header is good for navigation.
+    *   **Potential Improvement:** The user avatar fetch (`dashboard.html:90`) is a client-side `fetch` request. While this is fine, ensuring quick loading or a good placeholder prevents any flicker.
+    *   **Recommendation:** Verify that avatar loading is fast, and consider using a universal placeholder image until the actual avatar loads to prevent layout shifts.
 
-5. **Information Exposure in Error Messages**
-   - Some API endpoints may return internal error details (e.g., stack traces) to the client, potentially leaking sensitive information.
-   - Mitigation: Ensure error responses are generic in production; log details server-side.
+*   **Toast Notifications (`toast()` function in `dashboard.html`, `playlists.html`, `playlist.html`, `settings.html`):**
+    *   A custom `toast()` function is used for showing success, error, warning, and info messages.
+    *   **Observation:** Provides good user feedback for actions. Animations (`animate-slide-in`, `animate-slide-out`) contribute to a modern feel.
+    *   **Functionality:** Appears to work as expected.
 
-6. **Insecure Direct Object References (IDOR)**
-   - Bulk operation endpoints accept `playlist_id` and `video_id` parameters without verifying ownership against the authenticated user.
-   - Mitigation: Add authorization checks ensuring the user owns the resource.
+*   **Scrollbars (Custom CSS):**
+    *   Custom CSS styles are applied to scrollbars (`::-webkit-scrollbar`).
+    *   **Observation:** A small aesthetic touch that contributes to the dark theme.
+    *   **Functionality:** Visually consistent.
 
-## Performance Bottlenecks
+*   **Security Warning Banner (`dashboard.html:125`, `settings.html:59`):**
+    *   A yellow banner (`#security-warning`) is displayed if session stability is an issue.
+    *   **Observation:** Important for user awareness regarding potential session invalidation.
+    *   **Functionality:** Relies on `checkSecurityStatus()` fetching from `/api/auth/security/status`. Assuming the backend logic for this endpoint is robust (as per security report's recommendation to protect it), the frontend display should be accurate.
 
-1. **Excessive Polling**
-   - Dashboard polls `/api/stats` every 30 seconds via `setInterval`.
-   - Each playlist page also polls for stats and activity.
-   - Mitigation: Use WebSocket for real-time updates or increase interval; consider conditional polling only when user is active.
+**2. Specific Page UX Elements:**
 
-2. **Redundant API Calls**
-   - After each action (e.g., rescan, move), the app reloads entire playlists or videos list, causing duplicate requests.
-   - Mitigation: Update UI optimistically and only fetch changed data; use caching strategies.
+*   **`/auth` (`auth.html`):**
+    *   **Login/Register Forms (`login-form`, `register-form`):** Tabs allow switching between login and registration. Input fields for email/username and password. Buttons trigger `handleLogin()` and `handleRegister()`.
+    *   **Observation:** Standard authentication UI.
+    *   **Functionality:** `handleLogin()` and `handleRegister()` attempt to fetch from `/api/auth/login` and `/api/auth/register` respectively. Success redirects to `/dashboard`, errors display in `login-error`/`register-error` divs. The dual storage to `localStorage` and `document.cookie` is handled correctly here.
+    *   **Google OAuth Button:** Triggers `handleGoogleLogin()`.
+    *   **Functionality:** Initiates OAuth flow by fetching `/api/auth/google`.
+    *   **Session Check on Load:** Immediately redirects to `/dashboard` if a valid token is found.
+    *   **Functionality:** Prevents logged-in users from seeing the auth screen unnecessarily.
 
-3. **Inefficient YouTube Data Fetching**
-   - Subscription and playlist fetching is done page-by-page sequentially; each page requires a separate HTTP request.
-   - Mitigation: Use `maxResults=50` (already) but consider parallelizing page requests or using batch endpoints if available.
+*   **`/dashboard` (`dashboard.html`):**
+    *   **Stats Cards (`stat-playlists`, `stat-videos`, `stat-pending`, `ai-rate`, `ai-rates`):** Display various metrics.
+    *   **Observation:** Provides a quick overview of system status.
+    *   **Functionality:** `loadDashboardStats()` fetches from `/api/stats` every 30 seconds and updates these elements.
+    *   **Agent Control Center Buttons (`Full Playlist Sync`, `Watch Later Sync`):** Trigger background actions.
+    *   **Functionality:** `triggerAction()` sends POST requests to `/api/action`.
+    *   **System Status (`app-status`, `activity-ping-animate`, `activity-ping-color`, `activity-task-desc`):** Live status updates.
+    *   **Observation:** Visually indicates background activity and system readiness.
+    *   **Functionality:** Updated by `loadDashboardStats()` and potentially by WebSocket messages (though not explicitly shown in this HTML).
 
-4. **Client-Side Duplicate Detection O(n)**
-   - Actually O(n) with hashmap, acceptable. However, for large playlists (>10k videos) it may cause UI freeze.
-   - Mitigation: Offload heavy computations to Web Workers.
+*   **`/playlists` (`playlists.html`):**
+    *   **Playlist Grid (`playlists-grid`):** Displays a grid of playlist cards.
+    *   **Observation:** Layout adjusted to `grid-cols-3` up to `2xl:grid-cols-12` for denser display.
+    *   **Functionality:** `loadPlaylists()` fetches from `/api/playlists`. `renderCachedPlaylists()` attempts to show `localStorage` data instantly, which is good. Each playlist card is clickable, navigating to `/playlist/{id}`. Buttons for YouTube link, Rescan, and Manage Playlist are present.
+    *   **Manage Playlist Modal:** Opens an overlay with options for rename, duplicate, delete.
+    *   **Functionality:** Actions are handled by `actionRenamePlaylist()`, `actionDuplicatePlaylist()`, `actionDeletePlaylist()`, which make API calls and then `loadPlaylists()` to refresh.
 
-5. **Lack of Video Data Caching**
-   - Video metadata (title, thumbnail, duration) is fetched per playlist view and not cached beyond the session.
-   - Mitigation: Cache video data in IndexedDB or localStorage with TTL.
+*   **`/playlist/{id}` (`playlist.html`):**
+    *   **Playlist Title & Meta (`playlist-title`, `playlist-meta`):** Displays current playlist title and video count/privacy status.
+    *   **Functionality:** `loadPlaylist()` populates this data. The `privacyBadge` logic correctly applies colors based on status.
+    *   **Playlist Operations Panel (`rescan-playlist-btn`, `btn-scan-dup`, `btn-scan-mis`):** Buttons for rescanning, duplicate scan, misplaced scan.
+    *   **Functionality:** `rescanPlaylist()`, `scanForDuplicates()`, `scanForMisplaced()` trigger actions and display status.
+    *   **Scan Results Box (`scan-results-box`, `scan-results-list`):** Displays scan findings (duplicates, misplaced videos).
+    *   **Functionality:** `showScanBox()`, `filterScanResults()`, `updateScanSummary()` dynamically update this area. The `delete-duplicates-btn` is conditionally shown.
+    *   **Videos List Container (`videos-container`):** Displays individual video rows with checkboxes, thumbnails, titles, and duration.
+    *   **Functionality:** `renderVideos()` populates this. `toggleVideo()` manages selected videos, `updateMoveButton()` toggles the "Move Selected" button. `moveSelectedVideos()` sends a bulk move request.
+    *   **Target Playlist Dropdown (`target-playlist`):** Allows selecting a destination playlist for moving videos.
+    *   **Functionality:** `loadPlaylistsDropdown()` populates options from `allPlaylists`.
 
-6. **Multiple WebSocket Connections**
-   - Each page opens a WebSocket to `/ws/terminal`; duplicates can accumulate.
-   - Mitigation: Reuse a single connection or close when not needed.
+*   **`/settings` (`settings.html`):**
+    *   **Tabs (General & API, Rules & Mappings, AI Integration):** Allows switching between different settings categories.
+    *   **Functionality:** `switchTab()` updates active tab styling.
+    *   **API Key / OAuth Fields:** Input fields for YouTube API key, OAuth client ID/secret.
+    *   **Functionality:** `loadSettings()` populates placeholders or values. `saveSettings()` makes a POST request to `/api/settings`. `toggleSecretVisibility()` shows/hides the OAuth secret.
+    *   **YouTube Connection Buttons (`Connect YouTube Account (OAuth)`, `Disconnect YouTube`):**
+    *   **Functionality:** `connectYouTube()` initiates OAuth, `disconnectYouTube()` sends a POST to `/api/youtube/disconnect`.
+    *   **Storage & Data section (`cookie-file`, `uploadCookies()`):**
+    *   **Functionality:** The recent fix for cookie upload ensures `uploadCookies()` now correctly posts to `/api/cookies/save` and expects a `path` in the response for visual confirmation.
+    *   **Log Level Selector:**
+    *   **Functionality:** `saveSettings()` updates the `log_level` config.
+    *   **System Logs Button:** `viewSystemLogs()` opens `/system/logs`.
+    *   **Reset All Settings Button:** `resetAllSettings()` sends a POST to `/api/settings/reset`.
 
-## UX Elements Review
+**3. Potential UX Issues / Improvements:**
 
-1. **Header Status Indicators**
-   - The header includes a hidden `#app-status` paragraph that shows `🟢 READY` or `🟡 RUNNING`. The user prefers minimal headers with only brand title/icon.
-   - The status is also duplicated in the system activity box.
-   - Recommendation: Remove header status per user preference; keep activity box if needed.
+*   **Loading States:** While some pages have "Loading playlists..." or "Loading videos..." messages, ensure all data fetches (especially on slower connections) have clear loading indicators to prevent user confusion.
+*   **Form Validation Feedback:** Client-side validation is present for registration (e.g., password length), but comprehensive real-time validation feedback (e.g., "Email invalid format," "Username taken" *before* submission) could improve user experience.
+*   **Consistency in `logout()`:** There are multiple `logout()` implementations (e.g., in `auth.html` and `dashboard.html`). While they perform similar actions, consolidating or ensuring strict consistency (e.g., clearing all relevant `localStorage` and `document.cookie` entries uniformly) is good practice. The `auth.html` version clears `user` and `token` from `localStorage` and the `token` cookie. The `dashboard.html` version does the same, but clears the `token` cookie twice, which is harmless but redundant. The `auth-check.js` also has a `clearAuthAndRedirect`.
+    *   **Recommendation:** Consolidate `logout` logic into a single, shared utility function or ensure all instances are consistently calling the most comprehensive cleanup.
+*   **Accessibility:** General accessibility (ARIA attributes, keyboard navigation) was not specifically scanned but should be considered in a comprehensive UX review.
+*   **Responsiveness:** `min-w-[1200px]` on main content areas (`dashboard.html`, `playlists.html`) suggests a fixed minimum width, which might hinder responsiveness on smaller screens or if the browser window is resized.
+    *   **Recommendation:** Review `min-w` usages and consider more flexible `max-w` or responsive grid layouts for better adaptation to various screen sizes.
 
-2. **Unused / Dead UI**
-   - The scan detail panel (`#scan-detail-panel`) is present but may be rarely used; the toggle function exists but no obvious trigger.
-   - The "Additional Module Placeholder" bento card is empty.
-   - Recommendation: Remove or collapse unused UI to reduce clutter.
+---
 
-3. **Modal Overlays**
-   - Multiple modals (login, settings, playlist manage) are created via JavaScript and appended to body; ensure they trap focus and are accessible (aria-modal).
-   - No visible focus trap implementation.
+**Summary of Key UX Recommendations:**
 
-4. **Toast Notification Duplication**
-   - Toast function is copy-pasted across HTML files; leads to code bloat.
-   - Recommendation: Centralize toast logic in a shared JavaScript module (`ux-enhancements.js`).
+1.  **Refine `logout` Logic:** Consolidate `logout` implementations into a single, robust function to ensure consistent and complete session cleanup.
+2.  **Improve Loading Indicators:** Ensure clear and consistent loading states for all data fetches, especially on initial page loads and during longer API operations.
+3.  **Enhanced Form Validation:** Implement more real-time, user-friendly client-side form validation feedback.
+4.  **Review `min-w` for Responsiveness:** Re-evaluate the use of fixed `min-w` on main content areas to improve responsiveness on diverse screen sizes.
+5.  **Avatar Placeholder:** Ensure quick loading or a good placeholder for user avatars to prevent UI shifts.
 
-5. **Animation Overhead**
-   - CSS animations (ambient-glow, gradient-shift) run continuously and may cause GPU load on low-end devices.
-   - Provide option to disable animations or reduce motion.
-
-6. **Accessibility**
-   - Buttons relying solely on icons lack accessible labels (e.g., the eye toggle for secrets has `title` but no aria-label).
-   - Ensure all interactive elements have discernible names.
-
-7. **Responsive Design**
-   - The layout uses fixed `min-w-[1200px]` containers; may cause horizontal scroll on narrow screens.
-   - Consider fluid layouts or breakpoints.
-
-## Recommendations Summary
-
-- **Security**: Sanitize innerHTML, improve token storage, add CSRF checks, validate uploads, enforce authorization.
-- **Performance**: Reduce polling, deduplicate API calls, cache video data, consider Web Workers for heavy JS.
-- **UX**: Remove unused UI per user preference, centralize shared code, improve accessibility, respect reduced motion, make layout responsive.
+This concludes the UX functionality scan. I will now save this report and summarize all three reports (security, performance, and UX) into a final overview.
