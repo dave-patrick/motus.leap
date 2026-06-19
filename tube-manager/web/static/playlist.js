@@ -27,6 +27,11 @@ async function rescanPlaylist() {
     try {
         const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
         const data = await resp.json();
+
+        if (!resp.ok) {
+            throw new Error(data.error || 'Failed to rescan playlist videos');
+        }
+        
         allVideos = data.videos || [];
         
         toast(`Rescan complete - ${allVideos.length} videos found`, 'success');
@@ -45,8 +50,8 @@ async function rescanPlaylist() {
         
         renderVideos();
     } catch (e) {
-        console.error(e);
-        toast('Rescan failed', 'error');
+        toast(`Rescan failed: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+        console.error('Rescan failed:', e);
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -117,10 +122,10 @@ async function loadPlaylist() {
         
         renderVideos();
     } catch (e) {
-        console.error(e);
-        toast('Failed to load playlist', 'error');
+        console.error('Failed to load playlist:', e);
+        toast(`Failed to load playlist: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
         const container = document.getElementById('videos-container');
-        if (container) container.innerHTML = '<div class="text-center p-8 text-red-400">Failed to load playlist</div>';
+        if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">Failed to load playlist: ${DOMPurify.sanitize(e.message || 'Network error')}</div>`;
     }
 }
 
@@ -201,10 +206,11 @@ async function moveSelectedVideos() {
             updateMoveButton();
             await loadPlaylist(); // Reload playlist to reflect changes
         } else {
-            toast(`Failed to move videos: ${result.error || resp.statusText}`, 'error');
+            const errorMessage = result.error || resp.statusText || 'Failed to move videos';
+            toast(`Failed to move videos: ${DOMPurify.sanitize(errorMessage)}`, 'error');
         }
     } catch (e) {
-        toast('Network error: Failed to move videos', 'error');
+        toast(`Network error: Failed to move videos: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
         console.error('Move videos error:', e);
     }
 }
@@ -248,8 +254,11 @@ async function performFullScan() {
     // 2. Misplaced detection via API
     try {
         const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
-        if (!resp.ok) throw new Error('Misplaced API failed');
         const result = await resp.json();
+
+        if (!resp.ok) {
+            throw new Error(result.error || 'Misplaced API failed');
+        }
         
         currentScanResults.misplaced = (result.misplaced || []).map(v => ({
             video_id: v.video_id,
@@ -265,7 +274,7 @@ async function performFullScan() {
         }));
     } catch (e) {
         console.error('Error fetching misplaced videos:', e);
-        toast('Failed to fetch misplaced videos', 'error');
+        toast(`Failed to fetch misplaced videos: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
         currentScanResults.misplaced = [];
     }
 
@@ -411,10 +420,11 @@ async function deleteDuplicateItems() {
             currentScanResults.duplicates = []; // Clear duplicates after successful deletion
             await loadPlaylist(); // Refresh playlist and re-run scan to update UI
         } else {
-            toast(`Failed to delete duplicates: ${result.error || resp.statusText}`, 'error');
+            const errorMessage = result.error || resp.statusText || 'Failed to delete duplicates';
+            toast(`Failed to delete duplicates: ${DOMPurify.sanitize(errorMessage)}`, 'error');
         }
     } catch (e) {
-        toast('Network error: Failed to delete duplicates', 'error');
+        toast(`Network error: Failed to delete duplicates: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
         console.error('Delete duplicates error:', e);
     } finally {
         showScanBox(document.getElementById('scan-filter').value); // Re-render scan results
@@ -462,7 +472,9 @@ async function moveMisplacedItems() {
                 failedMoves += result.failed;
             } else {
                 failedMoves += videoIdsToMove.length;
-                console.error(`Failed to move to ${targetPlaylistId}: ${result.error || resp.statusText}`);
+                const errorMessage = result.error || resp.statusText || 'Failed to move videos';
+                console.error(`Failed to move to ${targetPlaylistId}: ${errorMessage}`);
+                toast(`Failed to move videos to ${targetPlaylistId}: ${DOMPurify.sanitize(errorMessage)}`, 'error');
             }
         }
 
@@ -470,7 +482,7 @@ async function moveMisplacedItems() {
         currentScanResults.misplaced = []; // Clear misplaced after successful moves
         await loadPlaylist(); // Refresh playlist and re-run scan to update UI
     } catch (e) {
-        toast('Network error: Failed to move misplaced videos', 'error');
+        toast(`Network error: Failed to move misplaced videos: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
         console.error('Move misplaced error:', e);
     } finally {
         showScanBox(document.getElementById('scan-filter').value); // Re-render scan results
