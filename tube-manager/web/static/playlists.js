@@ -6,11 +6,11 @@ let allPlaylists = [];
 // Synchronous render of cached playlists for instant display
 function renderCachedPlaylists() {
     const grid = document.getElementById('playlists-grid');
-    const cachedPlaylists = localStorage.getItem('cached_playlists');
-    if (cachedPlaylists) {
+    const raw = localStorage.getItem('playlists') || localStorage.getItem('cached_playlists');
+    if (raw) {
         try {
-            const playlists = JSON.parse(cachedPlaylists);
-            if (playlists.length) {
+            const playlists = JSON.parse(raw);
+            if (Array.isArray(playlists) && playlists.length) {
                 allPlaylists = playlists;
                 renderPlaylistsGrid(playlists);
                 return true;

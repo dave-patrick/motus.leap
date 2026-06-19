@@ -56,6 +56,11 @@ async function rescanPlaylist() {
 }
 
 async function loadPlaylist() {
+    const container = document.getElementById('videos-container');
+    const skeleton = document.getElementById('videos-skeleton');
+    if (skeleton) skeleton.classList.remove('hidden');
+    const videosList = document.getElementById('videos-list');
+    if (videosList) videosList.classList.add('hidden');
     try {
         // 1. Load playlists list to get metadata (title & privacy) for dropdown and current playlist info
         const plistResp = await fetch('/api/playlists');
