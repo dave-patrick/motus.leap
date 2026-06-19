@@ -10,21 +10,18 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
-        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-        
-        @keyframes slide-in {
-            from { opacity: 0; transform: translateX(100%); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slide-out {
-            from { opacity: 1; transform: translateX(0); }
-            to { opacity: 0; transform: translateX(100%); }
-        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        @keyframes slide-in { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slide-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100%); } }
         .animate-slide-in { animation: slide-in 0.3s ease-out; }
         .animate-slide-out { animation: slide-out 0.3s ease-in; }
+        .logo-glow { box-shadow: 0 0 40px rgba(6, 182, 212, 0.15), 0 0 80px rgba(6, 182, 212, 0.05); }
     </style>
     <link rel="stylesheet" href="/static/ux-enhancements.css">
     <script src="/static/ux-enhancements.js"></script>
@@ -32,25 +29,44 @@
     <script src="/static/auth-check.js"></script>
     <script src="/static/playlists.js"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
-    <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4"><img src="/static/logo_icon.png?v=6" class="w-8 h-8 shrink-0 object-contain"><div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">mot<span class="text-[#3b82f6]">u</span>s.leap</h1></div></div>
-        <div class="flex items-center gap-6"><div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div><div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Notifications"><i class="fa-regular fa-bell"></i></button><button onclick="logoutUser()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></div>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-cyan-500/30">
+
+    <!-- Top Header -->
+    <header class="h-14 border-b border-[#2a2f3a] bg-[#0f1115] flex items-center px-4 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-[#16191f] border border-[#2a2f3a] flex items-center justify-center logo-glow">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 5.14v14l11-7-11-7z" fill="#06b6d4"/>
+                    <rect x="4" y="16" width="16" height="4" rx="1" fill="#06b6d4" opacity="0.6"/>
+                    <rect x="6" y="19" width="12" height="2" rx="0.5" fill="#06b6d4" opacity="0.3"/>
+                </svg>
+            </div>
+            <span class="text-sm font-semibold text-gray-200 tracking-wide">motus.leap</span>
+        </div>
     </header>
+
     <div class="flex flex-1 overflow-hidden">
-        <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
-            <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
-            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
-            <a href="/watch-later" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
-            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
-            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
+        <!-- Left Sidebar -->
+        <aside class="w-52 border-r border-[#2a2f3a] bg-[#0f1115] p-3 flex flex-col gap-1 shrink-0 overflow-y-auto">
+            <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
+            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-cyan-600/15 text-cyan-400 text-xs font-semibold border border-cyan-500/25 transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
+            <a href="/watch-later" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
+            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
+            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
+            
+            <div class="flex-1"></div>
+            <div class="border-t border-[#2a2f3a] pt-3 mt-2">
+                <button onclick="logoutUser()" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 text-xs font-medium transition-colors w-full">
+                    <i class="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i> Logout
+                </button>
+            </div>
         </aside>
-        <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
+
+        <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
             <div class="flex flex-col gap-4 min-w-[900px] max-w-[1800px] mx-auto w-full">
-                
                 <!-- Live System Activity Box -->
-                <div id="system-activity-box" class="bento-card p-3.5 flex items-center justify-between gap-6 border border-blue-500/20 bg-[#16191f] shrink-0">
+                <div id="system-activity-box" class="bento-card p-3.5 flex items-center justify-between gap-6 border border-cyan-500/20 bg-[#16191f] shrink-0">
                     <div class="flex items-center gap-2.5 min-w-0">
                         <span class="relative flex h-2 w-2">
                             <span id="activity-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -61,15 +77,14 @@
                             <div id="activity-task-desc" class="text-xs font-semibold text-white truncate max-w-sm mt-0.5">Idle • System is ready.</div>
                         </div>
                     </div>
-                    
                     <div id="activity-progress-container" class="hidden flex items-center gap-4 w-72 shrink-0">
                         <div class="flex-1">
-                            <div class="flex justify-between text-[9px] font-bold font-mono text-blue-400 mb-1">
+                            <div class="flex justify-between text-[9px] font-bold font-mono text-cyan-400 mb-1">
                                 <span id="activity-progress-text">Progress: 0%</span>
                                 <span id="activity-time-estimate">Est: ~45s</span>
                             </div>
                             <div class="w-full bg-[#20242c] h-1.5 rounded-full overflow-hidden border border-[#2a2f3a]">
-                                <div id="activity-progress-bar" class="bg-blue-500 h-full rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+                                <div id="activity-progress-bar" class="bg-cyan-500 h-full rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
                             </div>
                         </div>
                     </div>
@@ -78,72 +93,24 @@
                 <div class="flex items-center justify-between">
                     <h2 class="text-xl font-bold text-white">Playlists</h2>
                     <div class="flex gap-2">
-                        <button id="view-watch-later-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-regular fa-clock text-blue-400"></i> View Watch Later</button>
-                        <button id="sync-playlists-btn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Sync from YouTube</button>
+                        <button id="view-watch-later-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-regular fa-clock text-cyan-400"></i> View Watch Later</button>
+                        <button id="sync-playlists-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Sync from YouTube</button>
                         <button id="new-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> New Playlist</button>
                     </div>
                 </div>
                 <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3" id="playlists-skeleton">
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 rounded bg-[#1e222a] animate-pulse"></div>
-                        <div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div>
-                    </div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
                 </div>
                 <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3 hidden" id="playlists-list"></div>
             </div>
