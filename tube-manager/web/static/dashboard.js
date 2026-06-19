@@ -69,10 +69,32 @@ async function loadDashboardStats() {
     statsLoading = true;
     try {
         const response = await fetch('/api/stats');
-        if (!response.ok) return;
         const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to load dashboard stats');
+        }
+
         document.getElementById('stat-playlists').textContent = data.total_playlists || '--';
+        // Add empty state message for playlists
+        const playlistStatEl = document.getElementById('stat-playlists');
+        if (playlistStatEl && data.total_playlists === 0) {
+            const hint = document.createElement('p');
+            hint.className = 'text-[9px] text-gray-500 mt-1';
+            hint.textContent = 'Sync playlists to populate.';
+            playlistStatEl.parentNode.appendChild(hint);
+        }
+
         document.getElementById('stat-videos').textContent = data.total_videos || '--';
+        // Add empty state message for videos
+        const videoStatEl = document.getElementById('stat-videos');
+        if (videoStatEl && data.total_videos === 0) {
+            const hint = document.createElement('p');
+            hint.className = 'text-[9px] text-gray-500 mt-1';
+            hint.textContent = 'Scan playlists to populate.';
+            videoStatEl.parentNode.appendChild(hint);
+        }
+
         document.getElementById('stat-pending').textContent = data.pending_actions ?? '--';
         document.getElementById('pending-data').textContent = `(${data.pending_actions ?? 0})`;
         document.getElementById('pending-still').textContent = `(${data.still_items ?? 0})`;
@@ -92,7 +114,19 @@ async function loadDashboardStats() {
                 document.getElementById('app-status').textContent = '🟢 READY';
             }
         }
-    } catch (e) { console.log('Stats endpoint not available'); }
+    } catch (e) {
+        console.error('Failed to load dashboard stats:', e);
+        toast(`Failed to load dashboard stats: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+        document.getElementById('stat-playlists').textContent = '--';
+        document.getElementById('stat-videos').textContent = '--';
+        document.getElementById('stat-pending').textContent = '--';
+        document.getElementById('pending-data').textContent = '(0)';
+        document.getElementById('pending-still').textContent = '(0)';
+        document.getElementById('pending-ai').textContent = '(0)';
+        document.getElementById('ai-rate').textContent = '--';
+        document.getElementById('ai-rates').textContent = '--';
+        document.getElementById('last-scan').textContent = 'Never';
+    }
     finally { statsLoading = false; }
 }
 

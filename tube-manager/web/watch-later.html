@@ -113,16 +113,22 @@
             try {
                 const resp = await fetch('/api/watch-later');
                 const data = await resp.json();
+
+                if (!resp.ok) {
+                    throw new Error(data.error || 'Failed to fetch Watch Later videos');
+                }
+
                 cachedVideos = data.items || [];
                 log('Loaded ' + cachedVideos.length + ' videos from ' + data.source);
                 if (cachedVideos.length > 0) {
                     document.getElementById('empty-state').innerHTML = '<div class="py-8"><i class="fa-solid fa-check-circle text-green-400 text-2xl mb-3"></i><p class="text-gray-300 text-xs">' + cachedVideos.length + ' videos ready</p><p class="text-[10px] text-gray-500 mt-1">Click <strong class="text-blue-400">Scan with AI</strong> to classify.</p></div>';
                 } else {
-                    document.getElementById('empty-state').innerHTML = '<div class="py-8"><p class="text-gray-400 text-xs">No videos found in your queue.</p></div>';
+                    document.getElementById('empty-state').innerHTML = '<div class="py-8"><i class="fa-regular fa-clock text-6xl mb-6 block text-gray-700"></i><p class="text-gray-400 text-sm font-medium mb-2">Your Watch Later queue is empty!</p><p class="text-[10px] text-gray-500 mb-4">Add some videos to Watch Later on YouTube, then click <strong class="text-blue-400">Load Queue</strong> or <strong class="text-blue-400">Sync with AI</strong>.</p></div>';
                 }
             } catch(e) {
                 log('ERROR: ' + e.message);
-                document.getElementById('empty-state').innerHTML = '<div class="py-8 text-red-400 text-xs">Failed to load: ' + e.message + '</div>';
+                document.getElementById('empty-state').innerHTML = `<div class="py-8 text-red-400 text-xs">Failed to load: ${DOMPurify.sanitize(e.message || 'Network error')}</div>`;
+                toast(`Failed to load Watch Later: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
             }
         }
 
@@ -186,7 +192,7 @@
                 document.getElementById('plan-stats').textContent = assigned + ' assigned, ' + (aiPlans.length - assigned) + ' unsure (select target manually)';
             } catch(e) {
                 log('ERROR: ' + e.message);
-                toast('AI scan failed: ' + e.message, 'error');
+                toast(`AI scan failed: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
             } finally {
                 document.getElementById('btn-scan').disabled = false;
                 document.getElementById('btn-scan').innerHTML = '<i class="fa-solid fa-brain"></i> Scan with AI';
@@ -327,7 +333,11 @@
                     const data = await resp.json();
                     if (data.moved?.length) moved += data.moved.length;
                     if (data.failed?.length) failed += data.failed.length;
-                } catch(e) { failed += vids.length; }
+                } catch(e) {
+                    failed += vids.length;
+                    log(`ERROR moving videos to ${targetPlaylistId}: ${e.message}`);
+                    toast(`Failed to move videos to ${targetPlaylistId}: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+                }
                 // Remove from UI
                 vids.forEach(vid => {
                     const row = document.querySelector('[data-vid="' + vid + '"]');

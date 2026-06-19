@@ -96,13 +96,16 @@
         async function loadSubscriptions() {
             const list = document.getElementById('subscriptions-list');
             
-            // If we already rendered cached data, skip rendering again unless API returns new data
-            const hasCached = renderCachedSubscriptions();
-            
+            // Always show loading state initially
+            list.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-blue-400"></i> Loading subscriptions...</div>';
+
             try {
                 const response = await fetch('/api/subscriptions');
-                if (!response.ok) throw new Error('Failed to load');
                 const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load subscriptions');
+                }
                 
                 // Save to localStorage
                 localStorage.setItem('cached_subscriptions', JSON.stringify(data));
@@ -110,9 +113,8 @@
                 // Always re-render with fresh data
                 renderSubscriptionsList(data.channels || []);
             } catch (e) {
-                if (!hasCached) {
-                    list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load subscriptions</div>';
-                }
+                list.innerHTML = `<div class="text-center text-red-400 py-8">Error: ${DOMPurify.sanitize(e.message || 'Failed to load subscriptions due to a network error.')}</div>`;
+                toast(`Error: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
             }
         }
 
@@ -149,35 +151,28 @@
         async function saveMapping(channelId, playlistId) {
             try {
                 const payload = { mappings: { ...(await fetch('/api/mappings').then(r => r.json()).catch(() => ({ mappings: {} }))).mappings, [channelId]: playlistId } };
-                await fetch('/api/mappings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                localStorage.setItem('sub-channel-' + channelId, playlistId || '');
-                toast(`Mapping saved for ${channelId}`, 'success');
-            } catch (e) { toast('Failed to save mapping', 'error'); }
-        }
-
-        async function refreshSubscriptions() { await loadSubscriptions(); toast('Subscriptions refreshed', 'success'); }
-
-        async function loadDashboardStats() {
-            try {
-                const response = await fetch('/api/stats');
-                if (response.ok) {
-                    const data = await response.json();
-                    document.getElementById('last-scan').textContent = data.last_scan || 'Never';
-                    const statusLabel = document.getElementById('status-label');
-                    if (statusLabel) {
-                        if (data.running_tasks > 0 && data.current_task) {
-                            statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
-                        } else {
-                            statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
-                        }
-                    }
+                const resp = await fetch('/api/mappings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const result = await resp.json();
+                if (!resp.ok) {
+                    throw new Error(result.error || 'Failed to save mapping');
                 }
+                localStorage.setItem('sub-channel-' + channelId, playlistId || '');
+                toast(`Mapping saved for ${DOMPurify.sanitize(channelId)}`, 'success');
             } catch (e) {
-                console.log('Stats endpoint not available');
+                toast(`Failed to save mapping: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+                console.error('Save mapping failed:', e);
             }
         }
-        document.addEventListener('DOMContentLoaded', () => { loadDashboardStats(); setInterval(loadDashboardStats, 30000); });
-        document.addEventListener('DOMContentLoaded', () => { loadDashboardStats(); loadSubscriptions(); });
+
+        async function refreshSubscriptions() {
+            try {
+                await loadSubscriptions();
+                toast('Subscriptions refreshed successfully', 'success');
+            } catch (e) {
+                toast(`Failed to refresh subscriptions: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+                console.error('Refresh subscriptions failed:', e);
+            }
+        }
 
         async function openMaintenance(channelId, channelTitle, mappedPlaylist) {
             const modal = document.getElementById('sub-maint-modal');
@@ -187,8 +182,8 @@
             const misplaced = document.getElementById('sub-maint-misplaced');
             const note = document.getElementById('sub-maint-note');
             const next = document.getElementById('sub-maint-next');
-            title.textContent = channelTitle || channelId;
-            playlist.textContent = mappedPlaylist || 'No mapping';
+            title.textContent = DOMPurify.sanitize(channelTitle || channelId);
+            playlist.textContent = DOMPurify.sanitize(mappedPlaylist || 'No mapping');
 
             dupes.innerHTML = '<div class="text-[10px] text-gray-400">Loading...</div>';
             misplaced.innerHTML = '<div class="text-[10px] text-gray-400">Loading...</div>';
@@ -197,8 +192,11 @@
             modal.classList.remove('hidden');
             try {
                 const resp = await fetch('/api/maintenance');
-                if (!resp.ok) throw new Error('maintenance endpoint failed');
                 const data = await resp.json();
+                if (!resp.ok) {
+                    throw new Error(data.error || 'Maintenance endpoint failed');
+                }
+
                 const safe = (items) => (Array.isArray(items) && items.length ? items.length + ' items' : 'None');
                 dupes.textContent = safe(data.duplicated_videos);
                 misplaced.textContent = safe(data.misplaced_videos);
@@ -211,7 +209,8 @@
             } catch (e) {
                 dupes.textContent = 'unavailable';
                 misplaced.textContent = 'unavailable';
-                note.textContent = 'Could not load maintenance data.';
+                note.textContent = `Could not load maintenance data: ${DOMPurify.sanitize(e.message || 'Network error')}`;
+                toast(`Failed to load maintenance data: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
             }
         }
 
