@@ -26,28 +26,28 @@ from api.auth import get_current_user, verify_origin, create_default_admin # Imp
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Auth dependency for page routes (redirects to /auth if not authenticated)
-async def require_auth(request: Request, response: Response, token: str = Cookie(default=None), authorization: str = Header(default=None), _=Depends(verify_origin)):
+async def require_auth(request: Request, response: Response, token: str = Cookie(default=None)) -> Dict[str, Any]:
     """Require authentication for page routes. Redirects to /auth if not authenticated."""
-    auth_token = None
-    if token: # Prefer cookie token
-        auth_token = token
-        log.debug("Auth: Using token from cookie.")
-    elif authorization and authorization.startswith("Bearer "): # Fallback to Authorization header
-        auth_token = authorization.replace("Bearer ", "")
-        log.debug("Auth: Using token from Authorization header.")
-    
-    if not auth_token:
+    from api.auth import decode_access_token, get_user_by_username
+
+    if not token:
         log.warning("Auth: No token found. Redirecting to /auth.")
         return RedirectResponse(url="/auth?reason=unauthenticated", status_code=302)
-    
+
     try:
-        user = await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=auth_token))
+        payload = decode_access_token(token)
+        username = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
+        user = await get_user_by_username(username)
+        if user is None:
+            raise HTTPException(status_code=401, detail="User not found")
         request.state.user = user
         log.debug(f"Auth: User {user['username']} authenticated.")
         return user
     except HTTPException as e:
         log.warning(f"Auth: Token validation failed: {e.detail}. Clearing token and redirecting to /auth.")
-        response.delete_cookie(key="token", path="/") # Clear invalid token
+        response.delete_cookie(key="token", path="/")
         return RedirectResponse(url=f"/auth?reason={e.detail.lower().replace(' ', '')}", status_code=302)
     except Exception as e:
         log.error(f"Auth: Unexpected error during authentication: {e}. Clearing token and redirecting to /auth.")
