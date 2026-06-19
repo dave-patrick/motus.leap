@@ -26,7 +26,7 @@ class LRUAsyncCache:
             ttl: Time-to-live for cache entries
         """
         self._cache: Dict[str, Any] = {}
-        self._timestamp: Dict[str, datetime] = {}
+        self._expires_at: Dict[str, datetime] = {}
         self._access_count: Dict[str, int] = {}
         self._max_size = max_size
         self._ttl = ttl
@@ -49,7 +49,7 @@ class LRUAsyncCache:
                 return None
 
             # Check TTL
-            if datetime.now() - self._timestamp[key] > self._ttl:
+            if datetime.now() > self._expires_at[key]:
                 await self._evict(key)
                 self._misses += 1
                 return None
@@ -60,16 +60,17 @@ class LRUAsyncCache:
             await self._maybe_evict()
             return self._cache[key]
 
-    async def set(self, key: str, value: Any) -> None:
+    async def set(self, key: str, value: Any, ttl: Optional[timedelta] = None) -> None:
         """Set cached value.
 
         Args:
             key: Cache key
             value: Value to cache
+            ttl: Optional, per-item time-to-live. If not provided, uses the cache's default TTL.
         """
         async with self._lock:
             self._cache[key] = value
-            self._timestamp[key] = datetime.now()
+            self._expires_at[key] = datetime.now() + (ttl or self._ttl)
             self._access_count[key] = 0
             await self._maybe_evict()
 
@@ -85,14 +86,14 @@ class LRUAsyncCache:
     async def _evict(self, key: str) -> None:
         """Remove entry from cache."""
         self._cache.pop(key, None)
-        self._timestamp.pop(key, None)
+        self._expires_at.pop(key, None)
         self._access_count.pop(key, None)
 
     async def clear(self) -> None:
         """Clear all cache entries."""
         async with self._lock:
             self._cache.clear()
-            self._timestamp.clear()
+            self._expires_at.clear()
             self._access_count.clear()
             log.info("LRU cache cleared")
 

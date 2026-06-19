@@ -48,6 +48,9 @@ async def require_auth(request: Request, token: str = Cookie(default=None), auth
 
 # Import external limiter
 from core.limiter import limiter
+from slowapi import Limiter # Add Limiter import
+from slowapi.util import get_remote_address # Add get_remote_address import
+from slowapi.errors import RateLimitExceeded # Add RateLimitExceeded import
 
 # Import routers
 from api.bulk_operations import router as bulk_router
@@ -246,6 +249,10 @@ async def lifespan(app: FastAPI):
     # Shutdown
     log.info("motus.leap shutting down")
     await shutdown_http_client()
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 
 
 # Initialize rate limiter

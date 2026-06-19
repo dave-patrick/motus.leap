@@ -92,6 +92,32 @@ def mock_youtube_service():
     return mock_service
 
 
+@pytest_asyncio.fixture
+async def login_and_get_auth_token(test_client_unauthenticated):
+    """Register and login a test user, return access token."""
+    # Register a user
+    register_response = await test_client_unauthenticated.post(
+        "/api/auth/register",
+        json={
+            "username": "testuser",
+            "email": "test@example.com",
+            "password": "testpassword"
+        }
+    )
+    assert register_response.status_code == 201 # Ensure registration is successful
+
+    # Login to get a token
+    login_response = await test_client_unauthenticated.post(
+        "/api/auth/login",
+        json={
+            "username": "testuser",
+            "password": "testpassword"
+        }
+    )
+    assert login_response.status_code == 200 # Ensure login is successful
+    return login_response.json()["access_token"]
+
+
 @pytest.fixture
 def test_client(mock_youtube_service):
     """Create test client with mocked dependencies."""
