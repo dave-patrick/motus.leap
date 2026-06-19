@@ -26,7 +26,7 @@ from api.auth import get_current_user
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Auth dependency for page routes (redirects to /auth if not authenticated)
-async def require_auth(request: Request, token: str = Cookie(default=None), authorization: str = Header(default=None)):
+async def require_auth(request: Request, token: str = Cookie(default=None), authorization: str = Header(default=None), _=Depends(verify_origin)):
     """Require authentication for page routes. Redirects to /auth if not authenticated."""
     # Check cookie first, then Authorization header
     auth_token = token or (authorization.replace("Bearer ", "") if authorization and authorization.startswith("Bearer ") else None)
@@ -480,7 +480,7 @@ class WatchLaterMoveIn(BaseModel):
     target_playlist_id: str
 
 
-@app.post("/api/watch-later/move")
+@app.post("/api/watch-later/move", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def move_watch_later_videos(body: WatchLaterMoveIn):
     """Move selected videos from Watch Later to a target playlist."""
     if not youtube_service:
@@ -595,7 +595,7 @@ async def api_playlists() -> dict[str, Any]:
     return {"playlists": [], "error": "YouTube service not available"}
 
 
-@app.post("/api/youtube/playlists/rename")
+@app.post("/api/youtube/playlists/rename", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def rename_playlist_endpoint(payload: dict):
     playlist_id = payload.get("playlist_id")
     new_title = payload.get("new_title")
@@ -645,7 +645,7 @@ async def rename_playlist_endpoint(payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/youtube/playlists/delete")
+@app.post("/api/youtube/playlists/delete", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def delete_playlist_endpoint(payload: dict):
     playlist_id = payload.get("playlist_id")
     if not playlist_id:
@@ -685,7 +685,7 @@ async def delete_playlist_endpoint(payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/youtube/playlists/duplicate")
+@app.post("/api/youtube/playlists/duplicate", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def duplicate_playlist_endpoint(payload: dict):
     playlist_id = payload.get("playlist_id")
     new_title = payload.get("new_title")
@@ -755,7 +755,7 @@ async def duplicate_playlist_endpoint(payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/youtube/playlistitems/delete")
+@app.post("/api/youtube/playlistitems/delete", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def delete_playlist_item_endpoint(payload: dict):
     playlist_item_id = payload.get("playlist_item_id")
     playlist_id = payload.get("playlist_id")
@@ -888,7 +888,7 @@ async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any
     return {"message": "Mappings saved", "mappings": mappings}
 
 # Action endpoint
-@app.post("/api/action")
+@app.post("/api/action", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 @limiter.limit("20/minute")  # Rate limit: 20 actions per minute
 async def trigger_action(request: Request, body: ActionIn):
     """Queue a background action."""
@@ -1159,7 +1159,7 @@ async def get_settings():
     }
 
 
-@app.post("/api/settings")
+@app.post("/api/settings", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def save_settings(body: SettingsIn):
     """Save settings."""
     config = config_manager.config
@@ -1272,7 +1272,7 @@ class RecordMoveIn(BaseModel):
     source: str = "manual"
 
 
-@app.post("/api/ai/record-move")
+@app.post("/api/ai/record-move", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def ai_record_move(body: RecordMoveIn):
     """Record a video move for AI training memory."""
     from services.ai_classifier import record_move
