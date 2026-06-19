@@ -152,6 +152,18 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 
+class PasswordResetRequest(BaseModel):
+    """Password reset request."""
+    username: str
+
+
+class PasswordResetConfirm(BaseModel):
+    """Password reset confirmation."""
+    username: str
+    reset_token: str
+    new_password: str
+
+
 class RoleEnum:
     """User roles."""
     ADMIN = "admin"
@@ -459,6 +471,57 @@ async def login(user_data: UserLogin, request: Request, response: Response, user
         expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         user=UserResponse(**user),
     )
+
+
+def _now() -> datetime:
+    return datetime.now()
+
+
+def _clean_expired_tokens(entry: Dict[str, Any]) -> None:
+    reset_tokens = entry.get("reset_tokens") or {}
+    expired = [k for k, v in reset_tokens.items() if _now() > datetime.fromisoformat(v["expires_at"])]
+    for k in expired:
+        reset_tokens.pop(k, None)
+
+
+@router.post("/password-reset", response_model=dict, dependencies=[Depends(verify_origin)])
+@limiter.limit("10/minute")
+async def request_password_reset(request: Request, body: PasswordResetRequest, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
+    """Request a password reset token. Always returns success, even if user is not found."""
+    user = await get_user_by_username(body.username, users_db)
+    if user:
+        reset_token = secrets.token_urlsafe(32)
+        expires_at = (_now() + timedelta(minutes=15)).isoformat()
+        user.setdefault("reset_tokens", {})[reset_token] = {
+            "created_at": _now().isoformat(),
+            "expires_at": expires_at,
+        }
+        await _save_users(users_db)
+        return {"message": "If that account exists, a reset has been prepared.", "reset_token": reset_token, "expires_at": expires_at}
+    return {"message": "If that account exists, a reset has been prepared."}
+
+
+@router.post("/password-reset/confirm", response_model=dict, dependencies=[Depends(verify_origin)])
+@limiter.limit("10/minute")
+async def confirm_password_reset(request: Request, body: PasswordResetConfirm, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
+    """Confirm password reset with username and token. Returns success or error."""
+    user = await get_user_by_username(body.username, users_db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    reset_tokens = user.get("reset_tokens") or {}
+    token_meta = reset_tokens.get(body.reset_token)
+    if not token_meta:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token")
+    try:
+        expires_at = datetime.fromisoformat(token_meta["expires_at"])
+    except (KeyError, ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token")
+    if _now() > expires_at:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Reset token expired")
+    user["hashed_password"] = get_password_hash(body.new_password)
+    user.pop("reset_tokens", None)
+    await _save_users(users_db)
+    return {"message": "Password has been reset"}
 
 
 @router.post("/logout", dependencies=[Depends(verify_origin)])
