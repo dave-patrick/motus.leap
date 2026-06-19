@@ -80,36 +80,18 @@ def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
 # =============================================================================
 
 def _load_secret_key() -> str:
-    """Load or generate a persistent HMAC secret key."""
-    key = os.getenv("TUBE_MANAGER_SECRET_KEY", "")
-    if key:
-        return key
-    log.warning(
-        "TUBE_MANAGER_SECRET_KEY env var is not set. "
-        "Sessions will be invalidated on every Render restart/deploy. "
-        "Set TUBE_MANAGER_SECRET_KEY in the Render Dashboard to keep sessions stable."
-    )
-    # Fallback: try several candidate directories that may be persistent.
-    candidate_dirs = [
-        TUBE_MANAGER_DATA_DIR,
-        Path(__file__).resolve().parent.parent / "data",
-        Path.home() / ".tube-manager",
-    ]
-    for directory in candidate_dirs:
-        directory.mkdir(parents=True, exist_ok=True)
-        secret_file = directory / ".secret_key"
-        if secret_file.exists():
-            return secret_file.read_text().strip()
-    # No existing secret; generate a new one in the first writable candidate dir.
-    key = secrets.token_hex(32)
-    for directory in candidate_dirs:
-        secret_file = directory / ".secret_key"
-        try:
-            secret_file.write_text(key)
-            return key
-        except Exception:
-            continue
+    """Load a persistent HMAC secret key from environment variable.
+    Raises RuntimeError if TUBE_MANAGER_SECRET_KEY is not set.
+    """
+    key = os.getenv("TUBE_MANAGER_SECRET_KEY", "").strip()
+    if not key:
+        raise RuntimeError(
+            "TUBE_MANAGER_SECRET_KEY environment variable is not set. "
+            "This is required for stable user sessions. "
+            "Please set it in your deployment environment (e.g., Render Dashboard) or local .env file."
+        )
     return key
+
 
 SECRET_KEY = _load_secret_key()
 

@@ -5,25 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=7">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0f1117; color: #e5e5e5; }
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
-    </style>
+    <script src="/static/header_scripts.js"></script>
+    <script src="/static/global_scripts.js"></script>
+    <script src="/static/auth.js"></script>
 </head>
 <body class="min-h-screen flex items-center justify-center">
     <div class="w-full max-w-md p-8">
         <div class="text-center mb-8">
             <img src="/static/logo_icon.png?v=6" class="w-16 h-16 mx-auto mb-4 object-contain">
-            <h1 class="text-2xl font-bold text-white">mot<span class="text-[#3b82f6]">u</span>s<span class="text-gray-500">.</span>leap</h1>
+            <h1 class="text-2xl font-bold text-white">mot<span class="text-[#3b82f6]">u</span>s.leap</h1>
             <p class="text-gray-400 text-sm mt-2">Authenticated Access Only</p>
         </div>
 
         <div class="bg-[#1a1d24] rounded-xl border border-[#2a2f3a] p-6 shadow-2xl">
             <!-- Google OAuth Button -->
-            <button onclick="handleGoogleLogin()" class="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-gray-800 font-medium py-3 rounded-lg border border-gray-300 transition-colors mb-4">
+            <button id="google-login-btn" class="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-gray-800 font-medium py-3 rounded-lg border border-gray-300 transition-colors mb-4">
                 <svg class="w-5 h-5" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -43,8 +39,8 @@
             </div>
 
             <div class="flex gap-2 mb-6">
-                <button onclick="showForm('login')" id="login-tab" class="flex-1 py-2 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white transition-colors">Login</button>
-                <button onclick="showForm('register')" id="register-tab" class="flex-1 py-2 px-4 rounded-lg text-sm font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors">Register</button>
+                <button id="login-tab" class="flex-1 py-2 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white transition-colors">Login</button>
+                <button id="register-tab" class="flex-1 py-2 px-4 rounded-lg text-sm font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors">Register</button>
             </div>
 
             <!-- Login Form -->
@@ -57,7 +53,7 @@
                     <label class="block text-xs text-gray-400 mb-2">Password</label>
                     <input type="password" id="login-password" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-sm rounded-lg px-4 py-3 outline-none focus:border-blue-500 transition-colors" placeholder="••••••••">
                 </div>
-                <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg transition-colors">
+                <button id="login-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg transition-colors">
                     <i class="fa-solid fa-right-to-bracket mr-2"></i>Sign In
                 </button>
                 <div id="login-error" class="text-red-400 text-xs text-center hidden"></div>
@@ -77,7 +73,7 @@
                     <label class="block text-xs text-gray-400 mb-2">Password</label>
                     <input type="password" id="register-password" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-sm rounded-lg px-4 py-3 outline-none focus:border-blue-500 transition-colors" placeholder="••••••••">
                 </div>
-                <button onclick="handleRegister()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg transition-colors">
+                <button id="register-account-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg transition-colors">
                     <i class="fa-solid fa-user-plus mr-2"></i>Create Account
                 </button>
                 <div id="register-error" class="text-red-400 text-xs text-center hidden"></div>
@@ -89,166 +85,5 @@
             JWT Auth with bcrypt-secured credentials
         </div>
     </div>
-
-    <script>
-        const API_BASE = '/api/auth';
-
-        // Handle token from URL fragment (after OAuth redirect) FIRST
-        (function() {
-            const hash = window.location.hash;
-            if (hash && hash.includes('token=')) {
-                const token = hash.split('token=')[1].split('&')[0];
-                if (token) {
-                    localStorage.setItem('token', token);
-                    document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
-                    window.location.hash = '';
-                    window.location.replace('/dashboard');
-                    return;
-                }
-            }
-        })();
-
-        function showForm(form) {
-            if (form === 'login') {
-                document.getElementById('login-form').classList.remove('hidden');
-                document.getElementById('register-form').classList.add('hidden');
-                document.getElementById('login-tab').classList.add('bg-blue-600', 'text-white');
-                document.getElementById('login-tab').classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-                document.getElementById('register-tab').classList.remove('bg-blue-600', 'text-white');
-                document.getElementById('register-tab').classList.add('bg-[#2a2f3a]', 'text-gray-400');
-            } else {
-                document.getElementById('register-form').classList.remove('hidden');
-                document.getElementById('login-form').classList.add('hidden');
-                document.getElementById('register-tab').classList.add('bg-blue-600', 'text-white');
-                document.getElementById('register-tab').classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-                document.getElementById('login-tab').classList.remove('bg-blue-600', 'text-white');
-                document.getElementById('login-tab').classList.add('bg-[#2a2f3a]', 'text-gray-400');
-            }
-        }
-
-        async function handleLogin() {
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            const errorEl = document.getElementById('login-error');
-
-            if (!email || !password) {
-                errorEl.textContent = 'Please fill in all fields';
-                errorEl.classList.remove('hidden');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: email, password })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    localStorage.setItem('token', data.access_token);
-                    // Set cookie for server-side auth
-                    document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
-                    window.location.href = '/dashboard';
-                } else {
-                    errorEl.textContent = data.detail || 'Login failed';
-                    errorEl.classList.remove('hidden');
-                }
-            } catch (error) {
-                errorEl.textContent = 'Network error. Please try again.';
-                errorEl.classList.remove('hidden');
-            }
-        }
-
-        async function handleRegister() {
-            const username = document.getElementById('register-username').value;
-            const email = document.getElementById('register-email').value;
-            const password = document.getElementById('register-password').value;
-            const errorEl = document.getElementById('register-error');
-
-            if (!username || !email || !password) {
-                errorEl.textContent = 'Please fill in all fields';
-                errorEl.classList.remove('hidden');
-                return;
-            }
-
-            if (password.length < 8) {
-                errorEl.textContent = 'Password must be at least 8 characters';
-                errorEl.classList.remove('hidden');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, email, password })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    localStorage.setItem('token', data.access_token);
-                    document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
-                    window.location.href = '/dashboard';
-                } else {
-                    errorEl.textContent = data.detail || 'Registration failed';
-                    errorEl.classList.remove('hidden');
-                }
-            } catch (error) {
-                errorEl.textContent = 'Network error. Please try again.';
-                errorEl.classList.remove('hidden');
-            }
-        }
-
-        // Check if already logged in
-        (async function checkSession() {
-            try {
-                const token = localStorage.getItem('token');
-                const resp = await fetch(`${API_BASE}/me`, {
-                    headers: {
-                        'Accept': 'application/json',
-                        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                    },
-                });
-                if (resp.ok) {
-                    window.location.href = '/dashboard';
-                } else {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    // Stay on /auth for fresh login
-                }
-            } catch {
-                // Stay on /auth
-            }
-        })();
-
-        function handleGoogleLogin() {
-            fetch('/api/auth/google')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.auth_url) {
-                        window.location.href = data.auth_url;
-                    } else {
-                        alert(data.error || 'Google OAuth not configured');
-                    }
-                })
-                .catch(error => {
-                    console.error('Google login error:', error);
-                    alert('Failed to initiate Google login');
-                });
-        }
-
-        // Logout function
-        function logout() {
-            localStorage.removeItem('user');
-            localStorage.removeItem('token');
-            document.cookie = 'token=; path=/; max-age=0';
-            window.location.href = '/auth';
-        }
-    </script>
 </body>
 </html>

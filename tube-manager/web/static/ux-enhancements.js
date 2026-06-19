@@ -784,8 +784,38 @@ function initSystemActivityController() {
         }
     }
 
+        let statsIntervalId = null;
+    const STATS_INTERVAL_MS = 30 * 1000; // 30 seconds
+
+    function startStatsPolling() {
+        if (statsIntervalId !== null) return;
+        statsIntervalId = setInterval(pollStats, STATS_INTERVAL_MS);
+    }
+
+    function stopStatsPolling() {
+        if (statsIntervalId !== null) {
+            clearInterval(statsIntervalId);
+            statsIntervalId = null;
+        }
+    }
+
+    // Initial load
     pollStats();
-    setInterval(pollStats, 5000);
+    startStatsPolling();
+
+    // Pause polling when page is hidden
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopStatsPolling();
+        } else {
+            startStatsPolling();
+        }
+    });
+
+    // Also stop polling when page is unloaded to prevent memory leaks
+    window.addEventListener('beforeunload', () => {
+        stopStatsPolling();
+    });
 }
 
 document.addEventListener('DOMContentLoaded', initSystemActivityController);
@@ -1084,8 +1114,38 @@ function startAgentActivityTracker() {
     }
 
     connectWS();
+        let statsIntervalId = null;
+    const STATS_INTERVAL_MS = 30 * 1000; // 30 seconds
+
+    function startStatsPolling() {
+        if (statsIntervalId !== null) return;
+        statsIntervalId = setInterval(pollStats, STATS_INTERVAL_MS);
+    }
+
+    function stopStatsPolling() {
+        if (statsIntervalId !== null) {
+            clearInterval(statsIntervalId);
+            statsIntervalId = null;
+        }
+    }
+
+    // Initial load
     pollStats();
-    setInterval(pollStats, 5000);
+    startStatsPolling();
+
+    // Pause polling when page is hidden
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopStatsPolling();
+        } else {
+            startStatsPolling();
+        }
+    });
+
+    // Also stop polling when page is unloaded to prevent memory leaks
+    window.addEventListener('beforeunload', () => {
+        stopStatsPolling();
+    });
 }
 
 // Cancel current task

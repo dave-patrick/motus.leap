@@ -260,18 +260,13 @@ if not any(getattr(route, "path", "") == "/static" for route in app.routes):
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     """Add security headers including strict CSP."""
-    import secrets
-
-    # Generate nonce for inline scripts (only for Tailwind CDN)
-    nonce = secrets.token_hex(16)
-
     response = await call_next(request)
 
-    # Strict Content Security Policy — allow inline scripts via unsafe-inline for non-Jinja pages
+    # Strict Content Security Policy — explicitly list all allowed script sources
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
-        f"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; "
-        f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        f"script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/ux-enhancements.js /static/auth-check.js /static/playlists.js /static/playlist.js /static/settings.js /static/global_scripts.js; "
+        f"style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
         f"font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         f"img-src 'self' https://i.ytimg.com https://yt3.ggpht.com; "
         f"connect-src 'self' https://www.googleapis.com https://www.youtube.com wss://tubemanager.onrender.com; "
@@ -285,9 +280,6 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-
-    # Pass nonce to template (if needed)
-    response.headers["X-CSP-Nonce"] = nonce
 
     return response
 

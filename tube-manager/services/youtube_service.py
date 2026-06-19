@@ -98,8 +98,8 @@ class YouTubeService:
         await self._cache.clear()
         log.info("Cache cleared")
 
-    def _save_to_disk(self, key: str, data: Any) -> None:
-        """Save data to persistent disk storage.
+    async def _save_to_disk(self, key: str, data: Any) -> None:
+        """Save data to persistent disk storage asynchronously.
 
         Args:
             key: Storage key (filename)
@@ -107,14 +107,14 @@ class YouTubeService:
         """
         try:
             cache_file = self._user_data_dir / f"{key}.json"
-            with open(cache_file, 'w') as f:
-                json.dump(data, f, indent=2)
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(cache_file.write_text, json.dumps(data, indent=2))
             log.debug(f"Saved to disk: {key}")
         except Exception as e:
             log.warning(f"Failed to save {key} to disk: {e}")
 
-    def _load_from_disk(self, key: str) -> Optional[Any]:
-        """Load data from persistent disk storage.
+    async def _load_from_disk(self, key: str) -> Optional[Any]:
+        """Load data from persistent disk storage asynchronously.
 
         Args:
             key: Storage key (filename)
@@ -124,9 +124,9 @@ class YouTubeService:
         """
         try:
             cache_file = self._user_data_dir / f"{key}.json"
-            if cache_file.exists():
-                with open(cache_file, 'r') as f:
-                    return json.load(f)
+            if await asyncio.to_thread(cache_file.exists):
+                content = await asyncio.to_thread(cache_file.read_text)
+                return json.loads(content)
         except Exception as e:
             log.warning(f"Failed to load {key} from disk: {e}")
         return None
@@ -144,6 +144,38 @@ class YouTubeService:
             "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
             "description": snippet.get("description", ""),
         }
+
+    def _parse_duration(self, duration_str: str) -> int:
+        """Parse ISO 8601 duration string (e.g., PT1H30M15S) to total seconds."""
+        import re
+        match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration_str)
+        if not match:
+            return 0
+        
+        hours = int(match.group(1) or 0)
+        minutes = int(match.group(2) or 0)
+        seconds = int(match.group(3) or 0)
+        
+        return hours * 3600 + minutes * 60 + seconds
+
+    def _format_duration(self, seconds: int) -> str:
+        """Format seconds to human-readable duration."""
+        if seconds is None:
+            return "0s"
+        
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+        
+        parts = []
+        if hours > 0:
+            parts.append(f"{hours}h")
+        if minutes > 0:
+            parts.append(f"{minutes}m")
+        if secs > 0 or not parts:
+            parts.append(f"{secs}s")
+        
+        return " ".join(parts)
 
     def _video_item_to_dict(self, item: dict[str, Any], playlist_id: str, playlist_title: str) -> dict[str, Any]:
         """Normalize a playlist item API response for the UI."""
