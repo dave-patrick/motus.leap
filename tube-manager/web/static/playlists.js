@@ -42,8 +42,12 @@ async function loadPlaylists() {
 
     try {
         const response = await fetch('/api/playlists');
-        if (!response.ok) throw new Error('Failed to load');
         const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to load playlists');
+        }
+
         allPlaylists = data.playlists || [];
         
         // Save to localStorage
@@ -56,7 +60,8 @@ async function loadPlaylists() {
     } catch (e) {
         if (skeleton) skeleton.classList.add('hidden'); // Hide skeleton on error
         if (playlistsList) playlistsList.classList.remove('hidden'); // Show actual list (empty or error message)
-        playlistsList.innerHTML = '<div class="col-span-full bento-card p-8 text-center text-red-400">Failed to load playlists</div>';
+        playlistsList.innerHTML = `<div class="col-span-full bento-card p-8 text-center text-red-400">Error: ${DOMPurify.sanitize(e.message || 'Failed to load playlists due to a network error.')}</div>`;
+        toast(`Error: ${e.message}`, 'error');
     }
 }
 
@@ -100,9 +105,13 @@ async function rescanPlaylist(playlistId, event) {
     toast('Rescanning playlist videos...', 'info');
     try {
         const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
-        if (!resp.ok) throw new Error('Failed to refresh');
         const data = await resp.json();
-        // Instead of directly assigning allVideos, update specific playlist in allPlaylists
+
+        if (!resp.ok) {
+            throw new Error(data.error || 'Failed to refresh playlist videos');
+        }
+
+        // Update specific playlist in allPlaylists with new video count
         const playlistIndex = allPlaylists.findIndex(p => p.id === playlistId);
         if (playlistIndex !== -1) {
             allPlaylists[playlistIndex].video_count = data.videos?.length || 0;
@@ -110,11 +119,11 @@ async function rescanPlaylist(playlistId, event) {
         
         toast(`Rescan complete - ${data.videos?.length || 0} videos found`, 'success');
         
-        // Re-render only necessary parts or refresh all playlists for consistency
+        // Re-render all playlists for consistency, which will update the video count badge
         loadPlaylists();
     } catch (e) {
-        toast('Rescan failed', 'error');
-        console.error(e);
+        toast(`Rescan failed: ${DOMPurify.sanitize(e.message)}`, 'error');
+        console.error('Rescan failed:', e);
     } finally {
         btn.disabled = false;
         btn.innerHTML = origHTML;
@@ -274,10 +283,12 @@ async function actionRenamePlaylist(playlistId, currentTitle) {
             toast(res.message, 'success');
             loadPlaylists();
         } else {
-            toast(res.detail || 'Rename failed', 'error');
+            const errorMessage = res.detail || res.error || 'Rename failed';
+            toast(`Rename failed: ${DOMPurify.sanitize(errorMessage)}`, 'error');
         }
     } catch (e) {
-        toast('Failed to rename playlist', 'error');
+        toast(`Failed to rename playlist: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+        console.error('Rename failed:', e);
     }
 }
 
@@ -297,10 +308,12 @@ async function actionDuplicatePlaylist(playlistId, currentTitle) {
             toast(res.message, 'success');
             loadPlaylists();
         } else {
-            toast(res.detail || 'Duplication failed', 'error');
+            const errorMessage = res.detail || res.error || 'Duplication failed';
+            toast(`Duplication failed: ${DOMPurify.sanitize(errorMessage)}`, 'error');
         }
     } catch (e) {
-        toast('Failed to duplicate playlist', 'error');
+        toast(`Failed to duplicate playlist: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+        console.error('Duplicate failed:', e);
     }
 }
 
@@ -319,10 +332,12 @@ async function actionDeletePlaylist(playlistId, title) {
             toast(res.message, 'success');
             loadPlaylists();
         } else {
-            toast(res.detail || 'Delete failed', 'error');
+            const errorMessage = res.detail || res.error || 'Delete failed';
+            toast(`Delete failed: ${DOMPurify.sanitize(errorMessage)}`, 'error');
         }
     } catch (e) {
-        toast('Failed to delete playlist', 'error');
+        toast(`Failed to delete playlist: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+        console.error('Delete failed:', e);
     }
 }
 
@@ -373,6 +388,7 @@ async function createPlaylist() {
         return;
     }
     
+    toast('Creating playlist...', 'info');
     try {
         const resp = await fetch('/api/youtube/playlists', {
             method: 'POST',
@@ -380,10 +396,16 @@ async function createPlaylist() {
             body: JSON.stringify({title, description, privacy})
         });
         const result = await resp.json();
-        toast(`Playlist created: ${result.title || 'New playlist'}`, 'success');
-        loadPlaylists();
+        if (resp.ok) {
+            toast(`Playlist created: ${result.title || 'New playlist'}`, 'success');
+            loadPlaylists();
+        } else {
+            const errorMessage = result.detail || result.error || 'Failed to create playlist';
+            toast(`Failed to create playlist: ${DOMPurify.sanitize(errorMessage)}`, 'error');
+        }
     } catch (e) {
-        toast('Failed to create playlist', 'error');
+        toast(`Failed to create playlist: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+        console.error('Create playlist failed:', e);
     }
 }
 
@@ -391,6 +413,7 @@ async function syncPlaylists(e) {
     const btn = e.target.closest('button') || e.target;
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Syncing...';
+    toast('Initiating playlist sync...', 'info');
     try {
         const resp = await fetch('/api/action', {
             method: 'POST',
@@ -398,13 +421,19 @@ async function syncPlaylists(e) {
             body: JSON.stringify({action: 'sync_playlists'})
         });
         const result = await resp.json();
-        if (result.error) {
-            toast(`Sync failed: ${result.error}`, 'error');
+        if (resp.ok) {
+            if (result.error) {
+                toast(`Sync failed: ${DOMPurify.sanitize(result.error)}`, 'error');
+            } else {
+                toast(`Playlist sync started`, 'info');
+            }
         } else {
-            toast(`Playlist sync started`, 'info');
+            const errorMessage = result.detail || result.error || 'Sync initiation failed';
+            toast(`Sync initiation failed: ${DOMPurify.sanitize(errorMessage)}`, 'error');
         }
     } catch (e) {
-        toast(`Sync failed: ${e.message}`, 'error');
+        toast(`Sync failed: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+        console.error(`Sync failed:`, e);
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-sync"></i> Sync from YouTube';
