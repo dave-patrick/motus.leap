@@ -285,7 +285,11 @@ class YouTubeService:
                 return payload
             
             # If no mismatch and disk cache existed, return the current_playlists as payload to be cached by decorator
-            return {"playlists": current_playlists, "stats": cached_stats}
+            stats = {
+                "total_playlists": len(current_playlists),
+                "total_videos": sum(pl["video_count"] for pl in current_playlists),
+            }
+            return {"playlists": current_playlists, "stats": stats}
 
         except Exception as e:
             log.warning(f"Failed to check/list playlists: {e}")

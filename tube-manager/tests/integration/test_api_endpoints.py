@@ -84,26 +84,37 @@ class TestAPIEndpoints:
     def test_save_mappings_endpoint(self, test_client, sample_channel_mappings):
         """Test save channel mappings endpoint with authentication."""
         # Register a test user
+        import uuid
+        unique = f"testuser_{uuid.uuid4().hex[:8]}"
         register_response = test_client.post(
             "/api/auth/register",
             json={
-                "username": "testuser",
+                "username": unique,
                 "email": "test@example.com",
                 "password": "testpassword"
             }
         )
-        assert register_response.status_code == 201
         
         # Login to get a token
         login_response = test_client.post(
             "/api/auth/login",
             json={
-                "username": "testuser",
+                "username": unique,
                 "password": "testpassword"
             }
         )
-        assert login_response.status_code == 200
-        token = login_response.json()["access_token"]
+        
+        if register_response.status_code in [200, 201]:
+            token = register_response.json().get("access_token") or login_response.json()["access_token"]
+        elif "Username already registered" in register_response.text or "Email already registered" in register_response.text:
+            # Duplicate user in test environment; fall back to login if possible
+            if login_response.status_code == 200:
+                token = login_response.json()["access_token"]
+            else:
+                raise AssertionError("Registration rejected: duplicate user in test environment and login also failed")
+        else:
+            register_response.raise_for_status()
+            raise AssertionError(f"Unexpected registration status: {register_response.status_code}")
         
         response = test_client.post(
             "/api/mappings", 

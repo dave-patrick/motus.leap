@@ -179,6 +179,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:8000",
     "http://127.0.0.1:3000",
+    "http://localhost",
 ]
 
 async def verify_origin(request: Request):
@@ -360,6 +361,11 @@ def get_user_permissions(role: str) -> List[str]:
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_origin)])
 @limiter.limit("5/minute")
 async def register(user_data: UserCreate, request: Request, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
+    username_check = (user_data.username or "").strip()
+    password_check = (user_data.password or "").strip()
+    if not username_check or not password_check:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request payload")
+
     if await get_user_by_username(user_data.username, users_db):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
