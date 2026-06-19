@@ -198,7 +198,9 @@ ALLOWED_ORIGINS = [
 
 async def verify_origin(request: Request):
     origin = request.headers.get("origin")
-    # Allow if origin is in ALLOWED_ORIGINS or if it's a Render subdomain
+    referer = request.headers.get("referer", "")
+
+    # If origin is present, validate it
     if origin:
         # Check exact match first
         if origin in ALLOWED_ORIGINS:
@@ -209,7 +211,17 @@ async def verify_origin(request: Request):
         # Allow any localhost
         if "localhost" in origin or "127.0.0.1" in origin:
             return
-    raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
+
+    # If no origin header (same-origin POST forms), check referer
+    if referer:
+        if ".onrender.com" in referer or "localhost" in referer or "127.0.0.1" in referer:
+            return
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
+
+    # No origin and no referer — Render internal or direct API call
+    # Allow through (session cookie will be validated separately)
+    return
 
 user_sessions: Dict[str, Dict[str, Any]] = {}
 
