@@ -4,6 +4,8 @@ import json
 import logging
 from pathlib import Path
 from typing import Optional
+import asyncio
+import aiofiles # For async file operations
 
 from models.config import TubeManagerConfig
 
@@ -29,19 +31,16 @@ class ConfigManager:
             return render_path
         return Path("config.json")
 
-    def load(self) -> TubeManagerConfig:
-        """Load configuration from file.
-
-        Returns:
-            TubeManagerConfig instance (default if file doesn't exist)
-        """
+    async def load(self) -> TubeManagerConfig:
+        """Load configuration from file."""
         if self._config is not None:
             return self._config
 
         try:
-            if self.config_path.exists():
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+            if await asyncio.to_thread(self.config_path.exists):
+                async with aiofiles.open(self.config_path, mode='r', encoding='utf-8') as f:
+                    content = await f.read()
+                data = await asyncio.to_thread(json.loads, content)
                 self._config = TubeManagerConfig.from_dict(data)
                 log.info(f"Configuration loaded from {self.config_path}")
             else:
@@ -53,20 +52,13 @@ class ConfigManager:
 
         return self._config
 
-    def save(self, config: TubeManagerConfig) -> None:
-        """Save configuration to file.
-
-        Args:
-            config: TubeManagerConfig instance to save
-
-        Raises:
-            Exception: If save fails
-        """
+    async def save(self, config: TubeManagerConfig) -> None:
+        """Save configuration to file."""
         try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(self.config_path.parent.mkdir, parents=True, exist_ok=True)
             data = config.to_dict_for_storage()
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
+            async with aiofiles.open(self.config_path, mode='w', encoding='utf-8') as f:
+                await f.write(await asyncio.to_thread(json.dumps, data, indent=2))
             self._config = config
             log.info(f"Configuration saved to {self.config_path}")
         except Exception as e:
@@ -74,8 +66,8 @@ class ConfigManager:
             raise
 
     @property
-    def config(self) -> TubeManagerConfig:
+    async def config(self) -> TubeManagerConfig:
         """Get current configuration, loading if necessary."""
         if self._config is None:
-            self._config = self.load()
+            self._config = await self.load()
         return self._config

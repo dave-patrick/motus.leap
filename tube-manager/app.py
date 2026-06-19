@@ -98,8 +98,7 @@ app.add_middleware(
 )
 
 # Store in app state for routers
-app.state.config = config_manager.config
-app.state.config_manager = config_manager
+
 
 # Register routers
 app.include_router(bulk_router, tags=["bulk"])
@@ -204,9 +203,13 @@ async def lifespan(app: FastAPI):
     log_file = log_dir / "tube_manager.log"
     setup_logging(log_file=log_file)
 
-    config = config_manager.load()
+    config = await config_manager.load()
     youtube_service = YouTubeService(config)
     
+    # Store in app state for routers (now awaiting the config property)
+    app.state.config = await config_manager.config
+    app.state.config_manager = config_manager
+
     # Start background task processor
     from services.background_worker import BackgroundWorker
     worker = BackgroundWorker(youtube_service, manager, config_manager, task_queue)
@@ -218,7 +221,7 @@ async def lifespan(app: FastAPI):
         while True:
             try:
                 await asyncio.sleep(86400)  # 24 hours
-                config = config_manager.config
+                config = await config_manager.config
                 if getattr(config, "ai_auto_apply_mappings", False):
                     log.info("[NIGHTLY] Running auto-apply mappings job...")
                     from services.ai_classifier import get_channel_mapping_suggestions
@@ -227,7 +230,7 @@ async def lifespan(app: FastAPI):
                         if s["move_count"] >= 3:
                             config.channel_mappings[s["channel_id"]] = s["playlist_id"]
                             log.info(f"[NIGHTLY] Auto-applied mapping: {s['channel_title']} -> {s['playlist_name']}")
-                    config_manager.save(config)
+                    await config_manager.save(config)
                     log.info("[NIGHTLY] Auto-apply mappings complete")
             except Exception as e:
                 log.error(f"[NIGHTLY] Auto-apply mappings failed: {e}")
@@ -429,47 +432,44 @@ async def api_playlist_names():
 
 
 @app.get("/api/watch-later")
-async def get_watch_later():
+async def get_watch_later(force_refresh: bool = False):
     """Fetch Watch Later playlist contents using browser scraper (bypasses API restriction)."""
     try:
-        # 1. If user has configured a specific playlist in Settings, use that
+        if not youtube_service:
+            return {"items": [], "source": "none", "error": "YouTube service not initialized"}
+
         configured_id = config_manager.config.watch_later_playlist_id if hasattr(config_manager.config, 'watch_later_playlist_id') else ""
-        if configured_id:
-            log.info(f"[WATCH LATER] Using configured playlist: {configured_id}")
-            if youtube_service:
-                client = youtube_service.get_client(require_oauth=True)
-                if client:
-                    resp = client.list_watch_later_items(max_results=50, playlist_id=configured_id)
-                    items = resp.get("items", [])
-                    # Try to get the playlist title for the display badge
-                    pl_name = configured_id
-                    try:
-                        pl_data = await youtube_service.list_playlists()
-                        for p in pl_data.get("playlists", []):
-                            if p.get("id") == configured_id:
-                                pl_name = p.get("title", configured_id)
-                                break
-                    except Exception:
-                        pass
-                    if items:
-                        return {"items": items, "source": f"configured: {pl_name}"}
+
+        # Use the cached method
+        watch_later_data = await youtube_service.list_watch_later_items_cached(
+            playlist_id=configured_id if configured_id else None,
+            force_refresh=force_refresh
+        )
         
-        # 2. Try browser scraper for native Watch Later
-        from services.browser_scraper import has_cookies, scrape_watch_later_videos
-        if has_cookies():
-            result = await asyncio.to_thread(scrape_watch_later_videos, 100)
-            if result.get("items"):
-                return {"items": result["items"], "source": "browser"}
-        
-        # 3. Fall back to auto-detect API
-        if youtube_service:
-            client = youtube_service.get_client(require_oauth=True)
-            if client:
-                resp = client.list_watch_later_items(max_results=50)
-                items = resp.get("items", [])
-                return {"items": items, "source": "api-auto"}
-        
-        return {"items": [], "source": "none", "error": "No Watch Later access available"}
+        if watch_later_data.get("error"):
+            return {"items": [], "source": "error", "error": watch_later_data["error"]}
+
+        items = watch_later_data.get("items", [])
+        source = "api-cached" # Default to API cached for now, browser scrape will override
+
+        # If it was a browser scrape, the log from youtube_service will indicate it, no need to re-scrape here
+        if not configured_id and items and watch_later_data.get("source") == "browser": # Check if source was browser scrape from the cached data
+             source = "browser"
+
+        # Try to get the playlist title for the display badge if configured_id is used
+        pl_name = configured_id
+        if configured_id and items:
+            try:
+                pl_data = await youtube_service.list_playlists()
+                for p in pl_data.get("playlists", []):
+                    if p.get("id") == configured_id:
+                        pl_name = p.get("title", configured_id)
+                        break
+            except Exception:
+                pass
+            source = f"configured: {pl_name}"
+            
+        return {"items": items, "source": source}
     except Exception as e:
         log.error(f"Watch Later fetch failed: {e}")
         return {"items": [], "error": str(e), "source": "error"}

@@ -73,6 +73,7 @@
     <script src="/static/ux-enhancements.js"></script>
     <script src="/static/auth-check.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/global_scripts.js"></script>
     <script src="/static/dashboard.js"></script>
 </head>
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
@@ -91,7 +92,7 @@
             </div>
             <div class="flex gap-2">
                 <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Notifications"><i class="fa-regular fa-bell"></i></button>
-                <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+                <button onclick="logoutUser()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
             </div>
         </div>
     </header>

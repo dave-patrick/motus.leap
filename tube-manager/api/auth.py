@@ -8,6 +8,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import asyncio # Added for to_thread
 
 from fastapi import APIRouter, Depends, HTTPException, status, Cookie, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -41,11 +42,11 @@ USERS_FILE = USERS_DIR / "users.json"
 def _ensure_users_dir():
     USERS_DIR.mkdir(parents=True, exist_ok=True)
 
-def _load_users() -> Dict[str, Dict[str, Any]]:
+async def _load_users() -> Dict[str, Dict[str, Any]]:
     """Load users from JSON file."""
-    if USERS_FILE.exists():
+    if await asyncio.to_thread(USERS_FILE.exists):
         try:
-            data = json.loads(USERS_FILE.read_text())
+            data = json.loads(await asyncio.to_thread(USERS_FILE.read_text))
             # Convert datetime strings back to datetime objects
             for u in data.values():
                 for field in ("created_at", "last_login"):
@@ -59,7 +60,7 @@ def _load_users() -> Dict[str, Dict[str, Any]]:
             log.warning("Failed to load users: %s", e)
     return {}
 
-def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
+async def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
     """Save users to JSON file."""
     _ensure_users_dir()
     # Convert datetime objects to ISO strings for JSON serialization
@@ -71,7 +72,7 @@ def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
                 u[field] = u[field].isoformat()
         serializable[k] = u
     try:
-        USERS_FILE.write_text(json.dumps(serializable, indent=2, default=str))
+        await asyncio.to_thread(USERS_FILE.write_text, json.dumps(serializable, indent=2, default=str))
     except Exception as e:
         log.error("Failed to save users: %s", e)
 
@@ -156,11 +157,15 @@ class RoleEnum:
     VIEWER = "viewer"
 
 
-# =============================================================================
-# In-Memory Storage
-# =============================================================================
+# In-Memory Storage (will be loaded via dependency)
+_cached_users_db: Optional[Dict[str, Dict[str, Any]]] = None
 
-users_db: Dict[str, Dict[str, Any]] = _load_users()
+async def get_users_db() -> Dict[str, Dict[str, Any]]:
+    global _cached_users_db
+    if _cached_users_db is None:
+        _cached_users_db = await _load_users()
+    return _cached_users_db
+
 user_sessions: Dict[str, Dict[str, Any]] = {}
 
 
@@ -208,19 +213,19 @@ def decode_access_token(token: str) -> dict:
         )
 
 
-def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+async def get_user_by_username(username: str, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)) -> Optional[Dict[str, Any]]:
     return users_db.get(username)
 
 
-def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+async def get_user_by_id(user_id: str, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)) -> Optional[Dict[str, Any]]:
     for user in users_db.values():
         if user["id"] == user_id:
             return user
     return None
 
 
-def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
-    user = get_user_by_username(username)
+async def authenticate_user(username: str, password: str, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)) -> Optional[Dict[str, Any]]:
+    user = await get_user_by_username(username, users_db) # Await the async function
     if not user:
         return None
     if not verify_password(password, user["hashed_password"]):
@@ -232,6 +237,7 @@ def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
         )
 
     user["last_login"] = datetime.now()
+    await _save_users(users_db) # Save changes to users_db
     return user
 
 
@@ -239,6 +245,7 @@ async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     request: Request = None,
     token_cookie: Optional[str] = Cookie(default=None, alias="token"),
+    users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db),
 ) -> Dict[str, Any]:
     token = None
     if credentials:
@@ -265,7 +272,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = get_user_by_username(username)
+    user = await get_user_by_username(username, users_db)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -332,15 +339,15 @@ def get_user_permissions(role: str) -> List[str]:
 # =============================================================================
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate):
-    if get_user_by_username(user_data.username):
+async def register(user_data: UserCreate, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
+    if await get_user_by_username(user_data.username, users_db):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered",
         )
 
-    for user in users_db.values():
-        if user["email"] == user_data.email:
+    for user_entry in users_db.values(): # Iterate over users_db directly
+        if user_entry["email"] == user_data.email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered",
@@ -361,7 +368,7 @@ async def register(user_data: UserCreate):
     }
 
     users_db[user_data.username] = user
-    _save_users(users_db)
+    await _save_users(users_db)
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -385,8 +392,8 @@ async def register(user_data: UserCreate):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(user_data: UserLogin):
-    user = authenticate_user(user_data.username, user_data.password)
+async def login(user_data: UserLogin, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
+    user = await authenticate_user(user_data.username, user_data.password, users_db)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -489,10 +496,11 @@ async def security_status():
 async def update_me(
     user_update: UserUpdate,
     current_user: Dict[str, Any] = Depends(get_current_active_user),
+    users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db),
 ):
     if user_update.email:
-        for user in users_db.values():
-            if user["email"] == user_update.email and user["id"] != current_user["id"]:
+        for user_entry in users_db.values():
+            if user_entry["email"] == user_update.email and user_entry["id"] != current_user["id"]:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already in use",
@@ -501,10 +509,13 @@ async def update_me(
 
     if user_update.full_name:
         current_user["full_name"] = user_update.full_name
+    if user_update.role:
+        current_user["role"] = user_update.role
+    
+    users_db[current_user["username"]] = current_user # Update the entry in the in-memory db
+    await _save_users(users_db) # Persist the changes
 
-    _save_users(users_db)
     return UserResponse(**current_user)
-
 
 # =============================================================================
 # User Management Endpoints (Admin only)

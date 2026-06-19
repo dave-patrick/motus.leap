@@ -18,9 +18,11 @@ function createToastContainer() {
     return container;
 }
 
-function logout() {
+function logoutUser() {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
+    document.cookie = 'token=; path=/; max-age=0; SameSite=Strict';
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;';
     window.location.href = '/auth';
 }

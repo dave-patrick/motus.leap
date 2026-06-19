@@ -1,40 +1,9 @@
-// Toast notification system
-function toast(message, type = 'info', duration = 4000) {
-    const container = document.getElementById('toast-container') || createToastContainer();
-    const toast = document.createElement('div');
-    const icons = {
-        success: 'fa-check-circle',
-        error: 'fa-times-circle',
-        warning: 'fa-exclamation-triangle',
-        info: 'fa-info-circle'
-    };
-    const colors = {
-        success: 'bg-green-600',
-        error: 'bg-red-600',
-        warning: 'bg-yellow-600',
-        info: 'bg-blue-600'
-    };
-    toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
-    toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${DOMPurify.sanitize(message, {USE_PROFILES: {html: true}})}</span>`;
-    container.appendChild(toast);
-    setTimeout(() => {
-        toast.classList.add('animate-slide-out');
-        setTimeout(() => toast.remove(), 300);
-    }, duration);
-}
-
-function createToastContainer() {
-    const container = document.createElement('div');
-    container.id = 'toast-container';
-    container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
-    document.body.appendChild(container);
-    return container;
-}
+// playlist.js - Playlist specific scripts
 
 let allVideos = [];
 let selectedVideos = new Set();
 let playlistId = window.location.pathname.split('/').pop();
-let allPlaylists = []; // To store playlists for dropdown
+let allPlaylists = []; // To populate the dropdown, fetched on load
 let currentScanResults = {
     duplicates: [],
     misplaced: []
@@ -49,8 +18,6 @@ function formatDuration(seconds) {
 }
 
 async function rescanPlaylist() {
-    const activityLog = document.getElementById('activity-task-desc'); // Use existing activity element
-    if (activityLog) activityLog.textContent = 'Rescanning playlist...';
     const btn = document.getElementById('rescan-playlist-btn');
     if (btn) {
         btn.disabled = true;
@@ -58,11 +25,11 @@ async function rescanPlaylist() {
     }
     toast('Rescanning playlist videos...', 'info');
     try {
-        const resp = await fetch(`/api/youtube/videos?playlist_id=${DOMPurify.sanitize(playlistId)}&force_refresh=true`);
+        const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
         const data = await resp.json();
         allVideos = data.videos || [];
         
-        toast(`Rescan complete - ${DOMPurify.sanitize(allVideos.length)} videos found`, 'success');
+        toast(`Rescan complete - ${allVideos.length} videos found`, 'success');
         
         // Update metadata count text with real values and keep privacy status badge
         const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
@@ -73,15 +40,13 @@ async function rescanPlaylist() {
         
         const metaEl = document.getElementById('playlist-meta');
         if (metaEl) metaEl.innerHTML = `
-            ${DOMPurify.sanitize(allVideos.length)} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${DOMPurify.sanitize(privacyBadge)}</span>
+            ${allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacyBadge}</span>
         `;
         
         renderVideos();
-        if (activityLog) activityLog.textContent = 'Rescan complete.';
     } catch (e) {
         console.error(e);
         toast('Rescan failed', 'error');
-        if (activityLog) activityLog.textContent = 'Rescan failed.';
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -92,7 +57,7 @@ async function rescanPlaylist() {
 
 async function loadPlaylist() {
     try {
-        // 1. Load playlists list to get metadata (title & privacy)
+        // 1. Load playlists list to get metadata (title & privacy) for dropdown and current playlist info
         const plistResp = await fetch('/api/playlists');
         if (plistResp.ok) {
             const plistData = await plistResp.json();
@@ -101,7 +66,7 @@ async function loadPlaylist() {
             const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
             if (currentPlaylist) {
                 const titleEl = document.getElementById('playlist-title');
-                if (titleEl) titleEl.textContent = DOMPurify.sanitize(currentPlaylist.title);
+                if (titleEl) titleEl.textContent = currentPlaylist.title;
                 
                 const privacy = currentPlaylist.privacy || 'private';
                 const badgeColor = privacy === 'public' ? 'bg-green-600/20 text-green-400 border-green-600/30' : 
@@ -110,43 +75,45 @@ async function loadPlaylist() {
                 
                 const metaEl = document.getElementById('playlist-meta');
                 if (metaEl) metaEl.innerHTML = `
-                    loading... • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${DOMPurify.sanitize(privacy)}</span>
+                    loading... • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacy}</span>
                 `;
             }
         }
         
         // 2. Load the videos inside this playlist
-        const resp = await fetch(`/api/youtube/videos?playlist_id=${DOMPurify.sanitize(playlistId)}`);
+        const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}`);
         if (!resp.ok) {
             console.error('Videos API error:', resp.status, resp.statusText);
             const container = document.getElementById('videos-container');
-            if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">API error: ${DOMPurify.sanitize(resp.statusText)}</div>`;
+            if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">API error: ${resp.status}</div>`;
             return;
         }
         const data = await resp.json();
         if (data.error) {
             console.error('Videos API returned error:', data.error);
             const container = document.getElementById('videos-container');
-            if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">${DOMPurify.sanitize(data.error)}</div>`;
+            if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">${data.error}</div>`;
             return;
         }
-        allVideos = data.videos || [];
         
+        allVideos = data.videos || [];
+
         // 3. Update metadata count text with real values
         const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
         const privacyBadge = currentPlaylist ? (currentPlaylist.privacy || 'private') : 'private';
         const badgeColor = privacyBadge === 'public' ? 'bg-green-600/20 text-green-400 border-green-600/30' : 
-                                   privacyBadge === 'unlisted' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' : 
-                                   'bg-gray-600/20 text-gray-400 border-gray-600/30';
+                           privacyBadge === 'unlisted' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' : 
+                           'bg-gray-600/20 text-gray-400 border-gray-600/30';
         
         const metaEl = document.getElementById('playlist-meta');
         if (metaEl) metaEl.innerHTML = `
-            ${DOMPurify.sanitize(allVideos.length)} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${DOMPurify.sanitize(privacyBadge)}</span>
+            ${allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacyBadge}</span>
         `;
         
         renderVideos();
     } catch (e) {
         console.error(e);
+        toast('Failed to load playlist', 'error');
         const container = document.getElementById('videos-container');
         if (container) container.innerHTML = '<div class="text-center p-8 text-red-400">Failed to load playlist</div>';
     }
@@ -161,31 +128,32 @@ function renderVideos() {
     container.innerHTML = `
         <div class="p-3 border-b border-[#2a2f3a] flex items-center justify-between">
             <span class="text-[10px] text-gray-400">Select videos to move (click checkboxes)</span>
-            <select id="target-playlist" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none">
+            <select id="target-playlist" onchange="updateMoveButton()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none">
                 <option value="">Select target playlist...</option>
             </select>
         </div>
         ${allVideos.map((v, i) => `
-            <div class="video-row flex items-center gap-2 py-1" data-video-id="${DOMPurify.sanitize(v.video_id)}">
-                <input type="checkbox" class="video-checkbox w-4 h-4 rounded" data-video-id="${DOMPurify.sanitize(v.video_id)}">
-                <img src="${DOMPurify.sanitize(v.thumbnail || 'https://picsum.photos/160/90')}" class="w-24 h-14 rounded object-cover flex-shrink-0">
+            <div class="video-row flex items-center gap-2 py-1" data-video-id="${v.video_id}">
+                <input type="checkbox" class="video-checkbox w-4 h-4 rounded" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''}>
+                <img src="${v.thumbnail || 'https://picsum.photos/160/90'}" class="w-24 h-14 rounded object-cover flex-shrink-0">
                 <div class="flex-1 min-w-0">
                     <div class="text-[11px] text-white truncate">${DOMPurify.sanitize(v.title || 'Unknown title')}</div>
                     <div class="text-[9px] text-gray-400">${DOMPurify.sanitize(v.channel_title || 'Unknown channel')}</div>
                 </div>
                 <span class="text-[9px] text-gray-300 font-mono bg-[#20242c] px-1.5 py-0.5 rounded">${formatDuration(v.duration)}</span>
-                <span class="text-[9px] text-gray-500 w-12 text-right">${DOMPurify.sanitize(i + 1)}</span>
+                <span class="text-[9px] text-gray-500 w-12 text-right">${i + 1}</span>
             </div>
         `).join('')}
     `;
     loadPlaylistsDropdown();
+    updateMoveButton(); // Ensure button state is correct after rendering
 }
 
 function loadPlaylistsDropdown() {
     const select = document.getElementById('target-playlist');
     if (select) {
         select.innerHTML = '<option value="">Select target playlist...</option>' + 
-            allPlaylists.map(p => `<option value="${DOMPurify.sanitize(p.id)}">${DOMPurify.sanitize(p.title)}</option>`).join('');
+            allPlaylists.filter(p => p.id !== playlistId).map(p => `<option value="${p.id}">${DOMPurify.sanitize(p.title)}</option>`).join('');
     }
 }
 
@@ -200,16 +168,21 @@ function toggleVideo(videoId, checkbox) {
 
 function updateMoveButton() {
     const moveBtn = document.getElementById('move-btn');
-    moveBtn.classList.toggle('hidden', selectedVideos.size === 0);
+    if (moveBtn) {
+        const targetPlaylistSelected = document.getElementById('target-playlist')?.value;
+        moveBtn.classList.toggle('hidden', selectedVideos.size === 0 || !targetPlaylistSelected);
+        moveBtn.disabled = selectedVideos.size === 0 || !targetPlaylistSelected;
+    }
 }
 
 async function moveSelectedVideos() {
     const targetId = document.getElementById('target-playlist').value;
     if (!targetId || selectedVideos.size === 0) {
-        toast('Please select videos and target playlist', 'error');
+        toast('Please select videos and a target playlist', 'error');
         return;
     }
     const videoIds = Array.from(selectedVideos);
+    toast(`Moving ${videoIds.length} videos...`, 'info');
     try {
         const resp = await fetch('/api/bulk/move', {
             method: 'POST',
@@ -217,16 +190,23 @@ async function moveSelectedVideos() {
             body: JSON.stringify({video_ids: videoIds, target_playlist_id: targetId, source_playlist_id: playlistId})
         });
         const result = await resp.json();
-        toast(`Moved ${DOMPurify.sanitize(videoIds.length)} videos`, 'success');
-        selectedVideos.clear();
-        updateMoveButton();
-        loadPlaylist();
+        if (resp.ok) {
+            toast(`Moved ${result.succeeded} video(s), failed ${result.failed}`, 'success');
+            selectedVideos.clear();
+            updateMoveButton();
+            await loadPlaylist(); // Reload playlist to reflect changes
+        } else {
+            toast(`Failed to move videos: ${result.error || resp.statusText}`, 'error');
+        }
     } catch (e) {
-        toast('Failed to move videos', 'error');
+        toast('Network error: Failed to move videos', 'error');
+        console.error('Move videos error:', e);
     }
 }
 
+// Scan functions
 async function performFullScan() {
+    toast('Initiating full scan...', 'info');
     // 1. Client-side duplicate detection
     const videoIdToItems = {};
     allVideos.forEach(v => {
@@ -236,7 +216,8 @@ async function performFullScan() {
         videoIdToItems[v.video_id].push({
             playlist_item_id: v.playlist_item_id,
             title: v.title,
-            channel: v.channel_title
+            channel: v.channel_title,
+            thumbnail: v.thumbnail
         });
     });
 
@@ -244,13 +225,14 @@ async function performFullScan() {
     for (const video_id in videoIdToItems) {
         const items = videoIdToItems[video_id];
         if (items.length > 1) {
-            const itemsToDelete = items.slice(1);
+            const itemsToDelete = items.slice(1); // Keep the first, mark others for deletion
             itemsToDelete.forEach(item => {
                 currentScanResults.duplicates.push({
                     video_id: video_id,
                     playlist_item_id: item.playlist_item_id,
                     title: item.title,
                     channel: item.channel,
+                    thumbnail: item.thumbnail,
                     reason: `Duplicate entry (${items.length} occurrences)`,
                     type: 'duplicate'
                 });
@@ -259,17 +241,30 @@ async function performFullScan() {
     }
 
     // 2. Misplaced detection via API
-    const resp = await fetch(`/api/youtube/misplaced?playlist_id=${DOMPurify.sanitize(playlistId)}`);
-    if (!resp.ok) throw new Error('Misplaced API failed');
-    const result = await resp.json();
-    
-    currentScanResults.misplaced = (result.misplaced || []).map(v => ({
-        video_id: v.video_id,
-        title: v.title,
-        channel: v.channel || '',
-        reason: v.reason || 'Misplaced channel',
-        type: 'misplaced'
-    }));
+    try {
+        const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
+        if (!resp.ok) throw new Error('Misplaced API failed');
+        const result = await resp.json();
+        
+        currentScanResults.misplaced = (result.misplaced || []).map(v => ({
+            video_id: v.video_id,
+            title: v.video_title,
+            channel: v.channel || '',
+            thumbnail: v.thumbnail,
+            reason: v.reason || 'Misplaced channel',
+            type: 'misplaced',
+            current_playlist_id: playlistId, // Assuming current playlist is the source
+            current_playlist_title: document.getElementById('playlist-title').textContent || playlistId,
+            mapped_playlist_id: v.mapped_playlist_id,
+            mapped_playlist_title: v.mapped_playlist_title
+        }));
+    } catch (e) {
+        console.error('Error fetching misplaced videos:', e);
+        toast('Failed to fetch misplaced videos', 'error');
+        currentScanResults.misplaced = [];
+    }
+
+    toast(`Scan complete - ${currentScanResults.duplicates.length} duplicates, ${currentScanResults.misplaced.length} misplaced found`, 'success');
 }
 
 async function scanForDuplicates() {
@@ -278,10 +273,8 @@ async function scanForDuplicates() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> Scanning...';
     
-    toast(`Scanning playlist for duplicates and misplaced videos...`, 'info');
     try {
         await performFullScan();
-        toast(`Scan complete - ${DOMPurify.sanitize(currentScanResults.duplicates.length)} duplicates, ${DOMPurify.sanitize(currentScanResults.misplaced.length)} misplaced found`, 'success');
         showScanBox('duplicates');
     } catch (e) {
         toast('Scan failed', 'error');
@@ -298,10 +291,8 @@ async function scanForMisplaced() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-yellow-500"></i> Scanning...';
     
-    toast(`Scanning playlist for duplicates and misplaced videos...`, 'info');
     try {
         await performFullScan();
-        toast(`Scan complete - ${DOMPurify.sanitize(currentScanResults.duplicates.length)} duplicates, ${DOMPurify.sanitize(currentScanResults.misplaced.length)} misplaced found`, 'success');
         showScanBox('misplaced');
     } catch (e) {
         toast('Scan failed', 'error');
@@ -327,13 +318,18 @@ function showScanBox(defaultFilter) {
     if (deleteBtn) {
         deleteBtn.classList.toggle('hidden', currentScanResults.duplicates.length === 0);
     }
+    // Show/hide the move misplaced button
+    const moveMisplacedBtn = document.getElementById('move-misplaced-btn');
+    if (moveMisplacedBtn) {
+        moveMisplacedBtn.classList.toggle('hidden', currentScanResults.misplaced.length === 0);
+    }
 }
 
 function updateScanSummary() {
     const summary = document.getElementById('scan-results-summary');
     const dupCount = currentScanResults.duplicates.length;
     const misCount = currentScanResults.misplaced.length;
-    summary.textContent = `${DOMPurify.sanitize(dupCount)} Duplicates • ${DOMPurify.sanitize(misCount)} Misplaced`;
+    summary.textContent = `${dupCount} Duplicates • ${misCount} Misplaced`;
 }
 
 function filterScanResults() {
@@ -350,7 +346,7 @@ function filterScanResults() {
     }
     
     if (displayList.length === 0) {
-        listEl.innerHTML = `<div class="text-center py-4 text-gray-500 text-[10px]">No ${DOMPurify.sanitize(filterValue === 'all' ? 'issues' : filterValue)} detected.</div>`;
+        listEl.innerHTML = `<div class="text-center py-4 text-gray-500 text-[10px]">No ${filterValue === 'all' ? 'issues' : filterValue} detected.</div>`;
         return;
     }
     
@@ -360,103 +356,140 @@ function filterScanResults() {
         const badgeLabel = isDup ? 'DUPLICATE' : 'MISPLACED';
         const icon = isDup ? 'fa-copy' : 'fa-triangle-exclamation';
         
+        let additionalInfo = '';
+        if (item.type === 'misplaced') {
+            additionalInfo = `\n<div class="text-[9px] text-gray-500 mt-1.5 flex items-center gap-1.5">
+                <i class="fa-solid fa-arrow-right-long"></i> 
+                Move to: <span class="font-medium text-blue-300">${DOMPurify.sanitize(item.mapped_playlist_title || item.mapped_playlist_id)}</span>
+            </div>`;
+        }
+
         return `
             <div class="flex items-start gap-3 p-2 bg-[#1a1d24] border border-[#2a2f3a] rounded-lg">
                 <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${badgeColor}"><i class="fa-solid ${icon} mr-1"></i>${badgeLabel}</span>
                 <div class="flex-1 min-w-0">
                     <div class="font-semibold text-white truncate text-[11px]">${DOMPurify.sanitize(item.title)}</div>
-                    <div class="text-[10px] text-gray-400 truncate">${DOMPurify.sanitize(item.channel ? item.channel + ' • ' : '')}ID: ${DOMPurify.sanitize(item.video_id)}</div>
+                    <div class="text-[10px] text-gray-400 truncate">${item.channel ? DOMPurify.sanitize(item.channel) + ' • ' : ''}ID: ${item.video_id}</div>
                     <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-blue-400' : 'bg-yellow-500'}"></span><span>Reason: ${DOMPurify.sanitize(item.reason)}</span></div>
+                    ${additionalInfo}
                 </div>
             </div>
         `;
     }).join('');
+
+    // Enable/disable action buttons based on displayed results
+    const deleteDupBtn = document.getElementById('delete-duplicates-btn');
+    if (deleteDupBtn) {
+        deleteDupBtn.classList.toggle('hidden', currentScanResults.duplicates.length === 0);
+    }
+    const moveMisplacedBtn = document.getElementById('move-misplaced-btn');
+    if (moveMisplacedBtn) {
+        moveMisplacedBtn.classList.toggle('hidden', currentScanResults.misplaced.length === 0);
+    }
 }
 
 async function deleteDuplicateItems() {
-    const itemsToDelete = currentScanResults.duplicates;
-    if (itemsToDelete.length === 0) {
-        toast('No duplicates to delete', 'info');
-        return;
-    }
-
-    if (!confirm(`Are you sure you want to delete ${itemsToDelete.length} duplicate video entries from this playlist? This cannot be undone.`)) {
-        return;
-    }
-
-    const activityLog = document.getElementById('activity-task-desc'); // Corrected ID
-    if (activityLog) activityLog.textContent = `Deleting ${itemsToDelete.length} duplicates...`;
-    toast(`Deleting ${itemsToDelete.length} duplicates...`, 'info');
+    if (!confirm(`Are you sure you want to delete ${currentScanResults.duplicates.length} duplicate videos from this playlist? This action cannot be undone.`)) return;
     
-    let successCount = 0;
-    let errorCount = 0;
+    toast(`Deleting ${currentScanResults.duplicates.length} duplicates...`, 'info');
+    const videoIdsToDelete = currentScanResults.duplicates.map(item => item.playlist_item_id);
+    
+    try {
+        const resp = await fetch('/api/bulk/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({playlist_id: playlistId, video_ids: videoIdsToDelete})
+        });
+        const result = await resp.json();
+        if (resp.ok) {
+            toast(`Deleted ${result.succeeded} duplicates, failed ${result.failed}`, 'success');
+            currentScanResults.duplicates = []; // Clear duplicates after successful deletion
+            await loadPlaylist(); // Refresh playlist and re-run scan to update UI
+        } else {
+            toast(`Failed to delete duplicates: ${result.error || resp.statusText}`, 'error');
+        }
+    } catch (e) {
+        toast('Network error: Failed to delete duplicates', 'error');
+        console.error('Delete duplicates error:', e);
+    } finally {
+        showScanBox(document.getElementById('scan-filter').value); // Re-render scan results
+    }
+}
 
-    for (const item of itemsToDelete) {
-        try {
-            const resp = await fetch('/api/youtube/playlistitems/delete', {
+async function moveMisplacedItems() {
+    if (!confirm(`Are you sure you want to move ${currentScanResults.misplaced.length} misplaced videos to their mapped playlists? This action cannot be undone.`)) return;
+
+    toast(`Moving ${currentScanResults.misplaced.length} misplaced videos...`, 'info');
+    const moveOperations = currentScanResults.misplaced.map(item => ({
+        video_id: item.video_id,
+        target_playlist_id: item.mapped_playlist_id,
+        source_playlist_id: playlistId // Current playlist is the source
+    }));
+
+    try {
+        // Bulk move API expects individual video_ids and a single target_playlist_id.
+        // We need to group by target_playlist_id and make multiple calls if videos go to different destinations.
+        const groupedMoves = {};
+        moveOperations.forEach(op => {
+            if (!groupedMoves[op.target_playlist_id]) {
+                groupedMoves[op.target_playlist_id] = [];
+            }
+            groupedMoves[op.target_playlist_id].push(op.video_id);
+        });
+
+        let succeededMoves = 0;
+        let failedMoves = 0;
+
+        for (const targetPlaylistId in groupedMoves) {
+            const videoIdsToMove = groupedMoves[targetPlaylistId];
+            const resp = await fetch('/api/bulk/move', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    playlist_item_id: item.playlist_item_id,
-                    playlist_id: playlistId
+                    video_ids: videoIdsToMove,
+                    target_playlist_id: targetPlaylistId,
+                    source_playlist_id: playlistId
                 })
             });
+            const result = await resp.json();
             if (resp.ok) {
-                successCount++;
+                succeededMoves += result.succeeded;
+                failedMoves += result.failed;
             } else {
-                errorCount++;
+                failedMoves += videoIdsToMove.length;
+                console.error(`Failed to move to ${targetPlaylistId}: ${result.error || resp.statusText}`);
             }
-        } catch (e) {
-            errorCount++;
-            console.error('Failed to delete item', item.playlist_item_id, e);
         }
+
+        toast(`Moved ${succeededMoves} video(s), failed ${failedMoves}`, 'success');
+        currentScanResults.misplaced = []; // Clear misplaced after successful moves
+        await loadPlaylist(); // Refresh playlist and re-run scan to update UI
+    } catch (e) {
+        toast('Network error: Failed to move misplaced videos', 'error');
+        console.error('Move misplaced error:', e);
+    } finally {
+        showScanBox(document.getElementById('scan-filter').value); // Re-render scan results
     }
-
-    if (errorCount > 0) {
-        toast(`${successCount} duplicates deleted, but ${errorCount} failed.`, 'warning');
-    } else {
-        toast(`Successfully deleted ${successCount} duplicates.`, 'success');
-    }
-
-    if (activityLog) activityLog.textContent = 'Duplicate deletion complete.';
-
-    // Hide the scan box and rescan the playlist to show the cleaned list
-    const box = document.getElementById('scan-results-box');
-    if(box) box.classList.add('hidden');
-    rescanPlaylist();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadPlaylist();
+// Event listeners
+document.addEventListener('DOMContentLoaded', async () => {
+    // Load global scripts here if not already in head
+    // const script = document.createElement('script');
+    // script.src = '/static/global_scripts.js';
+    // document.head.appendChild(script);
 
-    // Event listeners for top-level buttons
-    document.querySelector('.back-to-playlists-btn')?.addEventListener('click', () => {
-        window.location.href = '/playlists';
-    });
-    document.getElementById('move-btn')?.addEventListener('click', moveSelectedVideos);
+    await loadPlaylist();
+    
     document.getElementById('rescan-playlist-btn')?.addEventListener('click', rescanPlaylist);
     document.getElementById('btn-scan-dup')?.addEventListener('click', scanForDuplicates);
     document.getElementById('btn-scan-mis')?.addEventListener('click', scanForMisplaced);
     document.getElementById('delete-duplicates-btn')?.addEventListener('click', deleteDuplicateItems);
+    document.getElementById('move-misplaced-btn')?.addEventListener('click', moveMisplacedItems);
     document.getElementById('scan-filter')?.addEventListener('change', filterScanResults);
 
-    // Event delegation for video checkboxes and links within the videos-container
-    const videosContainer = document.getElementById('videos-container');
-    if (videosContainer) {
-        videosContainer.addEventListener('change', (event) => {
-            if (event.target.classList.contains('video-checkbox')) {
-                toggleVideo(event.target.dataset.videoId, event.target);
-            }
-        });
-
-        videosContainer.addEventListener('click', (event) => {
-            if (event.target.closest('a')) {
-                // Allow links to work naturally, but stop propagation if needed for nested elements
-                event.stopPropagation();
-            }
-        });
-    }
-
-    // Listen for target playlist dropdown changes
-    document.getElementById('target-playlist')?.addEventListener('change', updateMoveButton);
+    // Back to playlists button
+    document.querySelector('.back-to-playlists-btn')?.addEventListener('click', () => {
+        window.location.href = '/playlists';
+    });
 });

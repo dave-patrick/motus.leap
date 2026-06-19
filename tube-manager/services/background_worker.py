@@ -169,7 +169,7 @@ class BackgroundWorker:
             playlists = []
             page_token = None
             while True:
-                playlists_resp = client.list_mine_playlists(max_results=50, page_token=page_token)
+                playlists_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50, page_token=page_token)
                 items = playlists_resp.get("items", [])
                 playlists.extend(items)
                 page_token = playlists_resp.get("nextPageToken")
@@ -183,7 +183,7 @@ class BackgroundWorker:
             misplaced_videos = []
             
             # Load mappings from config
-            config = self.config_manager.config
+            config = await self.config_manager.config # Await the config property
             mappings = config.channel_mappings if hasattr(config, 'channel_mappings') else {}
             playlist_titles = {pl.get("id"): pl.get("snippet", {}).get("title", pl.get("id")) for pl in playlists}
             
@@ -191,7 +191,7 @@ class BackgroundWorker:
             for pl in playlists:
                 pl_id = pl.get("id")
                 pl_title = pl.get("snippet", {}).get("title", pl_id)
-                items_resp = client.list_videos(pl_id, max_results=50)
+                items_resp = await asyncio.to_thread(client.list_videos, pl_id, max_results=50)
                 items = items_resp.get("items", [])
                 total_videos += len(items)
                 
@@ -218,10 +218,10 @@ class BackgroundWorker:
                                 })
                 
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.01) # Reduced sleep here
             
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."}))
-            await asyncio.sleep(1)
+            # await asyncio.sleep(1) # Removed
             
             # Filter duplicates
             duplicated_videos = []
@@ -254,14 +254,14 @@ class BackgroundWorker:
             }
             maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
             try:
-                maintenance_file.parent.mkdir(parents=True, exist_ok=True)
-                maintenance_file.write_text(json.dumps(maintenance_data, indent=2))
+                await asyncio.to_thread(maintenance_file.parent.mkdir, parents=True, exist_ok=True)
+                await asyncio.to_thread(maintenance_file.write_text, json.dumps(maintenance_data, indent=2))
             except Exception as e:
                 log.error(f"Failed to save maintenance data: {e}")
             
             # Real scan statistics (no fake clustering)
             await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Building scan statistics..."}))
-            await asyncio.sleep(0.5)
+            # await asyncio.sleep(0.5) # Removed
 
             # Calculate real metrics from fetched data
             avg_videos_per_playlist = total_videos / len(playlists) if playlists else 0
@@ -269,10 +269,10 @@ class BackgroundWorker:
                 "type": "log",
                 "message": f"[SCAN] Analysis complete • {total_videos} videos across {len(playlists)} playlists • {avg_videos_per_playlist:.1f} avg videos/playlist"
             }))
-            await asyncio.sleep(0.5)
+            # await asyncio.sleep(0.5) # Removed
             
             await self.manager.broadcast(json.dumps({"type": "log", "message": "[LEARN] Processing statistics..."}))
-            await asyncio.sleep(1)
+            # await asyncio.sleep(1) # Removed
             
             # Populate the persistent cache so subsequent reads don't hit the API
             if self.youtube_service:
@@ -395,35 +395,15 @@ class BackgroundWorker:
                 playlist_id_title_pairs.append((pid, pt))
                 playlist_title_list.append({"id": pid, "title": pt})
 
-            # Fetch watch later items - try browser scraper first (bypasses API restriction)
-            watch_later_items = []
-            configured_id = getattr(config, "watch_later_playlist_id", "")
-            
-            if configured_id:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Using configured playlist source: {configured_id}"}))
-                watch_later_resp = client.list_watch_later_items(max_results=50, playlist_id=configured_id)
-                watch_later_items = watch_later_resp.get("items", [])
-            else:
-                # Try browser scraper for native Watch Later access
-                from services.browser_scraper import has_cookies, scrape_watch_later_videos
+            # Fetch watch later items using the cached method
+            force_refresh = payload.get("force_refresh", False) # Allow forcing refresh from payload
+            watch_later_resp = await self.youtube_service.list_watch_later_items_cached(
+                playlist_id=configured_id if configured_id else None,
+                force_refresh=force_refresh
+            )
+            watch_later_items = watch_later_resp.get("items", [])
                 
-                if has_cookies():
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] YouTube cookies found. Attempting browser scrape for native Watch Later..."}))
-                    try:
-                        scraped = await asyncio.to_thread(scrape_watch_later_videos, 200)
-                        if scraped.get("items"):
-                            watch_later_items = scraped["items"]
-                            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Browser scrape retrieved {len(watch_later_items)} videos from native Watch Later!"}))
-                        else:
-                            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Browser scrape returned 0 videos. Falling back to API..."}))
-                    except Exception as browse_err:
-                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Browser scrape failed ({browse_err}). Falling back to API..."}))
-                
-                if not watch_later_items:
-                    watch_later_resp = client.list_watch_later_items(max_results=50)
-                    watch_later_items = watch_later_resp.get("items", [])
-            
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from sync source"}))
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from sync source (cached: {not force_refresh})"}))
             
             moved = []
             skipped = []
