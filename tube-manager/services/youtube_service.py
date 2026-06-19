@@ -345,6 +345,9 @@ class YouTubeService:
         while len(all_items) < max_items:
             # Run the blocking sync fetch_fn in a separate thread to unblock the main FastAPI event loop
             resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
+            if resp is None or "items" not in resp:
+                log.warning(f"_fetch_all_paginated: fetch_fn returned None or missing 'items'. Response: {resp}. Stopping pagination.")
+                break
             items = resp.get("items", [])
             all_items.extend(items)
 

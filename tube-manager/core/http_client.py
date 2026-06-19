@@ -2,6 +2,7 @@
 
 import httpx
 from httpx import AsyncClient, Limits, Timeout
+import certifi # Import certifi
 from typing import Optional
 import logging
 
@@ -27,6 +28,7 @@ def get_http_client() -> AsyncClient:
             ),
             timeout=Timeout(30.0, connect=5.0),
             http2=True,  # HTTP/2 multiplexing
+            verify=certifi.where(), # Explicitly use certifi's CA bundle
         )
         log.info("HTTP client initialized with pooling and HTTP/2")
     return _http_client
