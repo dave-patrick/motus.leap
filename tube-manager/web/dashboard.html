@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=7">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/ux-enhancements.js /static/auth-check.js; style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';
+    ">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -71,6 +73,7 @@
     <script src="/static/ux-enhancements.js"></script>
     <script src="/static/auth-check.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/dashboard.js"></script>
 </head>
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
 
@@ -86,15 +89,6 @@
             <div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0" id="user-avatar">
                 <i class="fa-solid fa-user text-gray-400"></i>
             </div>
-            <script>
-                // Load user avatar
-                fetch('/api/user').then(r => r.json()).then(data => {
-                    const avatar = document.getElementById('user-avatar');
-                    if (data.logged_in && data.channel_thumbnail) {
-                        avatar.innerHTML = `<img src="${data.channel_thumbnail}" class="w-full h-full object-cover rounded-full">`;
-                    }
-                }).catch(() => {});
-            </script>
             <div class="flex gap-2">
                 <button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Notifications"><i class="fa-regular fa-bell"></i></button>
                 <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
@@ -118,7 +112,7 @@
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
             <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
-</aside>
+        </aside>
 
         <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
             <div class="flex flex-col gap-4 min-w-[1200px]">
@@ -197,151 +191,5 @@
             </div>
         </main>
     </div>
-
-    <script>
-        // Refresh token on dashboard load. Auth redirect is handled by auth-check.js
-        // in the <head>, so this function only issues a new 7-day token when possible.
-        (async function refreshSessionToken() {
-            try {
-                const token = localStorage.getItem('token');
-                const resp = await fetch('/api/auth/me', {
-                    headers: { 
-                        'Accept': 'application/json',
-                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                    }
-                });
-                if (!resp.ok) return;  // auth-check.js will handle redirect if needed
-                const refreshResp = await fetch('/api/auth/refresh', {
-                    method: 'POST',
-                    headers: { 
-                        'Accept': 'application/json',
-                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                    }
-                });
-                if (refreshResp.ok) {
-                    const data = await refreshResp.json();
-                    localStorage.setItem('token', data.access_token);
-                    document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
-                }
-            } catch (e) {
-                console.warn('Token refresh failed:', e);
-            }
-        })();
-
-        function logout() {
-            localStorage.removeItem('user');
-            document.cookie = 'token=; path=/; max-age=0';
-            document.cookie = 'token=; path=/; max-age=0';
-            window.location.href = '/auth';
-        }
-        let ws = null;
-        let scanLogs = [];
-        let queueRunning = false;
-        let statsLoading = false;
-        let scanRenderPending = false;
-
-        function toast(message, type = 'info', duration = 4000) {
-            const container = document.getElementById('toast-container') || createToastContainer();
-            const el = document.createElement('div');
-            const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
-            const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-blue-600' };
-            el.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
-            el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
-            container.appendChild(el);
-            setTimeout(() => { el.classList.add('animate-slide-out'); setTimeout(() => el.remove(), 300); }, duration);
-        }
-
-        function createToastContainer() {
-            const container = document.createElement('div');
-            container.id = 'toast-container';
-            container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
-            document.body.appendChild(container);
-            return container;
-        }
-
-        function logTerminal(message) {
-            console.log(message);
-        }
-
-        async function triggerAction(action, payload = {}) {
-            try {
-                const statusLabel = document.getElementById('status-label');
-                if (statusLabel) statusLabel.textContent = 'Running...';
-                const appStatus = document.getElementById('app-status');
-                if (appStatus) {
-                    appStatus.className = 'text-[10px] text-yellow-400 font-bold';
-                }
-                logTerminal(`[ACTION] Queuing: ${action}`);
-                const response = await fetch('/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, payload }) });
-                const result = await response.json();
-                logTerminal(`[ACTION] ${result.status}: ${result.action}`);
-                toast(`${action.replace(/_/g, ' ')} started`, 'success');
-            } catch (e) {
-                logTerminal(`[ERROR] Failed to queue action: ${e.message}`);
-                toast(`Action failed: ${action}`, 'error');
-                const statusLabel = document.getElementById('status-label');
-                if (statusLabel) statusLabel.textContent = 'Idle';
-                const appStatus = document.getElementById('app-status');
-                if (appStatus) {
-                    appStatus.className = 'text-[10px] text-green-400 font-bold';
-                }
-            }
-        }
-
-        async function loadDashboardStats() {
-            if (statsLoading) return;
-            statsLoading = true;
-            try {
-                const response = await fetch('/api/stats');
-                if (!response.ok) return;
-                const data = await response.json();
-                document.getElementById('stat-playlists').textContent = data.total_playlists || '--';
-                document.getElementById('stat-videos').textContent = data.total_videos || '--';
-                document.getElementById('stat-pending').textContent = data.pending_actions ?? '--';
-                document.getElementById('pending-data').textContent = `(${data.pending_actions ?? 0})`;
-                document.getElementById('pending-still').textContent = `(${data.still_items ?? 0})`;
-                document.getElementById('pending-ai').textContent = `(${data.ai_learning ?? 0})`;
-                document.getElementById('ai-rate').textContent = data.learning_rate || '--';
-                document.getElementById('ai-rates').textContent = data.learning_rates || '--';
-                document.getElementById('last-scan').textContent = data.last_scan || 'Never';
-                const statusLabel = document.getElementById('status-label');
-                if (statusLabel) {
-                    if (data.running_tasks > 0 && data.current_task) {
-                        statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
-                        document.getElementById('app-status').className = 'text-[10px] text-yellow-400 font-bold';
-                        document.getElementById('app-status').textContent = `🟡 RUNNING: ${data.current_task}`;
-                    } else {
-                        statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
-                        document.getElementById('app-status').className = 'text-[10px] text-green-400 font-bold';
-                        document.getElementById('app-status').textContent = '🟢 READY';
-                    }
-                }
-            } catch (e) { console.log('Stats endpoint not available'); }
-            finally { statsLoading = false; }
-        }
-
-        async function checkSecurityStatus() {
-            try {
-                const resp = await fetch('/api/auth/security/status');
-                if (!resp.ok) return;
-                const data = await resp.json();
-                if (!data.sessions_stable && data.warning) {
-                    const banner = document.getElementById('security-warning');
-                    document.getElementById('security-warning-text').textContent = data.warning;
-                    banner.classList.remove('hidden');
-                }
-            } catch (e) { console.warn('Security status check failed:', e); }
-        }
-
-
-        function refreshSubscriptions() { toast('Use Subscriptions page for live mapping', 'info'); }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            loadDashboardStats();
-            checkSecurityStatus();
-            setInterval(loadDashboardStats, 30000);
-            document.querySelectorAll('.action-btn').forEach(btn => btn.addEventListener('click', () => triggerAction(btn.dataset.action)));
-        });
-    </script>
 </body>
 </html>

@@ -32,6 +32,7 @@ def get_http_client() -> AsyncClient:
     return _http_client
 
 
+
 async def shutdown_http_client():
     """Close HTTP client gracefully."""
     global _http_client
