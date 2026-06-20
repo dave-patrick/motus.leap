@@ -404,14 +404,14 @@ async def maintenance():
 
 @app.get("/rules", dependencies=[Depends(require_auth)])
 async def rules():
-    """Rules page."""
-    return RedirectResponse(url="/settings#rules")
+    """Rules & Mappings page."""
+    return await no_cache_file_response(WEB_DIR / "settings.html")
 
 
 @app.get("/ai", dependencies=[Depends(require_auth)])
 async def ai():
-    """AI page."""
-    return RedirectResponse(url="/settings#ai")
+    """AI Integration page."""
+    return await no_cache_file_response(WEB_DIR / "settings.html")
 
 
 @app.get("/bulk", dependencies=[Depends(require_auth)])
