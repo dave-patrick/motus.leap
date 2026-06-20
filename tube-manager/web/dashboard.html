@@ -6,6 +6,7 @@
     <title>motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=7">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -257,7 +258,13 @@
             }
 
             function updateStats() {
-                fetch('/api/stats')
+                const token = localStorage.getItem('token');
+                fetch('/api/stats', {
+                    headers: {
+                        'Accept': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    }
+                })
                     .then(res => res.ok ? res.json() : Promise.reject())
                     .then(d => {
                         els.stats.innerHTML = '';
