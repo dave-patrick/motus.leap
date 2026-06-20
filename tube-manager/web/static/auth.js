@@ -19,16 +19,16 @@ function showForm(form) {
     if (form === 'login') {
         document.getElementById('login-form').classList.remove('hidden');
         document.getElementById('register-form').classList.add('hidden');
-        document.getElementById('login-tab').classList.add('bg-blue-600', 'text-white');
+        document.getElementById('login-tab').classList.add('bg-[#2f8fc9]', 'text-white');
         document.getElementById('login-tab').classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-        document.getElementById('register-tab').classList.remove('bg-blue-600', 'text-white');
+        document.getElementById('register-tab').classList.remove('bg-[#2f8fc9]', 'text-white');
         document.getElementById('register-tab').classList.add('bg-[#2a2f3a]', 'text-gray-400');
     } else {
         document.getElementById('register-form').classList.remove('hidden');
         document.getElementById('login-form').classList.add('hidden');
-        document.getElementById('register-tab').classList.add('bg-blue-600', 'text-white');
+        document.getElementById('register-tab').classList.add('bg-[#2f8fc9]', 'text-white');
         document.getElementById('register-tab').classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-        document.getElementById('login-tab').classList.remove('bg-blue-600', 'text-white');
+        document.getElementById('login-tab').classList.remove('bg-[#2f8fc9]', 'text-white');
         document.getElementById('login-tab').classList.add('bg-[#2a2f3a]', 'text-gray-400');
     }
 }

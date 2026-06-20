@@ -23,13 +23,13 @@
         <div class="p-4">
             <a href="/" class="flex items-center gap-3 text-white no-underline">
                 <img src="/static/logo_icon.png?v=6" class="w-8 h-8 shrink-0 object-contain">
-                <h1 class="text-sm font-bold tracking-wide leading-tight">mot<span class="text-[#3b82f6]">u</span>s.leap</h1>
+                <h1 class="text-sm font-bold tracking-wide leading-tight">mot<span class="text-[#2f8fc9]">u</span>s.leap</h1>
             </a>
         </div>
         <div class="flex-1 px-3 space-y-1 overflow-y-auto">
             <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gauge w-5 text-center"></i> Dashboard</a>
             <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
-            <a href="/watch-later" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-white bg-[#1e232d] border border-[#2a2f3a] text-xs font-medium"><i class="fa-regular fa-clock w-5 text-center text-blue-400"></i> Watch Later</a>
+            <a href="/watch-later" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-white bg-[#1e232d] border border-[#2a2f3a] text-xs font-medium"><i class="fa-regular fa-clock w-5 text-center text-[#2f8fc9]"></i> Watch Later</a>
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-users w-5 text-center"></i> Subscriptions</a>
             <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
@@ -42,13 +42,13 @@
             <!-- Header -->
             <div class="flex items-center justify-between mb-2">
                 <div>
-                    <h2 class="text-xl font-bold text-white"><i class="fa-regular fa-clock text-blue-400 mr-2"></i>Watch Later</h2>
+                    <h2 class="text-xl font-bold text-white"><i class="fa-regular fa-clock text-[#2f8fc9] mr-2"></i>Watch Later</h2>
                 </div>
                 <div class="flex gap-2">
-                    <button id="btn-scan" onclick="scanWatchLater()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 transition-colors">
+                    <button id="btn-scan" onclick="scanWatchLater()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 transition-colors">
                         <i class="fa-solid fa-brain"></i> Scan with AI
                     </button>
-                    <button id="btn-apply" onclick="applyMoves()" disabled class="bg-blue-600/40 text-white/40 text-xs font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 cursor-not-allowed transition-colors">
+                    <button id="btn-apply" onclick="applyMoves()" disabled class="bg-[#2f8fc9]/40 text-white/40 text-xs font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 cursor-not-allowed transition-colors">
                         <i class="fa-solid fa-check-double"></i> Apply All (<span id="apply-count">0</span>)
                     </button>
                 </div>
@@ -57,7 +57,7 @@
             <!-- AI Plan Display -->
             <div id="ai-plan-container" class="hidden space-y-2">
                 <div class="bento-card p-3 flex items-center justify-between">
-                    <span class="text-[10px] text-gray-400"><i class="fa-solid fa-robot text-blue-400 mr-1.5"></i> <span id="plan-stats">Loading...</span></span>
+                    <span class="text-[10px] text-gray-400"><i class="fa-solid fa-robot text-[#2f8fc9] mr-1.5"></i> <span id="plan-stats">Loading...</span></span>
                     <div class="flex gap-2">
                         <button onclick="selectAllPlans()" class="text-[9px] px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-300 hover:text-white hover:border-[#374151] transition-colors">Select All</button>
                         <button onclick="expandAllPlans()" class="text-[9px] px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-300 hover:text-white hover:border-[#374151] transition-colors"><i class="fa-solid fa-chevron-down text-[8px] mr-1"></i>Expand All</button>
@@ -70,7 +70,7 @@
             <div id="empty-state" class="bento-card p-12 text-center">
                 <i class="fa-regular fa-clock text-6xl mb-6 block text-gray-700"></i>
                 <p class="text-gray-400 text-sm font-medium mb-2">No Watch Later videos loaded</p>
-                <p class="text-[10px] text-gray-500 mb-4">Click <strong class="text-blue-400">Scan with AI</strong> to analyze your queue.</p>
+                <p class="text-[10px] text-gray-500 mb-4">Click <strong class="text-[#2f8fc9]">Scan with AI</strong> to analyze your queue.</p>
                 <button onclick="fetchWatchLaterRaw()" class="text-[10px] px-3 py-1.5 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 mx-auto"><i class="fa-solid fa-rotate text-[9px]"></i> Load Queue</button>
             </div>
 
@@ -102,7 +102,7 @@
             if (!c) { c = document.createElement('div'); c.id = 'toast-container'; c.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80'; document.body.appendChild(c); }
             const el = document.createElement('div');
             const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
-            const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-blue-600' };
+            const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-[#2f8fc9]' };
             el.className = 'flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium ' + (colors[type] || colors.info);
             el.innerHTML = '<i class="fa-solid ' + (icons[type] || icons.info) + '"></i><span>' + msg + '</span>';
             c.appendChild(el);
@@ -111,7 +111,7 @@
 
         async function fetchWatchLaterRaw() {
             log('Fetching Watch Later videos...');
-            document.getElementById('empty-state').innerHTML = '<div class="py-8"><i class="fa-solid fa-spinner fa-spin text-blue-400 text-2xl mb-3"></i><p class="text-gray-400 text-xs">Loading queue...</p></div>';
+            document.getElementById('empty-state').innerHTML = '<div class="py-8"><i class="fa-solid fa-spinner fa-spin text-[#2f8fc9] text-2xl mb-3"></i><p class="text-gray-400 text-xs">Loading queue...</p></div>';
             try {
                 const resp = await fetch('/api/watch-later');
                 const data = await resp.json();
@@ -123,9 +123,9 @@
                 cachedVideos = data.items || [];
                 log('Loaded ' + cachedVideos.length + ' videos from ' + data.source);
                 if (cachedVideos.length > 0) {
-                    document.getElementById('empty-state').innerHTML = '<div class="py-8"><i class="fa-solid fa-check-circle text-green-400 text-2xl mb-3"></i><p class="text-gray-300 text-xs">' + cachedVideos.length + ' videos ready</p><p class="text-[10px] text-gray-500 mt-1">Click <strong class="text-blue-400">Scan with AI</strong> to classify.</p></div>';
+                    document.getElementById('empty-state').innerHTML = '<div class="py-8"><i class="fa-solid fa-check-circle text-green-400 text-2xl mb-3"></i><p class="text-gray-300 text-xs">' + cachedVideos.length + ' videos ready</p><p class="text-[10px] text-gray-500 mt-1">Click <strong class="text-[#2f8fc9]">Scan with AI</strong> to classify.</p></div>';
                 } else {
-                    document.getElementById('empty-state').innerHTML = '<div class="py-8"><i class="fa-regular fa-clock text-6xl mb-6 block text-gray-700"></i><p class="text-gray-400 text-sm font-medium mb-2">Your Watch Later queue is empty!</p><p class="text-[10px] text-gray-500 mb-4">Add some videos to Watch Later on YouTube, then click <strong class="text-blue-400">Load Queue</strong> or <strong class="text-blue-400">Sync with AI</strong>.</p></div>';
+                    document.getElementById('empty-state').innerHTML = '<div class="py-8"><i class="fa-regular fa-clock text-6xl mb-6 block text-gray-700"></i><p class="text-gray-400 text-sm font-medium mb-2">Your Watch Later queue is empty!</p><p class="text-[10px] text-gray-500 mb-4">Add some videos to Watch Later on YouTube, then click <strong class="text-[#2f8fc9]">Load Queue</strong> or <strong class="text-[#2f8fc9]">Sync with AI</strong>.</p></div>';
                 }
             } catch(e) {
                 log('ERROR: ' + e.message);
@@ -215,15 +215,15 @@
                 const hasAI = !!suggested;
                 const selected = selectedPlans.has(vid);
 
-                return '<div class="bento-card p-3 hover:border-blue-500/30 transition-colors" data-vid="' + vid + '">' +
+                return '<div class="bento-card p-3 hover:border-[#2a7db8]/30 transition-colors" data-vid="' + vid + '">' +
                     '<div class="flex items-center gap-3">' +
-                        '<input type="checkbox" class="plan-cb accent-blue-500 shrink-0" ' + (selected ? 'checked' : '') + ' onchange="togglePlan(this, \'' + vid + '\')" style="width:14px;height:14px">' +
+                        '<input type="checkbox" class="plan-cb accent-[#2f8fc9] shrink-0" ' + (selected ? 'checked' : '') + ' onchange="togglePlan(this, \'' + vid + '\')" style="width:14px;height:14px">' +
                         '<img src="' + thumb + '" class="w-24 h-14 rounded object-cover shrink-0">' +
                         '<div class="flex-1 min-w-0">' +
                             '<div class="text-[11px] font-medium text-white truncate">' + (plan.title || 'Unknown') + '</div>' +
                             '<div class="text-[9px] text-gray-400 truncate">' + (plan.channel || '') + '</div>' +
                             '<div class="flex items-center gap-2 mt-1">' +
-                                (hasAI ? '<span class="text-[8px] px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400 border border-blue-500/20"><i class="fa-solid fa-robot text-[7px] mr-0.5"></i>' + suggested + '</span>' : '<span class="text-[8px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-500 border border-gray-600/20">unsure</span>') +
+                                (hasAI ? '<span class="text-[8px] px-1.5 py-0.5 rounded bg-[#2f8fc9]/20 text-[#2f8fc9] border border-[#2f8fc9]/20"><i class="fa-solid fa-robot text-[7px] mr-0.5"></i>' + suggested + '</span>' : '<span class="text-[8px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-500 border border-gray-600/20">unsure</span>') +
                                 (corrected ? '<span class="text-[8px] px-1.5 py-0.5 rounded bg-green-600/20 text-green-400 border border-green-500/20"><i class="fa-solid fa-pen-to-square text-[7px] mr-0.5"></i>' + corrected + '</span>' : '') +
                             '</div>' +
                         '</div>' +
@@ -279,7 +279,7 @@
                 btn.className = 'bg-green-600 hover:bg-green-500 text-white text-xs font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 transition-colors cursor-pointer';
             } else {
                 btn.disabled = true;
-                btn.className = 'bg-blue-600/40 text-white/40 text-xs font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 cursor-not-allowed transition-colors';
+                btn.className = 'bg-[#2f8fc9]/40 text-white/40 text-xs font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 cursor-not-allowed transition-colors';
             }
         }
 

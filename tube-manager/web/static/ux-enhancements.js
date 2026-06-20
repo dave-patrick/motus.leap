@@ -72,7 +72,7 @@ function showLoadingOverlay(message = "Loading...") {
     overlay.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50';
     overlay.innerHTML = `
         <div class="bg-gray-800 rounded-lg p-6 flex flex-col items-center gap-4 shadow-2xl">
-            <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <div class="w-12 h-12 border-4 border-[#2f8fc9] border-t-transparent rounded-full animate-spin"></div>
             <p class="text-white font-medium">${escapeHtml(message)}</p>
             <button onclick="hideLoadingOverlay()" class="text-gray-400 hover:text-white text-sm">Cancel</button>
         </div>
@@ -196,11 +196,11 @@ function showSuccessToast(message) {
  */
 function showInfoToast(message) {
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex items-center gap-3 max-w-md';
+    toast.className = 'fixed top-4 right-4 bg-[#2f8fc9] text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex items-center gap-3 max-w-md';
     toast.innerHTML = `
         <i class="fa-solid fa-circle-info text-xl"></i>
         <p class="font-medium">${escapeHtml(message)}</p>
-        <button onclick="this.parentElement.remove()" class="flex-shrink-0 text-blue-200 hover:text-white">
+        <button onclick="this.parentElement.remove()" class="flex-shrink-0 text-[#a8d4f0] hover:text-white">
             <i class="fa-solid fa-xmark"></i>
         </button>
     `;
@@ -868,7 +868,7 @@ async function navigateSPA(url) {
             currentAside.querySelectorAll('nav a').forEach(a => {
                 const path = a.getAttribute('href');
                 if (path === url || (path === '/' && url === '/dashboard') || (url.startsWith('/playlist') && path === '/playlists')) {
-                    a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30";
+                    a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#2f8fc9]/20 text-[#2f8fc9] text-xs font-semibold border border-[#2f8fc9]/30";
                 } else {
                     a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors";
                 }
@@ -977,14 +977,14 @@ function initGlobalAgentDrawer() {
                             <span id="agent-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span id="agent-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </span>
-                        <span class="font-bold text-blue-400 uppercase tracking-wider text-[9px]">Agent Status:</span>
+                        <span class="font-bold text-[#2f8fc9] uppercase tracking-wider text-[9px]">Agent Status:</span>
                     </div>
                     <span id="agent-task" class="text-white font-semibold truncate max-w-xs font-mono bg-[#20242c] border border-[#2a2f3a] px-2 py-0.5 rounded text-[10px]">Idle</span>
                 </div>
                 
                 <!-- Center: Live Logs Stream -->
                 <div class="flex-1 min-w-0 mx-6 flex items-center gap-2 border-l border-r border-[#2a2f3a]/60 px-4 font-mono text-[9px] text-gray-400 h-full">
-                    <i class="fa-solid fa-terminal text-blue-500 shrink-0"></i>
+                    <i class="fa-solid fa-terminal text-[#2f8fc9] shrink-0"></i>
                     <span id="agent-log" class="truncate">Listening to live log stream...</span>
                 </div>
                 
@@ -1009,7 +1009,7 @@ function initGlobalAgentDrawer() {
                     </div>
                 </div>
                 <div class="flex-1 p-3 overflow-y-auto font-mono text-[10px] text-gray-400 space-y-1" id="agent-drawer-log-content">
-                    <div class="text-blue-400/80">[SYSTEM] Live agent console initialized. Logs will stream below...</div>
+                    <div class="text-[#2f8fc9]/80">[SYSTEM] Live agent console initialized. Logs will stream below...</div>
                 </div>
             </div>
         `;
@@ -1052,7 +1052,7 @@ function startAgentActivityTracker() {
                 const logContent = document.getElementById('agent-drawer-log-content');
                 if (logContent) {
                     const line = document.createElement('div');
-                    line.className = 'border-l-2 border-blue-500/30 pl-2 py-0.5 hover:bg-white/5 transition-colors';
+                    line.className = 'border-l-2 border-[#2f8fc9]/30 pl-2 py-0.5 hover:bg-white/5 transition-colors';
                     const time = new Date().toLocaleTimeString();
                     line.innerHTML = `<span class="text-gray-500 text-[8px] mr-2">[${time}]</span> <span class="text-gray-300">${text}</span>`;
                     logContent.appendChild(line);
@@ -1232,7 +1232,7 @@ async function loadPageContent(url) {
         document.querySelectorAll('aside a').forEach(a => {
             const href = a.getAttribute('href');
             if (href === url || (url === '/' && href === '/') || (url.startsWith('/playlist') && href === '/playlists')) {
-                a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30";
+                a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#2f8fc9]/20 text-[#2f8fc9] text-xs font-semibold border border-[#2f8fc9]/30";
             } else {
                 a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors";
             }

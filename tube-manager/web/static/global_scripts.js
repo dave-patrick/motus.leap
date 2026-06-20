@@ -3,7 +3,7 @@ function toast(message, type = 'info', duration = 4000) {
     const container = document.getElementById('toast-container') || createToastContainer();
     const el = document.createElement('div');
     const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
-    const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-blue-600' };
+    const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-[#2f8fc9]' };
     el.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
     el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${DOMPurify.sanitize(message, {USE_PROFILES: {html: true}})}</span>`;
     container.appendChild(el);
