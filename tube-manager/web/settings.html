@@ -5,15 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/settings.js?v=1781919149 /static/ux-enhancements.js?v=1781919149 /static/auth-check.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/ux-enhancements.js?v=1781919149 /static/auth-check.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
-    <script src="/static/settings.js?v=1781919149"></script>
 </head>
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4"><img src="/static/logo_icon.png?v=1781919149" class="w-8 h-8 shrink-0 object-contain"><div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">mot<span class="text-[#3b82f6]">u</span>s.leap</h1></div></div>
-        <div class="flex items-center gap-6"><div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div><div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Notifications"><i class="fa-regular fa-bell"></i></button><button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></div>
+        <div class="flex items-center gap-6"><button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div>
     </header>
     <div class="flex flex-1 overflow-hidden">
         <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
@@ -24,7 +35,7 @@
             <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
         </aside>
-        
+
         <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
             <div class="flex flex-col gap-4 min-w-[900px] max-w-[1800px] mx-auto w-full">
                 <!-- Tabs Navigation -->
@@ -83,7 +94,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="bento-card p-4">
                                 <h3 class="text-xs font-semibold text-gray-300 mb-4">Diagnostics</h3>
                                 <div class="space-y-3">
@@ -338,23 +349,23 @@
             </div>
         </main>
     </div>
-</body>
-</html>
+
+    <script>
         // Tab switching logic
         function switchTab(tabId) {
             document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => {
                 btn.className = "text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors border-b-2 border-transparent";
             });
-            
+
             const activePane = document.getElementById(`tab-content-${tabId}`);
             if (activePane) activePane.classList.remove('hidden');
-            
+
             const activeBtn = document.getElementById(`tab-btn-${tabId}`);
             if (activeBtn) {
                 activeBtn.className = "text-sm font-bold tracking-wide text-white border-b-2 border-blue-500 pb-2 px-1 focus:outline-none transition-colors";
             }
-            
+
             window.location.hash = tabId;
         }
 
@@ -393,7 +404,6 @@
                             opt.textContent = `${p.title} (${p.video_count} videos)`;
                             select.appendChild(opt);
                         });
-                        // Restore selection if the value still exists in the list
                         if (currentVal) {
                             const exists = playlists.some(p => p.id === currentVal);
                             if (exists) select.value = currentVal;
@@ -407,7 +417,6 @@
 
         async function loadSettings() {
             try {
-                // Load all playlists by name for the Watch Later Source dropdown
                 await loadPlaylistNames();
 
                 const response = await fetch('/api/settings');
@@ -436,13 +445,12 @@
                 document.getElementById('notify-failures').checked = data.notify_failures === true;
                 document.getElementById('dark-mode').checked = data.dark_mode !== false;
                 document.getElementById('log-level').value = data.log_level || 'INFO';
-                
+
                 if (data.watch_later_playlist_id) {
                     const select = document.getElementById('watch-later-source');
                     if (select) select.value = data.watch_later_playlist_id;
                 }
-                
-                // AI settings
+
                 const aiProvider = document.getElementById('ai-provider');
                 if (aiProvider && data.ai_provider) aiProvider.value = data.ai_provider;
                 const aiKey = document.getElementById('ai-api-key');
@@ -464,10 +472,9 @@
                 const aiModel = document.getElementById('ai-custom-model');
                 if (aiModel && data.ai_custom_model) aiModel.value = data.ai_custom_model;
                 toggleCustomAiFields();
-                
-                // Load AI memory suggestions
+
                 loadAiSuggestions();
-                
+
                 if (data.default_privacy) document.getElementById('default-privacy').value = data.default_privacy;
                 if (data.scan_interval) document.getElementById('scan-interval').value = data.scan_interval;
                 const aiAutoApply = document.getElementById('ai-auto-apply');
@@ -476,7 +483,7 @@
                 console.error(e);
             }
         }
-        
+
         async function saveSettings() {
             const payload = {
                 youtube_api_key: document.getElementById('yt-api-key').value || undefined,
@@ -499,7 +506,7 @@
                 ai_custom_model: document.getElementById('ai-custom-model').value || undefined,
                 ai_auto_apply_mappings: document.getElementById('ai-auto-apply')?.checked || false,
             };
-            
+
             try {
                 const resp = await fetch('/api/settings', {
                     method: 'POST',
@@ -520,7 +527,7 @@
                 toast('Network error: ' + e.message, 'error');
             }
         }
-        
+
         async function connectYouTube() {
             const status = document.getElementById('yt-status');
             status.textContent = 'Opening YouTube OAuth...';
@@ -538,11 +545,11 @@
                         window.addEventListener('message', function onMsg(e) {
                             if (e.data.type === 'youtube-oauth-success') {
                                 window.removeEventListener('message', onMsg);
-                                status.textContent = '✅ YouTube connected! Token saved.';
+                                status.textContent = 'YouTube connected! Token saved.';
                                 status.className = 'text-[10px] text-green-400 text-center mt-2';
                             } else if (e.data.type === 'youtube-oauth-error') {
                                 window.removeEventListener('message', onMsg);
-                                status.textContent = '❌ OAuth error: ' + (e.data.error || 'unknown');
+                                status.textContent = 'OAuth error: ' + (e.data.error || 'unknown');
                                 status.className = 'text-[10px] text-red-400 text-center mt-2';
                             }
                         });
@@ -569,7 +576,7 @@
                 const resp = await fetch('/api/youtube/disconnect', {method: 'POST'});
                 const data = await resp.json();
                 if (resp.ok) {
-                    status.textContent = '✅ YouTube disconnected. Click Connect to re-authorize.';
+                    status.textContent = 'YouTube disconnected. Click Connect to re-authorize.';
                     status.className = 'text-[10px] text-green-400 text-center mt-2';
                 } else {
                     status.textContent = data.error || 'Failed to disconnect';
@@ -594,7 +601,7 @@
                 icon.classList.add('fa-eye');
             }
         }
-        
+
         async function checkSecurityStatus() {
             try {
                 const resp = await fetch('/api/auth/security/status');
@@ -607,8 +614,7 @@
                 }
             } catch (e) { console.warn('Security status check failed:', e); }
         }
-        
-        // Storage & Data actions
+
         async function clearThumbnailCache() {
             try {
                 const resp = await fetch('/api/storage/clear-thumbnails', {method: 'POST'});
@@ -616,7 +622,7 @@
                 toast(data.message || 'Cache cleared', 'success');
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
-        
+
         async function exportAllData() {
             try {
                 const resp = await fetch('/api/storage/export');
@@ -631,7 +637,6 @@
                 toast('Export started', 'success');
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
-        }
 
         async function uploadCookies() {
             const fileInput = document.getElementById('cookie-file');
@@ -643,26 +648,25 @@
             const file = fileInput.files[0];
             statusEl.textContent = 'Uploading...';
             try {
-                const text = await file.text();
-                const cookies = JSON.parse(text);
+                const fileText = await file.text();
+                const cookies = JSON.parse(fileText);
                 if (!Array.isArray(cookies)) throw new Error('Invalid cookie format: expected array');
-                
-                // Save to data directory
+
                 const resp = await fetch('/api/cookies/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ cookies })
                 });
-                const text = await resp.text();
+                const respText = await resp.text();
                 let data;
-                try { data = JSON.parse(text); } catch { data = { raw: text }; }
+                try { data = JSON.parse(respText); } catch { data = { raw: respText }; }
                 if (resp.ok) {
                     statusEl.textContent = 'Cookies uploaded successfully';
                     statusEl.className = 'text-[9px] text-green-400 min-h-[14px]';
                     toast('Cookies uploaded successfully', 'success');
                     if (data?.path) console.info('[cookies] saved to', data.path);
                 } else {
-                    throw new Error((data && data.error) || text || 'Upload failed');
+                    throw new Error((data && data.error) || respText || 'Upload failed');
                 }
             } catch (e) {
                 statusEl.textContent = 'Error: ' + e.message;
@@ -670,13 +674,11 @@
                 toast('Upload failed: ' + e.message, 'error');
             }
         }
-        
-        // Advanced actions
+
         async function viewSystemLogs() {
             window.open('/system/logs', '_blank');
         }
-        
-        // AI actions
+
         function toggleCustomAiFields() {
             const provider = document.getElementById('ai-provider')?.value;
             const fields = document.getElementById('ai-custom-fields');
@@ -684,12 +686,12 @@
                 fields.classList.toggle('hidden', provider !== 'custom');
             }
         }
-        
+
         async function loadAiSuggestions() {
             const container = document.getElementById('ai-suggestions');
             const countEl = document.getElementById('ai-memory-count');
             if (!container) return;
-            
+
             try {
                 const resp = await fetch('/api/ai/memory');
                 if (resp.ok) {
@@ -697,17 +699,17 @@
                     const moves = data.moves || [];
                     if (countEl) countEl.textContent = moves.length + ' moves';
                 }
-                
+
                 const sugResp = await fetch('/api/ai/suggestions');
                 if (!sugResp.ok) return;
                 const sugData = await sugResp.json();
                 const suggestions = sugData.suggestions || [];
-                
+
                 if (!suggestions.length) {
                     container.innerHTML = '<div class="text-[10px] text-gray-500 italic">Move videos to build up training data. Suggestions will appear here after 3+ moves from the same channel to the same playlist.</div>';
                     return;
                 }
-                
+
                 container.innerHTML = suggestions.map(s => `
                     <div class="flex items-center justify-between p-2 rounded bg-[#20242c] border border-[#2a2f3a]">
                         <div class="flex-1 min-w-0">
@@ -720,7 +722,7 @@
                 console.warn('Failed to load AI suggestions', e);
             }
         }
-        
+
         async function resetPrompt() {
             const prompt = document.getElementById('ai-prompt');
             if (prompt) {
@@ -728,7 +730,7 @@
                 toast('Prompt reset to default', 'info');
             }
         }
-        
+
         async function resetAllSettings() {
             if (!confirm('Reset ALL settings to defaults? This cannot be undone.')) return;
             try {
@@ -739,30 +741,28 @@
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
 
-        // Rules & Mappings actions
         async function loadChannelMappings() {
             const list = document.getElementById('mappings-list');
             try {
-                // Fetch maps, subs, and playlists in parallel to save time
                 const [mapsResp, subsResp, plistResp] = await Promise.all([
                     fetch('/api/mappings'),
                     fetch('/api/subscriptions'),
                     fetch('/api/playlists')
                 ]);
-                
+
                 const maps = await mapsResp.json();
                 const subs = await subsResp.json();
                 const plist = await plistResp.json();
-                
+
                 const mappings = maps.mappings || {};
                 const channels = subs.channels || [];
                 const playlists = plist.playlists || [];
-                
+
                 if (!channels.length) {
                     list.innerHTML = '<div class="text-center text-gray-400 py-8">No channels mapped. Click "Load from Channel Map" to start.</div>';
                     return;
                 }
-                
+
                 list.innerHTML = channels.map(c => {
                     const currentMap = mappings[c.id] || '';
                     const options = playlists.map(p => `<option value="${p.id}" ${p.id === currentMap ? 'selected' : ''}>${p.title}</option>`).join('');
@@ -776,7 +776,7 @@
                                 </div>
                             </div>
                             <div>
-                                <select onchange="updateSingleMapping('${c.id}', this.value)" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none w-48">
+                                <select data-channel="${c.id}" onchange="updateSingleMapping('${c.id}', this.value)" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none w-48">
                                     <option value="">-- No mapping --</option>
                                     ${options}
                                 </select>
@@ -789,20 +789,19 @@
                 list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load mappings</div>';
             }
         }
-        
+
         async function updateSingleMapping(channelId, playlistId) {
             try {
-                // Fetch existing
                 const mapsResp = await fetch('/api/mappings');
                 const maps = await mapsResp.json();
                 const mappings = maps.mappings || {};
-                
+
                 if (playlistId) {
                     mappings[channelId] = playlistId;
                 } else {
                     delete mappings[channelId];
                 }
-                
+
                 await fetch('/api/mappings', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -813,7 +812,7 @@
                 toast('Failed to update mapping', 'error');
             }
         }
-        
+
         function applyRules() {
             const rules = document.getElementById('rules-editor').value;
             toast('Applying rules...', 'info');
@@ -823,7 +822,7 @@
                 body: JSON.stringify({action: 'apply_rules', payload: {rules}})
             }).then(() => toast('Rules applied successfully', 'success')).catch(() => toast('Failed to apply rules', 'error'));
         }
-        
+
         function validateRules() {
             const rules = document.getElementById('rules-editor').value;
             try {
@@ -833,7 +832,7 @@
                 toast('Invalid JSON: ' + e.message, 'error');
             }
         }
-        
+
         function beautifyJson() {
             try {
                 const editor = document.getElementById('rules-editor');
@@ -843,7 +842,7 @@
                 toast('Cannot beautify: invalid JSON', 'error');
             }
         }
-        
+
         async function saveMappings() {
             toast('Saving all mappings...', 'info');
             const mappings = {};
@@ -865,7 +864,6 @@
             }
         }
 
-        // AI Actions
         function retrainModel(btn) {
             btn.disabled = true;
             const origText = btn.textContent;
@@ -879,17 +877,16 @@
                 btn.textContent = origText;
             });
         }
-        
+
         function exportWeights() {
             toast('Exporting model weights...', 'info');
             setTimeout(() => toast('Model weights exported successfully', 'success'), 1000);
         }
-        
+
         function importDataset() {
             toast('Import dataset functionality coming soon', 'info');
         }
 
-        // Stats Polling
         async function loadDashboardStats() {
             try {
                 const response = await fetch('/api/stats');
@@ -897,21 +894,12 @@
                     const data = await response.json();
                     const lastScan = document.getElementById('last-scan');
                     if (lastScan) lastScan.textContent = data.last_scan || 'Never';
-                    const statusLabel = document.getElementById('status-label');
-                    if (statusLabel) {
-                        if (data.running_tasks > 0 && data.current_task) {
-                            statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
-                        } else {
-                            statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
-                        }
-                    }
                 }
             } catch (e) {
                 console.log('Stats endpoint not available');
             }
         }
 
-        // Listen for OAuth callbacks in messages
         window.addEventListener('message', (event) => {
             if (!event.data || !event.data.type) return;
             if (event.data.type === 'youtube-oauth-success') {
@@ -926,23 +914,20 @@
             }
         });
 
-        // Initialize page
         document.addEventListener('DOMContentLoaded', () => {
             loadDashboardStats();
             loadSettings();
             checkSecurityStatus();
-            loadChannelMappings(); // Load for rules tab
-            
-            // Focus active tab based on hash
+            loadChannelMappings();
+
             const hash = window.location.hash.replace('#', '');
             if (hash === 'rules' || hash === 'ai' || hash === 'general') {
                 switchTab(hash);
             }
-            
-            // Auto-scroll AI log to bottom
+
             const log = document.getElementById('ai-log');
             if (log) log.scrollTop = log.scrollHeight;
-            
+
             setInterval(loadDashboardStats, 30000);
         });
     </script>

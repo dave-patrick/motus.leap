@@ -90,7 +90,7 @@ class TestAPIEndpoints:
             "/api/auth/register",
             json={
                 "username": unique,
-                "email": "test@example.com",
+                "email": f"{unique}@example.com",
                 "password": "testpassword"
             }
         )

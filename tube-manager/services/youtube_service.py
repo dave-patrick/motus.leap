@@ -356,28 +356,6 @@ class YouTubeService:
             log.warning(f"Failed to list subscriptions: {e}")
             return {"channels": [], "error": str(e)}
 
-
-        """Get videos for a specific playlist (cached)."""
-        client = self.get_client(require_oauth=True)
-        if not client:
-            return {"videos": [], "error": "YouTube not connected. OAuth required."}
-
-        try:
-            # First, fetch playlist metadata to get title
-            playlist_resp = await asyncio.to_thread(client.list_playlists, playlist_ids=[playlist_id])
-            playlist_title = playlist_resp.get("items", [{}])[0].get("snippet", {}).get("title", "Unknown Playlist")
-
-            video_items = await self._fetch_all_paginated(
-                lambda max_results, page_token: client.list_videos(playlist_id, max_results=max_results, page_token=page_token),
-                max_results=50,
-                max_items=5000,
-            )
-            videos = [self._video_item_to_dict(v, playlist_id, playlist_title) for v in video_items]
-            return {"videos": videos, "playlist_id": playlist_id, "playlist_title": playlist_title}
-        except Exception as e:
-            log.error(f"Failed to get videos for playlist {playlist_id}: {e}")
-            return {"videos": [], "error": str(e)}
-
     # This method is not using the decorator, it directly handles its own caching
     async def list_watch_later_items_cached(self, playlist_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
         user_id = self._get_user_id()

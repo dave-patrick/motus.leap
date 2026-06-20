@@ -143,44 +143,6 @@ function togglePlaylistMenu(playlistId) {
     menu.classList.toggle('hidden');
 }
 
-async function renamePlaylistPrompt(playlistId) {
-    const current = allPlaylists.find(p => p.id === playlistId);
-    const newTitle = prompt('Rename playlist', current ? current.title : '');
-    if (newTitle === null || !newTitle.trim()) return;
-    try {
-        const resp = await fetch('/api/youtube/playlists/rename', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({playlist_id: playlistId, new_title: newTitle.trim()})
-        });
-        const data = await resp.json();
-        toast(data.message || data.error, data.status === 'success' ? 'success' : 'error');
-        closeAllMenus();
-        loadPlaylists();
-    } catch (e) {
-        toast('Rename failed', 'error');
-    }
-}
-
-async function duplicatePlaylistPrompt(playlistId) {
-    const current = allPlaylists.find(p => p.id === playlistId);
-    const newTitle = prompt(`Duplicate playlist: ${current ? current.title : ''}`, `${current ? current.title : 'Playlist'} (copy)`);
-    if (newTitle === null || !newTitle.trim()) return;
-    try {
-        const resp = await fetch('/api/youtube/playlists/duplicate', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({playlist_id: playlistId, new_title: newTitle.trim()})
-        });
-        const data = await resp.json();
-        toast(data.message || data.error, data.status === 'success' ? 'success' : 'error');
-        closeAllMenus();
-        loadPlaylists();
-    } catch (e) {
-        toast('Duplicate failed', 'error');
-    }
-}
-
 async function deletePlaylistConfirmed(playlistId) {
     if (!confirm('Delete this playlist? This cannot be undone.')) return;
     try {
@@ -191,49 +153,10 @@ async function deletePlaylistConfirmed(playlistId) {
         });
         const data = await resp.json();
         toast(data.message || data.error, data.status === 'success' ? 'success' : 'error');
-        closeAllMenus();
         loadPlaylists();
     } catch (e) {
         toast('Delete failed', 'error');
     }
-}
-
-async function addVideoToPlaylist(playlistId, videoId) {
-    const id = prompt('Video ID');
-    if (!id) return;
-    await fetch('/youtube/actions/add', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({playlist_id: playlistId, video_id: id})
-    });
-    toast('Video queued', 'success');
-}
-
-async function editPlaylist(playlistId) {
-    const title = prompt('Playlist title');
-    if (title === null) return;
-    await fetch('/youtube/actions/create-playlist', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({title})
-    });
-    toast('Playlist updated', 'success');
-    loadPlaylists();
-}
-
-async function deletePlaylist(playlistId) {
-    if (!confirm('Delete this playlist?')) return;
-    await fetch('/youtube/actions/remove', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({playlist_item_id: playlistId})
-    });
-    toast('Playlist delete requested', 'success');
-    loadPlaylists();
-}
-
-function managePlaylist(playlistId) {
-    window.location.href = `/playlist/${playlistId}`;
 }
 
 function openManagePlaylistModal(playlistId, playlistTitle, event) {
@@ -341,73 +264,7 @@ async function actionDeletePlaylist(playlistId, title) {
     }
 }
 
-// Create new playlist modal
-function openNewPlaylistModal() {
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50';
-    modal.innerHTML = `
-        <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-lg p-6 w-full max-w-md mx-4">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-bold text-white">Create New Playlist</h3>
-                <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="space-y-4">
-                <div>
-                    <label class="text-[10px] text-gray-400 mb-1 block">Title</label>
-                    <input type="text" id="new-playlist-title" placeholder="My Playlist" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                </div>
-                <div>
-                    <label class="text-[10px] text-gray-400 mb-1 block">Description</label>
-                    <textarea id="new-playlist-desc" placeholder="Playlist description..." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" rows="3"></textarea>
-                </div>
-                <div>
-                    <label class="text-[10px] text-gray-400 mb-1 block">Privacy</label>
-                    <select id="new-playlist-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
-                        <option value="private">Private</option>
-                        <option value="unlisted">Unlisted</option>
-                        <option value="public">Public</option>
-                    </select>
-                </div>
-                <div class="flex gap-2 pt-2">
-                    <button onclick="createPlaylist(); this.closest('.fixed').remove()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded">Create</button>
-                    <button onclick="this.closest('.fixed').remove()" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Cancel</button>
-                </div>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-async function createPlaylist() {
-    const title = document.getElementById('new-playlist-title').value;
-    const description = document.getElementById('new-playlist-desc').value;
-    const privacy = document.getElementById('new-playlist-privacy').value;
-    
-    if (!title) {
-        toast('Title is required', 'error');
-        return;
-    }
-    
-    toast('Creating playlist...', 'info');
-    try {
-        const resp = await fetch('/api/youtube/playlists', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({title, description, privacy})
-        });
-        const result = await resp.json();
-        if (resp.ok) {
-            toast(`Playlist created: ${result.title || 'New playlist'}`, 'success');
-            loadPlaylists();
-        } else {
-            const errorMessage = result.detail || result.error || 'Failed to create playlist';
-            toast(`Failed to create playlist: ${DOMPurify.sanitize(errorMessage)}`, 'error');
-        }
-    } catch (e) {
-        toast(`Failed to create playlist: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
-        console.error('Create playlist failed:', e);
-    }
-}
+document.addEventListener('DOMContentLoaded', loadPlaylists);
 
 async function syncPlaylists(e) {
     const btn = e.target.closest('button') || e.target;
@@ -439,5 +296,3 @@ async function syncPlaylists(e) {
         btn.innerHTML = '<i class="fa-solid fa-sync"></i> Sync from YouTube';
     }
 }
-
-document.addEventListener('DOMContentLoaded', loadPlaylists);

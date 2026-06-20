@@ -32,7 +32,7 @@ def mock_config_manager():
     manager = Mock()
     manager.config = Mock()
     manager.config.channel_mappings = {}
-    manager.save = Mock()
+    manager.save = AsyncMock()
     return manager
 
 

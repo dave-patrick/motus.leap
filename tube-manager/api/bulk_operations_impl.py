@@ -288,7 +288,7 @@ class BulkOperationsService:
                     config.channel_mappings[channel] = playlist
 
             # Save configuration
-            self.config_manager.save(config)
+            await self.config_manager.save(config)
             log.info(f"Imported {len(items)} channel mappings")
             return len(items)
 
