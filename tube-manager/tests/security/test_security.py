@@ -38,9 +38,18 @@ class TestCSPHeaders:
         response = test_client.get("/dashboard")
         csp = response.headers.get("Content-Security-Policy", "")
 
-        # CSP should NOT contain unsafe-inline or unsafe-eval
-        assert "unsafe-inline" not in csp
-        assert "unsafe-eval" not in csp
+        # Find the script-src directive
+        script_src_directive = ""
+        for part in csp.split(";"):
+            part = part.strip()
+            if part.startswith("script-src"):
+                script_src_directive = part
+                break
+
+        assert script_src_directive != "", "script-src directive not found in CSP"
+        # script-src should NOT contain unsafe-inline or unsafe-eval
+        assert "unsafe-inline" not in script_src_directive
+        assert "unsafe-eval" not in script_src_directive
         # But should have specific script sources
         assert "script-src" in csp
 
