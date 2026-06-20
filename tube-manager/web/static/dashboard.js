@@ -70,62 +70,58 @@ async function loadDashboardStats() {
     try {
         const response = await fetch('/api/stats');
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || 'Failed to load dashboard stats');
         }
 
-        document.getElementById('stat-playlists').textContent = data.total_playlists || '--';
-        // Add empty state message for playlists
-        const playlistStatEl = document.getElementById('stat-playlists');
-        if (playlistStatEl && data.total_playlists === 0) {
-            const hint = document.createElement('p');
-            hint.className = 'text-[9px] text-gray-500 mt-1';
-            hint.textContent = 'Sync playlists to populate.';
-            playlistStatEl.parentNode.appendChild(hint);
-        }
+        const statPlaylists = document.getElementById('stat-playlists');
+        const statVideos = document.getElementById('stat-videos');
+        const statPending = document.getElementById('stat-pending');
 
-        document.getElementById('stat-videos').textContent = data.total_videos || '--';
-        // Add empty state message for videos
-        const videoStatEl = document.getElementById('stat-videos');
-        if (videoStatEl && data.total_videos === 0) {
-            const hint = document.createElement('p');
-            hint.className = 'text-[9px] text-gray-500 mt-1';
-            hint.textContent = 'Scan playlists to populate.';
-            videoStatEl.parentNode.appendChild(hint);
-        }
+        if (statPlaylists) statPlaylists.textContent = data.total_playlists || '--';
+        if (statVideos) statVideos.textContent = data.total_videos || '--';
+        if (statPending) statPending.textContent = data.pending_actions ?? '--';
 
-        document.getElementById('stat-pending').textContent = data.pending_actions ?? '--';
-        document.getElementById('pending-data').textContent = `(${data.pending_actions ?? 0})`;
-        document.getElementById('pending-still').textContent = `(${data.still_items ?? 0})`;
-        document.getElementById('pending-ai').textContent = `(${data.ai_learning ?? 0})`;
-        document.getElementById('ai-rate').textContent = data.learning_rate || '--';
-        document.getElementById('ai-rates').textContent = data.learning_rates || '--';
-        document.getElementById('last-scan').textContent = data.last_scan || 'Never';
+        const pendingData = document.getElementById('pending-data');
+        const pendingStill = document.getElementById('pending-still');
+        const pendingAI = document.getElementById('pending-ai');
+        const aiRate = document.getElementById('ai-rate');
+        const aiRates = document.getElementById('ai-rates');
+        const lastScan = document.getElementById('last-scan');
+
+        if (pendingData) pendingData.textContent = `(${data.pending_actions ?? 0})`;
+        if (pendingStill) pendingStill.textContent = `(${data.still_items ?? 0})`;
+        if (pendingAI) pendingAI.textContent = `(${data.ai_learning ?? 0})`;
+        if (aiRate) aiRate.textContent = data.learning_rate || '--';
+        if (aiRates) aiRates.textContent = data.learning_rates || '--';
+        if (lastScan) lastScan.textContent = data.last_scan || 'Never';
+
         const statusLabel = document.getElementById('status-label');
         if (statusLabel) {
             if (data.running_tasks > 0 && data.current_task) {
                 statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
-                document.getElementById('app-status').className = 'text-[10px] text-yellow-400 font-bold';
-                document.getElementById('app-status').textContent = `🟡 RUNNING: ${data.current_task}`;
+                const appStatus = document.getElementById('app-status');
+                if (appStatus) {
+                    appStatus.className = 'text-[10px] text-yellow-400 font-bold';
+                    appStatus.textContent = `🟡 RUNNING: ${data.current_task}`;
+                }
             } else {
                 statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
-                document.getElementById('app-status').className = 'text-[10px] text-green-400 font-bold';
-                document.getElementById('app-status').textContent = '🟢 READY';
+                const appStatus = document.getElementById('app-status');
+                if (appStatus) {
+                    appStatus.className = 'text-[10px] text-green-400 font-bold';
+                    appStatus.textContent = '🟢 READY';
+                }
             }
         }
     } catch (e) {
         console.error('Failed to load dashboard stats:', e);
         toast(`Failed to load dashboard stats: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
-        document.getElementById('stat-playlists').textContent = '--';
-        document.getElementById('stat-videos').textContent = '--';
-        document.getElementById('stat-pending').textContent = '--';
-        document.getElementById('pending-data').textContent = '(0)';
-        document.getElementById('pending-still').textContent = '(0)';
-        document.getElementById('pending-ai').textContent = '(0)';
-        document.getElementById('ai-rate').textContent = '--';
-        document.getElementById('ai-rates').textContent = '--';
-        document.getElementById('last-scan').textContent = 'Never';
+        ['stat-playlists', 'stat-videos', 'stat-pending', 'pending-data', 'pending-still', 'pending-ai', 'ai-rate', 'ai-rates', 'last-scan'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '--';
+        });
     }
     finally { statsLoading = false; }
 }
@@ -137,13 +133,40 @@ async function checkSecurityStatus() {
         const data = await resp.json();
         if (!data.sessions_stable && data.warning) {
             const banner = document.getElementById('security-warning');
-            document.getElementById('security-warning-text').textContent = data.warning;
-            banner.classList.remove('hidden');
+            const warningText = document.getElementById('security-warning-text');
+            if (banner && warningText) {
+                warningText.textContent = data.warning;
+                banner.classList.remove('hidden');
+            }
         }
     } catch (e) { console.warn('Security status check failed:', e); }
 }
 
 function refreshSubscriptions() { toast('Use Subscriptions page for live mapping', 'info'); }
+
+function onWsMessage(raw) {
+    try {
+        const data = JSON.parse(raw);
+        if (data.type === 'log') toast(data.message, 'info');
+    } catch (e) {
+        console.warn('WS message parse failed:', e);
+    }
+}
+
+function connectWs() {
+    let ws = null;
+    try {
+        ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/terminal`);
+        const consoleEl = document.getElementById('console');
+        ws.addEventListener('open', () => {
+            if (consoleEl) consoleEl.innerHTML += '<div class="log-success">[WS] Connected to agent terminal</div>';
+        });
+        ws.addEventListener('message', e => onWsMessage(e.data));
+        ws.addEventListener('close', () => setTimeout(connectWs, 2000));
+    } catch (e) {
+        setTimeout(connectWs, 2000);
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     loadDashboardStats();
@@ -151,3 +174,4 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(loadDashboardStats, 30000);
     document.querySelectorAll('.action-btn').forEach(btn => btn.addEventListener('click', () => triggerAction(btn.dataset.action)));
 });
+
