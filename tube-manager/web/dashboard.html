@@ -42,18 +42,7 @@
 </head>
 <body class="flex flex-col h-screen overflow-hidden selection:bg-[#2f8fc9]/30">
 
-    <!-- Top Header Bar -->
-    <header class="flex items-center h-16 px-6 bg-[#0f1115] border-b border-[#2a2f3a] z-10 shrink-0">
-        <div class="flex items-center gap-3">
-            <img src="/static/logo_icon.png?v=2" alt="motus.leap" class="w-8 h-8 object-contain">
-            <h1 class="text-xl font-semibold text-white tracking-tight">motus.leap</h1>
-        </div>
-        <div class="ml-auto">
-            <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout">
-                <i class="fa-solid fa-arrow-right-from-bracket text-xs"></i>
-            </button>
-        </div>
-    </header>
+
 
     <div class="flex flex-1 overflow-hidden">
         <!-- Left Sidebar Navigation -->
@@ -82,23 +71,9 @@
         <!-- Main Content Area -->
         <main class="flex-1 p-6 bg-[#0f1115] overflow-y-auto">
             <div class="max-w-7xl mx-auto flex flex-col gap-6">
-                <!-- Hero Status Card -->
-                <div class="bento-card p-6 md:p-8 flex items-center justify-between bg-gradient-to-br from-[#1a1d24] to-[#0f1115] border border-[#2a2f3a]">
-                    <div class="flex items-center gap-5">
-                        <img src="/static/logo_icon.png?v=2" alt="motus.leap" class="w-14 h-14 md:w-16 md:h-16 object-contain shrink-0">
-                        <div>
-                            <div class="flex items-center gap-2 mb-1.5">
-                                <span class="status-badge text-[10px] px-2.5 py-1 rounded-full font-semibold tracking-wide">SYSTEM STATUS: ACTIVE & SYNCED</span>
-                            </div>
-                            <h2 class="text-xl md:text-2xl font-bold text-white tracking-tight">motus.leap <span class="text-sm font-medium text-gray-400">v2.1</span></h2>
-                            <p class="text-[11px] md:text-xs text-gray-400 max-w-lg mt-1.5 leading-relaxed">A next-generation, high-performance automated YouTube playlist orchestrator. Powering seamless, multi-playlist synchronization, auto-sorting heuristics, and AI-assisted metadata curation.</p>
-                        </div>
-                    </div>
-                    <div class="hidden lg:block shrink-0">
-                        <svg class="w-20 h-20 text-[#2f8fc9] opacity-20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1.5 10.5V7.5l6 4.5-6 4.5v-4.5z"/>
-                        </svg>
-                    </div>
+                <!-- Seamless Banner -->
+                <div class="w-full h-[120px] bg-[#212121] bg-[url('C:/Users/davem/OneDrive/Pictures/Screenshots 1/Screenshot 2026-06-17 193022.png')] bg-cover bg-center bg-no-repeat flex items-center shadow-lg mb-6">
+                    <!-- No content inside, the image is the banner -->
                 </div>
 
                 <h3 class="text-2xl font-bold text-white">Dashboard</h3>
