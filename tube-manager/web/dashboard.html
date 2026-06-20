@@ -4,197 +4,348 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>motus.leap</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js?v=1781919149 /static/ux-enhancements.js?v=1781919149 /static/auth-check.js?v=1781919149; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com /static/ux-enhancements.css?v=1781919149; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=7">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
+        * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+        body { margin: 0; background: #ffffff; color: #111111; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-        #scan-detail-panel { position: fixed; top: 60px; right: 20px; width: 420px; max-height: 80vh; background: #16191f; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); z-index: 1000; display: none; flex-direction: column; overflow: hidden; }
-        #scan-detail-panel.visible { display: flex; }
-        #scan-detail-header { padding: 12px 16px; border-bottom: 1px solid #2a2f3a; display: flex; justify-content: space-between; align-items: center; }
-        #scan-detail-content { flex: 1; overflow-y: auto; padding: 16px; font-size: 12px; line-height: 1.6; }
-        .scan-entry { margin-bottom: 8px; padding: 8px; background: #0a0c10; border-radius: 6px; border-left: 3px solid #06b6d4; }
-        .scan-entry-header { display: flex; justify-content: space-between; font-size: 10px; color: #7b8bb5; margin-bottom: 4px; }
-        .scan-entry-message { color: #e5e5e5; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-        .scan-entry.error { border-left-color: #ff4444; }
-        .scan-entry.warn { border-left-color: #ffaa00; }
-        .scan-entry.success { border-left-color: #44ff88; }
-        .logo-glow { box-shadow: 0 0 40px rgba(6, 182, 212, 0.15), 0 0 80px rgba(6, 182, 212, 0.05); }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
+        .p-4 { padding: 1rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-2xl { font-size: 1.5rem; }
+        .font-semibold { font-weight: 600; }
+        .font-bold { font-weight: 700; }
+        .text-yellow-700 { color: #b45309; }
+        .text-blue-600 { color: #2563eb; }
+        .text-gray-700 { color: #374151; }
+        .text-gray-500 { color: #6b7280; }
+        .text-green-700 { color: #15803d; }
+        .bg-white { background: #ffffff; }
+        .border { border: 1px solid #e5e7eb; }
+        .rounded { border-radius: 6px; }
+        .rounded-full { border-radius: 9999px; }
+        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .cursor-pointer { cursor: pointer; }
+        .hover\:bg-gray-50:hover { background: #f9fafb; }
+
+        /* Left vertical icon sidebar */
+        .left-sidebar {
+            width: 56px;
+            background: #0f172a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px 0;
+            gap: 14px;
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 50;
+        }
+        .left-sidebar .icon-btn {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            color: #9ca3af;
+            cursor: pointer;
+        }
+        .left-sidebar .icon-btn:hover, .left-sidebar .icon-btn.active {
+            background: #1f2937;
+            color: #ffffff;
+        }
+
+        /* Main layout */
+        .main-wrap {
+            margin-left: 56px;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 14px;
+        }
+        .nav-link {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-right: 18px;
+            font-size: 14px;
+        }
+        .nav-link:hover { text-decoration: underline; }
+        .btn {
+            background: #ffffff;
+            border: 1px solid #111827;
+            color: #111827;
+            border-radius: 6px;
+            padding: 8px 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover { background: #f3f4f6; }
+        .console-wrap {
+            background: #0b1220;
+            color: #e5e7eb;
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            min-height: 160px;
+            max-height: 340px;
+            overflow: auto;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #d1fae5;
+            background: #ecfdf5;
+            color: #065f46;
+            border-radius: 9999px;
+            padding: 6px 14px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 600;
+        }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+        .dot.green { background: #10b981; }
+        .log-idle { color: #93c5fd; }
+        .log-success { color: #6ee7b7; }
+        .log-warn { color: #fcd34d; }
+        .log-error { color: #fca5a5; }
     </style>
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=1781919149">
-    <script src="/static/ux-enhancements.js?v=1781919149"></script>
-    <script src="/static/auth-check.js?v=1781919149"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="/static/global_scripts.js?v=1781919149"></script>
-    <script src="/static/dashboard.js?v=1781919149"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-cyan-500/30">
+<body>
+    <!-- Left icon sidebar -->
+    <aside class="left-sidebar">
+        <div class="icon-btn active" title="Dashboard"><i class="fa-solid fa-grid-2 fa-sm"></i></div>
+        <div class="icon-btn" title="Playlists"><i class="fa-solid fa-bars fa-sm"></i></div>
+        <div class="icon-btn" title="Watch Later"><i class="fa-solid fa-clock fa-sm"></i></div>
+        <div class="icon-btn" title="Subscriptions"><i class="fa-solid fa-play fa-sm"></i></div>
+        <div class="icon-btn" title="Maintenance Queue"><i class="fa-solid fa-wrench fa-sm"></i></div>
+        <div class="icon-btn" title="Rules & Mappings"><i class="fa-solid fa-code fa-sm"></i></div>
+        <div class="icon-btn" title="AI Integration"><i class="fa-solid fa-microchip fa-sm"></i></div>
+        <div class="icon-btn" title="Settings" style="margin-top:auto;"><i class="fa-solid fa-gear fa-sm"></i></div>
+    </aside>
 
-    <!-- Top Header -->
-    <header class="h-14 border-b border-[#2a2f3a] bg-[#0f1115] flex items-center px-4 shrink-0">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-[#16191f] border border-[#2a2f3a] flex items-center justify-center logo-glow">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8 5.14v14l11-7-11-7z" fill="#06b6d4"/>
-                    <rect x="4" y="16" width="16" height="4" rx="1" fill="#06b6d4" opacity="0.6"/>
-                    <rect x="6" y="19" width="12" height="2" rx="0.5" fill="#06b6d4" opacity="0.3"/>
-                </svg>
+    <div class="main-wrap">
+        <!-- Top status row -->
+        <div class="flex items-center gap-2">
+            <div class="text-xl font-bold">motus.leap</div>
+            <span class="text-sm font-semibold text-green-700 inline-flex items-center gap-2">
+                <span class="dot green"></span> READY
+            </span>
+        </div>
+
+        <!-- Scan details -->
+        <div class="card">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="font-semibold text-gray-700">Scan Details</span>
+                <button id="close-scan" class="btn py-1 px-2 text-sm">x</button>
             </div>
-            <span class="text-sm font-semibold text-gray-200 tracking-wide">motus.leap</span>
-            <span id="app-status" class="text-[10px] text-green-400 font-bold ml-2"></span>
+            <div class="text-gray-500 text-sm" id="scan-message">No scan data yet. Run a Full Playlist Sync to see details here.</div>
         </div>
-    </header>
 
-    <div id="scan-detail-panel">
-        <div id="scan-detail-header">
-            <span class="text-xs font-semibold text-gray-300">Scan Details</span>
-            <button onclick="toggleScanDetail()" class="text-gray-400 hover:text-white p-1" title="Close" aria-label="Close scan details"><i class="fa-solid fa-xmark"></i></button>
+        <!-- Nav -->
+        <nav class="flex items-center flex-wrap" style="gap:6px 8px;">
+            <a class="nav-link" href="/dashboard"><i class="fa-solid fa-grip fa-sm"></i> Dashboard</a>
+            <a class="nav-link" href="/playlists"><i class="fa-solid fa-list fa-sm"></i> Playlists</a>
+            <a class="nav-link" href="/watch-later"><i class="fa-solid fa-clock fa-sm"></i> Watch Later</a>
+            <a class="nav-link" href="/subscriptions"><i class="fa-solid fa-play fa-sm"></i> Subscriptions</a>
+            <a class="nav-link" href="/maintenance"><i class="fa-solid fa-wrench fa-sm"></i> Maintenance Queue</a>
+            <a class="nav-link" href="/rules"><i class="fa-solid fa-code fa-sm"></i> Rules & Mappings</a>
+            <a class="nav-link" href="/ai"><i class="fa-solid fa-microchip fa-sm"></i> AI Integration</a>
+        </nav>
+
+        <!-- Dashboard -->
+        <div class="card">
+            <div class="text-2xl font-bold mb-4">Dashboard</div>
+            <div class="flex flex-col" id="stats" style="gap:8px;">
+                <div class="text-gray-500">Loading stats…</div>
+            </div>
         </div>
-        <div id="scan-detail-content"><div class="text-[10px] text-gray-500 text-center py-8">No scan data yet. Run a Full Playlist Sync to see details here.</div></div>
+
+        <!-- Agent Control Center -->
+        <div class="card">
+            <div class="text-lg font-semibold mb-2">Agent Control Center</div>
+            <div class="flex gap-2">
+                <button id="full-sync" class="btn"><i class="fa-solid fa-magnifying-glass fa-sm"></i> Full Playlist Sync</button>
+                <button id="wl-sync" class="btn"><i class="fa-solid fa-clock fa-sm"></i> Watch Later Sync</button>
+            </div>
+            <div class="text-sm text-gray-500 mt-3">
+                <div class="font-semibold text-gray-700">Agent Status:</div>
+                <div class="log-idle" id="agent-status">Idle</div>
+                <div class="text-gray-500 mt-2" id="status-line">>_ [WS] Connected to agent terminal</div>
+                <div class="flex items-center gap-2 mt-2">
+                    <button id="cancel-task" class="btn py-1 px-2 text-sm"><i class="fa-regular fa-circle fa-sm"></i> Cancel</button>
+                    <span class="text-sm text-gray-500" id="last-task">Last Task: None <i class="fa-solid fa-chevron-up fa-xs"></i></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Console -->
+        <div class="card" style="padding:0; overflow:hidden;">
+            <div class="flex items-center justify-between p-3 border-b">
+                <div class="font-semibold">Live Console</div>
+                <div class="flex gap-2">
+                    <button id="export-logs" class="btn py-1 px-2 text-sm"><i class="fa-solid fa-download fa-sm"></i> Export</button>
+                    <button id="clear-logs" class="btn py-1 px-2 text-sm"><i class="fa-solid fa-eraser fa-sm"></i> Clear</button>
+                </div>
+            </div>
+            <div id="console" class="console-wrap" style="margin:10px; border:1px solid #e5e7eb;">
+                <div class="log-success">[SYSTEM] Live agent console initialized. Logs will stream below...</div>
+            </div>
+        </div>
     </div>
 
-    <div class="flex flex-1 overflow-hidden">
-        <aside class="w-52 border-r border-[#2a2f3a] bg-[#0f1115] p-3 flex flex-col gap-1 shrink-0 overflow-y-auto">
-            <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-cyan-600/15 text-cyan-400 text-xs font-semibold border border-cyan-500/25 transition-colors">
-                <i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard
-            </a>
-            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
-                <i class="fa-solid fa-list w-5 text-center"></i> Playlists
-            </a>
-            <a href="/watch-later" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
-                <i class="fa-regular fa-clock w-5 text-center"></i> Watch Later
-            </a>
-            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
-                <i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions
-            </a>
-            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
-                <i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue
-            </a>
-            <a href="/rules" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
-                <i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings
-            </a>
-            <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors">
-                <i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration
-            </a>
-            <div class="flex-1"></div>
-            <div class="border-t border-[#2a2f3a] pt-3 mt-2">
-                <button onclick="logoutUser()" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 text-xs font-medium transition-colors w-full">
-                    <i class="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i> Logout
-                </button>
-            </div>
-        </aside>
+    <script src="/static/dashboard.js"></script>
+    <script src="/static/auth-check.js"></script>
+    <script src="/static/global_scripts.js"></script>
+    <script src="/static/ux-enhancements.js"></script>
+    <script>
+        (function () {
+            const els = {
+                stats: document.getElementById('stats'),
+                console: document.getElementById('console'),
+                agentStatus: document.getElementById('agent-status'),
+                lastTask: document.getElementById('last-task'),
+                scanMessage: document.getElementById('scan-message'),
+                closeScan: document.getElementById('close-scan'),
+                fullSync: document.getElementById('full-sync'),
+                wlSync: document.getElementById('wl-sync'),
+                cancelTask: document.getElementById('cancel-task'),
+                exportLogs: document.getElementById('export-logs'),
+                clearLogs: document.getElementById('clear-logs'),
+            };
 
-        <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
-            <div class="flex flex-col gap-6 min-w-[900px] max-w-[1800px] mx-auto w-full">
-                <div id="security-warning" class="hidden rounded-lg border border-yellow-600/50 bg-yellow-900/20 px-4 py-3 text-xs text-yellow-200">
-                    <div class="flex items-start gap-3">
-                        <i class="fa-solid fa-triangle-exclamation mt-0.5 text-yellow-400"></i>
-                        <div>
-                            <p class="font-semibold text-yellow-100">Session stability warning</p>
-                            <p id="security-warning-text"></p>
-                        </div>
-                    </div>
-                </div>
+            function addLog(message, cls = '') {
+                const div = document.createElement('div');
+                const now = new Date();
+                const ts = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+                div.textContent = `[${ts}] ${message}`;
+                if (cls) div.className = cls;
+                els.console.appendChild(div);
+            }
 
-                <!-- Hero Card -->
-                <div class="rounded-xl border border-[#2a2f3a] bg-[#16191f] p-8 flex items-center gap-8 relative overflow-hidden">
-                    <div class="absolute top-0 right-0 w-96 h-96 bg-cyan-500/3 rounded-full blur-[120px] pointer-events-none"></div>
-                    <div class="relative w-24 h-24 shrink-0 flex items-center justify-center select-none z-10">
-                        <div class="w-20 h-20 rounded-xl bg-[#1a1d24] border border-[#2a2f3a] flex items-center justify-center logo-glow">
-                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M8 5.14v14l11-7-11-7z" fill="#06b6d4"/>
-                                <rect x="4" y="16" width="16" height="4" rx="1" fill="#06b6d4" opacity="0.6"/>
-                                <rect x="6" y="19" width="12" height="2" rx="0.5" fill="#06b6d4" opacity="0.3"/>
-                            </svg>
-                        </div>
-                        <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-md bg-[#1a1d24] border border-[#2a2f3a] flex items-center justify-center">
-                            <div class="w-2 h-0.5 bg-[#06b6d4]/40 rounded-full"></div>
-                        </div>
-                        <div class="absolute -bottom-2 -right-2 w-4 h-4 rounded-md bg-[#1a1d24] border border-[#2a2f3a] flex items-center justify-center">
-                            <div class="w-1.5 h-0.5 bg-[#06b6d4]/30 rounded-full"></div>
-                        </div>
-                    </div>
-                    <div class="relative z-10 flex flex-col gap-3 justify-center h-full">
-                        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold tracking-wide uppercase w-fit" role="status" aria-live="polite">
-                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" aria-hidden="true"></span>
-                            <span id="status-label">System Status: Active & Synced</span>
-                        </div>
-                        <h1 class="text-4xl font-extrabold text-white tracking-tight flex items-center leading-none select-none">
-                            motus<span class="text-cyan-400">.</span>leap
-                            <span class="text-xs font-normal text-gray-500 bg-[#1a1d24] px-2 py-0.5 rounded-md border border-[#2a2f3a] ml-3">v2.1</span>
-                        </h1>
-                        <p class="text-sm text-gray-400 leading-relaxed max-w-[580px] tracking-wide">
-                            A next-generation, high-performance automated YouTube playlist orchestrator. Powering seamless, multi-playlist synchronization, auto-sorting heuristics, and AI-assisted metadata curation.
-                        </p>
-                    </div>
-                </div>
+            function updateStats() {
+                fetch('/api/stats')
+                    .then(res => res.ok ? res.json() : Promise.reject())
+                    .then(d => {
+                        els.stats.innerHTML = '';
+                        const rows = [
+                            { icon: 'fa-list', label: 'Total Playlists', value: d.total_playlists ?? '—' },
+                            { icon: 'fa-play', label: 'Total tracked videos', value: d.total_videos ?? '—' },
+                            { icon: 'fa-clock', label: 'Pending actions', value: d.pending_actions ?? 0 },
+                            { icon: 'fa-circle-info', label: 'Items data', value: `(${d.items_data ?? 0}) Still items: (${d.still_items ?? 0}) AI Learning: (${d.ai_learning ?? false})` },
+                            { icon: 'fa-microchip', label: 'AI Learning', value: `Learning rate: ${d.learning_rate ?? 0}% Learning rates: ${d.learning_rates ?? 0} Last scan: ${d.last_scan ?? 'Never'}` },
+                        ];
+                        rows.forEach(r => {
+                            const row = document.createElement('div');
+                            row.className = 'flex items-center gap-2 text-sm';
+                            row.innerHTML = `<i class="fa-solid ${r.icon} fa-sm text-gray-500"></i> <div><div class="text-gray-500">${r.label}</div><div class="font-semibold">${r.value}</div></div>`;
+                            els.stats.appendChild(row);
+                        });
+                    })
+                    .catch(() => {
+                        els.stats.innerHTML = '<div class="text-gray-500 text-sm">Stats unavailable.</div>';
+                    });
+            }
 
-                <h2 class="text-2xl font-bold text-white tracking-tight">Dashboard</h2>
+            function openTerminal() {
+                if (window.openTerminal && typeof window.openTerminal === 'function') {
+                    window.openTerminal();
+                } else {
+                    window.open('/system/logs', '_blank');
+                }
+            }
 
-                <div class="grid grid-cols-4 gap-4">
-                    <div class="bento-card p-5">
-                        <div class="flex items-center gap-2 mb-3">
-                            <i class="fa-solid fa-list text-cyan-500/70 text-xs"></i>
-                            <span class="text-xs text-gray-300 font-semibold">Total Playlists</span>
-                        </div>
-                        <div class="flex items-end gap-3"><div class="text-4xl font-bold text-white" id="stat-playlists">--</div></div>
-                    </div>
-                    <div class="bento-card p-5">
-                        <div class="flex items-center gap-2 mb-3">
-                            <i class="fa-solid fa-play text-cyan-500/70 text-xs"></i>
-                            <span class="text-xs text-gray-300 font-semibold">Total tracked videos</span>
-                        </div>
-                        <div class="text-4xl font-bold text-white mt-1" id="stat-videos">--</div>
-                    </div>
-                    <div class="bento-card p-5">
-                        <div class="flex items-center gap-2 mb-3">
-                            <i class="fa-regular fa-clock text-cyan-500/70 text-xs"></i>
-                            <span class="text-xs text-gray-300 font-semibold">Pending actions</span>
-                        </div>
-                        <div class="flex items-end gap-3 mt-1">
-                            <div class="text-4xl font-bold text-white" id="stat-pending">--</div>
-                            <div class="text-[10px] text-gray-400 pb-1 flex flex-col">
-                                <span class="text-cyan-400">Items data: <span id="pending-data">(0)</span></span>
-                                <span>Still items: <span id="pending-still">(0)</span></span>
-                                <span class="text-cyan-400">AI Learning: <span id="pending-ai">(0)</span></span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bento-card p-5">
-                        <div class="flex items-center gap-2 mb-3">
-                            <i class="fa-solid fa-microchip text-cyan-500/70 text-xs"></i>
-                            <span class="text-xs text-gray-300 font-semibold">AI Learning</span>
-                        </div>
-                        <div class="text-[11px] text-gray-400 flex flex-col gap-2 mt-3">
-                            <span>Learning rate: <span id="ai-rate" class="text-cyan-400">--</span></span>
-                            <span>Learning rates: <span id="ai-rates" class="text-cyan-400">--</span></span>
-                            <span>Last scan: <span id="last-scan" class="text-cyan-400">Never</span></span>
-                        </div>
-                    </div>
-                </div>
+            function loadLogs() {
+                fetch('/api/system/logs')
+                    .then(res => res.ok ? res.json() : Promise.reject())
+                    .then(d => {
+                        els.console.innerHTML = '';
+                        (Array.isArray(d.logs) ? d.logs : []).forEach(line => addLog(line, ''));
+                    })
+                    .catch(() => addLog('Failed to load logs', 'log-warn'));
+            }
 
-                <div class="grid grid-cols-5 gap-4 h-[250px]">
-                    <div class="bento-card p-4 flex flex-col gap-2 col-span-1">
-                        <h3 class="text-xs font-semibold text-gray-300 mb-2">Agent Control Center</h3>
-                        <button data-action="full_cluster_scan" class="action-btn w-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2" aria-label="Full Playlist Sync"><i class="fa-solid fa-magnifying-glass"></i> Full Playlist Sync</button>
-                        <button data-action="watch_later_sync" class="action-btn w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium py-2 rounded-lg transition-colors flex items-center gap-2 px-3" aria-label="Watch Later Sync"><i class="fa-regular fa-clock text-cyan-400"></i> Watch Later Sync</button>
-                    </div>
-                    <div class="bento-card flex flex-col items-center justify-center col-span-4 border border-dashed border-[#2a2f3a] bg-transparent opacity-60" role="presentation" aria-hidden="true">
-                        <i class="fa-solid fa-cubes text-gray-600 text-2xl mb-2" aria-hidden="true"></i>
-                        <div class="text-xs text-gray-400 font-medium">Additional Module Placeholder</div>
-                        <div class="text-[10px] text-gray-500 mt-1">Custom modules and integrations TBD.</div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-</body>
+            function onWsMessage(raw) {
+                try {
+                    const data = JSON.parse(raw);
+                    if (data.type === 'log') addLog(data.message, '');
+                } catch (e) {
+                    addLog(raw, '');
+                }
+            }
+
+            function connectWs() {
+                let ws = null;
+                try {
+                    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/terminal`);
+                    ws.addEventListener('open', () => addLog('[WS] Connected to agent terminal', 'log-success'));
+                    ws.addEventListener('message', e => onWsMessage(e.data));
+                    ws.addEventListener('close', () => setTimeout(connectWs, 2000));
+                } catch (e) {
+                    setTimeout(connectWs, 2000);
+                }
+            }
+
+            els.closeScan.addEventListener('click', () => { els.scanMessage.textContent = 'Scan details closed.'; });
+            els.fullSync.addEventListener('click', () => {
+                els.agentStatus.textContent = 'Running';
+                els.agentStatus.className = 'text-blue-600';
+                addLog('Starting Full Playlist Sync...', 'log-idle');
+                fetch('/api/youtube/fetch-all', { method: 'POST' })
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(d => {
+                        addLog('Full Playlist Sync complete.', 'log-success');
+                        els.agentStatus.textContent = 'Idle';
+                        els.agentStatus.className = 'log-idle';
+                        updateStats();
+                    })
+                    .catch(() => {
+                        addLog('Full Playlist Sync failed.', 'log-error');
+                        els.agentStatus.textContent = 'Error';
+                        els.agentStatus.className = 'text-yellow-700';
+                    });
+            });
+            els.wlSync.addEventListener('click', () => addLog('Watch Later Sync not available without backend route.', 'log-warn'));
+            els.cancelTask.addEventListener('click', () => addLog('Cancel not wired.', 'log-warn'));
+            els.exportLogs.addEventListener('click', openTerminal);
+            els.clearLogs.addEventListener('click', () => { els.console.innerHTML = ''; });
+            document.querySelectorAll('.left-sidebar .icon-btn').forEach(btn => {
+                btn.addEventListener('click', () => openTerminal());
+            });
+
+            connectWs();
+            updateStats();
+        </script>
+    </body>
 </html>
