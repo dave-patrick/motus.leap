@@ -55,7 +55,7 @@ async function loadStats() {
 function connectWebSocket() {
     if (ws) ws.close();
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${window.location.host}/ws/logs?token=${token}`);
+    ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal?token=${token}`);
 
     ws.onopen = () => {
         logConsole('WebSocket connected.', 'success');
