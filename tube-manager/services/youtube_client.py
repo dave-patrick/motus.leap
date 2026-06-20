@@ -35,10 +35,14 @@ else:  # pragma: no cover
 
 
 def _with_retry(sync_func, *args, **kwargs):
+    last_exc = None
     for attempt in range(RETRY_ATTEMPTS):
         try:
-            return sync_func(*args, **kwargs)
+            resp = sync_func(*args, **kwargs)
+            resp.raise_for_status()
+            return resp
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            last_exc = e
             if attempt < RETRY_ATTEMPTS - 1:
                 log.warning(f"API call failed (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
                 time.sleep(RETRY_DELAY_SECONDS)
@@ -133,16 +137,6 @@ class YouTubeClient:
             self.oauth_access_token = tokens.get("access_token")
             expires_in = tokens.get("expires_in", 3600)
             self.token_expiry = int(time.time()) + expires_in
-
-            # Persist refreshed tokens so they survive app restarts
-            try:
-                from app import config_manager as app_config_manager
-                cfg = app_config_manager.config
-                cfg.oauth.access_token = self.oauth_access_token
-                cfg.oauth.token_expiry = self.token_expiry
-                app_config_manager.save(cfg)
-            except Exception:
-                pass
 
             self._youtube_oauth = None
             return self._ensure_oauth_client()

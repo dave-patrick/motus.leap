@@ -17,10 +17,11 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-        .logo-glow { box-shadow: 0 0 40px rgba(6, 182, 212, 0.15), 0 0 80px rgba(6, 182, 212, 0.05); }
+        .nav-item.active { background-color: #06b6d4; color: #ffffff; }
+        .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
     </style>
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=1781919149">
     <script src="/static/ux-enhancements.js?v=1781919149"></script>
+    <script src="/static/global_scripts.js?v=1781919149"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/playlists.js?v=1781919149"></script>
@@ -28,34 +29,31 @@
 <body class="h-screen flex flex-col overflow-hidden selection:bg-cyan-500/30">
 
     <!-- Top Header -->
-    <header class="h-14 border-b border-[#2a2f3a] bg-[#0f1115] flex items-center px-4 shrink-0">
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#0f1115] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-[#16191f] border border-[#2a2f3a] flex items-center justify-center logo-glow">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8 5.14v14l11-7-11-7z" fill="#06b6d4"/>
-                    <rect x="4" y="16" width="16" height="4" rx="1" fill="#06b6d4" opacity="0.6"/>
-                    <rect x="6" y="19" width="12" height="2" rx="0.5" fill="#06b6d4" opacity="0.3"/>
+            <div class="w-8 h-8 rounded bg-[#0f1115] border border-[#2a2f3a] flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 0 5px rgba(6,182,212,0.6))">
+                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1.5 10.5V7.5l6 4.5-6 4.5v-4.5z" fill="#06b6d4"/>
                 </svg>
             </div>
-            <span class="text-sm font-semibold text-gray-200 tracking-wide">motus.leap</span>
-            <span id="app-status" class="text-[10px] text-green-400 font-bold ml-2"></span>
+            <h1 class="text-xl font-semibold text-white tracking-tight">motus.leap</h1>
         </div>
+        <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
     </header>
 
     <div class="flex flex-1 overflow-hidden">
         <!-- Left Sidebar -->
-        <aside class="w-52 border-r border-[#2a2f3a] bg-[#0f1115] p-3 flex flex-col gap-1 shrink-0 overflow-y-auto">
-            <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
-            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-cyan-600/15 text-cyan-400 text-xs font-semibold border border-cyan-500/25 transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
-            <a href="/watch-later" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
-            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
-            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#1a1d24] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
-            <div class="flex-1"></div>
-            <div class="border-t border-[#2a2f3a] pt-3 mt-2">
-                <button onclick="logoutUser()" class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 text-xs font-medium transition-colors w-full">
-                    <i class="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i> Logout
-                </button>
+        <aside class="w-60 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] shrink-0 overflow-y-auto">
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+                <a href="/playlists" class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+                <a href="/settings#rules" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-code w-5 text-center"></i> Rules & Mappings</a>
+                <a href="/settings#ai" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-microchip w-5 text-center"></i> AI Integration</a>
+            </nav>
+            <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+                <a href="/settings" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
             </div>
         </aside>
 

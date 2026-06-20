@@ -4,48 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Subscriptions - motus.leap</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        .nav-item.active { background-color: #06b6d4; color: #ffffff; }
+        .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="/static/auth-check.js?v=1781919149"></script>
+    <script src="/static/auth-check.js"></script>
+    <script src="/static/subscriptions.js"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
-    <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4"><img src="/static/logo_icon.png?v=1781919149" class="w-8 h-8 shrink-0 object-contain">
-            <div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">mot<span class="text-[#3b82f6]">u</span>s.leap</h1></div>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-cyan-500/30">
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#0f1115] flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-[#0f1115] border border-[#2a2f3a] flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 0 5px rgba(6,182,212,0.6))">
+                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1.5 10.5V7.5l6 4.5-6 4.5v-4.5z" fill="#06b6d4"/>
+                </svg>
+            </div>
+            <h1 class="text-xl font-semibold text-white tracking-tight">motus.leap</h1>
         </div>
-        <div class="flex items-center gap-6">
-            <div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div>
-            <div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button><button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div>
-        </div>
+        <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
     </header>
     <div class="flex flex-1 overflow-hidden">
-        <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
-            <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
-            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
-            <a href="/watch-later" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
-            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
-            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
-</aside>
-        <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
+        <aside class="w-60 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] shrink-0 overflow-y-auto">
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+                <a href="/playlists" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/subscriptions" class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+                <a href="/settings#rules" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-code w-5 text-center"></i> Rules & Mappings</a>
+                <a href="/settings#ai" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-microchip w-5 text-center"></i> AI Integration</a>
+            </nav>
+            <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+                <a href="/settings" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+            </div>
+        </aside>
+        <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
             <div class="flex flex-col gap-4 min-w-[900px] max-w-[1600px] mx-auto w-full">
                 <div class="flex items-center justify-between">
                     <h2 class="text-xl font-bold text-white">Subscriptions</h2>
-                    <button onclick="refreshSubscriptions()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Refresh</button>
+                    <button onclick="refreshSubscriptions()" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Refresh</button>
                 </div>
                 <div class="bento-card overflow-hidden">
                     <div class="p-4 border-b border-[#2a2f3a]"><h3 class="text-xs font-semibold text-gray-300">Subscribed Channels</h3></div>
@@ -54,170 +61,6 @@
             </div>
         </main>
     </div>
-
-    <script>
-        function toast(message, type = 'info', duration = 4000) {
-            const container = document.getElementById('toast-container') || createToastContainer();
-            const el = document.createElement('div');
-            const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
-            const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-blue-600' };
-            el.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
-            el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
-            container.appendChild(el);
-            setTimeout(() => { el.classList.add('animate-slide-out'); setTimeout(() => el.remove(), 300); }, duration);
-        }
-
-        function createToastContainer() {
-            const container = document.createElement('div');
-            container.id = 'toast-container';
-            container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
-            document.body.appendChild(container);
-            return container;
-        }
-
-        // Synchronous render of cached subscriptions for instant display
-        function renderCachedSubscriptions() {
-            const list = document.getElementById('subscriptions-list');
-            const cachedSubs = localStorage.getItem('cached_subscriptions');
-            if (cachedSubs) {
-                try {
-                    const data = JSON.parse(cachedSubs);
-                    if (data && data.channels && data.channels.length) {
-                        renderSubscriptionsList(data.channels);
-                        return true;
-                    }
-                } catch (e) {
-                    console.error("Error parsing cached subscriptions", e);
-                }
-            }
-            return false;
-        }
-
-        async function loadSubscriptions() {
-            const list = document.getElementById('subscriptions-list');
-            
-            // Always show loading state initially
-            list.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-blue-400"></i> Loading subscriptions...</div>';
-
-            try {
-                const response = await fetch('/api/subscriptions');
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to load subscriptions');
-                }
-                
-                // Save to localStorage
-                localStorage.setItem('cached_subscriptions', JSON.stringify(data));
-                
-                // Always re-render with fresh data
-                renderSubscriptionsList(data.channels || []);
-            } catch (e) {
-                list.innerHTML = `<div class="text-center text-red-400 py-8">Error: ${DOMPurify.sanitize(e.message || 'Failed to load subscriptions due to a network error.')}</div>`;
-                toast(`Error: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
-            }
-        }
-
-        function renderSubscriptionsList(channels) {
-            const list = document.getElementById('subscriptions-list');
-            if (!channels || !channels.length) {
-                list.innerHTML = '<div class="text-center text-gray-400 py-8">No subscriptions found. Connect YouTube in Settings.</div>';
-                return;
-            }
-            list.innerHTML = channels.map((c) => {
-                const saved = localStorage.getItem('sub-channel-' + c.id);
-                const mappedPlaylist = saved || '';
-                return `<div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors">
-                    <div class="flex items-center gap-3">
-                        <img src="${c.thumbnail || 'https://picsum.photos/32'}" class="w-8 h-8 rounded-full object-cover">
-                        <div>
-                            <div class="text-sm font-medium text-white">${c.title}</div>
-                            <div class="text-[10px] text-gray-400 flex items-center gap-2">
-                                <a class="text-blue-400 hover:underline" href="${c.channel_url || ('https://www.youtube.com/channel/' + c.id)}" target="_blank" rel="noreferrer">Open channel</a>
-                                ${c.description ? '<span class="text-gray-500">•</span><span class="text-gray-500 truncate max-w-[220px]">' + c.description.replace(/</g, '&lt;') + '</span>' : ''}
-                                ${c.subscribers !== 'Unknown' || c.video_count ? '<span class="text-gray-500">•</span><span class="text-gray-500">' + [c.subscribers !== 'Unknown' ? c.subscribers + ' subs' : '', c.video_count ? c.video_count + ' videos' : ''].filter(Boolean).join(' • ') + '</span>' : ''}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <input type="text" id="map-${c.id}" value="${mappedPlaylist}" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-28" placeholder="Playlist ID" onchange="saveMapping('${c.id}', this.value)">
-                        <button onclick="saveMapping('${c.id}', document.getElementById('map-${c.id}').value)" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded">Map</button>
-                        <button onclick="openMaintenance('${c.id}', '${(c.title || '').replace(/'/g, "\\'")}', '${mappedPlaylist}')" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Manage</button>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        async function saveMapping(channelId, playlistId) {
-            try {
-                const payload = { mappings: { ...(await fetch('/api/mappings').then(r => r.json()).catch(() => ({ mappings: {} }))).mappings, [channelId]: playlistId } };
-                const resp = await fetch('/api/mappings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                const result = await resp.json();
-                if (!resp.ok) {
-                    throw new Error(result.error || 'Failed to save mapping');
-                }
-                localStorage.setItem('sub-channel-' + channelId, playlistId || '');
-                toast(`Mapping saved for ${DOMPurify.sanitize(channelId)}`, 'success');
-            } catch (e) {
-                toast(`Failed to save mapping: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
-                console.error('Save mapping failed:', e);
-            }
-        }
-
-        async function refreshSubscriptions() {
-            try {
-                await loadSubscriptions();
-                toast('Subscriptions refreshed successfully', 'success');
-            } catch (e) {
-                toast(`Failed to refresh subscriptions: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
-                console.error('Refresh subscriptions failed:', e);
-            }
-        }
-
-        async function openMaintenance(channelId, channelTitle, mappedPlaylist) {
-            const modal = document.getElementById('sub-maint-modal');
-            const title = document.getElementById('sub-maint-title');
-            const playlist = document.getElementById('sub-maint-playlist');
-            const dupes = document.getElementById('sub-maint-dupes');
-            const misplaced = document.getElementById('sub-maint-misplaced');
-            const note = document.getElementById('sub-maint-note');
-            const next = document.getElementById('sub-maint-next');
-            title.textContent = DOMPurify.sanitize(channelTitle || channelId);
-            playlist.textContent = DOMPurify.sanitize(mappedPlaylist || 'No mapping');
-
-            dupes.innerHTML = '<div class="text-[10px] text-gray-400">Loading...</div>';
-            misplaced.innerHTML = '<div class="text-[10px] text-gray-400">Loading...</div>';
-            note.textContent = '';
-            next.checked = false;
-            modal.classList.remove('hidden');
-            try {
-                const resp = await fetch('/api/maintenance');
-                const data = await resp.json();
-                if (!resp.ok) {
-                    throw new Error(data.error || 'Maintenance endpoint failed');
-                }
-
-                const safe = (items) => (Array.isArray(items) && items.length ? items.length + ' items' : 'None');
-                dupes.textContent = safe(data.duplicated_videos);
-                misplaced.textContent = safe(data.misplaced_videos);
-                if ((data.duplicated_videos || []).length || (data.misplaced_videos || []).length) {
-                    next.classList.remove('hidden');
-                } else {
-                    next.classList.add('hidden');
-                }
-                note.textContent = data.info || '';
-            } catch (e) {
-                dupes.textContent = 'unavailable';
-                misplaced.textContent = 'unavailable';
-                note.textContent = `Could not load maintenance data: ${DOMPurify.sanitize(e.message || 'Network error')}`;
-                toast(`Failed to load maintenance data: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
-            }
-        }
-
-        function closeMaintenanceModal() {
-            document.getElementById('sub-maint-modal').classList.add('hidden');
-        }
-    </script>
 
     <div id="sub-maint-modal" class="hidden fixed inset-0 z-50">
         <div class="absolute inset-0 bg-black/60" onclick="closeMaintenanceModal()"></div>
@@ -232,19 +75,11 @@
             <div class="p-4 flex flex-col gap-3">
                 <div class="text-[10px] text-gray-400">Mapped playlist: <span id="sub-maint-playlist" class="text-gray-300">-</span></div>
                 <div class="grid grid-cols-2 gap-3">
-                    <div class="bento-card p-3">
-                        <div class="text-[10px] text-gray-400">Duplicates</div>
-                        <div class="text-xs text-gray-200" id="sub-maint-dupes">-</div>
-                    </div>
-                    <div class="bento-card p-3">
-                        <div class="text-[10px] text-gray-400">Misplaced</div>
-                        <div class="text-xs text-gray-200" id="sub-maint-misplaced">-</div>
-                    </div>
+                    <div class="bento-card p-3"><div class="text-[10px] text-gray-400">Duplicates</div><div class="text-xs text-gray-200" id="sub-maint-dupes">-</div></div>
+                    <div class="bento-card p-3"><div class="text-[10px] text-gray-400">Misplaced</div><div class="text-xs text-gray-200" id="sub-maint-misplaced">-</div></div>
                 </div>
                 <div class="text-[10px] text-gray-400" id="sub-maint-note"></div>
-                <div class="hidden items-center gap-2 text-[10px] text-gray-300" id="sub-maint-next">
-                    <input type="checkbox" class="rounded bg-[#20242c] border border-[#2a2f3a]"> Queue cleanup for this playlist
-                </div>
+                <div class="hidden items-center gap-2 text-[10px] text-gray-300" id="sub-maint-next"><input type="checkbox" class="rounded bg-[#20242c] border border-[#2a2f3a]"> Queue cleanup for this playlist</div>
             </div>
         </div>
     </div>

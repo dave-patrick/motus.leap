@@ -726,7 +726,7 @@ async def process_import(
                     if i % 10 == 0 or i == len(items) - 1: await ops_storage.update_and_save(operation)
                 # Save only once at the end
                 config.channel_mappings = current_mappings
-                config_manager.save(config)
+                await config_manager.save(config)
             elif format == "csv":
                 reader = csv.DictReader(io.StringIO(decoded_data))
                 items = list(reader)
@@ -744,7 +744,7 @@ async def process_import(
                     operation.processed += 1
                     if i % 10 == 0 or i == len(items) - 1: await ops_storage.update_and_save(operation)
                 config.channel_mappings = current_mappings
-                config_manager.save(config)
+                await config_manager.save(config)
 
         else:
             raise HTTPException(status_code=400, detail="Invalid resource type")

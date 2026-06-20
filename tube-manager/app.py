@@ -1,19 +1,23 @@
 """motus.leap Main Application."""
 # Deploy v2.1
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv() # Load environment variables from .env
+
 import asyncio
 from datetime import datetime
 import json
 import logging
 import hashlib
-import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends, Cookie, Header
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends, Cookie
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
@@ -23,7 +27,6 @@ import aiofiles
 
 # Auth dependency
 from api.auth import get_current_user, verify_origin, create_default_admin # Import create_default_admin
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Auth dependency for page routes (redirects to /auth if not authenticated)
 async def require_auth(request: Request, response: Response, token: str = Cookie(default=None)) -> dict[str, Any]:
@@ -61,8 +64,6 @@ async def require_auth(request: Request, response: Response, token: str = Cookie
 
 # Import external limiter
 from core.limiter import limiter
-from slowapi import Limiter # Add Limiter import
-from slowapi.util import get_remote_address # Add get_remote_address import
 from slowapi.errors import RateLimitExceeded # Add RateLimitExceeded import
 
 # Import routers
@@ -273,13 +274,11 @@ async def lifespan(app: FastAPI):
     log.info("motus.leap shutting down")
     await shutdown_http_client()
 
+
+
+
+
 # Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
-
-
-
-# Initialize rate limiter
-
 
 # Rate limit exceeded handler
 async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
@@ -305,11 +304,11 @@ async def add_security_headers(request: Request, call_next):
     # Strict Content Security Policy — explicitly list all allowed script sources
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
-        f"script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/ux-enhancements.js /static/auth-check.js /static/playlists.js /static/playlist.js /static/settings.js /static/global_scripts.js; "
+        f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/subscriptions.js /static/auth-check.js /static/ux-enhancements.js /static/auth.js /static/global_scripts.js /static/playlists.js /static/playlist.js; "
         f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
         f"font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
-        f"img-src 'self' https://i.ytimg.com https://yt3.ggpht.com; "
-        f"connect-src 'self' https://www.googleapis.com https://www.youtube.com wss://tubemanager.onrender.com; "
+        f"img-src 'self' data: https://i.ytimg.com https://yt3.ggpht.com; "
+        f"connect-src 'self' https://www.googleapis.com https://www.youtube.com wss://tubemanager.onrender.com ws: wss:; "
         f"frame-ancestors 'none'; "
         f"frame-src 'none';"
     )
@@ -361,8 +360,8 @@ class ConfigUpdateIn(BaseModel):
 
 @app.get("/", dependencies=[Depends(require_auth)])
 async def index():
-    """Serve root page."""
-    return await no_cache_file_response(WEB_DIR / "dashboard.html")
+    """Serve root page - redirect to dashboard."""
+    return RedirectResponse(url="/dashboard")
 
 
 @app.get("/auth")
@@ -374,7 +373,15 @@ async def auth():
 @app.get("/dashboard", dependencies=[Depends(require_auth)])
 async def dashboard():
     """Dashboard page."""
-    return await no_cache_file_response(WEB_DIR / "dashboard.html")
+    print("DEBUG: Dashboard route called!")
+    from pathlib import Path
+    dashboard_file = WEB_DIR / "dashboard.html"
+    print(f"DEBUG: Trying to load {dashboard_file}")
+    print(f"DEBUG: File exists: {dashboard_file.exists()}")
+    if dashboard_file.exists():
+        return await no_cache_file_response(dashboard_file)
+    else:
+        return {"error": "File not found", "path": str(dashboard_file)}
 
 
 @app.get("/playlists", dependencies=[Depends(require_auth)])
@@ -933,7 +940,7 @@ async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any
     mappings = _normalize_mappings(_extract_mapping_items(body))
     config = config_manager.config
     config.channel_mappings = _serialize_mappings(mappings)
-    config_manager.save(config)
+    await config_manager.save(config)
     return {"message": "Mappings saved", "mappings": mappings}
 
 # Action endpoint
@@ -1080,7 +1087,7 @@ async def youtube_callback(code: str, state: str = None):
             config.oauth.refresh_token = tokens.get("refresh_token")
             expires_in = int(tokens.get("expires_in", 3600))
             config.oauth.token_expiry = int(time.time()) + expires_in
-            config_manager.save(config)
+            await config_manager.save(config)
             
             log.info("YouTube OAuth tokens saved successfully")
             
@@ -1152,7 +1159,7 @@ async def youtube_disconnect():
     config.oauth.access_token = ""
     config.oauth.refresh_token = ""
     config.oauth.token_expiry = 0
-    config_manager.save(config)
+    await config_manager.save(config)
     # Recreate YouTubeService without OAuth tokens
     youtube_service = YouTubeService(config)
     return {"message": "YouTube OAuth disconnected. Re-authorize in Settings to reconnect."}
@@ -1221,7 +1228,7 @@ async def save_settings(body: SettingsIn):
         elif key == "oauth_client_secret":
             config.oauth.client_secret = value
     
-    config_manager.save(config)
+    await config_manager.save(config)
     
     # Update YouTube service if credentials changed
     global youtube_service
@@ -1360,7 +1367,7 @@ async def ai_get_memory():
 async def reset_settings():
     """Reset all settings to defaults."""
     config = TubeManagerConfig()
-    config_manager.save(config)
+    await config_manager.save(config)
     
     global youtube_service
     youtube_service = YouTubeService(config)

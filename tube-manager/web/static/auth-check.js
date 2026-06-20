@@ -35,6 +35,10 @@
     window.location.href = '/auth';
   }
 
+  window.logout = function logout() {
+    clearAuthAndRedirect();
+  };
+
   function validateToken(attempt) {
     const activeToken = getCookie('token') || localStorage.getItem('token');
     fetch('/api/auth/me', {

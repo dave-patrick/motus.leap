@@ -9,53 +9,50 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        .nav-item.active { background-color: #06b6d4; color: #ffffff; }
+        .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
-    <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4">
-            <div class="w-8 h-8 rounded shrink-0 bg-blue-600 flex items-center justify-center text-white"><i class="fa-solid fa-layer-group text-sm"></i></div>
-            <div>
-                <h1 class="text-sm font-bold tracking-wide text-white leading-tight">Bulk Operations</h1>
-                <p class="text-[10px] text-gray-400">Batch video management</p>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-cyan-500/30">
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#0f1115] flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-[#0f1115] border border-[#2a2f3a] flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 0 5px rgba(6,182,212,0.6))">
+                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1.5 10.5V7.5l6 4.5-6 4.5v-4.5z" fill="#06b6d4"/>
+                </svg>
             </div>
+            <h1 class="text-xl font-semibold text-white tracking-tight">motus.leap</h1>
         </div>
-        <div class="flex items-center gap-6">
-            <div class="text-right hidden lg:block">
-                <div class="text-[10px] text-blue-400 mt-0.5 flex items-center justify-end gap-1">
-                    [<span id="active-ops">0</span> active operations]
-                </div>
-            </div>
-            <div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div>
-        </div>
+        <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
     </header>
 
     <div class="flex flex-1 overflow-hidden">
-        <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
-            <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
-            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
-            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
-            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <a href="/rules" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-code w-5 text-center"></i> Rules & Mappings</a>
-            <a href="/ai" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-microchip w-5 text-center"></i> AI Integration</a>
-            <a href="/bulk" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-layer-group w-5 text-center"></i> Bulk Operations</a>
-            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
+        <aside class="w-60 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] shrink-0 overflow-y-auto">
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+                <a href="/playlists" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+                <a href="/settings#rules" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-code w-5 text-center"></i> Rules & Mappings</a>
+                <a href="/settings#ai" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-microchip w-5 text-center"></i> AI Integration</a>
+            </nav>
+            <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+                <a href="/settings" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+            </div>
         </aside>
 
-        <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
+        <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
             <div class="flex flex-col gap-4 min-w-[900px] max-w-[1800px] mx-auto w-full">
-                <!-- Operation Tabs -->
                 <div class="flex gap-2 border-b border-[#2a2f3a] pb-4">
-                    <button onclick="showTab('move')" class="tab-btn active px-4 py-2 rounded-lg text-xs font-medium bg-blue-600 text-white transition-colors"><i class="fa-solid fa-arrows-right-left mr-2"></i>Move Videos</button>
+                    <button onclick="showTab('move')" class="tab-btn active px-4 py-2 rounded-lg text-xs font-medium bg-cyan-600 text-white transition-colors"><i class="fa-solid fa-arrows-right-left mr-2"></i>Move Videos</button>
                     <button onclick="showTab('delete')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors"><i class="fa-solid fa-trash mr-2"></i>Delete Videos</button>
                     <button onclick="showTab('tag')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors"><i class="fa-solid fa-tags mr-2"></i>Tag Videos</button>
                     <button onclick="showTab('export')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors"><i class="fa-solid fa-download mr-2"></i>Export Data</button>
@@ -63,39 +60,36 @@
                 </div>
 
                 <div class="grid grid-cols-3 gap-4">
-                    <!-- Left: Operation Panel -->
                     <div class="col-span-2 space-y-4">
-                        <!-- Move Videos Panel -->
                         <div id="panel-move" class="bento-card p-4">
-                            <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-arrows-right-left text-blue-400"></i> Move Videos</h3>
+                            <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-arrows-right-left text-cyan-400"></i> Move Videos</h3>
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Source Playlist</label>
-                                    <select id="move-source" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500"><option value="">Select source playlist...</option></select>
+                                    <select id="move-source" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500"><option value="">Select source playlist...</option></select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Target Playlist</label>
-                                    <select id="move-target" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500"><option value="">Select target playlist...</option></select>
+                                    <select id="move-target" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500"><option value="">Select target playlist...</option></select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
-                                    <textarea id="move-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500 font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                    <textarea id="move-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500 font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
                                 </div>
-                                <button onclick="executeBulkMove()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Move</button>
+                                <button onclick="executeBulkMove()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Move</button>
                             </div>
                         </div>
 
-                        <!-- Delete Videos Panel -->
                         <div id="panel-delete" class="bento-card p-4 hidden">
                             <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-trash text-red-400"></i> Delete Videos</h3>
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Playlist</label>
-                                    <select id="delete-playlist" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500"><option value="">Select playlist...</option></select>
+                                    <select id="delete-playlist" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500"><option value="">Select playlist...</option></select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
-                                    <textarea id="delete-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500 font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                    <textarea id="delete-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500 font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
                                 </div>
                                 <div class="flex items-center gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
                                     <i class="fa-solid fa-triangle-exclamation text-red-400"></i>
@@ -105,33 +99,31 @@
                             </div>
                         </div>
 
-                        <!-- Tag Videos Panel -->
                         <div id="panel-tag" class="bento-card p-4 hidden">
                             <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-tags text-green-400"></i> Tag Videos</h3>
                             <div class="space-y-3">
                                 <div class="flex gap-2">
-                                    <button onclick="setTagAction('add')" id="tag-add-btn" class="flex-1 bg-blue-600 text-white text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-plus mr-1"></i> Add Tags</button>
+                                    <button onclick="setTagAction('add')" id="tag-add-btn" class="flex-1 bg-cyan-600 text-white text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-plus mr-1"></i> Add Tags</button>
                                     <button onclick="setTagAction('remove')" id="tag-remove-btn" class="flex-1 bg-[#2a2f3a] text-gray-400 text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-minus mr-1"></i> Remove Tags</button>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Tags (comma-separated)</label>
-                                    <input type="text" id="tag-input" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500" placeholder="music, tutorial, 2024">
+                                    <input type="text" id="tag-input" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500" placeholder="music, tutorial, 2024">
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
-                                    <textarea id="tag-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500 font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                    <textarea id="tag-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500 font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
                                 </div>
                                 <button onclick="executeBulkTag()" class="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Tagging</button>
                             </div>
                         </div>
 
-                        <!-- Export Data Panel -->
                         <div id="panel-export" class="bento-card p-4 hidden">
                             <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-download text-purple-400"></i> Export Data</h3>
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Resource Type</label>
-                                    <select id="export-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500">
+                                    <select id="export-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
                                         <option value="playlists">Playlists</option>
                                         <option value="subscriptions">Subscriptions</option>
                                         <option value="mappings">Channel Mappings</option>
@@ -139,7 +131,7 @@
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Format</label>
-                                    <select id="export-format" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500">
+                                    <select id="export-format" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
                                         <option value="json">JSON</option>
                                         <option value="csv">CSV</option>
                                     </select>
@@ -148,13 +140,12 @@
                             </div>
                         </div>
 
-                        <!-- Import Data Panel -->
                         <div id="panel-import" class="bento-card p-4 hidden">
                             <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-upload text-yellow-400"></i> Import Data</h3>
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Resource Type</label>
-                                    <select id="import-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500">
+                                    <select id="import-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
                                         <option value="mappings">Channel Mappings</option>
                                         <option value="playlists">Playlists</option>
                                         <option value="subscriptions">Subscriptions</option>
@@ -162,26 +153,25 @@
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Import Mode</label>
-                                    <select id="import-mode" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500">
+                                    <select id="import-mode" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
                                         <option value="merge">Merge (add to existing)</option>
                                         <option value="replace">Replace (clear existing)</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Upload File</label>
-                                    <input type="file" id="import-file" accept=".json,.csv" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-blue-500">
+                                    <input type="file" id="import-file" accept=".json,.csv" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
                                 </div>
                                 <button onclick="executeImport()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-upload"></i> Import Data</button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Right: Operations Queue -->
                     <div class="col-span-1 space-y-4">
                         <div class="bento-card flex flex-col overflow-hidden">
                             <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
-                                <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2"><i class="fa-solid fa-clock text-blue-400"></i> Operations Queue</h3>
-                                <button onclick="refreshOperations()" class="text-[9px] text-blue-400 hover:text-blue-300"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
+                                <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2"><i class="fa-solid fa-clock text-cyan-400"></i> Operations Queue</h3>
+                                <button onclick="refreshOperations()" class="text-[9px] text-cyan-400 hover:text-cyan-300"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
                             </div>
                             <div id="operations-queue" class="flex-1 overflow-y-auto p-3 space-y-2 max-h-[600px]">
                                 <div class="text-[10px] text-gray-500 text-center py-6">No operations in queue</div>
@@ -201,7 +191,7 @@
                                 </div>
                                 <div class="bg-[#0a0c10] rounded p-2">
                                     <div class="text-[9px] text-gray-500">Videos Processed</div>
-                                    <div class="text-lg font-bold text-blue-400" id="stat-processed">0</div>
+                                    <div class="text-lg font-bold text-cyan-400" id="stat-processed">0</div>
                                 </div>
                                 <div class="bg-[#0a0c10] rounded p-2">
                                     <div class="text-[9px] text-gray-500">Errors</div>
@@ -221,13 +211,13 @@
 
         function showTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.remove('bg-cyan-600', 'text-white');
                 btn.classList.add('bg-[#2a2f3a]', 'text-gray-400');
             });
             document.querySelectorAll('[id^="panel-"]').forEach(panel => panel.classList.add('hidden'));
 
             event.target.classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-            event.target.classList.add('bg-blue-600', 'text-white');
+            event.target.classList.add('bg-cyan-600', 'text-white');
             document.getElementById(`panel-${tab}`).classList.remove('hidden');
         }
 
@@ -237,28 +227,30 @@
             const removeBtn = document.getElementById('tag-remove-btn');
 
             if (action === 'add') {
-                addBtn.classList.add('bg-blue-600', 'text-white');
+                addBtn.classList.add('bg-cyan-600', 'text-white');
                 addBtn.classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-                removeBtn.classList.remove('bg-blue-600', 'text-white');
+                removeBtn.classList.remove('bg-cyan-600', 'text-white');
                 removeBtn.classList.add('bg-[#2a2f3a]', 'text-gray-400');
             } else {
-                removeBtn.classList.add('bg-blue-600', 'text-white');
+                removeBtn.classList.add('bg-cyan-600', 'text-white');
                 removeBtn.classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-                addBtn.classList.remove('bg-blue-600', 'text-white');
+                addBtn.classList.remove('bg-cyan-600', 'text-white');
                 addBtn.classList.add('bg-[#2a2f3a]', 'text-gray-400');
             }
         }
 
         async function loadPlaylists() {
             try {
-                const response = await fetch('/api/youtube/playlists');
+                const response = await fetch('/api/playlists');
+                if (!response.ok) throw new Error('Failed to load playlists');
                 const data = await response.json();
 
                 const selects = ['move-source', 'move-target', 'delete-playlist'];
                 selects.forEach(selectId => {
                     const select = document.getElementById(selectId);
+                    if (!select) return;
                     select.innerHTML = '<option value="">Select playlist...</option>';
-                    data.playlists.forEach(playlist => {
+                    (data.playlists || []).forEach(playlist => {
                         const option = document.createElement('option');
                         option.value = playlist.id;
                         option.textContent = playlist.title;
@@ -363,7 +355,11 @@
             const type = document.getElementById('export-type').value;
             const format = document.getElementById('export-format').value;
 
-            const response = await fetch(`/api/bulk/export?resource_type=${type}&format=${format}`);
+            const response = await fetch('/api/bulk/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resource_type: type, format: format })
+            });
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -392,7 +388,7 @@
                 body: JSON.stringify({
                     resource_type: type,
                     format: format,
-                    data: content,
+                    data: btoa(content),
                     options: { mode: mode }
                 })
             });
@@ -416,7 +412,7 @@
                     queueEl.innerHTML = data.operations.map(op => {
                         const statusColors = {
                             'pending': 'text-yellow-400',
-                            'in_progress': 'text-blue-400',
+                            'in_progress': 'text-cyan-400',
                             'completed': 'text-green-400',
                             'failed': 'text-red-400'
                         };
@@ -428,14 +424,13 @@
                                 </div>
                                 <div class="text-[9px] text-gray-500 mb-2">${op.processed}/${op.total_items} items</div>
                                 <div class="w-full bg-[#20242c] rounded-full h-1">
-                                    <div class="bg-blue-500 h-1 rounded-full" style="width: ${op.total_items > 0 ? (op.processed / op.total_items * 100) : 0}%"></div>
+                                    <div class="bg-cyan-500 h-1 rounded-full" style="width: ${op.total_items > 0 ? (op.processed / op.total_items * 100) : 0}%"></div>
                                 </div>
                             </div>
                         `;
                     }).join('');
                 }
 
-                // Update stats
                 document.getElementById('stat-total').textContent = data.operations.length;
                 document.getElementById('stat-processed').textContent = data.operations.reduce((sum, op) => sum + op.processed, 0);
                 document.getElementById('stat-errors').textContent = data.operations.reduce((sum, op) => sum + op.failed, 0);
@@ -447,7 +442,6 @@
             }
         }
 
-        // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadPlaylists();
             refreshOperations();

@@ -1,177 +1,149 @@
-// dashboard.js - Dashboard specific scripts
-
+const consoleOutput = document.getElementById('console-output');
+const token = localStorage.getItem('token') || '';
 let ws = null;
-let scanLogs = [];
-let queueRunning = false;
-let statsLoading = false;
-let scanRenderPending = false;
+let pingInterval = null;
+let pongTimeout = null;
+let missedPongs = 0;
 
-// Refresh token on dashboard load. Auth redirect is handled by auth-check.js
-// in the <head>, so this function only issues a new 7-day token when possible.
-(async function refreshSessionToken() {
+function logConsole(text, type = 'info') {
+    const line = document.createElement('div');
+    const time = new Date().toLocaleTimeString();
+    line.className = `console-line ${type}`;
+    line.textContent = `[${time}] ${text}`;
+    consoleOutput.appendChild(line);
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
+
+async function apiCall(url, options = {}) {
+    const resp = await fetch(url, {
+        ...options,
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        }
+    });
+    return resp;
+}
+
+async function loadStats() {
     try {
-        const token = localStorage.getItem('token');
-        const resp = await fetch('/api/auth/me', {
-            headers: {
-                'Accept': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        const [plResp, wlResp, subResp] = await Promise.all([
+            apiCall('/api/playlists'),
+            apiCall('/api/watch-later'),
+            apiCall('/api/subscriptions')
+        ]);
+        if (plResp.ok) {
+            const plData = await plResp.json();
+            const playlists = plData.playlists || [];
+            document.getElementById('stat-playlists').textContent = playlists.length;
+            document.getElementById('stat-videos').textContent = playlists.reduce((a, p) => a + (p.video_count || 0), 0);
+        }
+        if (wlResp.ok) {
+            const wlData = await wlResp.json();
+            document.getElementById('stat-watch-later').textContent = (wlData.items || []).length;
+        }
+        if (subResp.ok) {
+            const subData = await subResp.json();
+            document.getElementById('stat-subscriptions').textContent = (subData.subscriptions || []).length;
+        }
+    } catch (e) {
+        console.warn('Failed to load stats', e);
+    }
+}
+
+function connectWebSocket() {
+    if (ws) ws.close();
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${window.location.host}/ws/logs?token=${token}`);
+
+    ws.onopen = () => {
+        logConsole('WebSocket connected.', 'success');
+        missedPongs = 0;
+        pingInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({type: 'ping'}));
+                pongTimeout = setTimeout(() => {
+                    missedPongs++;
+                    if (missedPongs >= 3) {
+                        logConsole('WebSocket unresponsive; reconnecting...', 'error');
+                        ws.close();
+                    }
+                }, 10000);
             }
-        });
-        if (!resp.ok) return;  // auth-check.js will handle redirect if needed
-        const refreshResp = await fetch('/api/auth/refresh', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }, 30000);
+    };
+
+    ws.onmessage = (event) => {
+        try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'pong') {
+                clearTimeout(pongTimeout);
+                missedPongs = 0;
+                return;
             }
-        });
-        if (refreshResp.ok) {
-            const data = await refreshResp.json();
-            localStorage.setItem('token', data.access_token);
-            document.cookie = `token=${data.access_token}; path=/; max-age=604800; SameSite=Lax`;
+            logConsole(msg.text || msg.message || JSON.stringify(msg), msg.level || 'info');
+        } catch {
+            logConsole(event.data, 'info');
         }
-    } catch (e) {
-        console.warn('Token refresh failed:', e);
-    }
-})();
+    };
 
-function logTerminal(message) {
-    console.log(message);
+    ws.onerror = () => logConsole('WebSocket error.', 'error');
+    ws.onclose = () => {
+        clearInterval(pingInterval);
+        logConsole('WebSocket disconnected.', 'warn');
+        setTimeout(connectWebSocket, 3000);
+    };
 }
 
-async function triggerAction(action, payload = {}) {
+async function callAction(action, payload = null) {
     try {
-        const statusLabel = document.getElementById('status-label');
-        if (statusLabel) statusLabel.textContent = 'Running...';
-        const appStatus = document.getElementById('app-status');
-        if (appStatus) {
-            appStatus.className = 'text-[10px] text-yellow-400 font-bold';
-        }
-        logTerminal(`[ACTION] Queuing: ${action}`);
-        const response = await fetch('/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, payload }) });
-        const result = await response.json();
-        logTerminal(`[ACTION] ${result.status}: ${result.action}`);
-        toast(`${action.replace(/_/g, ' ')} started`, 'success');
+        const options = { method: 'POST', body: JSON.stringify({action, payload}) };
+        const resp = await apiCall('/api/action', options);
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok) logConsole(`${action} initiated.`, 'success');
+        else logConsole(`${action} failed: ${data.detail || data.error || resp.status}`, 'error');
     } catch (e) {
-        logTerminal(`[ERROR] Failed to queue action: ${e.message}`);
-        toast(`Action failed: ${action}`, 'error');
-        const statusLabel = document.getElementById('status-label');
-        if (statusLabel) statusLabel.textContent = 'Idle';
-        const appStatus = document.getElementById('app-status');
-        if (appStatus) {
-            appStatus.className = 'text-[10px] text-green-400 font-bold';
-        }
+        logConsole(`${action} error: ${e.message}`, 'error');
     }
 }
 
-async function loadDashboardStats() {
-    if (statsLoading) return;
-    statsLoading = true;
+document.getElementById('btn-fetch-all').addEventListener('click', () => callAction('sync_playlists'));
+document.getElementById('btn-watch-later').addEventListener('click', () => callAction('sync_watch_later'));
+document.getElementById('btn-maintenance').addEventListener('click', () => callAction('run_maintenance'));
+document.getElementById('btn-cancel').addEventListener('click', async () => {
     try {
-        const response = await fetch('/api/stats');
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Failed to load dashboard stats');
-        }
-
-        const statPlaylists = document.getElementById('stat-playlists');
-        const statVideos = document.getElementById('stat-videos');
-        const statPending = document.getElementById('stat-pending');
-
-        if (statPlaylists) statPlaylists.textContent = data.total_playlists || '--';
-        if (statVideos) statVideos.textContent = data.total_videos || '--';
-        if (statPending) statPending.textContent = data.pending_actions ?? '--';
-
-        const pendingData = document.getElementById('pending-data');
-        const pendingStill = document.getElementById('pending-still');
-        const pendingAI = document.getElementById('pending-ai');
-        const aiRate = document.getElementById('ai-rate');
-        const aiRates = document.getElementById('ai-rates');
-        const lastScan = document.getElementById('last-scan');
-
-        if (pendingData) pendingData.textContent = `(${data.pending_actions ?? 0})`;
-        if (pendingStill) pendingStill.textContent = `(${data.still_items ?? 0})`;
-        if (pendingAI) pendingAI.textContent = `(${data.ai_learning ?? 0})`;
-        if (aiRate) aiRate.textContent = data.learning_rate || '--';
-        if (aiRates) aiRates.textContent = data.learning_rates || '--';
-        if (lastScan) lastScan.textContent = data.last_scan || 'Never';
-
-        const statusLabel = document.getElementById('status-label');
-        if (statusLabel) {
-            if (data.running_tasks > 0 && data.current_task) {
-                statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
-                const appStatus = document.getElementById('app-status');
-                if (appStatus) {
-                    appStatus.className = 'text-[10px] text-yellow-400 font-bold';
-                    appStatus.textContent = `🟡 RUNNING: ${data.current_task}`;
-                }
-            } else {
-                statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
-                const appStatus = document.getElementById('app-status');
-                if (appStatus) {
-                    appStatus.className = 'text-[10px] text-green-400 font-bold';
-                    appStatus.textContent = '🟢 READY';
-                }
-            }
-        }
+        const resp = await apiCall('/api/action/cancel', {method: 'POST', body: JSON.stringify({})});
+        if (resp.ok) logConsole('Cancel request sent.', 'success');
+        else logConsole('Cancel request failed.', 'error');
     } catch (e) {
-        console.error('Failed to load dashboard stats:', e);
-        toast(`Failed to load dashboard stats: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
-        ['stat-playlists', 'stat-videos', 'stat-pending', 'pending-data', 'pending-still', 'pending-ai', 'ai-rate', 'ai-rates', 'last-scan'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = '--';
-        });
+        logConsole(`Cancel error: ${e.message}`, 'error');
     }
-    finally { statsLoading = false; }
-}
-
-async function checkSecurityStatus() {
-    try {
-        const resp = await fetch('/api/auth/security/status');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (!data.sessions_stable && data.warning) {
-            const banner = document.getElementById('security-warning');
-            const warningText = document.getElementById('security-warning-text');
-            if (banner && warningText) {
-                warningText.textContent = data.warning;
-                banner.classList.remove('hidden');
-            }
-        }
-    } catch (e) { console.warn('Security status check failed:', e); }
-}
-
-function refreshSubscriptions() { toast('Use Subscriptions page for live mapping', 'info'); }
-
-function onWsMessage(raw) {
-    try {
-        const data = JSON.parse(raw);
-        if (data.type === 'log') toast(data.message, 'info');
-    } catch (e) {
-        console.warn('WS message parse failed:', e);
-    }
-}
-
-function connectWs() {
-    let ws = null;
-    try {
-        ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws/terminal`);
-        const consoleEl = document.getElementById('console');
-        ws.addEventListener('open', () => {
-            if (consoleEl) consoleEl.innerHTML += '<div class="log-success">[WS] Connected to agent terminal</div>';
-        });
-        ws.addEventListener('message', e => onWsMessage(e.data));
-        ws.addEventListener('close', () => setTimeout(connectWs, 2000));
-    } catch (e) {
-        setTimeout(connectWs, 2000);
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    loadDashboardStats();
-    checkSecurityStatus();
-    setInterval(loadDashboardStats, 30000);
-    document.querySelectorAll('.action-btn').forEach(btn => btn.addEventListener('click', () => triggerAction(btn.dataset.action)));
 });
 
+document.getElementById('btn-copy-console').addEventListener('click', () => {
+    const text = Array.from(consoleOutput.children).map(c => c.textContent).join('\n');
+    navigator.clipboard.writeText(text).then(() => logConsole('Console copied to clipboard.', 'success'));
+});
+
+document.getElementById('btn-export-console').addEventListener('click', () => {
+    const text = Array.from(consoleOutput.children).map(c => c.textContent).join('\n');
+    const blob = new Blob([text], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `motus-console-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    logConsole('Console exported.', 'success');
+});
+
+document.getElementById('btn-clear-console').addEventListener('click', () => {
+    consoleOutput.innerHTML = '';
+    logConsole('Console cleared.', 'info');
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadStats();
+    connectWebSocket();
+});

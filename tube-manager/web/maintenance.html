@@ -10,61 +10,68 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
-        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-        
-        @keyframes slide-in {
-            from { opacity: 0; transform: translateX(100%); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slide-out {
-            from { opacity: 1; transform: translateX(0); }
-            to { opacity: 0; transform: translateX(100%); }
-        }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        @keyframes slide-in { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slide-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100%); } }
         .animate-slide-in { animation: slide-in 0.3s ease-out; }
         .animate-slide-out { animation: slide-out 0.3s ease-in; }
+        .nav-item.active { background-color: #06b6d4; color: #ffffff; }
+        .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
-    <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4"><img src="/static/logo_icon.png?v=1781919149" class="w-8 h-8 shrink-0 object-contain"><div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">mot<span class="text-[#3b82f6]">u</span>s.leap</h1></div></div>
-        <div class="flex items-center gap-6"><div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div><div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-bell"></i></button><button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></div>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-cyan-500/30">
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#0f1115] flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-[#0f1115] border border-[#2a2f3a] flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 0 5px rgba(6,182,212,0.6))">
+                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1.5 10.5V7.5l6 4.5-6 4.5v-4.5z" fill="#06b6d4"/>
+                </svg>
+            </div>
+            <h1 class="text-xl font-semibold text-white tracking-tight">motus.leap</h1>
+        </div>
+        <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
     </header>
     <div class="flex flex-1 overflow-hidden">
-        <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
-            <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
-            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
-            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
-            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
-</aside>
-        <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
+        <aside class="w-60 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] shrink-0 overflow-y-auto">
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+                <a href="/playlists" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+                <a href="/settings#rules" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-code w-5 text-center"></i> Rules & Mappings</a>
+                <a href="/settings#ai" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-microchip w-5 text-center"></i> AI Integration</a>
+            </nav>
+            <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+                <a href="/settings" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+            </div>
+        </aside>
+        <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
             <div class="flex flex-col gap-4 min-w-[900px] max-w-[1600px] mx-auto w-full">
                 <h2 class="text-xl font-bold text-white">Maintenance Queue</h2>
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div class="bento-card flex flex-col overflow-hidden">
                         <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
                             <h3 class="text-xs font-semibold text-gray-300">Move from X to Y</h3>
-                            <button onclick="applyMaintenance('move')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded">Apply All</button>
+                            <button onclick="applyMaintenance('move')" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs py-1 px-2 rounded">Apply All</button>
                         </div>
                         <div class="p-3 overflow-y-auto flex-1" id="move-queue">Loading...</div>
                     </div>
                     <div class="bento-card flex flex-col overflow-hidden">
                         <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
                             <h3 class="text-xs font-semibold text-gray-300">Duplicated Videos</h3>
-                            <button onclick="applyMaintenance('dup')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded">Resolve All</button>
+                            <button onclick="applyMaintenance('dup')" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs py-1 px-2 rounded">Resolve All</button>
                         </div>
                         <div class="p-3 overflow-y-auto flex-1" id="dup-queue">Loading...</div>
                     </div>
                     <div class="bento-card flex flex-col overflow-hidden">
                         <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
                             <h3 class="text-xs font-semibold text-gray-300">Misplaced Videos</h3>
-                            <button onclick="applyMaintenance('misplaced')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 px-2 rounded">Fix All</button>
+                            <button onclick="applyMaintenance('misplaced')" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs py-1 px-2 rounded">Fix All</button>
                         </div>
                         <div class="p-3 overflow-y-auto flex-1" id="misplaced-queue">Loading...</div>
                     </div>
@@ -148,33 +155,7 @@
         }
         
         
-        // Load scan status in header
-        async function loadDashboardStats() {
-            try {
-                const response = await fetch('/api/stats');
-                if (response.ok) {
-                    const data = await response.json();
-                    document.getElementById('last-scan').textContent = data.last_scan || 'Never';
-                    const statusLabel = document.getElementById('status-label');
-                    if (statusLabel) {
-                        if (data.running_tasks > 0 && data.current_task) {
-                            statusLabel.innerHTML = `<span class="text-yellow-400 font-bold animate-pulse">● ${data.current_task}</span>`;
-                        } else {
-                            statusLabel.innerHTML = `<span class="text-green-400 font-bold">● Idle</span>`;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.log('Stats endpoint not available');
-            }
-        }
         document.addEventListener('DOMContentLoaded', () => {
-            loadDashboardStats();
-            setInterval(loadDashboardStats, 30000);
-        });
-
-        document.addEventListener('DOMContentLoaded', () => {
-            loadDashboardStats();
             loadMaintenance();
         });
     </script>
