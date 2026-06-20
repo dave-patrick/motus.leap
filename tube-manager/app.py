@@ -26,7 +26,7 @@ from api.auth import get_current_user, verify_origin, create_default_admin # Imp
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Auth dependency for page routes (redirects to /auth if not authenticated)
-async def require_auth(request: Request, response: Response, token: str = Cookie(default=None)) -> Dict[str, Any]:
+async def require_auth(request: Request, response: Response, token: str = Cookie(default=None)) -> dict[str, Any]:
     """Require authentication for page routes. Redirects to /auth if not authenticated."""
     from api.auth import decode_access_token, get_user_by_username
 
@@ -302,7 +302,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
         f"script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/ux-enhancements.js /static/auth-check.js /static/playlists.js /static/playlist.js /static/settings.js /static/global_scripts.js; "
-        f"style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
+        f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
         f"font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         f"img-src 'self' https://i.ytimg.com https://yt3.ggpht.com; "
         f"connect-src 'self' https://www.googleapis.com https://www.youtube.com wss://tubemanager.onrender.com; "
