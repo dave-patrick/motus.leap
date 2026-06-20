@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - motus.leap</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=7">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/settings.js /static/ux-enhancements.js /static/auth-check.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/settings.js?v=1781919149 /static/ux-enhancements.js?v=1781919149 /static/auth-check.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="/static/auth-check.js"></script>
-    <script src="/static/settings.js"></script>
+    <script src="/static/auth-check.js?v=1781919149"></script>
+    <script src="/static/settings.js?v=1781919149"></script>
 </head>
 <body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4"><img src="/static/logo_icon.png?v=6" class="w-8 h-8 shrink-0 object-contain"><div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">mot<span class="text-[#3b82f6]">u</span>s.leap</h1></div></div>
+        <div class="flex items-center gap-4"><img src="/static/logo_icon.png?v=1781919149" class="w-8 h-8 shrink-0 object-contain"><div><h1 class="text-sm font-bold tracking-wide text-white leading-tight">mot<span class="text-[#3b82f6]">u</span>s.leap</h1></div></div>
         <div class="flex items-center gap-6"><div class="w-10 h-10 rounded-full bg-[#2a2f3a] border border-[#374151] overflow-hidden flex items-center justify-center shrink-0"><i class="fa-solid fa-user text-gray-400"></i></div><div class="flex gap-2"><button class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Notifications"><i class="fa-regular fa-bell"></i></button><button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></div>
     </header>
     <div class="flex flex-1 overflow-hidden">
