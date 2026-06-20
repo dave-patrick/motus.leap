@@ -360,8 +360,8 @@ class ConfigUpdateIn(BaseModel):
 
 @app.get("/", dependencies=[Depends(require_auth)])
 async def index():
-    """Serve root page - redirect to dashboard."""
-    return RedirectResponse(url="/dashboard")
+    """Serve root page - dark theme dashboard."""
+    return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
 
 @app.get("/auth")
@@ -369,19 +369,6 @@ async def auth():
     """Auth page."""
     return await no_cache_file_response(WEB_DIR / "auth.html")
 
-
-@app.get("/dashboard", dependencies=[Depends(require_auth)])
-async def dashboard():
-    """Dashboard page."""
-    print("DEBUG: Dashboard route called!")
-    from pathlib import Path
-    dashboard_file = WEB_DIR / "dashboard.html"
-    print(f"DEBUG: Trying to load {dashboard_file}")
-    print(f"DEBUG: File exists: {dashboard_file.exists()}")
-    if dashboard_file.exists():
-        return await no_cache_file_response(dashboard_file)
-    else:
-        return {"error": "File not found", "path": str(dashboard_file)}
 
 
 @app.get("/playlists", dependencies=[Depends(require_auth)])
