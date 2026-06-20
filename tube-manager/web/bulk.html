@@ -15,13 +15,13 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-        .nav-item.active { background-color: #06b6d4; color: #ffffff; }
+        .nav-item.active { background-color: #2f8fc9; color: #ffffff; }
         .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-cyan-500/30">
+<body class="h-screen flex flex-col overflow-hidden selection:bg-[#2f8fc9]/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#0f1115] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-3">
             <img src="/static/logo_icon.png?v=2" alt="motus.leap" class="w-8 h-8 object-contain">
@@ -46,7 +46,7 @@
         <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
             <div class="flex flex-col gap-4 min-w-[900px] max-w-[1800px] mx-auto w-full">
                 <div class="flex gap-2 border-b border-[#2a2f3a] pb-4">
-                    <button onclick="showTab('move')" class="tab-btn active px-4 py-2 rounded-lg text-xs font-medium bg-cyan-600 text-white transition-colors"><i class="fa-solid fa-arrows-right-left mr-2"></i>Move Videos</button>
+                    <button onclick="showTab('move')" class="tab-btn active px-4 py-2 rounded-lg text-xs font-medium bg-[#2f8fc9] text-white transition-colors"><i class="fa-solid fa-arrows-right-left mr-2"></i>Move Videos</button>
                     <button onclick="showTab('delete')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors"><i class="fa-solid fa-trash mr-2"></i>Delete Videos</button>
                     <button onclick="showTab('tag')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors"><i class="fa-solid fa-tags mr-2"></i>Tag Videos</button>
                     <button onclick="showTab('export')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors"><i class="fa-solid fa-download mr-2"></i>Export Data</button>
@@ -56,21 +56,21 @@
                 <div class="grid grid-cols-3 gap-4">
                     <div class="col-span-2 space-y-4">
                         <div id="panel-move" class="bento-card p-4">
-                            <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-arrows-right-left text-cyan-400"></i> Move Videos</h3>
+                            <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-arrows-right-left text-[#2f8fc9]"></i> Move Videos</h3>
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Source Playlist</label>
-                                    <select id="move-source" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500"><option value="">Select source playlist...</option></select>
+                                    <select id="move-source" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]"><option value="">Select source playlist...</option></select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Target Playlist</label>
-                                    <select id="move-target" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500"><option value="">Select target playlist...</option></select>
+                                    <select id="move-target" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]"><option value="">Select target playlist...</option></select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
-                                    <textarea id="move-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500 font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                    <textarea id="move-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9] font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
                                 </div>
-                                <button onclick="executeBulkMove()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Move</button>
+                                <button onclick="executeBulkMove()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Move</button>
                             </div>
                         </div>
 
@@ -79,11 +79,11 @@
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Playlist</label>
-                                    <select id="delete-playlist" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500"><option value="">Select playlist...</option></select>
+                                    <select id="delete-playlist" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]"><option value="">Select playlist...</option></select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
-                                    <textarea id="delete-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500 font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                    <textarea id="delete-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9] font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
                                 </div>
                                 <div class="flex items-center gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
                                     <i class="fa-solid fa-triangle-exclamation text-red-400"></i>
@@ -97,16 +97,16 @@
                             <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-tags text-green-400"></i> Tag Videos</h3>
                             <div class="space-y-3">
                                 <div class="flex gap-2">
-                                    <button onclick="setTagAction('add')" id="tag-add-btn" class="flex-1 bg-cyan-600 text-white text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-plus mr-1"></i> Add Tags</button>
+                                    <button onclick="setTagAction('add')" id="tag-add-btn" class="flex-1 bg-[#2f8fc9] text-white text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-plus mr-1"></i> Add Tags</button>
                                     <button onclick="setTagAction('remove')" id="tag-remove-btn" class="flex-1 bg-[#2a2f3a] text-gray-400 text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-minus mr-1"></i> Remove Tags</button>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Tags (comma-separated)</label>
-                                    <input type="text" id="tag-input" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500" placeholder="music, tutorial, 2024">
+                                    <input type="text" id="tag-input" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]" placeholder="music, tutorial, 2024">
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
-                                    <textarea id="tag-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500 font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                    <textarea id="tag-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9] font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
                                 </div>
                                 <button onclick="executeBulkTag()" class="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Tagging</button>
                             </div>
@@ -117,7 +117,7 @@
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Resource Type</label>
-                                    <select id="export-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
+                                    <select id="export-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
                                         <option value="playlists">Playlists</option>
                                         <option value="subscriptions">Subscriptions</option>
                                         <option value="mappings">Channel Mappings</option>
@@ -125,7 +125,7 @@
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Format</label>
-                                    <select id="export-format" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
+                                    <select id="export-format" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
                                         <option value="json">JSON</option>
                                         <option value="csv">CSV</option>
                                     </select>
@@ -139,7 +139,7 @@
                             <div class="space-y-3">
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Resource Type</label>
-                                    <select id="import-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
+                                    <select id="import-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
                                         <option value="mappings">Channel Mappings</option>
                                         <option value="playlists">Playlists</option>
                                         <option value="subscriptions">Subscriptions</option>
@@ -147,14 +147,14 @@
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Import Mode</label>
-                                    <select id="import-mode" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
+                                    <select id="import-mode" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
                                         <option value="merge">Merge (add to existing)</option>
                                         <option value="replace">Replace (clear existing)</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="text-[10px] text-gray-400 mb-1 block">Upload File</label>
-                                    <input type="file" id="import-file" accept=".json,.csv" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-cyan-500">
+                                    <input type="file" id="import-file" accept=".json,.csv" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
                                 </div>
                                 <button onclick="executeImport()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-upload"></i> Import Data</button>
                             </div>
@@ -164,8 +164,8 @@
                     <div class="col-span-1 space-y-4">
                         <div class="bento-card flex flex-col overflow-hidden">
                             <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
-                                <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2"><i class="fa-solid fa-clock text-cyan-400"></i> Operations Queue</h3>
-                                <button onclick="refreshOperations()" class="text-[9px] text-cyan-400 hover:text-cyan-300"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
+                                <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2"><i class="fa-solid fa-clock text-[#2f8fc9]"></i> Operations Queue</h3>
+                                <button onclick="refreshOperations()" class="text-[9px] text-[#2f8fc9] hover:text-[#5ba5d6]"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
                             </div>
                             <div id="operations-queue" class="flex-1 overflow-y-auto p-3 space-y-2 max-h-[600px]">
                                 <div class="text-[10px] text-gray-500 text-center py-6">No operations in queue</div>
@@ -185,7 +185,7 @@
                                 </div>
                                 <div class="bg-[#0a0c10] rounded p-2">
                                     <div class="text-[9px] text-gray-500">Videos Processed</div>
-                                    <div class="text-lg font-bold text-cyan-400" id="stat-processed">0</div>
+                                    <div class="text-lg font-bold text-[#2f8fc9]" id="stat-processed">0</div>
                                 </div>
                                 <div class="bg-[#0a0c10] rounded p-2">
                                     <div class="text-[9px] text-gray-500">Errors</div>
@@ -205,13 +205,13 @@
 
         function showTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('bg-cyan-600', 'text-white');
+                btn.classList.remove('bg-[#2f8fc9]', 'text-white');
                 btn.classList.add('bg-[#2a2f3a]', 'text-gray-400');
             });
             document.querySelectorAll('[id^="panel-"]').forEach(panel => panel.classList.add('hidden'));
 
             event.target.classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-            event.target.classList.add('bg-cyan-600', 'text-white');
+            event.target.classList.add('bg-[#2f8fc9]', 'text-white');
             document.getElementById(`panel-${tab}`).classList.remove('hidden');
         }
 
@@ -221,14 +221,14 @@
             const removeBtn = document.getElementById('tag-remove-btn');
 
             if (action === 'add') {
-                addBtn.classList.add('bg-cyan-600', 'text-white');
+                addBtn.classList.add('bg-[#2f8fc9]', 'text-white');
                 addBtn.classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-                removeBtn.classList.remove('bg-cyan-600', 'text-white');
+                removeBtn.classList.remove('bg-[#2f8fc9]', 'text-white');
                 removeBtn.classList.add('bg-[#2a2f3a]', 'text-gray-400');
             } else {
-                removeBtn.classList.add('bg-cyan-600', 'text-white');
+                removeBtn.classList.add('bg-[#2f8fc9]', 'text-white');
                 removeBtn.classList.remove('bg-[#2a2f3a]', 'text-gray-400');
-                addBtn.classList.remove('bg-cyan-600', 'text-white');
+                addBtn.classList.remove('bg-[#2f8fc9]', 'text-white');
                 addBtn.classList.add('bg-[#2a2f3a]', 'text-gray-400');
             }
         }
@@ -406,7 +406,7 @@
                     queueEl.innerHTML = data.operations.map(op => {
                         const statusColors = {
                             'pending': 'text-yellow-400',
-                            'in_progress': 'text-cyan-400',
+                            'in_progress': 'text-[#2f8fc9]',
                             'completed': 'text-green-400',
                             'failed': 'text-red-400'
                         };
@@ -418,7 +418,7 @@
                                 </div>
                                 <div class="text-[9px] text-gray-500 mb-2">${op.processed}/${op.total_items} items</div>
                                 <div class="w-full bg-[#20242c] rounded-full h-1">
-                                    <div class="bg-cyan-500 h-1 rounded-full" style="width: ${op.total_items > 0 ? (op.processed / op.total_items * 100) : 0}%"></div>
+                                    <div class="bg-[#2f8fc9] h-1 rounded-full" style="width: ${op.total_items > 0 ? (op.processed / op.total_items * 100) : 0}%"></div>
                                 </div>
                             </div>
                         `;

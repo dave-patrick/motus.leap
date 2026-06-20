@@ -8,7 +8,7 @@ function toast(message, type = 'info', duration = 4000) {
     }
     const el = document.createElement('div');
     const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
-    const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-cyan-600' };
+    const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-[#2f8fc9]' };
     el.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium ${colors[type] || colors.info}`;
     el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
     container.appendChild(el);
@@ -17,7 +17,7 @@ function toast(message, type = 'info', duration = 4000) {
 
 async function loadSubscriptions() {
     const list = document.getElementById('subscriptions-list');
-    list.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-cyan-400"></i> Loading subscriptions...</div>';
+    list.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Loading subscriptions...</div>';
     try {
         const response = await fetch('/api/subscriptions');
         const data = await response.json();
@@ -44,7 +44,7 @@ function renderSubscriptionsList(channels) {
                 <div>
                     <div class="text-sm font-medium text-white">${c.title}</div>
                     <div class="text-[10px] text-gray-400 flex items-center gap-2">
-                        <a class="text-cyan-400 hover:underline" href="${c.channel_url || ('https://www.youtube.com/channel/' + c.id)}" target="_blank" rel="noreferrer">Open channel</a>
+                        <a class="text-[#2f8fc9] hover:underline" href="${c.channel_url || ('https://www.youtube.com/channel/' + c.id)}" target="_blank" rel="noreferrer">Open channel</a>
                         ${c.description ? '<span class="text-gray-500">•</span><span class="text-gray-500 truncate max-w-[220px]">' + c.description.replace(/</g, '&lt;') + '</span>' : ''}
                         ${c.subscribers !== 'Unknown' || c.video_count ? '<span class="text-gray-500">•</span><span class="text-gray-500">' + [c.subscribers !== 'Unknown' ? c.subscribers + ' subs' : '', c.video_count ? c.video_count + ' videos' : ''].filter(Boolean).join(' • ') + '</span>' : ''}
                     </div>
@@ -52,7 +52,7 @@ function renderSubscriptionsList(channels) {
             </div>
             <div class="flex items-center gap-2">
                 <input type="text" id="map-${c.id}" value="${saved}" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-28" placeholder="Playlist ID" onchange="saveMapping('${c.id}', this.value)">
-                <button onclick="saveMapping('${c.id}', document.getElementById('map-${c.id}').value)" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs px-3 py-1.5 rounded">Map</button>
+                <button onclick="saveMapping('${c.id}', document.getElementById('map-${c.id}').value)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-3 py-1.5 rounded">Map</button>
                 <button onclick="openMaintenance('${c.id}', '${(c.title || '').replace(/'/g, "\\'")}', '${saved}')" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Manage</button>
             </div>
         </div>`;

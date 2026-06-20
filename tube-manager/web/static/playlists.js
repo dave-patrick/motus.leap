@@ -74,7 +74,7 @@ function renderPlaylistsGrid(playlists) {
         return;
     }
     playlistsList.innerHTML = playlists.map(p => `
-        <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-3 flex flex-col cursor-pointer hover:border-blue-500/50 transition-colors h-full relative">
+        <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-3 flex flex-col cursor-pointer hover:border-[#2a7db8]/50 transition-colors h-full relative">
             <div class="flex items-start justify-between mb-2">
                 <div class="w-12 h-7 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
                 <button onclick="openPlaylist('${p.id}', event)" class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[8px] mr-1"></i> YouTube</button>
@@ -100,7 +100,7 @@ async function rescanPlaylist(playlistId, event) {
     const btn = event.currentTarget;
     const origHTML = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i>';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i>';
     
     toast('Rescanning playlist videos...', 'info');
     try {
@@ -176,7 +176,7 @@ function openManagePlaylistModal(playlistId, playlistTitle, event) {
             
             <div class="space-y-2.5">
                 <button onclick="actionRenamePlaylist('${playlistId}', \`${playlistTitle.replace(/\'/g, "\\'")}\`); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
-                    <i class="fa-solid fa-pen-to-square text-blue-400 w-4 text-center"></i> Rename Playlist
+                    <i class="fa-solid fa-pen-to-square text-[#2f8fc9] w-4 text-center"></i> Rename Playlist
                 </button>
                 <button onclick="actionDuplicatePlaylist('${playlistId}', \`${playlistTitle.replace(/\'/g, "\\'")}\`); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
                     <i class="fa-solid fa-copy text-green-400 w-4 text-center"></i> Duplicate Playlist

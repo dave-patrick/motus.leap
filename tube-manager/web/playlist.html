@@ -16,7 +16,7 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
         .video-row { border-top: 1px solid #2a2f3a; padding: 8px 12px; transition: background-color 0.2s; }
         .video-row:hover { background-color: #20242c; }
-        .video-row.selected { background-color: rgba(59, 130, 246, 0.2); }
+        .video-row.selected { background-color: rgba(47, 143, 201, 0.2); }
         
         @keyframes slide-in {
             from { opacity: 0; transform: translateX(100%); }
@@ -36,20 +36,20 @@
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/playlist.js?v=1781919149"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-blue-500/30">
+<body class="h-screen flex flex-col overflow-hidden selection:bg-[#2f8fc9]/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4">
             <button onclick="window.location.href='/playlists'" class="text-gray-400 hover:text-white"><i class="fa-solid fa-arrow-left"></i></button>
             <div><h1 class="text-sm font-bold tracking-wide text-white leading-tight" id="playlist-title">Loading...</h1><p class="text-[10px] text-gray-400" id="playlist-meta">-- videos</p></div>
         </div>
         <div class="flex items-center gap-2">
-            <button id="move-btn" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 hidden"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Move Selected</button>
+            <button id="move-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 hidden"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Move Selected</button>
         </div>
     </header>
     <div class="flex flex-1 overflow-hidden">
         <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
             <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
-            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-600/20 text-blue-400 text-xs font-semibold border border-blue-500/30"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
+            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#2f8fc9]/20 text-[#2f8fc9] text-xs font-semibold border border-[#2f8fc9]/30"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
         </aside>
         <main class="flex-1 overflow-y-auto p-4 bg-[#121419]">
@@ -63,8 +63,8 @@
                             <p class="text-[10px] text-gray-400">Rescan videos from YouTube, scan for duplicate entries, or detect misplaced videos based on your rules.</p>
                         </div>
                         <div class="flex gap-2">
-                            <button id="rescan-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-arrows-rotate text-blue-400"></i> Rescan Playlist</button>
-                            <button id="btn-scan-dup" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-copy text-blue-400"></i> Scan Duplicates</button>
+                            <button id="rescan-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-arrows-rotate text-[#2f8fc9]"></i> Rescan Playlist</button>
+                            <button id="btn-scan-dup" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-copy text-[#2f8fc9]"></i> Scan Duplicates</button>
                             <button id="btn-scan-mis" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-triangle-exclamation text-yellow-500"></i> Scan Misplaced</button>
                         </div>
                     </div>
@@ -73,14 +73,14 @@
                     <div id="scan-results-box" class="hidden border border-[#2a2f3a] bg-[#16191f] rounded-lg p-3">
                         <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-[#2a2f3a]">
                             <div class="flex items-center gap-2">
-                                <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-blue-400"></i> Scan Results</span>
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-[#2f8fc9]"></i> Scan Results</span>
                                 <span id="scan-results-summary" class="text-[9px] text-gray-400 px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
                             </div>
                             <div class="flex items-center gap-2">
                                 <button id="delete-duplicates-btn" class="hidden bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
                                     <i class="fa-solid fa-trash-can"></i> Delete Duplicates
                                 </button>
-                                <button id="move-misplaced-btn" class="hidden bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
+                                <button id="move-misplaced-btn" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
                                     <i class="fa-solid fa-share-from-square"></i> Move Misplaced
                                 </button>
                                 <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>

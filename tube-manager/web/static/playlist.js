@@ -21,7 +21,7 @@ async function rescanPlaylist() {
     const btn = document.getElementById('rescan-playlist-btn');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-blue-400"></i> Rescanning...';
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-[#2f8fc9]"></i> Rescanning...';
     }
     toast('Rescanning playlist videos...', 'info');
     try {
@@ -55,7 +55,7 @@ async function rescanPlaylist() {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-arrows-rotate text-blue-400"></i> Rescan Playlist';
+            btn.innerHTML = '<i class="fa-solid fa-arrows-rotate text-[#2f8fc9]"></i> Rescan Playlist';
         }
     }
 }
@@ -285,7 +285,7 @@ async function scanForDuplicates() {
     const btn = document.getElementById('btn-scan-dup');
     const origHTML = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> Scanning...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Scanning...';
     
     try {
         await performFullScan();
@@ -366,7 +366,7 @@ function filterScanResults() {
     
     listEl.innerHTML = displayList.map(item => {
         const isDup = item.type === 'duplicate';
-        const badgeColor = isDup ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+        const badgeColor = isDup ? 'bg-[#2f8fc9]/10 text-[#2f8fc9] border-[#2f8fc9]/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
         const badgeLabel = isDup ? 'DUPLICATE' : 'MISPLACED';
         const icon = isDup ? 'fa-copy' : 'fa-triangle-exclamation';
         
@@ -374,7 +374,7 @@ function filterScanResults() {
         if (item.type === 'misplaced') {
             additionalInfo = `\n<div class="text-[9px] text-gray-500 mt-1.5 flex items-center gap-1.5">
                 <i class="fa-solid fa-arrow-right-long"></i> 
-                Move to: <span class="font-medium text-blue-300">${DOMPurify.sanitize(item.mapped_playlist_title || item.mapped_playlist_id)}</span>
+                Move to: <span class="font-medium text-[#5ba5d6]">${DOMPurify.sanitize(item.mapped_playlist_title || item.mapped_playlist_id)}</span>
             </div>`;
         }
 
@@ -384,7 +384,7 @@ function filterScanResults() {
                 <div class="flex-1 min-w-0">
                     <div class="font-semibold text-white truncate text-[11px]">${DOMPurify.sanitize(item.title)}</div>
                     <div class="text-[10px] text-gray-400 truncate">${item.channel ? DOMPurify.sanitize(item.channel) + ' • ' : ''}ID: ${item.video_id}</div>
-                    <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-blue-400' : 'bg-yellow-500'}"></span><span>Reason: ${DOMPurify.sanitize(item.reason)}</span></div>
+                    <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-[#2f8fc9]' : 'bg-yellow-500'}"></span><span>Reason: ${DOMPurify.sanitize(item.reason)}</span></div>
                     ${additionalInfo}
                 </div>
             </div>
