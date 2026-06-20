@@ -960,6 +960,9 @@ window.toggleAgentDrawer = function() {
 };
 
 function initGlobalAgentDrawer() {
+    if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
+        return;
+    }
     let drawer = document.getElementById('global-agent-drawer');
     if (!drawer) {
         drawer = document.createElement('div');
