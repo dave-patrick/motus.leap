@@ -6,6 +6,7 @@
     <title>motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=7">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
         * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
@@ -102,6 +103,7 @@
             padding: 8px 14px;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
             cursor: pointer;
             font-size: 14px;
@@ -145,19 +147,20 @@
 <body>
     <!-- Left icon sidebar -->
     <aside class="left-sidebar">
-        <div class="icon-btn active" title="Dashboard"><i class="fa-solid fa-grid-2 fa-sm"></i></div>
-        <div class="icon-btn" title="Playlists"><i class="fa-solid fa-bars fa-sm"></i></div>
-        <div class="icon-btn" title="Watch Later"><i class="fa-solid fa-clock fa-sm"></i></div>
-        <div class="icon-btn" title="Subscriptions"><i class="fa-solid fa-play fa-sm"></i></div>
-        <div class="icon-btn" title="Maintenance Queue"><i class="fa-solid fa-wrench fa-sm"></i></div>
-        <div class="icon-btn" title="Rules & Mappings"><i class="fa-solid fa-code fa-sm"></i></div>
-        <div class="icon-btn" title="AI Integration"><i class="fa-solid fa-microchip fa-sm"></i></div>
-        <div class="icon-btn" title="Settings" style="margin-top:auto;"><i class="fa-solid fa-gear fa-sm"></i></div>
+        <a class="icon-btn active" title="Dashboard" href="/dashboard"><i class="fa-solid fa-border-all fa-sm"></i></a>
+        <a class="icon-btn" title="Playlists" href="/playlists"><i class="fa-solid fa-bars fa-sm"></i></a>
+        <a class="icon-btn" title="Watch Later" href="/watch-later"><i class="fa-solid fa-clock fa-sm"></i></a>
+        <a class="icon-btn" title="Subscriptions" href="/subscriptions"><i class="fa-solid fa-play fa-sm"></i></a>
+        <a class="icon-btn" title="Maintenance Queue" href="/maintenance"><i class="fa-solid fa-wrench fa-sm"></i></a>
+        <a class="icon-btn" title="Rules & Mappings" href="/rules"><i class="fa-solid fa-code fa-sm"></i></a>
+        <a class="icon-btn" title="AI Integration" href="/ai"><i class="fa-solid fa-microchip fa-sm"></i></a>
+        <a class="icon-btn" title="Settings" style="margin-top:auto;" href="/settings"><i class="fa-solid fa-gear fa-sm"></i></a>
     </aside>
 
     <div class="main-wrap">
         <!-- Top status row -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
+            <img src="/static/logo_icon.png?v=7" class="w-8 h-8 object-contain" alt="motus.leap logo">
             <div class="text-xl font-bold">motus.leap</div>
             <span class="text-sm font-semibold text-green-700 inline-flex items-center gap-2">
                 <span class="dot green"></span> READY
@@ -196,8 +199,8 @@
         <div class="card">
             <div class="text-lg font-semibold mb-2">Agent Control Center</div>
             <div class="flex gap-2">
-                <button id="full-sync" class="btn justify-center"><i class="fa-solid fa-magnifying-glass fa-sm"></i> Full Playlist Sync</button>
-                <button id="wl-sync" class="btn justify-center"><i class="fa-solid fa-clock fa-sm"></i> Watch Later Sync</button>
+                <button id="full-sync" class="btn" style="flex: 1;"><i class="fa-solid fa-magnifying-glass fa-sm"></i> Full Playlist Sync</button>
+                <button id="wl-sync" class="btn" style="flex: 1;"><i class="fa-solid fa-clock fa-sm"></i> Watch Later Sync</button>
             </div>
             <div class="text-sm text-gray-500 mt-3">
                 <div class="font-semibold text-gray-700">Agent Status:</div>
@@ -340,9 +343,6 @@
             els.cancelTask.addEventListener('click', () => addLog('Cancel not wired.', 'log-warn'));
             els.exportLogs.addEventListener('click', openTerminal);
             els.clearLogs.addEventListener('click', () => { els.console.innerHTML = ''; });
-            document.querySelectorAll('.left-sidebar .icon-btn').forEach(btn => {
-                btn.addEventListener('click', () => openTerminal());
-            });
 
             connectWs();
             updateStats();
