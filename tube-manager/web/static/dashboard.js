@@ -82,6 +82,10 @@ function connectWebSocket() {
                 missedPongs = 0;
                 return;
             }
+            if (msg.type === 'ping') {
+                ws.send(JSON.stringify({type: 'pong'}));
+                return;
+            }
             logConsole(msg.text || msg.message || JSON.stringify(msg), msg.level || 'info');
         } catch {
             logConsole(event.data, 'info');
