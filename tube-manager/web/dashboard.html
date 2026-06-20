@@ -196,8 +196,8 @@
         <div class="card">
             <div class="text-lg font-semibold mb-2">Agent Control Center</div>
             <div class="flex gap-2">
-                <button id="full-sync" class="btn"><i class="fa-solid fa-magnifying-glass fa-sm"></i> Full Playlist Sync</button>
-                <button id="wl-sync" class="btn"><i class="fa-solid fa-clock fa-sm"></i> Watch Later Sync</button>
+                <button id="full-sync" class="btn justify-center"><i class="fa-solid fa-magnifying-glass fa-sm"></i> Full Playlist Sync</button>
+                <button id="wl-sync" class="btn justify-center"><i class="fa-solid fa-clock fa-sm"></i> Watch Later Sync</button>
             </div>
             <div class="text-sm text-gray-500 mt-3">
                 <div class="font-semibold text-gray-700">Agent Status:</div>
@@ -260,8 +260,8 @@
                     .then(d => {
                         els.stats.innerHTML = '';
                         const rows = [
-                            { icon: 'fa-list', label: 'Total Playlists', value: d.total_playlists ?? '—' },
-                            { icon: 'fa-play', label: 'Total tracked videos', value: d.total_videos ?? '—' },
+                            { icon: 'fa-list', label: 'Total Playlists', value: d.total_playlists ?? d.playlists_count ?? '—' },
+                            { icon: 'fa-play', label: 'Total tracked videos', value: d.total_videos ?? d.tracked_videos ?? '—' },
                             { icon: 'fa-clock', label: 'Pending actions', value: d.pending_actions ?? 0 },
                             { icon: 'fa-circle-info', label: 'Items data', value: `(${d.items_data ?? 0}) Still items: (${d.still_items ?? 0}) AI Learning: (${d.ai_learning ?? false})` },
                             { icon: 'fa-microchip', label: 'AI Learning', value: `Learning rate: ${d.learning_rate ?? 0}% Learning rates: ${d.learning_rates ?? 0} Last scan: ${d.last_scan ?? 'Never'}` },

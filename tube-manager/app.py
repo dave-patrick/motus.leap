@@ -129,22 +129,26 @@ app.include_router(auth_router, tags=["auth"])
 
 
 async def no_cache_file_response(file_path: Path) -> Response:
-    """Return HTML response with no-cache headers to prevent CDN/browser caching."""
+    """Return HTML response with strong no-cache headers to prevent CDN/browser caching."""
     try:
         async with aiofiles.open(file_path, mode='r', encoding="utf-8") as f:
             content = await f.read()
 
-        # Add a visible marker to confirm fresh deploy
+        # Hard-bust cache by inserting a fresh deploy query on all static assets
+        deploy_tag = str(int(__import__('time').time()))
         content = content.replace(
             '<title>motus.leap</title>',
-            '<title>motus.leap</title>\n    <meta name="deploy-time" content="' + str(int(__import__('time').time())) + '">'
+            f'<title>motus.leap</title>\n    <meta name="deploy-time" content="{deploy_tag}">'
         )
+        content = content.replace('?v=7', f'?v={deploy_tag}')
         return Response(
             content=content,
             media_type="text/html; charset=utf-8",
             headers={
-                "Cache-Control": "public, max-age=0",  # Allow ETag support
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
                 "Pragma": "no-cache",
+                "Expires": "0",
+                "Surrogate-Control": "no-store",
             }
         )
     except Exception as e:
@@ -593,7 +597,10 @@ async def stats() -> dict[str, Any]:
         yt_stats = await youtube_service.get_basic_stats()
     else:
         yt_stats = {"total_playlists": 0, "total_videos": 0}
-    
+
+    total_playlists = yt_stats.get("total_playlists", 0)
+    total_videos = yt_stats.get("total_videos", 0)
+
     config = config_manager.config
     # Calculate real stats from config
     ai_learning_active = getattr(config, 'ai_learning_enabled', False)
@@ -608,6 +615,12 @@ async def stats() -> dict[str, Any]:
 
     return {
         **yt_stats,
+        "total_playlists": total_playlists,
+        "total_videos": total_videos,
+        "playlists_count": total_playlists,
+        "tracked_videos": total_videos,
+        "items_data": 0,
+        "still_items": 0,
         "pending_actions": task_queue.qsize(),
         "running_tasks": 1 if worker and worker.current_task_name else 0,
         "current_task": worker.current_task_name if worker else None,
