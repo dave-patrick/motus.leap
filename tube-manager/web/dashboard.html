@@ -160,7 +160,7 @@
     <div class="main-wrap">
         <!-- Top status row -->
         <div class="flex items-center gap-3">
-            <img src="/static/logo_icon.png?v=7" class="w-8 h-8 object-contain" alt="motus.leap logo">
+            <img src="/static/logo_icon.png?v=7" style="width: 32px; height: 32px; object-fit: contain;" alt="motus.leap logo">
             <div class="text-xl font-bold">motus.leap</div>
             <span class="text-sm font-semibold text-green-700 inline-flex items-center gap-2">
                 <span class="dot green"></span> READY
@@ -199,8 +199,8 @@
         <div class="card">
             <div class="text-lg font-semibold mb-2">Agent Control Center</div>
             <div class="flex gap-2">
-                <button id="full-sync" class="btn" style="flex: 1;"><i class="fa-solid fa-magnifying-glass fa-sm"></i> Full Playlist Sync</button>
-                <button id="wl-sync" class="btn" style="flex: 1;"><i class="fa-solid fa-clock fa-sm"></i> Watch Later Sync</button>
+                <button id="full-sync" class="btn"><i class="fa-solid fa-magnifying-glass fa-sm"></i> Full Playlist Sync</button>
+                <button id="wl-sync" class="btn"><i class="fa-solid fa-clock fa-sm"></i> Watch Later Sync</button>
             </div>
             <div class="text-sm text-gray-500 mt-3">
                 <div class="font-semibold text-gray-700">Agent Status:</div>
@@ -228,7 +228,6 @@
         </div>
     </div>
 
-    <script src="/static/dashboard.js"></script>
     <script src="/static/auth-check.js"></script>
     <script src="/static/global_scripts.js"></script>
     <script src="/static/ux-enhancements.js"></script>
