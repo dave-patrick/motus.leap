@@ -42,10 +42,18 @@
 </head>
 <body class="flex flex-col h-screen overflow-hidden selection:bg-[#2f8fc9]/30">
 
-    <!-- Unified Banner (image as background) -->
-    <div class="w-full h-[160px] bg-[#2d2d2d] bg-[url('C:/Users/davem/AppData/Roaming/Hermes/composer-images/composer_2026-06-21_01-39-47-606_d812cb.png')] bg-cover bg-center bg-no-repeat z-10 shrink-0">
-        <!-- The image itself contains all branding and text - no additional HTML elements here -->
-    </div>
+    <!-- Top Header Bar -->
+    <header class="flex items-center h-16 px-6 bg-[#0f1115] border-b border-[#2a2f3a] z-10 shrink-0">
+        <div class="flex items-center gap-3">
+            <img src="/static/logo_icon.png?v=2" alt="motus.leap" class="w-8 h-8 object-contain">
+            <h1 class="text-xl font-semibold text-white tracking-tight">motus.leap</h1>
+        </div>
+        <div class="ml-auto">
+            <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout">
+                <i class="fa-solid fa-arrow-right-from-bracket text-xs"></i>
+            </button>
+        </div>
+    </header>
 
     <div class="flex flex-1 overflow-hidden">
         <!-- Left Sidebar Navigation -->
@@ -74,6 +82,17 @@
         <!-- Main Content Area -->
         <main class="flex-1 p-6 bg-[#0f1115] overflow-y-auto">
             <div class="max-w-7xl mx-auto flex flex-col gap-6">
+                <!-- Hero Status Card (Modified as per latest screenshot) -->
+                <div class="bento-card p-6 md:p-8 flex items-center justify-between bg-gradient-to-br from-[#1a1d24] to-[#0f1115] border border-[#2a2f3a]" style="height: 180px;"> <!-- Adjusted height -->
+                    <div class="flex flex-col justify-center" style="height: 100%;">
+                        <h2 class="text-3xl font-bold text-white tracking-tight mb-2">motus.leap <span class="text-sm font-medium text-gray-400">v2.1</span></h2>
+                        <span class="status-badge text-[10px] px-2.5 py-1 rounded-full font-semibold tracking-wide mb-2" style="width: fit-content;">SYSTEM STATUS: ACTIVE & SYNCED</span>
+                        <p class="text-[11px] md:text-xs text-gray-400 max-w-lg leading-relaxed">A next-generation, high-performance automated YouTube playlist orchestrator. Powering seamless, multi-playlist synchronization, auto-sorting heuristics, and AI-assisted metadata curation.</p>
+                    </div>
+                    <div class="h-full flex items-center justify-end">
+                        <img src="/static/images/seamless-banner.png" alt="motus.leap graphic" class="h-full w-auto object-contain filter drop-shadow(0 4px 12px rgba(0,0,0,0.4))" style="max-height: 100%;">
+                    </div>
+                </div>
 
                 <h3 class="text-2xl font-bold text-white">Dashboard</h3>
 
