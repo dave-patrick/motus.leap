@@ -36,26 +36,61 @@
         .console-line.warn { border-color: #f59e0b; }
         .nav-item.active { background-color: #2f8fc9; color: #ffffff; }
         .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
+
+        /* New Unified Banner Styling */
+        .unified-banner {
+            background-color: #1a1d24; /* Matching the card background */
+            border: 1px solid #2a2f3a;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem 2rem; /* Adjusted padding */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 180px; /* Adjusted height to fit content and graphic */
+            position: relative; /* For z-index */
+            z-index: 10;
+            margin: 1.5rem auto 0 auto; /* Top margin, auto horizontal, 0 bottom */
+            max-width: 7xl; /* Match main content width */
+            width: calc(100% - 3rem); /* Adjust for padding on main content */
+        }
+        .unified-banner .content-left {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            max-width: 65%; /* Allocate space for text */
+        }
+        .unified-banner .graphic-right {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        .unified-banner .graphic-right img {
+            height: 100%;
+            width: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js"></script>
 </head>
 <body class="flex flex-col h-screen overflow-hidden selection:bg-[#2f8fc9]/30">
 
-    <!-- Top Header Bar -->
-    <header class="flex items-center h-16 px-6 bg-[#0f1115] border-b border-[#2a2f3a] z-10 shrink-0">
-        <div class="flex items-center gap-3">
-            <img src="/static/logo_icon.png?v=2" alt="motus.leap" class="w-8 h-8 object-contain">
-            <h1 class="text-xl font-semibold text-white tracking-tight">motus.leap</h1>
+    <!-- NEW Unified Banner -->
+    <div class="unified-banner">
+        <div class="content-left">
+            <h1 class="text-3xl font-bold text-white tracking-tight mb-1">motus.leap <span class="text-sm font-medium text-gray-400">v2.1</span></h1>
+            <span class="status-badge text-[10px] px-2.5 py-1 rounded-full font-semibold tracking-wide mb-2" style="width: fit-content;">SYSTEM STATUS: ACTIVE & SYNCED</span>
+            <p class="text-[11px] md:text-xs text-gray-400 max-w-lg leading-relaxed">A next-generation, high-performance automated YouTube playlist orchestrator. Powering seamless, multi-playlist synchronization, auto-sorting heuristics, and AI-assisted metadata curation.</p>
         </div>
-        <div class="ml-auto">
-            <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout">
-                <i class="fa-solid fa-arrow-right-from-bracket text-xs"></i>
-            </button>
+        <div class="graphic-right">
+            <img src="/static/images/seamless-banner.png" alt="motus.leap graphic">
         </div>
-    </header>
+    </div>
 
-    <div class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 overflow-hidden pt-6">
         <!-- Left Sidebar Navigation -->
         <aside class="w-60 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] shrink-0 overflow-y-auto">
             <nav class="flex flex-col gap-1">
@@ -82,17 +117,6 @@
         <!-- Main Content Area -->
         <main class="flex-1 p-6 bg-[#0f1115] overflow-y-auto">
             <div class="max-w-7xl mx-auto flex flex-col gap-6">
-                <!-- Hero Status Card (Modified as per latest screenshot) -->
-                <div class="bento-card p-6 md:p-8 flex items-center justify-between bg-gradient-to-br from-[#1a1d24] to-[#0f1115] border border-[#2a2f3a]" style="height: 180px;"> <!-- Adjusted height -->
-                    <div class="flex flex-col justify-center" style="height: 100%;">
-                        <h2 class="text-3xl font-bold text-white tracking-tight mb-2">motus.leap <span class="text-sm font-medium text-gray-400">v2.1</span></h2>
-                        <span class="status-badge text-[10px] px-2.5 py-1 rounded-full font-semibold tracking-wide mb-2" style="width: fit-content;">SYSTEM STATUS: ACTIVE & SYNCED</span>
-                        <p class="text-[11px] md:text-xs text-gray-400 max-w-lg leading-relaxed">A next-generation, high-performance automated YouTube playlist orchestrator. Powering seamless, multi-playlist synchronization, auto-sorting heuristics, and AI-assisted metadata curation.</p>
-                    </div>
-                    <div class="h-full flex items-center justify-end">
-                        <img src="/static/images/seamless-banner.png" alt="motus.leap graphic" class="h-full w-auto object-contain filter drop-shadow(0 4px 12px rgba(0,0,0,0.4))" style="max-height: 100%;">
-                    </div>
-                </div>
 
                 <h3 class="text-2xl font-bold text-white">Dashboard</h3>
 
