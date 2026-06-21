@@ -4,12 +4,18 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv() # Load environment variables from .env
+try:
+    load_dotenv() # Load environment variables from .env
+except Exception as e:
+    import sys
+    print(f"[WARN] load_dotenv failed: {e}", file=sys.stderr)
+import logging
+from core.logger import setup_logging
+log = logging.getLogger(__name__)
 
 import asyncio
 from datetime import datetime
 import json
-import logging
 import hashlib
 import time
 from contextlib import asynccontextmanager
@@ -20,6 +26,7 @@ from urllib.parse import urlencode
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends, Cookie
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from starlette.responses import Response
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -74,7 +81,6 @@ from api.auth import router as auth_router
 
 # Core imports
 from core.http_client import shutdown_http_client
-from core.logger import setup_logging
 from core.config_manager import ConfigManager
 from models.config import TubeManagerConfig
 from models.task import Task, TaskStatus, TaskPriority
@@ -83,7 +89,6 @@ from models.task import Task, TaskStatus, TaskPriority
 from services.youtube_service import YouTubeService
 
 # Setup logging
-log = logging.getLogger(__name__)
 
 # Paths
 WEB_DIR = Path(__file__).resolve().parent / "web"
@@ -106,6 +111,15 @@ _render_url = os.environ.get("RENDER_EXTERNAL_URL", "https://tubemanager.onrende
 _extra_origins = os.environ.get("EXTRA_ALLOWED_ORIGINS", "").split(",") if os.environ.get("EXTRA_ALLOWED_ORIGINS") else []
 
 app.add_middleware(
+
+# Generic error handler to avoid leaking internal paths/stack traces in production responses
+@app.middleware("http")
+async def generic_error_handler(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        log.exception("Unhandled exception")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
     CORSMiddleware,
     allow_origins=[
         _render_url,
@@ -286,7 +300,7 @@ async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
     return PlainTextResponse(f"Rate limit exceeded: {exc.detail}", status_code=429)
 
 # Configure existing FastAPI app
-app.router.lifespan_context = lifespan
+app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -655,6 +669,8 @@ async def rename_playlist_endpoint(payload: dict):
     
     try:
         google_client = yt_client._get_client(require_oauth=True)
+        if google_client is None:
+            raise HTTPException(status_code=500, detail="OAuth client not available")
         google_client.playlists().update(
             part="snippet",
             body={
@@ -704,6 +720,8 @@ async def delete_playlist_endpoint(payload: dict):
     
     try:
         google_client = yt_client._get_client(require_oauth=True)
+        if google_client is None:
+            raise HTTPException(status_code=500, detail="OAuth client not available")
         google_client.playlists().delete(id=playlist_id).execute()
         
         # In-place cache update: remove the deleted playlist from caches
@@ -745,6 +763,8 @@ async def duplicate_playlist_endpoint(payload: dict):
     
     try:
         google_client = yt_client._get_client(require_oauth=True)
+        if google_client is None:
+            raise HTTPException(status_code=500, detail="OAuth client not available")
         
         # 1. Create a new playlist
         new_pl = google_client.playlists().insert(
@@ -1053,7 +1073,7 @@ async def youtube_callback(code: str, state: str = None):
         return HTMLResponse("""
             <h1>❌ OAuth Not Configured</h1>
             <p>Please go to <a href="/settings">Settings</a> and enter your OAuth Client ID and Secret, then save.</p>
-            <p>Client ID: <code>343644756734-vht75phpm5ae7m3dm439aolurvpuhdc1.apps.googleusercontent.com</code></p>
+            <p>Go to <a href="/settings">Settings</a> to check or update your OAuth Client ID.</p>
         """, status_code=400)
     
     redirect_uri = "https://tubemanager.onrender.com/auth/youtube/callback"
@@ -1525,31 +1545,6 @@ async def save_cookies(request: Request):
 
 
 @app.get("/api/user")
-async def api_user() -> dict[str, Any]:
-    """Return logged-in user info for header display."""
-    config = config_manager.config
-    if not (config.oauth.access_token and config.oauth.refresh_token):
-        return {"logged_in": False}
-    
-    result = {"logged_in": True, "channel_title": "Unknown Channel"}
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            channel_resp = await client.get(
-                "https://www.googleapis.com/youtube/v3/channels",
-                params={"part": "snippet", "mine": "true"},
-                headers={"Authorization": f"Bearer {config.oauth.access_token}"}
-            )
-            if channel_resp.status_code == 200:
-                data = channel_resp.json()
-                if data.get("items"):
-                    item = data["items"][0]
-                    result["channel_title"] = item.get("snippet", {}).get("title", "Unknown")
-                    result["channel_thumbnail"] = item.get("snippet", {}).get("thumbnails", {}).get("default", {}).get("url")
-    except Exception as e:
-        result["error"] = str(e)
-    return result
-
 @app.get("/api/system/logs")
 async def get_system_logs():
     """Get recent system logs."""

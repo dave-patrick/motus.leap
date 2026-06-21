@@ -398,7 +398,7 @@ class BackgroundWorker:
             # Fetch watch later items using the cached method
             force_refresh = payload.get("force_refresh", False) # Allow forcing refresh from payload
             watch_later_resp = await self.youtube_service.list_watch_later_items_cached(
-                playlist_id=configured_id if configured_id else None,
+                playlist_id=self.channel_id if hasattr(self, "channel_id") and self.channel_id else (config_manager.config.watch_later_playlist_id if hasattr(config_manager.config, "watch_later_playlist_id") else ""),
                 force_refresh=force_refresh
             )
             watch_later_items = watch_later_resp.get("items", [])
@@ -594,7 +594,7 @@ class BackgroundWorker:
         location = f" in playlist {playlist_id}" if playlist_id else ""
         await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Scanning for duplicates{location}..."}))
         await asyncio.sleep(0.5)
-        duplicates = len(self.youtube_service.videos) - len(set(v.get("video_id") for v in self.youtube_service.videos)) if self.youtube_service else 0
+        duplicates = len(getattr(self.youtube_service, "videos", [])) - len(set(v.get("video_id") for v in getattr(self.youtube_service, "videos", []))) if self.youtube_service else 0
         await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate videos"}))
         return {"duplicates": duplicates}
 
@@ -606,7 +606,7 @@ class BackgroundWorker:
         await asyncio.sleep(0.5)
         count = 0
         if self.youtube_service and hasattr(self.youtube_service, 'config') and hasattr(self.youtube_service.config, 'channel_mappings'):
-            videos = self.youtube_service.videos
+            videos = getattr(self.youtube_service, "videos", [])
             for v in videos:
                 if playlist_id and v.get("playlist_id") != playlist_id:
                     continue
