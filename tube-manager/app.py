@@ -363,6 +363,11 @@ async def index():
     """Serve root page - dark theme dashboard."""
     return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
+@app.get("/dashboard", dependencies=[Depends(require_auth)])
+async def dashboard():
+    """Dashboard page."""
+    return await no_cache_file_response(WEB_DIR / "dashboard.html")
+
 
 @app.get("/auth")
 async def auth():
