@@ -15,7 +15,7 @@ from httpx import AsyncClient
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app import app, config_manager, youtube_service, manager, task_queue
+from app import app, config_manager, manager, task_queue
 from core.config_manager import ConfigManager
 from models.config import TubeManagerConfig, YouTubeOAuthConfig
 from services.youtube_service import YouTubeService
