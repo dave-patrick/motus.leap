@@ -231,7 +231,47 @@ async def verify_origin(request: Request):
     log.debug("verify_origin: ALLOWED (no origin/referer)")
     return
 
-user_sessions: Dict[str, Dict[str, Any]] = {}
+SESSIONS_FILE = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "user_sessions.json"
+
+
+def _load_sessions() -> Dict[str, Dict[str, Any]]:
+    try:
+        if SESSIONS_FILE.exists():
+            text = SESSIONS_FILE.read_text(encoding="utf-8")
+            data = json.loads(text)
+            for entry in data.values():
+                for field in ("created_at", "expires_at"):
+                    val = entry.get(field)
+                    if isinstance(val, str):
+                        try:
+                            entry[field] = datetime.fromisoformat(val)
+                        except (ValueError, TypeError):
+                            entry[field] = None
+            return data
+    except Exception as e:
+        log.warning("Failed to load user sessions: %s", e)
+    return {}
+
+
+def _save_sessions(sessions: Dict[str, Dict[str, Any]]) -> None:
+    try:
+        SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        serializable: Dict[str, Dict[str, Any]] = {}
+        for token, entry in sessions.items():
+            s = dict(entry)
+            for field in ("created_at", "expires_at"):
+                val = s.get(field)
+                if isinstance(val, datetime):
+                    s[field] = val.isoformat()
+            serializable[token] = s
+        tmp = SESSIONS_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(serializable, indent=2, default=str), encoding="utf-8")
+        tmp.replace(SESSIONS_FILE)
+    except Exception as e:
+        log.error("Failed to save user sessions: %s", e)
+
+
+user_sessions: Dict[str, Dict[str, Any]] = _load_sessions()
 
 
 # =============================================================================
@@ -452,6 +492,7 @@ async def register(user_data: UserCreate, request: Request, users_db: Dict[str, 
         "created_at": datetime.now(),
         "expires_at": datetime.now() + access_token_expires,
     }
+    _save_sessions(user_sessions)
 
     return TokenResponse(
         access_token=access_token,
@@ -484,6 +525,7 @@ async def login(user_data: UserLogin, request: Request, response: Response, user
         "created_at": datetime.now(),
         "expires_at": datetime.now() + access_token_expires,
     }
+    _save_sessions(user_sessions)
 
     # Set the token in a secure, http-only cookie
     response.set_cookie(
@@ -574,6 +616,7 @@ async def logout(
 
     if token:
         user_sessions.pop(token, None)
+        _save_sessions(user_sessions)
     
     # Clear the cookie on logout
     response.delete_cookie(key="token", path="/")
@@ -596,6 +639,7 @@ async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_activ
         "created_at": datetime.now(),
         "expires_at": datetime.now() + access_token_expires,
     }
+    _save_sessions(user_sessions)
     return TokenResponse(
         access_token=new_token,
         token_type="bearer",
@@ -872,14 +916,8 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             if app_youtube_service is not None:
                 app_youtube_service._client = None
 
-            return HTMLResponse("""
-                <div style="background: #0a0c10; color: #e5e5e5; font-family: Inter, sans-serif; padding: 40px; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-                    <h1 style="color: #44ff88;">✅ YouTube Connected!</h1>
-                    <p style="color: #9ca3af; margin: 16px 0;">Your YouTube account has been connected successfully.</p>
-                    <p style="color: #6b7280; font-size: 12px;">You can close this window and return to <a href="/settings" style="color: #60a5fa;">Settings</a></p>
-                    <script>try { window.opener && window.opener.postMessage({type: 'youtube-oauth-success'}, '*'); } catch(e) {}</script>
-                </div>
-            """)
+            frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com").rstrip("/")
+            return RedirectResponse(url=f"{frontend_url}/auth?status=success&type=youtube", status_code=302)
 
         # Otherwise, handle as user login (existing flow below)
         access_token = tokens["access_token"]
