@@ -768,6 +768,61 @@ async def delete_playlist_endpoint(payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+@app.post("/api/youtube/playlists/create", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def create_playlist_endpoint(body: dict):
+    """Create a new YouTube playlist."""
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    title = body.get("title", "New Playlist")
+    description = body.get("description", "")
+    privacy = body.get("privacy", "private")
+    result = yt_client.create_playlist(title=title, description=description, privacy_status=privacy)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.post("/api/subscriptions/subscribe", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def subscribe_channel(body: dict):
+    """Subscribe to a YouTube channel."""
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    channel_id = body.get("channel_id")
+    if not channel_id:
+        raise HTTPException(status_code=400, detail="channel_id is required")
+    result = yt_client.subscribe_to_channel(channel_id)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    await youtube_service._cache.delete(f"subscriptions_{youtube_service._get_user_id()}")
+    return result
+
+
+@app.post("/api/subscriptions/unsubscribe", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def unsubscribe_channel(body: dict):
+    """Unsubscribe from a YouTube channel."""
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    subscription_id = body.get("subscription_id")
+    if not subscription_id:
+        raise HTTPException(status_code=400, detail="subscription_id is required")
+    try:
+        yt_client._get_client(require_oauth=True).subscriptions().delete(id=subscription_id).execute()
+        await youtube_service._cache.delete(f"subscriptions_{youtube_service._get_user_id()}")
+        return {"status": "success"}
+    except Exception as e:
+        log.error(f"Unsubscribe failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/api/youtube/playlists/duplicate", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def duplicate_playlist_endpoint(payload: dict):
     playlist_id = payload.get("playlist_id")
