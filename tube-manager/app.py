@@ -110,8 +110,6 @@ app = FastAPI(
 _render_url = os.environ.get("RENDER_EXTERNAL_URL", "https://tubemanager.onrender.com")
 _extra_origins = os.environ.get("EXTRA_ALLOWED_ORIGINS", "").split(",") if os.environ.get("EXTRA_ALLOWED_ORIGINS") else []
 
-app.add_middleware(
-
 # Generic error handler to avoid leaking internal paths/stack traces in production responses
 @app.middleware("http")
 async def generic_error_handler(request: Request, call_next):
@@ -120,6 +118,8 @@ async def generic_error_handler(request: Request, call_next):
     except Exception as exc:
         log.exception("Unhandled exception")
         return JSONResponse(status_code=500, content={"error": "Internal server error"})
+
+app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         _render_url,
