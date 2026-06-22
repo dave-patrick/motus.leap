@@ -185,7 +185,7 @@ async def bulk_move_videos(
     background_tasks: BackgroundTasks,
     config: TubeManagerConfig = Depends(get_config),
     config_manager: ConfigManager = Depends(get_config_manager),
-    ops_storage: OperationsStorage = None
+    ops_storage: Any = None
 ):
     """Bulk move videos between playlists."""
     operation_id = f"move_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -443,7 +443,7 @@ async def process_bulk_move(
     source_playlist_id: Optional[str] = None,
     config: Optional[TubeManagerConfig] = None,
     config_manager: Optional[ConfigManager] = None,
-    ops_storage: OperationsStorage = None
+    ops_storage: Any = None
 ):
     """Process bulk move operation."""
     if not config or not config_manager:
@@ -505,7 +505,7 @@ async def process_bulk_delete(
     playlist_id: str,
     config: Optional[TubeManagerConfig] = None,
     config_manager: Optional[ConfigManager] = None,
-    ops_storage: OperationsStorage = None
+    ops_storage: Any = None
 ):
     """Process bulk delete operation."""
     if not config or not config_manager:
@@ -566,7 +566,7 @@ async def process_bulk_tag(
     action: str,
     config: Optional[TubeManagerConfig] = None,
     config_manager: Optional[ConfigManager] = None,
-    ops_storage: OperationsStorage = None
+    ops_storage: Any = None
 ):
     """Process bulk tag operation."""
     if not config or not config_manager:
@@ -628,7 +628,7 @@ async def process_import(
     options: Optional[Dict[str, Any]] = None,
     config: Optional[TubeManagerConfig] = None,
     config_manager: Optional[ConfigManager] = None,
-    ops_storage: OperationsStorage = None
+    ops_storage: Any = None
 ):
     """Process bulk import operation."""
     if not config or not config_manager:
