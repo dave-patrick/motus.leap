@@ -1,5 +1,5 @@
 """motus.leap Main Application."""
-# Deploy v2.1
+# Deploy v2.2
 
 import os
 from dotenv import load_dotenv
