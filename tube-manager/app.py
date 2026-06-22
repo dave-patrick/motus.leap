@@ -318,7 +318,7 @@ async def add_security_headers(request: Request, call_next):
     # Strict Content Security Policy — explicitly list all allowed script sources
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
-        f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/subscriptions.js /static/auth-check.js /static/ux-enhancements.js /static/auth.js /static/global_scripts.js /static/playlists.js /static/playlist.js; "
+        f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/subscriptions.js /static/auth-check.js /static/ux-enhancements.js /static/auth.js /static/global_scripts.js /static/playlists.js /static/playlist.js /static/mobile-nav.js; "
         f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
         f"font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         f"img-src 'self' data: https://i.ytimg.com https://yt3.ggpht.com; "
