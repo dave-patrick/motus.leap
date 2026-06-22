@@ -36,7 +36,9 @@
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/playlist.js?v=1781919149"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-[#2f8fc9]/30">
+<div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
+<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+<body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4">
             <button onclick="window.location.href='/playlists'" class="text-gray-400 hover:text-white"><i class="fa-solid fa-arrow-left"></i></button>
@@ -47,13 +49,13 @@
         </div>
     </header>
     <div class="flex flex-1 overflow-hidden">
-        <aside class="w-56 border-r border-[#2a2f3a] bg-[#16191f] p-4 flex flex-col gap-1 shrink-0 overflow-y-auto">
+        <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-56 bg-[#16191f] p-4 flex flex-col gap-1 transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto border-r border-[#2a2f3a]">
             <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-border-all w-5 text-center"></i> Dashboard</a>
             <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#2f8fc9]/20 text-[#2f8fc9] text-xs font-semibold border border-[#2f8fc9]/30"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
             <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-brands fa-youtube w-5 text-center"></i> Subscriptions</a>
         </aside>
         <main class="flex-1 overflow-y-auto p-4 bg-[#121419]">
-            <div class="flex flex-col gap-3 min-w-[700px] max-w-[1600px] mx-auto w-full">
+            <div class="flex flex-col gap-3  max-w-[1600px] mx-auto w-full">
                 
                 <!-- Operations Panel (Scan Buttons and Results Box) -->
                 <div class="bento-card p-4 flex flex-col gap-3 shrink-0">
@@ -63,9 +65,9 @@
                             <p class="text-[10px] text-gray-400">Rescan videos from YouTube, scan for duplicate entries, or detect misplaced videos based on your rules.</p>
                         </div>
                         <div class="flex gap-2">
-                            <button id="rescan-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-arrows-rotate text-[#2f8fc9]"></i> Rescan Playlist</button>
-                            <button id="btn-scan-dup" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-copy text-[#2f8fc9]"></i> Scan Duplicates</button>
-                            <button id="btn-scan-mis" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-triangle-exclamation text-yellow-500"></i> Scan Misplaced</button>
+                            <button id="rescan-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-arrows-rotate text-[#2f8fc9]"></i> Rescan Playlist</button>
+                            <button id="btn-scan-dup" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-copy text-[#2f8fc9]"></i> Scan Duplicates</button>
+                            <button id="btn-scan-mis" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-triangle-exclamation text-yellow-500"></i> Scan Misplaced</button>
                         </div>
                     </div>
                     
@@ -116,5 +118,6 @@
             </div>
         </main>
     </div>
+    <script src="/static/mobile-nav.js"></script>
 </body>
 </html>

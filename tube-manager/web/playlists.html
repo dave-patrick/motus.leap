@@ -26,7 +26,9 @@
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/playlists.js?v=1781919149"></script>
 </head>
-<body class="h-screen flex flex-col overflow-hidden selection:bg-[#2f8fc9]/30">
+<div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
+<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+<body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
 
     <!-- Top Header -->
     <header class="h-16 border-b border-[#2a2f3a] bg-[#0f1115] flex items-center justify-between px-6 shrink-0">
@@ -39,20 +41,20 @@
 
     <div class="flex flex-1 overflow-hidden">
         <!-- Left Sidebar -->
-        <aside class="w-60 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] shrink-0 overflow-y-auto">
+        <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
             <nav class="flex flex-col gap-1">
-                <a href="/dashboard" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
-                <a href="/playlists" class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
-                <a href="/maintenance" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+                <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+                <a href="/playlists" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
             <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
-                <a href="/settings" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+                <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
             </div>
         </aside>
 
         <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
-            <div class="flex flex-col gap-4 min-w-[900px] max-w-[1800px] mx-auto w-full">
+            <div class="flex flex-col gap-4  max-w-7xl mx-auto w-full">
                 <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3" id="playlists-skeleton">
                     <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
                     <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
@@ -71,5 +73,6 @@
             </div>
         </main>
     </div>
+    <script src="/static/mobile-nav.js"></script>
 </body>
 </html>
