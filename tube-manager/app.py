@@ -559,17 +559,21 @@ async def move_watch_later_videos(body: WatchLaterMoveIn):
     for video_id in body.video_ids:
         try:
             # Add to target playlist
-            yt_client.move_video_to_playlist(video_id, body.target_playlist_id)
+            await asyncio.to_thread(yt_client.move_video_to_playlist, video_id, body.target_playlist_id)
             # Remove from Watch Later source
             pl_item_id = video_to_playlist_item.get(video_id)
             if pl_item_id:
-                yt_client.remove_video_from_playlist(pl_item_id)
+                await asyncio.to_thread(yt_client.remove_video_from_playlist, pl_item_id)
             results["moved"].append(video_id)
         except Exception as e:
             log.error(f"Failed to move video {video_id}: {e}")
             results["failed"].append({"video_id": video_id, "error": str(e)})
-    
-    return results
+
+    # Invalidate Watch Later cache after moves
+    watch_later_id = getattr(config_manager.config, "watch_later_playlist_id", None) if config_manager else None
+    if watch_later_id:
+        await youtube_service._cache.delete(f"watch_later_items_{youtube_service._get_user_id()}_{watch_later_id}")
+        await youtube_service._cache.delete(f"watch_later_items_{youtube_service._get_user_id()}_auto")
 
 
 @app.get("/api/youtube/videos")
@@ -780,7 +784,7 @@ async def create_playlist_endpoint(body: dict):
     title = body.get("title", "New Playlist")
     description = body.get("description", "")
     privacy = body.get("privacy", "private")
-    result = yt_client.create_playlist(title=title, description=description, privacy_status=privacy)
+    result = await asyncio.to_thread(yt_client.create_playlist, title=title, description=description, privacy_status=privacy)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -807,7 +811,7 @@ async def subscribe_channel(body: dict):
         m = re.search(r"^([A-Za-z0-9_-]{20,})$", query)
     target = m.group(1) if m else query
     # Let YouTubeClient.subscribe_to_channel handle it; on 400/not found, surface error
-    result = yt_client.subscribe_to_channel(target)
+    result = await asyncio.to_thread(yt_client.subscribe_to_channel, target)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     await youtube_service._cache.delete(f"subscriptions_{youtube_service._get_user_id()}")
@@ -826,7 +830,7 @@ async def unsubscribe_channel(body: dict):
     if not subscription_id:
         raise HTTPException(status_code=400, detail="subscription_id is required")
     try:
-        yt_client._get_client(require_oauth=True).subscriptions().delete(id=subscription_id).execute()
+        await asyncio.to_thread(lambda: yt_client._get_client(require_oauth=True).subscriptions().delete(id=subscription_id).execute())
         await youtube_service._cache.delete(f"subscriptions_{youtube_service._get_user_id()}")
         return {"status": "success"}
     except Exception as e:
@@ -1102,133 +1106,7 @@ def _validate_and_consume_state(state: str) -> dict:
     return stored["data"]
 
 
-@app.get("/auth/youtube")
-async def youtube_auth():
-    """Initiate Google OAuth flow for YouTube API."""
-    config = config_manager.config
-    client_id = config.oauth.client_id
-    if not client_id:
-        return {"error": "OAuth client ID not configured in settings"}
-    
-    redirect_uri = "https://tubemanager.onrender.com/auth/youtube/callback"
-    scope = "https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid"
-    
-    # Generate and store state for CSRF protection
-    state = _generate_state()
-    _store_state(state)
-    
-    params = {
-        "client_id": client_id,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": scope,
-        "access_type": "offline",
-        "prompt": "consent select_account",
-        "state": state,
-    }
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
-    return {"auth_url": auth_url}
 
-
-def _secret_val(val):
-    """Safely extract secret value from SecretStr or plain string."""
-    if hasattr(val, 'get_secret_value'):
-        return val.get_secret_value()
-    return str(val) if val else ""
-
-
-@app.get("/auth/youtube/callback")
-async def youtube_callback(code: str, state: str = None):
-    """Handle OAuth callback and exchange code for tokens."""
-    import httpx
-    
-    # Validate OAuth state parameter (CSRF protection)
-    if not state or not _validate_and_consume_state(state):
-        log.error("Invalid or missing OAuth state parameter")
-        return HTMLResponse("""
-            <h1>❌ Invalid OAuth State</h1>
-            <p>The OAuth state parameter is missing or invalid. This may be a CSRF attack attempt.</p>
-            <p>Please <a href="/auth/youtube">try again</a>.</p>
-        """, status_code=400)
-    
-    config = config_manager.config
-
-    if not config.oauth.client_id or not _secret_val(config.oauth.client_secret):
-        log.error("OAuth credentials not configured")
-        return HTMLResponse("""
-            <h1>❌ OAuth Not Configured</h1>
-            <p>Please go to <a href="/settings">Settings</a> and enter your OAuth Client ID and Secret, then save.</p>
-            <p>Go to <a href="/settings">Settings</a> to check or update your OAuth Client ID.</p>
-        """, status_code=400)
-    
-    redirect_uri = "https://tubemanager.onrender.com/auth/youtube/callback"
-    token_url = "https://oauth2.googleapis.com/token"  # nosec
-    data = {
-        "code": code,
-        "client_id": config.oauth.client_id,
-        "client_secret": _secret_val(config.oauth.client_secret),
-        "redirect_uri": redirect_uri,
-        "grant_type": "authorization_code",
-    }
-    
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(token_url, data=data)
-            tokens = resp.json()
-        
-        log.info(f"Token response status: {resp.status_code}")
-        log.info("OAuth token exchange completed successfully")
-        
-        if "access_token" in tokens:
-            config.oauth.access_token = tokens.get("access_token")
-            config.oauth.refresh_token = tokens.get("refresh_token")
-            expires_in = int(tokens.get("expires_in", 3600))
-            config.oauth.token_expiry = int(time.time()) + expires_in
-            await config_manager.save(config)
-            
-            log.info("YouTube OAuth tokens saved successfully")
-            
-            # Update YouTube service
-            global youtube_service
-            youtube_service = YouTubeService(config)
-            
-            return HTMLResponse("""
-                <h1 style="color: #44ff88;">✅ YouTube Connected!</h1>
-                <p>Tokens saved. Redirecting to Settings...</p>
-                <p style="color: #7b8bb5; font-size: 12px;">Access token expires in: """ + str(tokens.get("expires_in", 3600)) + """ seconds</p>
-                <script>
-                    if (window.opener) {
-                        window.opener.postMessage({type: 'youtube-oauth-success'}, '*');
-                        setTimeout(() => window.close(), 1500);
-                    } else {
-                        setTimeout(() => { window.location.href = '/settings'; }, 2000);
-                    }
-                </script>
-            """)
-        else:
-            error_msg = tokens.get("error_description", tokens.get("error", str(tokens)))
-            log.error(f"OAuth token error: {error_msg}")
-            safe_error = error_msg.replace("'", "\\'")
-            err_html = f"""
-                <h1 style="color: #ff4444;">❌ OAuth Error</h1>
-                <p><strong>Error:</strong> {error_msg}</p>
-                <p><a href="/settings">Return to Settings</a> to verify credentials.</p>
-                <script>
-                    if (window.opener) {{
-                        window.opener.postMessage({{type: 'youtube-oauth-error', error: '{safe_error}'}}, '*');
-                        setTimeout(() => window.close(), 1500);
-                    }} else {{
-                        setTimeout(() => {{ window.location.href = '/settings'; }}, 3000);
-                    }}
-                </script>
-            """
-            return HTMLResponse(err_html, status_code=400)
-    except httpx.RequestError as e:
-        log.error(f"HTTP request failed: {e}")
-        return HTMLResponse(f"""
-            <h1 style="color: #ff4444;">❌ Network Error</h1>
-            <p>Failed to connect to Google: {str(e)}</p>
-        """, status_code=500)
     except Exception as e:
         log.exception("Unexpected error in OAuth callback")
         return HTMLResponse(f"""
