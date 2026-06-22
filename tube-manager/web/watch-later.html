@@ -58,7 +58,7 @@
 
             <!-- AI Plan Display -->
             <div id="ai-plan-container" class="hidden space-y-2">
-                <div class="bento-card p-3 flex items-center justify-between">
+                <div class="bento-card p-4 flex items-center justify-between">
                     <span class="text-[10px] text-gray-400"><i class="fa-solid fa-robot text-[#2f8fc9] mr-1.5"></i> <span id="plan-stats">Loading...</span></span>
                     <div class="flex gap-2">
                         <button onclick="selectAllPlans()" class="text-[9px] px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-300 hover:text-white hover:border-[#374151] transition-colors">Select All</button>
@@ -77,7 +77,7 @@
             </div>
 
             <!-- Log -->
-            <div id="wl-log" class="hidden bento-card p-3 font-mono text-[9px] text-gray-400 max-h-32 overflow-y-auto"></div>
+            <div id="wl-log" class="hidden bento-card p-4 font-mono text-[9px] text-gray-400 max-h-32 overflow-y-auto"></div>
         </div>
     </main>
 
@@ -217,7 +217,7 @@
                 const hasAI = !!suggested;
                 const selected = selectedPlans.has(vid);
 
-                return '<div class="bento-card p-3 hover:border-[#2a7db8]/30 transition-colors" data-vid="' + vid + '">' +
+                return '<div class="bento-card p-4 hover:border-[#2a7db8]/30 transition-colors" data-vid="' + vid + '">' +
                     '<div class="flex items-center gap-3">' +
                         '<input type="checkbox" class="plan-cb accent-[#2f8fc9] shrink-0" ' + (selected ? 'checked' : '') + ' onchange="togglePlan(this, \'' + vid + '\')" style="width:14px;height:14px">' +
                         '<img src="' + thumb + '" class="w-24 h-14 rounded object-cover shrink-0">' +
