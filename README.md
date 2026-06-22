@@ -5,39 +5,63 @@
 ![Render](https://img.shields.io/badge/Deploy-Render-7467ed.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-**Automated YouTube Playlist Orchestrator**
+<p align="center">
+  <img src="docs/images/logo-icon.png" alt="motus.leap logo" width="96" height="96">
+</p>
 
-motus.leap is a modern web application for managing YouTube playlists, subscriptions, and video organization. It provides automated playlist management with intelligent channel-to-playlist mappings, AI-powered video classification, and bulk operations.
+<h2 align="center">Automated YouTube Playlist Orchestrator</h2>
 
-🌐 **Live Demo:** [https://tubemanager.onrender.com](https://tubemanager.onrender.com)
+<p align="center">
+  <a href="https://tubemanager.onrender.com">🌐 Live Demo</a> &nbsp;|&nbsp;
+  <a href="https://github.com/dave-patrick/motus.leap/issues">Report Bug</a> &nbsp;|&nbsp;
+  <a href="https://github.com/dave-patrick/motus.leap/discussions">Request Feature</a>
+</p>
+
+---
+
+## 👁️ Screenshots
+
+<p align="center">
+  <img src="docs/images/auth-screen.png" alt="Authentication Screen" width="420">
+</p>
+
+<p align="center">
+  <em>Modern dark-themed authentication with Google OAuth and JWT-backed sessions.</em>
+</p>
+
+---
+
+## 🚨 Retirement Notice
+
+> **Project Status:** <strong>Legacy Maintenance / Retired</strong><br>
+> motus.leap is no longer under active feature development. The retiring maintainer is <strong>Bobafett9</strong>.
+>
+> - **What we still do:** critical security patches, dependency updates, and Render uptime  
+> - **What we don't do:** new features, large refactors, or roadmap items  
+> - **Want to maintain it?** Open a GitHub Discussion or issue — community adoption is encouraged  
 
 ---
 
 ## ✨ Features
 
-### Core Features
-- 🎬 **YouTube Data API v3 Integration** - Real-time playlist and subscription management
-- 🔗 **Channel-to-Playlist Mappings** - Automatic video routing based on YouTube channel
-- 🤖 **AI-Powered Classification** - Smart video categorization using LLMs
-- 📊 **Full Cluster Scan** - Comprehensive account analysis
-- 🔄 **Auto-Sort** - Automated playlist organization
-- ⏰ **Watch Later Sync** - Smart video queue management
+### Core
+- 🎬 **YouTube Data API v3** — Real-time playlist & subscription management  
+- 🔗 **Channel-to-Playlist Mappings** — Auto-route videos by channel  
+- 🤖 **AI Classification** — LLM-powered video categorization  
+- 📊 **Full Cluster Scan** — Deep YouTube account analysis  
 
-### Advanced Features
-- 📦 **Bulk Operations** - Batch move, delete, and tag videos
-- 📤 **Export/Import** - JSON and CSV data portability
-- 👥 **Multi-User Support** - Role-based access control (Admin/User/Viewer)
-- 🔒 **Enterprise Security** - CSP, rate limiting, input validation, XSS protection
-- ⚡ **Performance Optimized** - LRU caching, HTTP pooling, async I/O
-- 🧪 **Comprehensive Testing** - 83+ tests (unit, integration, security, load)
+### Advanced
+- 📦 **Bulk Operations** — Move, delete, and tag videos in batches  
+- 📤 **JSON/CSV Import** — Migrate playlists & subscriptions  
+- 👥 **Multi-User RBAC** — Admin / User / Viewer roles  
+- 🔒 **Enterprise Security** — CSP, rate limiting, XSS sanitization, bcrypt  
+- ⚡ **Performance** — LRU cache, HTTP pooling, async I/O  
 
-### User Experience
-- ⌨️ **Keyboard Shortcuts** - Power user navigation (G+D, F, ?, etc.)
-- 🎨 **Dark Theme** - Beautiful bento-grid UI with Tailwind CSS
-- 📱 **Responsive Design** - Works on desktop, tablet, and mobile
-- 🔔 **Toast Notifications** - Real-time feedback
-- 🔍 **Search & Filtering** - Find items instantly
-- ⏳ **Loading States** - Skeleton loaders and smooth animations
+### UX
+- ⌨️ **Keyboard Shortcuts** — `G+D`, `F`, `?`  
+- 🎨 **Dark Theme** — Tailwind CSS bento-grid UI  
+- 📱 **Responsive** — Desktop, tablet, and mobile  
+- 🔔 **Toasts** — Real-time success/error feedback  
 
 ---
 
@@ -45,34 +69,21 @@ motus.leap is a modern web application for managing YouTube playlists, subscript
 
 ```
 tube-manager/
-├── app.py                    # FastAPI application entry point
+├── app.py                    # FastAPI entry point
 ├── api/
-│   ├── auth.py              # Authentication & authorization
-│   ├── bulk_operations.py   # Bulk API endpoints
-│   ├── config.py            # Configuration management
+│   ├── auth.py              # JWT + Google/YouTube OAuth
+│   ├── bulk_operations.py   # Batch endpoints
 │   ├── mappings.py          # Channel mapping CRUD
-│   ├── youtube.py           # YouTube API proxy
-│   └── websocket.py         # WebSocket terminal
+│   └── websocket.py         # Live terminal
 ├── services/
 │   ├── youtube_service.py   # YouTube API client
-│   └── ai_service.py        # AI classification
+│   └── ai_service.py        # AI classifier
 ├── core/
-│   ├── lru_cache.py         # LRU async cache
-│   ├── http_client.py       # HTTP connection pooling
-│   └── security.py          # Security middleware
-├── models/
-│   ├── task.py              # Task models
-│   └── mapping.py           # Mapping models
-├── web/
-│   ├── dashboard.html       # Main dashboard UI
-│   └── static/              # CSS, JS assets
-├── tests/
-│   ├── conftest.py          # Test fixtures
-│   ├── unit/                # Unit tests
-│   ├── integration/         # Integration tests
-│   ├── security/            # Security tests
-│   └── load/                # Load tests
-└── requirements.txt         # Python dependencies
+│   ├── lru_cache.py         # Async LRU cache
+│   ├── http_client.py       # Connection pooling
+│   └── security.py          # CSP + rate limiting
+├── web/                     # Static HTML + JS
+└── tests/                   # pytest (unit, integration, security, load)
 ```
 
 ---
@@ -81,359 +92,92 @@ tube-manager/
 
 ### Prerequisites
 - Python 3.11+
-- Git
-- YouTube Data API v3 credentials
+- YouTube Data API v3 credentials (OAuth client ID/secret)
 
-### Installation
+### Install
 
-1. **Clone the repository**
 ```bash
-git clone https://github.com/dave-patrick/tube-manager.git
-cd tube-manager
-```
-
-2. **Create virtual environment**
-```bash
+git clone https://github.com/dave-patrick/motus.leap.git
+cd motus.leap/tube-manager
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
-
-3. **Install dependencies**
-```bash
-cd tube-manager
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-pip install -r requirements-test.txt  # Optional: for tests
 ```
 
-4. **Configure environment**
+### Configure
+
 ```bash
-# Copy environment template
 cp env.example .env
-
-# Edit .env with your credentials
-nano .env
+# Required:
+# TUBE_MANAGER_SECRET_KEY=***
+# GOOGLE_OAUTH_CLIENT_ID=***
+# GOOGLE_OAUTH_CLIENT_SECRET=***
 ```
 
-5. **Run locally**
+### Run
+
 ```bash
-cd tube-manager
 uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-6. **Open browser**
-```
-http://localhost:8000
-```
+Then open `http://localhost:8000`.
 
 ---
 
-## 📋 Environment Variables
+## ☁️ Deploy to Render
 
-Create a `.env` file in the `tube-manager/` directory:
+1. Fork this repo  
+2. Create a **Web Service** on [Render](https://render.com)  
+   - Root Directory: `tube-manager`  
+   - Build: `pip install --no-cache-dir -r requirements.txt`  
+   - Start: `uvicorn app:app --host 0.0.0.0 --port $PORT`  
+3. Add environment variables in Render Dashboard  
+4. Attach a persistent **Disk** mounted at `/app/data` (1 GB+)  
 
-```env
-# YouTube API Credentials
-YOUTUBE_CLIENT_ID=your_client_id.apps.googleusercontent.com
-YOUTUBE_CLIENT_SECRET=your_client_secret
-YOUTUBE_REDIRECT_URI=http://localhost:8000/oauth/callback
-
-# Database (optional, defaults to SQLite)
-DATABASE_URL=sqlite:///tubemanager.db
-
-# Security
-SECRET_KEY=your-secret-key-here-generate-with-openssl-rand-hex-32
-
-# Application
-APP_ENV=development
-LOG_LEVEL=INFO
-```
+Render auto-deploys on every push to `main` via GitHub Actions.
 
 ---
 
-## 🧪 Testing
+## 📊 Status
 
-Run the test suite:
-
-```bash
-# Run all tests
-cd tube-manager && pytest tests/
-
-# Run specific test categories
-pytest tests/unit/          # Unit tests
-pytest tests/integration/   # Integration tests
-pytest tests/security/      # Security tests
-pytest tests/load/          # Load tests
-
-# With coverage
-pytest --cov=. --cov-report=html
-```
-
-**Test Coverage:** 83+ tests across 4 categories
-
----
-
-## 🔒 Security Features
-
-- ✅ **Content Security Policy (CSP)** - Nonce-based, no unsafe-inline
-- ✅ **Rate Limiting** - Expensive endpoints protected (fetch-all: 10/min, action: 20/min)
-- ✅ **Security Headers** - X-Frame-Options, X-Content-Type-Options, Referrer-Policy
-- ✅ **Input Validation** - Pydantic models for all API inputs
-- ✅ **XSS Protection** - DOMPurify sanitization
-- ✅ **Secret Protection** - Sensitive data masked in logs and config
-- ✅ **Password Hashing** - bcrypt for user passwords
-- ✅ **JWT Authentication** - Secure token-based auth
-
----
-
-## 🎯 Key Features Explained
-
-### 1. Channel-to-Playlist Mappings
-Automatically route videos from specific YouTube channels to designated playlists:
-
-```
-Channel: "TechChannel" → Playlist: "Tech Videos"
-Channel: "MusicChannel" → Playlist: "Music"
-```
-
-### 2. AI Video Classification
-Use LLMs to classify videos and decide routing:
-
-```python
-# Example AI decision
-{
-  "video_id": "abc123",
-  "channel": "TechChannel",
-  "title": "New Python Tutorial",
-  "classification": "tutorial",
-  "target_playlist": "Python Tutorials",
-  "confidence": 0.95
-}
-```
-
-### 3. Bulk Operations
-Perform batch actions on multiple videos:
-
-```
-- Select 50 videos → Move to playlist
-- Delete 20 videos from playlist
-- Export playlists as JSON
-- Import mappings from CSV
-```
-
-### 4. Multi-User Support
-Role-based access for teams:
-
-| Role | Permissions |
-|------|-------------|
-| **Admin** | Full access (users, playlists, bulk ops) |
-| **User** | Read/write playlists, bulk ops |
-| **Viewer** | Read-only access |
-
----
-
-## 🎨 UI Features
-
-### Bento Grid Layout
-Modern card-based layout inspired by Apple/Linear design:
-- Responsive grid system
-- Dark theme with blue accents
-- Smooth animations and transitions
-- Real-time status updates
-
-### Keyboard Shortcuts
-Power user navigation:
-
-| Shortcut | Action |
-|----------|--------|
-| `G + D` | Go to Dashboard |
-| `G + P` | Go to Playlists |
-| `F` or `/` | Focus search |
-| `?` | Show keyboard shortcuts |
-| `Ctrl + F` | Full cluster scan |
-
----
-
-## 🚀 Deployment
-
-### Deploy to Render (Recommended)
-
-1. **Fork this repository** to your GitHub account
-
-2. **Create a new Web Service** on [Render](https://render.com)
-   - Connect your GitHub repository
-   - Set **Root Directory** to: `tube-manager`
-   - Set **Build Command** to: `pip install --no-cache-dir -r reqs.txt`
-   - Set **Start Command** to: `uvicorn app:app --host 0.0.0.0 --port $PORT`
-
-3. **Set environment variables** in Render Dashboard → Environment:
-   ```
-   YOUTUBE_CLIENT_ID=your_client_id
-   YOUTUBE_CLIENT_SECRET=your_client_secret
-   SECRET_KEY=your-secret-key
-   ```
-
-4. **Deploy!**
-   - Render will automatically build and deploy
-   - Your app will be live at: `https://your-app.onrender.com`
-
-### CI/CD Pipeline
-
-Automated deployment on every push to `main`:
-
-1. **Test suite runs** - All tests must pass
-2. **Security scan** - Check for vulnerabilities
-3. **Build** - Install dependencies
-4. **Deploy** - Auto-deploy to Render
-5. **Health check** - Verify deployment success
-
-**GitHub Actions workflows:**
-- `.github/workflows/deploy.yml` - Render deployment
-
----
-
-## 📊 Performance
-
-### Optimizations Implemented
-- **LRU Cache** - YouTube API response caching (TTL-based)
-- **HTTP Connection Pooling** - Reusable connections with httpx
-- **WebSocket Throttling** - Rate-limited terminal output
-- **Pagination Caps** - Prevent excessive data loads
-- **Async I/O** - Non-blocking operations throughout
-- **Background Tasks** - Non-blocking bulk operations
-
-### Benchmarks
-- **API Response Time:** < 200ms (p95)
-- **Concurrent Users:** 50+ supported
-- **Cache Hit Rate:** 80-90% for repeated requests
-- **Memory Usage:** < 512MB under normal load
-
----
-
-## 🛠️ Tech Stack
-
-### Backend
-- **FastAPI** - Modern Python web framework
-- **Uvicorn** - ASGI server
-- **httpx** - Async HTTP client
-- **PyJWT** - JWT token handling
-- **passlib** - Password hashing
-- **aiofiles** - Async file operations
-
-### Frontend
-- **Tailwind CSS** - Utility-first CSS framework
-- **FontAwesome** - Icon library
-- **DOMPurify** - XSS sanitization
-- **Vanilla JavaScript** - No heavy frameworks
-
-### Infrastructure
-- **Render** - Cloud hosting platform
-- **GitHub Actions** - CI/CD automation
-- **SQLite** - Default database (PostgreSQL supported)
-
----
-
-## 📚 Documentation
-
-| Document | Description |
-|----------|-------------|
-| [README.md](README.md) | This file - getting started |
-| [CICD.md](CICD.md) | CI/CD pipeline documentation |
-| [SECURITY_AUDIT_REPORT.md](SECURITY_AUDIT_REPORT.md) | Security audit findings |
-| [STUB_FIXES_SUMMARY.md](STUB_FIXES_SUMMARY.md) | Stub removal documentation |
-| [PERFORMANCE_OPTIMIZATION_REPORT.md](PERFORMANCE_OPTIMIZATION_REPORT.md) | Performance roadmap |
-| [COMPLETE_OPTIMIZATION_SUMMARY.md](COMPLETE_OPTIMIZATION_SUMMARY.md) | Optimization summary |
+| Item | State |
+|------|-------|
+| Live Demo | 🟢 https://tubemanager.onrender.com |
+| Tests | 83+ (unit, integration, security, load) |
+| Maintenance | 🟡 Security patches only |
+| New Features | 🔴 Retired |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
+Since this project is in retirement, large PRs are unlikely to be merged, but small fixes are welcome:
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Fork the repo  
+2. Create a branch (`git checkout -b fix/small-thing`)  
+3. Commit and push  
+4. Open a PR describing the fix  
 
-### Development Setup
-
-```bash
-# Install dev dependencies
-pip install -r requirements.txt
-pip install -r requirements-test.txt
-
-# Run tests
-pytest
-
-# Run linters
-flake8 tube-manager/
-black tube-manager/
-```
+For bugs, please open an issue first.
 
 ---
 
-## 📝 License
+## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE)
 
 ---
 
 ## 🙏 Acknowledgments
 
-- **YouTube Data API v3** - For providing the API
-- **Render** - For hosting infrastructure
-- **FastAPI** - For the amazing web framework
-- **Tailwind CSS** - For the beautiful UI components
+- **YouTube Data API v3**  
+- **FastAPI** / **Uvicorn**  
+- **Render** for hosting  
+- **Tailwind CSS** / **FontAwesome**  
+- **Retiring maintainer:** Bobafett9  
 
 ---
 
-## 📞 Support
-
-- **Issues:** [GitHub Issues](https://github.com/dave-patrick/tube-manager/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/dave-patrick/tube-manager/discussions)
-- **Live Demo:** [tubemanager.onrender.com](https://tubemanager.onrender.com)
-
----
-
-## 🗺️ Roadmap
-
-### Completed ✅
-- [x] YouTube API integration
-- [x] Channel-to-playlist mappings
-- [x] AI video classification
-- [x] Full cluster scan
-- [x] WebSocket terminal
-- [x] Performance optimization (3 phases)
-- [x] Security hardening
-- [x] Stub removal
-- [x] Comprehensive test suite
-- [x] UX enhancements
-- [x] Bulk operations
-- [x] Multi-user support
-- [x] CI/CD pipeline
-
-### In Progress 🔄
-- [ ] Auto-sort implementation
-- [ ] Watch later sync
-- [ ] Database caching (Redis)
-
-### Planned 📋
-- [ ] Analytics dashboard
-- [ ] Export/import UI
-- [ ] Advanced search & filtering
-- [ ] Multi-channel support
-- [ ] Scheduled scans
-- [ ] Webhook notifications
-- [ ] Mobile app
-
----
-
-## ⭐ Star History
-
-If you find this project useful, please give it a star!
-
----
-
-**Built with ❤️ by Dave Patrick**
-
-**Powered by:** FastAPI · YouTube Data API v3 · Render · GitHub Actions
+<p align="center">
+  <sub>Built with ❤️ by Dave Patrick</sub>
+</p>
