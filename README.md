@@ -31,17 +31,6 @@
 
 ---
 
-## 🚨 Retirement Notice
-
-> **Project Status:** <strong>Legacy Maintenance / Retired</strong><br>
-> motus.leap is no longer under active feature development. The retiring maintainer is <strong>Bobafett9</strong>.
->
-> - **What we still do:** critical security patches, dependency updates, and Render uptime  
-> - **What we don't do:** new features, large refactors, or roadmap items  
-> - **Want to maintain it?** Open a GitHub Discussion or issue — community adoption is encouraged  
-
----
-
 ## ✨ Features
 
 ### Core
@@ -109,12 +98,7 @@ pip install -r requirements.txt
 ```bash
 cp env.example .env
 # Required:
-# TUBE_MANAGER_SECRET_KEY=***
-# GOOGLE_OAUTH_CLIENT_ID=***
-# GOOGLE_OAUTH_CLIENT_SECRET=***
-```
-
-### Run
+# TUBE_MANAGER_SECRET_KEY=*** GOOGLE_OAUTH_CLIENT_ID=*** GOOGLE_OAUTH_CLIENT_SECRET=*** Run
 
 ```bash
 uvicorn app:app --host 0.0.0.0 --port 8000 --reload
@@ -144,19 +128,19 @@ Render auto-deploys on every push to `main` via GitHub Actions.
 |------|-------|
 | Live Demo | 🟢 https://tubemanager.onrender.com |
 | Tests | 83+ (unit, integration, security, load) |
-| Maintenance | 🟡 Security patches only |
-| New Features | 🔴 Retired |
+| Maintenance | 🟢 Active development |
+| New Features | 🟢 Ongoing |
 
 ---
 
 ## 🤝 Contributing
 
-Since this project is in retirement, large PRs are unlikely to be merged, but small fixes are welcome:
+Contributions are welcome!
 
 1. Fork the repo  
-2. Create a branch (`git checkout -b fix/small-thing`)  
+2. Create a branch (`git checkout -b feature/amazing-feature`)  
 3. Commit and push  
-4. Open a PR describing the fix  
+4. Open a PR describing the change  
 
 For bugs, please open an issue first.
 
@@ -174,7 +158,6 @@ MIT — see [LICENSE](LICENSE)
 - **FastAPI** / **Uvicorn**  
 - **Render** for hosting  
 - **Tailwind CSS** / **FontAwesome**  
-- **Retiring maintainer:** Bobafett9  
 
 ---
 
