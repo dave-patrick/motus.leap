@@ -1107,14 +1107,6 @@ def _validate_and_consume_state(state: str) -> dict:
 
 
 
-    except Exception as e:
-        log.exception("Unexpected error in OAuth callback")
-        return HTMLResponse(f"""
-            <h1 style="color: #ff4444;">❌ Server Error</h1>
-            <p>{str(e)}</p>
-        """, status_code=500)
-
-
 @app.get("/api/youtube/status")
 async def youtube_status():
     """Check YouTube OAuth connection status."""
