@@ -143,6 +143,15 @@ app.include_router(bulk_router, tags=["bulk"])
 app.include_router(auth_router, tags=["auth"])
 
 
+@app.on_event("startup")
+async def _route_diagnostics():
+    import logging
+    log = logging.getLogger("uvicorn")
+    log.info("[DIAG] Registered bulk routes: %s", [r.path for r in bulk_router.routes])
+    log.info("[DIAG] Registered auth routes: %s", [r.path for r in auth_router.routes])
+    log.info("[DIAG] Total app routes: %s", [r.path for r in app.routes])
+
+
 async def no_cache_file_response(file_path: Path) -> Response:
     """Return HTML response with strong no-cache headers to prevent CDN/browser caching."""
     try:

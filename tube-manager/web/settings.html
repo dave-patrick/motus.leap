@@ -23,8 +23,8 @@
 <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
 <button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 <body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
-    <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4"><img src="/static/logo_icon.png?v=3" class="w-8 h-8 shrink-0 object-contain"><div><h1 class="text-3xl font-semibold tracking-wide text-white leading-tight">mot<span class="text-[#2f8fc9]">u</span><span class="text-gray-500">.</span>leap</h1></div></div>
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#1a1d24] flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-4"><img src="/static/logo_icon.png?v=3" class="w-8 h-8 shrink-0 object-contain"><div><h1 class="text-3xl font-semibold tracking-wide text-white leading-tight">mot<span class="text-[#2f8fc9]">u</span><span class="text-white">s</span><span class="text-gray-500">.</span>leap</h1></div></div>
         <div class="flex items-center gap-6"><button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div>
     </header>
     <div class="flex flex-1 overflow-hidden">
@@ -67,7 +67,7 @@
                                 <h3 class="text-xs font-semibold text-gray-300 mb-4">YouTube API</h3>
                                 <div class="space-y-4">
                                     <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">API Key</label>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="api-key-status" class="hidden text-[9px] text-green-400 ml-2"><i class="fa-solid fa-check-circle"></i> Saved</span></label>
                                         <input type="password" id="yt-api-key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="Enter API key">
                                     </div>
                                     <div>
@@ -306,7 +306,7 @@
                                         </div>
                                     </div>
                                     <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">API Key</label>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="api-key-status" class="hidden text-[9px] text-green-400 ml-2"><i class="fa-solid fa-check-circle"></i> Saved</span></label>
                                         <input type="password" id="ai-api-key" placeholder="Enter your AI provider API key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
                                     </div>
                                     <div>
@@ -426,9 +426,13 @@
                 if (data.youtube_api_key) {
                     document.getElementById('yt-api-key').value = '';
                     document.getElementById('yt-api-key').placeholder = '•••••••• — previously saved';
+                    const apiKeyStatus = document.getElementById('api-key-status');
+                    if (apiKeyStatus) apiKeyStatus.classList.remove('hidden');
                 } else {
                     document.getElementById('yt-api-key').value = '';
                     document.getElementById('yt-api-key').placeholder = 'Enter API key';
+                    const apiKeyStatus = document.getElementById('api-key-status');
+                    if (apiKeyStatus) apiKeyStatus.classList.add('hidden');
                 }
 
                 if (data.oauth_client_secret) {
@@ -933,12 +937,20 @@
             }
 
             // Wire up tab buttons
-            document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const tabId = btn.id.replace('tab-btn-', '');
-                    switchTab(tabId);
+            try {
+                document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        try {
+                            const tabId = btn.id.replace('tab-btn-', '');
+                            switchTab(tabId);
+                        } catch (err) {
+                            console.error('Tab switch error:', err);
+                        }
+                    });
                 });
-            });
+            } catch (err) {
+                console.error('Tab wiring error:', err);
+            }
 
             const pathMap = {'/rules': 'rules', '/ai': 'ai', '/settings': 'general'};
             const hash = window.location.hash.replace('#', '');
