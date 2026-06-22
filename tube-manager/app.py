@@ -541,9 +541,29 @@ async def move_watch_later_videos(body: WatchLaterMoveIn):
         return {"error": "OAuth required"}
     
     results = {"moved": [], "failed": []}
+    watch_later_id = getattr(config_manager.config, "watch_later_playlist_id", None) if config_manager else None
+    
+    # Build mapping of video_id -> playlist_item_id from Watch Later
+    video_to_playlist_item: dict[str, str] = {}
+    if watch_later_id:
+        try:
+            wl_resp = await youtube_service.list_watch_later_items_cached(playlist_id=watch_later_id)
+            for item in wl_resp.get("items", []):
+                vid = item.get("contentDetails", {}).get("videoId")
+                pid = item.get("id")
+                if vid and pid:
+                    video_to_playlist_item[vid] = pid
+        except Exception as e:
+            log.warning(f"Failed to enumerate Watch Later items for move cleanup: {e}")
+    
     for video_id in body.video_ids:
         try:
+            # Add to target playlist
             yt_client.move_video_to_playlist(video_id, body.target_playlist_id)
+            # Remove from Watch Later source
+            pl_item_id = video_to_playlist_item.get(video_id)
+            if pl_item_id:
+                yt_client.remove_video_from_playlist(pl_item_id)
             results["moved"].append(video_id)
         except Exception as e:
             log.error(f"Failed to move video {video_id}: {e}")
