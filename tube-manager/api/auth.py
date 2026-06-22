@@ -87,15 +87,16 @@ async def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
 
 def _load_secret_key() -> str:
     """Load a persistent HMAC secret key from environment variable.
-    Raises RuntimeError if TUBE_MANAGER_SECRET_KEY is not set.
+    Falls back to an ephemeral key with a warning if not set, so the app can still boot on first deploy.
     """
     key = os.getenv("TUBE_MANAGER_SECRET_KEY", "").strip()
     if not key:
-        raise RuntimeError(
-            "TUBE_MANAGER_SECRET_KEY environment variable is not set. "
-            "This is required for stable user sessions. "
-            "Please set it in your deployment environment (e.g., Render Dashboard) or local .env file."
+        import logging as _log
+        _log.warning(
+            "TUBE_MANAGER_SECRET_KEY not set - generating ephemeral secret. "
+            "User sessions will NOT persist across restarts. Set the env var for stable sessions."
         )
+        return os.urandom(32).hex()
     return key
 
 
