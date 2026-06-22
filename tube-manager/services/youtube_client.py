@@ -341,6 +341,33 @@ class YouTubeClient:
         }
         return client.playlistItems().insert(part="snippet", body=add_body).execute()
 
+    def create_playlist(self, title: str, description: str = "", privacy_status: str = "private") -> dict[str, Any]:
+        client = self._get_client()
+        if not client:
+            return {"error": "YouTube client not available"}
+        try:
+            body = {
+                "snippet": {"title": title, "description": description},
+                "status": {"privacyStatus": privacy_status},
+            }
+            resp = client.playlists().insert(part="snippet,status", body=body).execute()
+            return {"id": resp.get("id"), "title": resp.get("snippet", {}).get("title")}
+        except Exception as e:
+            log.error(f"YouTube create_playlist failed: {e}")
+            return {"error": str(e)}
+
+    def subscribe_to_channel(self, channel_id: str) -> dict[str, Any]:
+        client = self._get_client()
+        if not client:
+            return {"error": "YouTube client not available"}
+        try:
+            body = {"snippet": {"resourceId": {"kind": "youtube#channel", "channelId": channel_id}}}
+            resp = client.subscriptions().insert(part="snippet", body=body).execute()
+            return {"id": resp.get("id")}
+        except Exception as e:
+            log.error(f"YouTube subscribe_to_channel failed: {e}")
+            return {"error": str(e)}
+
     def remove_video_from_playlist(self, playlist_item_id: str) -> dict[str, Any]:
         client = self._get_client(require_oauth=True)
         if not client:

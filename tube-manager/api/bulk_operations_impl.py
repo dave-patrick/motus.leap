@@ -256,6 +256,62 @@ class BulkOperationsService:
             log.error(f"Error tagging video {video_id}: {e}")
             return False
 
+
+    async def import_playlist(self, item: Dict[str, Any]) -> bool:
+        try:
+            client = self._get_client()
+            if not client:
+                return False
+            title = item.get("title") or item.get("name") or "Untitled Playlist"
+            description = item.get("description", "")
+            privacy = item.get("privacy", "private")
+            result = client.create_playlist(title=title, description=description, privacy_status=privacy)
+            return "id" in result
+        except Exception as e:
+            log.error(f"Error importing playlist: {e}")
+            return False
+
+    async def import_playlist_from_csv_row(self, item: Dict[str, Any]) -> bool:
+        try:
+            client = self._get_client()
+            if not client:
+                return False
+            title = item.get("title") or item.get("Title") or item.get("name") or "Untitled Playlist"
+            description = item.get("description", "")
+            privacy = item.get("privacy", "private")
+            result = client.create_playlist(title=title, description=description, privacy_status=privacy)
+            return "id" in result
+        except Exception as e:
+            log.error(f"Error importing playlist from CSV: {e}")
+            return False
+
+    async def import_subscription(self, item: Dict[str, Any]) -> bool:
+        try:
+            client = self._get_client()
+            if not client:
+                return False
+            channel_id = item.get("channel_id") or item.get("channelId") or item.get("id")
+            if not channel_id:
+                return False
+            result = client.subscribe_to_channel(channel_id)
+            return "id" in result
+        except Exception as e:
+            log.error(f"Error importing subscription: {e}")
+            return False
+
+    async def import_subscription_from_csv_row(self, item: Dict[str, Any]) -> bool:
+        try:
+            client = self._get_client()
+            if not client:
+                return False
+            channel_id = item.get("channel_id") or item.get("channelId") or item.get("Channel ID") or item.get("id")
+            if not channel_id:
+                return False
+            result = client.subscribe_to_channel(channel_id)
+            return "id" in result
+        except Exception as e:
+            log.error(f"Error importing subscription from CSV: {e}")
+            return False
     async def import_mappings(
         self,
         items: List[Dict[str, Any]],
