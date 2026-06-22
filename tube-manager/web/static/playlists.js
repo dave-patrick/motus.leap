@@ -31,6 +31,7 @@ function renderCachedPlaylists() {
 }
 
 async function loadPlaylists() {
+    document.getElementById('playlists-skeleton').insertAdjacentHTML('beforebegin', '<button onclick=\'actionCreatePlaylist()\' class=\'bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2\'><i class=\'fa-solid fa-plus\'></i> New Playlist</button>');
     const skeleton = document.getElementById('playlists-skeleton');
     const playlistsList = document.getElementById('playlists-list');
 
@@ -240,6 +241,18 @@ async function actionDuplicatePlaylist(playlistId, currentTitle) {
     }
 }
 
+
+async function actionCreatePlaylist() {
+    const title = prompt("Playlist title:");
+    if (!title) return;
+    const resp = await fetch('/api/youtube/playlists/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title })
+    });
+    if (resp.ok) loadPlaylists();
+    else alert('Failed to create playlist');
+}
 async function actionDeletePlaylist(playlistId, title) {
     if (!confirm(`Are you absolutely sure you want to delete '${title}' from YouTube?\n\nThis action cannot be undone.`)) return;
     

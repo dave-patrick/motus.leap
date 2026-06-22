@@ -16,6 +16,7 @@ function toast(message, type = 'info', duration = 4000) {
 }
 
 async function loadSubscriptions() {
+    window._lastSubscriptions = [];
     const list = document.getElementById('subscriptions-list');
     list.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Loading subscriptions...</div>';
     try {
@@ -53,7 +54,7 @@ function renderSubscriptionsList(channels) {
             <div class="flex items-center gap-2">
                 <input type="text" id="map-${c.id}" value="${saved}" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-28" placeholder="Playlist ID" onchange="saveMapping('${c.id}', this.value)">
                 <button onclick="saveMapping('${c.id}', document.getElementById('map-${c.id}').value)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-3 py-1.5 rounded">Map</button>
-                <button onclick="openMaintenance('${c.id}', '${(c.title || '').replace(/'/g, "\\'")}', '${saved}')" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Manage</button>
+                <button onclick="openMaintenance('${c.id}', '${(c.title || '').replace(/'/g, "\\'")}', '${saved}')" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Unsubscribe</button><button onclick="openMaintenance('${c.id}', '${(c.title || '').replace(/'/g, "\\'")}', '${saved}')" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Manage</button>
             </div>
         </div>`;
     }).join('');
@@ -113,3 +114,28 @@ function closeMaintenanceModal() {
 }
 
 document.addEventListener('DOMContentLoaded', loadSubscriptions);
+
+async function actionSubscribe() {
+    const channelId = prompt("Channel ID or URL:");
+    if (!channelId) return;
+    const m = channelId.match(/channel\/([A-Za-z0-9_-]+)/) || channelId.match(/([A-Za-z0-9_-]{20,})/);
+    const id = m ? m[1] : channelId;
+    const resp = await fetch('/api/subscriptions/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_id: id })
+    });
+    if (resp.ok) refreshSubscriptions();
+    else alert('Failed to subscribe');
+}
+
+async function actionUnsubscribe(subscriptionId) {
+    if (!confirm('Unsubscribe from this channel?')) return;
+    const resp = await fetch('/api/subscriptions/unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription_id: subscriptionId })
+    });
+    if (resp.ok) refreshSubscriptions();
+    else alert('Failed to unsubscribe');
+}

@@ -48,6 +48,8 @@
             <div class="flex flex-col gap-4  max-w-[1600px] mx-auto w-full">
                 <div class="flex items-center justify-between">
                     <h2 class="text-xl font-bold text-white">Subscriptions</h2>
+                    
+                    <button onclick="openSubscribeModal()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> Subscribe</button>
                     <button onclick="refreshSubscriptions()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Refresh</button>
                 </div>
                 <div class="bento-card overflow-hidden">
@@ -55,7 +57,24 @@
                     <div class="p-3 overflow-y-auto" id="subscriptions-list"><div class="text-center text-gray-400 py-8">Loading...</div></div>
                 </div>
             </div>
-        </main>
+        
+    <div id="subscribe-channel-modal" class="hidden fixed inset-0 z-50">
+        <div class="absolute inset-0 bg-black/60" onclick="closeSubscribeModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bento-card p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-white">Subscribe to Channel</h3>
+                <button onclick="closeSubscribeModal()" class="text-gray-400 hover:text-white text-xs">Close</button>
+            </div>
+            <div class="flex flex-col gap-3">
+                <div>
+                    <label class="text-[10px] text-gray-300">Channel ID or URL</label>
+                    <input id="sub-id" type="text" class="mt-1 w-full bg-[#0f1115] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2f8fc9]" placeholder="UCxxxx... or channel link">
+                </div>
+                <button onclick="submitSubscribe()" class="mt-2 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Subscribe</button>
+            </div>
+        </div>
+    </div>
+</main>
     </div>
 
     <div id="sub-maint-modal" class="hidden fixed inset-0 z-50">
@@ -80,5 +99,23 @@
         </div>
     </div>
     <script src="/static/mobile-nav.js"></script>
+
+    <script>
+    function openSubscribeModal() { document.getElementById('subscribe-channel-modal').classList.remove('hidden'); }
+    function closeSubscribeModal() { document.getElementById('subscribe-channel-modal').classList.add('hidden'); }
+    async function submitSubscribe() {
+        const raw = document.getElementById('sub-id').value.trim();
+        const m = raw.match(/channel\/([A-Za-z0-9_-]+)/) || raw.match(/([A-Za-z0-9_-]{20,})/);
+        const channel_id = m ? m[1] : raw;
+        const resp = await fetch('/api/subscriptions/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel_id })
+        });
+        if (!resp.ok) return alert('Failed to subscribe');
+        closeSubscribeModal();
+        refreshSubscriptions();
+    }
+    </script>
 </body>
 </html>
