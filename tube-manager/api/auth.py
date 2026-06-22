@@ -63,7 +63,7 @@ async def _load_users() -> Dict[str, Dict[str, Any]]:
     return {}
 
 async def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
-    """Save users to JSON file."""
+    """Save users to JSON file atomically (temp + rename to avoid partial writes)."""
     _ensure_users_dir()
     # Convert datetime objects to ISO strings for JSON serialization
     serializable = {}
@@ -74,7 +74,10 @@ async def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
                 u[field] = u[field].isoformat()
         serializable[k] = u
     try:
-        await asyncio.to_thread(USERS_FILE.write_text, json.dumps(serializable, indent=2, default=str))
+        content = json.dumps(serializable, indent=2, default=str)
+        tmp = USERS_FILE.with_suffix(".json.tmp")
+        await asyncio.to_thread(tmp.write_text, content)
+        await asyncio.to_thread(tmp.replace, USERS_FILE)
     except Exception as e:
         log.error("Failed to save users: %s", e)
 

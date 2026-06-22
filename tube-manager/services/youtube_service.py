@@ -202,10 +202,12 @@ class YouTubeService:
                 max_items=5000,
             )
             total_videos = sum(int((pl.get("contentDetails", {}) or {}).get("itemCount", 0) or 0) for pl in playlists)
+            subscriptions_data = await self.list_subscriptions(force_refresh=force_refresh)
+            total_subscriptions = subscriptions_data.get("total_subscriptions", 0)
             stats = {
                 "total_playlists": len(playlists),
                 "total_videos": total_videos,
-                "total_subscriptions": 0,
+                "total_subscriptions": total_subscriptions,
             }
             return stats
         except Exception as e:

@@ -788,16 +788,26 @@ async def create_playlist_endpoint(body: dict):
 
 @app.post("/api/subscriptions/subscribe", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def subscribe_channel(body: dict):
-    """Subscribe to a YouTube channel."""
+    """Subscribe to a YouTube channel (accepts channel ID, @handle, or user URL)."""
     if not youtube_service:
         raise HTTPException(status_code=500, detail="YouTube service not initialized")
     yt_client = youtube_service.get_client(require_oauth=True)
     if not yt_client:
         raise HTTPException(status_code=401, detail="OAuth client not available")
-    channel_id = body.get("channel_id")
-    if not channel_id:
+    query = (body.get("channel_id") or "").strip()
+    if not query:
         raise HTTPException(status_code=400, detail="channel_id is required")
-    result = yt_client.subscribe_to_channel(channel_id)
+    # Accept bare ID, channel/ID, @handle, user/URL, or youtu.be URL
+    m = re.search(r"channel\/([A-Za-z0-9_-]+)", query)
+    if not m:
+        m = re.search(r"@([A-Za-z0-9._-]+)", query)
+    if not m:
+        m = re.search(r"user\/([A-Za-z0-9._-]+)", query)
+    if not m:
+        m = re.search(r"^([A-Za-z0-9_-]{20,})$", query)
+    target = m.group(1) if m else query
+    # Let YouTubeClient.subscribe_to_channel handle it; on 400/not found, surface error
+    result = yt_client.subscribe_to_channel(target)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     await youtube_service._cache.delete(f"subscriptions_{youtube_service._get_user_id()}")
