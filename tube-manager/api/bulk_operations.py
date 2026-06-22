@@ -185,7 +185,7 @@ async def bulk_move_videos(
     background_tasks: BackgroundTasks,
     config: TubeManagerConfig = Depends(get_config),
     config_manager: ConfigManager = Depends(get_config_manager),
-    ops_storage: OperationsStorage = None,)
+    ops_storage: OperationsStorage = None
 ):
     """Bulk move videos between playlists."""
     operation_id = f"move_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
