@@ -140,7 +140,11 @@ app.add_middleware(
 
 # Register routers
 app.include_router(bulk_router, tags=["bulk"])
+import sys
+print("[DEBUG] auth_router type:", type(auth_router), file=sys.stderr)
+print("[DEBUG] auth_router routes:", [r.path for r in auth_router.routes], file=sys.stderr)
 app.include_router(auth_router, tags=["auth"])
+print("[DEBUG] app routes after auth include:", [r.path for r in app.routes if hasattr(r, "path")], file=sys.stderr)
 
 
 @app.on_event("startup")
