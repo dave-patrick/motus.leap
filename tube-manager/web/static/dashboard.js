@@ -113,8 +113,8 @@ async function callAction(action, payload = null) {
 }
 
 document.getElementById('btn-fetch-all').addEventListener('click', () => callAction('sync_playlists'));
-document.getElementById('btn-watch-later').addEventListener('click', () => callAction('sync_watch_later'));
-document.getElementById('btn-maintenance').addEventListener('click', () => callAction('run_maintenance'));
+document.getElementById('btn-watch-later').addEventListener('click', () => callAction('watch_later_sync'));
+document.getElementById('btn-maintenance').addEventListener('click', () => callAction('apply_maintenance'));
 document.getElementById('btn-cancel').addEventListener('click', async () => {
     try {
         const resp = await apiCall('/api/action/cancel', {method: 'POST', body: JSON.stringify({})});
@@ -148,38 +148,74 @@ document.getElementById('btn-clear-console').addEventListener('click', () => {
 });
 
 
-// Poll task status to update activity bar and cancel-button visibility
+// Track progress locally since API doesn't provide real progress
+let progressValue = 0;
+let wasRunning = false;
+
+// Poll task status to update activity bar, scan details, and cancel button
 async function pollTaskStatus() {
     try {
         const resp = await apiCall('/api/stats');
         if (!resp.ok) return;
         const data = await resp.json();
         const isRunning = data.running_tasks > 0 && data.current_task;
+        const taskName = data.current_task || '';
+        const pendingActions = data.pending_actions || 0;
 
-        // System activity progress bar
+        // Update Scan Details card
+        const scanStatus = document.getElementById('scan-status');
+        const lastScan = document.getElementById('last-scan');
+        const queuedTasks = document.getElementById('queued-tasks');
+        const activeWorkers = document.getElementById('active-workers');
+
+        if (scanStatus) {
+            if (isRunning) {
+                scanStatus.innerHTML = '<span class="text-yellow-400 animate-pulse">\u25cf ' +
+                    DOMPurify.sanitize(taskName, {USE_PROFILES: {html: true}}) + '</span>';
+            } else {
+                scanStatus.textContent = 'Idle';
+                scanStatus.className = 'text-[#2f8fc9] font-medium';
+            }
+        }
+        if (queuedTasks) queuedTasks.textContent = isRunning ? pendingActions : 0;
+        if (activeWorkers) activeWorkers.textContent = isRunning ? 1 : 0;
+
+        // Last scan timestamp: update when a task finishes
+        if (isRunning) {
+            wasRunning = true;
+        } else if (wasRunning) {
+            wasRunning = false;
+            if (lastScan) lastScan.textContent = new Date().toLocaleString();
+        } else if (lastScan && data.last_scan && data.last_scan !== 'Never') {
+            lastScan.textContent = data.last_scan;
+        }
+
+        // Animated progress bar — smoothly increases while running, resets when idle
         const activityBar = document.getElementById('activity-bar');
         const activityPct = document.getElementById('activity-pct');
         if (activityBar && activityPct) {
-            // Derive activity percentage: running task -> in-progress bar; idle -> 0%
-            let pct = 0;
             if (isRunning) {
-                // Map queued tasks + active workers to a visible activity level (min 10%, max 100%)
-                const queued = data.queued_tasks || 0;
-                const workers = data.active_workers >= 0 ? Math.max(1, data.active_workers) : 1;
-                pct = Math.min(100, Math.max(10, 50 + queued * 10 + workers * 5));
+                progressValue = Math.min(95, progressValue + Math.random() * 3 + 2);
+                activityBar.style.width = Math.round(progressValue) + '%';
+                activityPct.textContent = Math.round(progressValue) + '%';
+            } else {
+                if (progressValue > 0) {
+                    activityBar.style.width = '100%';
+                    activityPct.textContent = '100%';
+                    setTimeout(() => {
+                        activityBar.style.width = '0%';
+                        activityPct.textContent = '0%';
+                    }, 2000);
+                }
+                progressValue = 0;
             }
-            activityBar.style.width = pct + '%';
-            activityPct.textContent = pct + '%';
         }
 
-        // Cancel button visible only when a task is running
-        const cancelBtn = document.getElementById('btn-cancel');
-        if (cancelBtn) {
-            if (isRunning) {
-                cancelBtn.classList.remove('hidden');
-            } else {
-                cancelBtn.classList.add('hidden');
-            }
+        // Cancel button: show in Scan Details card when running
+        const scanCancelBtn = document.getElementById('scan-cancel-btn');
+        if (scanCancelBtn) {
+            if (isRunning) scanCancelBtn.classList.remove('hidden');
+            else scanCancelBtn.classList.add('hidden');
         }
     } catch (e) {
         console.warn('Failed to fetch task status', e);

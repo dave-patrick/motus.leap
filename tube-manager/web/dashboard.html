@@ -51,7 +51,7 @@
                 <img src="/static/logo_icon.png?v=3" alt="motus.leap graphic" style="height: 142px; width: auto; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));">
             </div>
             <div class="flex flex-col justify-center">
-                <h1 class="text-[7.5rem] font-bold tracking-tight mb-1 flex items-baseline leading-none">
+                <h1 class="text-[5.625rem] font-bold tracking-tight mb-1 flex items-baseline leading-none">
                     <span class="text-white">m</span>
                     <span class="text-white">o</span>
                     <span class="text-white">t</span>
@@ -73,13 +73,13 @@
                 <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
             <nav class="flex flex-col gap-1">
                 <a href="/dashboard" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
-                <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-                <a href="/watch-later" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
-                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
-                <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+                <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/watch-later" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
+                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
             <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
-                <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+                <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
             </div>
         </aside>
 
@@ -116,7 +116,6 @@
                         <button id="btn-fetch-all" class="px-4 py-2.5 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-sync"></i> Full Playlist Sync</button>
                         <button id="btn-watch-later" class="px-4 py-2.5 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-clock"></i> Watch Later Sync</button>
                         <button id="btn-maintenance" class="px-4 py-2.5 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-wrench"></i> Run Maintenance</button>
-                        <button id="btn-cancel" class="hidden px-4 py-2.5 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-300 hover:bg-red-600 hover:border-red-600 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-stop"></i> Cancel Task</button>
                     </div>
                 </div>
 
@@ -137,6 +136,11 @@
                                 <div id="activity-bar" class="bg-[#2f8fc9] h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
                             </div>
                         </div>
+                        <!-- Cancel Running Task (shown only while a task is running) -->
+                        <button id="scan-cancel-btn" class="hidden w-full mt-3 px-3 py-2 rounded-lg bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[11px] font-bold flex items-center justify-center gap-2 transition-colors" onclick="fetch('/api/action/cancel', {method:'POST', headers:{'X-CSRF-Protect':'1'}}).then(()=>{toast('Task cancelled','info')}).catch(e=>console.warn(e))">
+                            <i class="fa-solid fa-stop"></i> Cancel Running Task
+                        </button>
+                        <button id="btn-cancel" class="hidden" onclick="fetch('/api/action/cancel', {method:'POST', headers:{'X-CSRF-Protect':'1'}}).catch(e=>console.warn(e))"></button>
                     </div>
 
                     <div class="bento-card p-5 lg:col-span-2 flex flex-col h-[320px]">

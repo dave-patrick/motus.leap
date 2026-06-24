@@ -33,31 +33,38 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/global_scripts.js?v=1781919149"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
-    <script src="/static/playlist.js?v=1781919149"></script>
 </head>
 <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
 <button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 <body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
-    <header class="h-16 border-b border-[#2a2f3a] bg-[#16191f] flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4">
-            <button onclick="window.location.href='/playlists'" class="text-gray-400 hover:text-white"><i class="fa-solid fa-arrow-left"></i></button>
-            <div><h1 class="text-sm font-bold tracking-wide text-white leading-tight" id="playlist-title">Loading...</h1><p class="text-[10px] text-gray-400" id="playlist-meta">-- videos</p></div>
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#1a1d24] flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-3">
+            <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="w-8 h-8 object-contain">
+            <h1 class="text-3xl font-semibold text-white tracking-tight">mot<span class="text-[#2f8fc9]">u</span><span class="text-white">s</span><span class="text-gray-500">.</span>leap</h1>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-4">
             <button id="move-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 hidden"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Move Selected</button>
+            <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
         </div>
     </header>
+    <!-- Playlist context bar (below header) -->
+    <div class="px-6 py-2 bg-[#16191f] border-b border-[#2a2f3a] flex items-center gap-3">
+        <button onclick="window.location.href='/playlists'" class="text-gray-400 hover:text-white text-xs flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Back to Playlists</button>
+        <span class="text-gray-600">|</span>
+        <span class="text-xs text-gray-300" id="playlist-title">Loading...</span>
+        <span class="text-[10px] text-gray-500" id="playlist-meta">-- videos</span>
+    </div>
     <div class="flex flex-1 overflow-hidden">
                 <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
             <nav class="flex flex-col gap-1">
-                <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+                <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
                 <a href="/playlists" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-                <a href="/watch-later" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
-                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
-                <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+                <a href="/watch-later" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
+                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
             <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
-                <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+                <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
             </div>
         </aside>
         <main class="flex-1 overflow-y-auto p-4 bg-[#121419]">
@@ -124,6 +131,7 @@
             </div>
         </main>
     </div>
+    <script src="/static/playlist.js?v=1781919149"></script>
     <script src="/static/mobile-nav.js"></script>
 </body>
 </html>
