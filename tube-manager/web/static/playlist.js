@@ -490,7 +490,7 @@ async function moveMisplacedItems() {
 }
 
 // Event listeners
-document.addEventListener('DOMContentLoaded', async () => {
+async function initPlaylistPage() {
     // Load global scripts here if not already in head
     // const script = document.createElement('script');
     // script.src = '/static/global_scripts.js';
@@ -509,4 +509,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.back-to-playlists-btn')?.addEventListener('click', () => {
         window.location.href = '/playlists';
     });
-});
+}
+
+// DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPlaylistPage);
+} else {
+    initPlaylistPage();
+}
