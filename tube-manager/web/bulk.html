@@ -7,8 +7,8 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
@@ -33,10 +33,11 @@
     </header>
 
     <div class="flex flex-1 overflow-hidden">
-        <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
+                <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
             <nav class="flex flex-col gap-1">
                 <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
                 <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/watch-later" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
                 <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
                 <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
@@ -412,11 +413,14 @@
                             'completed': 'text-green-400',
                             'failed': 'text-red-400'
                         };
+                        const _opType = DOMPurify.sanitize(op.operation_type || '');
+                        const _status = DOMPurify.sanitize(op.status || '');
+                        const _statusClass = statusColors[op.status] || 'text-gray-400';
                         return `
                             <div class="bg-[#0a0c10] rounded p-3 border border-[#2a2f3a]">
                                 <div class="flex justify-between items-start mb-2">
-                                    <span class="text-[10px] font-medium text-gray-300">${op.operation_type}</span>
-                                    <span class="text-[9px] ${statusColors[op.status]}">${op.status}</span>
+                                    <span class="text-[10px] font-medium text-gray-300">${_opType}</span>
+                                    <span class="text-[9px] ${_statusClass}">${_status}</span>
                                 </div>
                                 <div class="text-[9px] text-gray-500 mb-2">${op.processed}/${op.total_items} items</div>
                                 <div class="w-full bg-[#20242c] rounded-full h-1">
