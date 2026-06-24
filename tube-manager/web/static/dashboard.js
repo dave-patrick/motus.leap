@@ -195,7 +195,8 @@ async function pollTaskStatus() {
         const activityPct = document.getElementById('activity-pct');
         if (activityBar && activityPct) {
             if (isRunning) {
-                progressValue = Math.min(95, progressValue + Math.random() * 3 + 2);
+                // Asymptotic approach to 99% — big jumps early, tiny near end, always alive
+                progressValue = progressValue + (99 - progressValue) * 0.08 + 0.3;
                 activityBar.style.width = Math.round(progressValue) + '%';
                 activityPct.textContent = Math.round(progressValue) + '%';
             } else {
