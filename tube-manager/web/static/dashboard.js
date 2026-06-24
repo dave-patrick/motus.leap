@@ -147,7 +147,48 @@ document.getElementById('btn-clear-console').addEventListener('click', () => {
     logConsole('Console cleared.', 'info');
 });
 
+
+// Poll task status to update activity bar and cancel-button visibility
+async function pollTaskStatus() {
+    try {
+        const resp = await apiCall('/api/stats');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const isRunning = data.running_tasks > 0 && data.current_task;
+
+        // System activity progress bar
+        const activityBar = document.getElementById('activity-bar');
+        const activityPct = document.getElementById('activity-pct');
+        if (activityBar && activityPct) {
+            // Derive activity percentage: running task -> in-progress bar; idle -> 0%
+            let pct = 0;
+            if (isRunning) {
+                // Map queued tasks + active workers to a visible activity level (min 10%, max 100%)
+                const queued = data.queued_tasks || 0;
+                const workers = data.active_workers >= 0 ? Math.max(1, data.active_workers) : 1;
+                pct = Math.min(100, Math.max(10, 50 + queued * 10 + workers * 5));
+            }
+            activityBar.style.width = pct + '%';
+            activityPct.textContent = pct + '%';
+        }
+
+        // Cancel button visible only when a task is running
+        const cancelBtn = document.getElementById('btn-cancel');
+        if (cancelBtn) {
+            if (isRunning) {
+                cancelBtn.classList.remove('hidden');
+            } else {
+                cancelBtn.classList.add('hidden');
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to fetch task status', e);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     connectWebSocket();
+    pollTaskStatus();
+    setInterval(pollTaskStatus, 5000);
 });

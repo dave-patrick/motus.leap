@@ -48,10 +48,10 @@
     <header class="bg-[#1a1d24] px-8 py-6 flex items-center">
         <div class="flex items-center space-x-4">
             <div class="flex items-center">
-                <img src="/static/logo_icon.png?v=3" alt="motus.leap graphic" style="height: 189px; width: auto; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));">
+                <img src="/static/logo_icon.png?v=3" alt="motus.leap graphic" style="height: 142px; width: auto; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));">
             </div>
             <div class="flex flex-col justify-center">
-                <h1 class="text-6xl font-bold tracking-tight mb-1 flex items-baseline">
+                <h1 class="text-[7.5rem] font-bold tracking-tight mb-1 flex items-baseline leading-none">
                     <span class="text-white">m</span>
                     <span class="text-white">o</span>
                     <span class="text-white">t</span>
@@ -116,7 +116,7 @@
                         <button id="btn-fetch-all" class="px-4 py-2.5 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-sync"></i> Full Playlist Sync</button>
                         <button id="btn-watch-later" class="px-4 py-2.5 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-clock"></i> Watch Later Sync</button>
                         <button id="btn-maintenance" class="px-4 py-2.5 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-wrench"></i> Run Maintenance</button>
-                        <button id="btn-cancel" class="px-4 py-2.5 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-300 hover:bg-red-600 hover:border-red-600 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-stop"></i> Cancel Task</button>
+                        <button id="btn-cancel" class="hidden px-4 py-2.5 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-300 hover:bg-red-600 hover:border-red-600 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-stop"></i> Cancel Task</button>
                     </div>
                 </div>
 
@@ -129,6 +129,13 @@
                             <div class="flex justify-between border-b border-[#2a2f3a] pb-2"><span>Status</span><span id="scan-status" class="text-[#2f8fc9] font-medium">Idle</span></div>
                             <div class="flex justify-between border-b border-[#2a2f3a] pb-2"><span>Queued Tasks</span><span id="queued-tasks" class="text-gray-300 font-mono">0</span></div>
                             <div class="flex justify-between"><span>Active Workers</span><span id="active-workers" class="text-gray-300 font-mono">1</span></div>
+                        </div>
+                        <!-- System Activity Progress Bar -->
+                        <div class="pt-3 border-t border-[#2a2f3a]">
+                            <div class="flex justify-between mb-1.5"><span class="text-gray-400">System Activity</span><span id="activity-pct" class="text-gray-300 font-mono">0%</span></div>
+                            <div class="w-full bg-[#20242c] rounded-full h-2 overflow-hidden">
+                                <div id="activity-bar" class="bg-[#2f8fc9] h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
                         </div>
                     </div>
 
