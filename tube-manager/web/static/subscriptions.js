@@ -113,7 +113,12 @@ function closeMaintenanceModal() {
     document.getElementById('sub-maint-modal').classList.add('hidden');
 }
 
-document.addEventListener('DOMContentLoaded', loadSubscriptions);
+// DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadSubscriptions);
+} else {
+    loadSubscriptions();
+}
 
 async function actionSubscribe() {
     const channelId = prompt("Channel ID or URL:");

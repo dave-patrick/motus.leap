@@ -277,7 +277,12 @@ async function actionDeletePlaylist(playlistId, title) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', loadPlaylists);
+// DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadPlaylists);
+} else {
+    loadPlaylists();
+}
 
 async function syncPlaylists(e) {
     const btn = e.target.closest('button') || e.target;

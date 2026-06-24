@@ -223,9 +223,17 @@ async function pollTaskStatus() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+async function initDashboardPage() {
     loadStats();
     connectWebSocket();
     pollTaskStatus();
     setInterval(pollTaskStatus, 5000);
-});
+
+}
+
+// DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDashboardPage);
+} else {
+    initDashboardPage();
+};
