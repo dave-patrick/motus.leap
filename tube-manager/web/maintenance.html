@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maintenance Queue - motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
@@ -35,10 +34,11 @@
         <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
     </header>
     <div class="flex flex-1 overflow-hidden">
-        <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
+                <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
             <nav class="flex flex-col gap-1">
                 <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
                 <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/watch-later" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
                 <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
                 <a href="/maintenance" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
@@ -129,15 +129,22 @@
                 el.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-4">No items</div>'; 
                 return; 
             }
-            el.innerHTML = items.map(item => `
+            el.innerHTML = items.map(item => {
+                const _thumb = DOMPurify.sanitize(item.thumbnail || 'https://picsum.photos/32/24');
+                const _title = DOMPurify.sanitize(item.title || '');
+                const _from = DOMPurify.sanitize(item.from_playlist || item.current_playlist || item.playlist_a || '');
+                const _to = DOMPurify.sanitize(item.to_playlist || item.suggested || item.playlist_b || '?');
+                const _suggested = DOMPurify.sanitize(item.suggested || '');
+                return `
                 <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a] mb-2">
-                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${item.thumbnail || 'https://picsum.photos/32/24'}" class="w-full h-full object-cover"></div>
-                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${item.title}</div><div class="text-[9px] text-gray-400">${item.from_playlist || item.current_playlist || item.playlist_a} → ${item.to_playlist || item.suggested || item.playlist_b || '?'}</div></div>
-                    ${type === 'move' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>${item.suggested || 'Move from X to Y'}</option></select>` : ''}
+                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${_thumb}" class="w-full h-full object-cover"></div>
+                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${_title}</div><div class="text-[9px] text-gray-400">${_from} → ${_to}</div></div>
+                    ${type === 'move' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>${_suggested || 'Move from X to Y'}</option></select>` : ''}
                     ${type === 'dup' ? `<div class="flex gap-1"><button class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Keep</button><button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>` : ''}
-                    ${type === 'misplaced' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>Move to ${item.suggested || 'Correct Playlist'}</option></select>` : ''}
+                    ${type === 'misplaced' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>Move to ${_suggested || 'Correct Playlist'}</option></select>` : ''}
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
         
         async function applyMaintenance(type) {
