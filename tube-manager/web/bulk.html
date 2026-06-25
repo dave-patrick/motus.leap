@@ -442,11 +442,18 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+function initBulkPage() {
             loadPlaylists();
             refreshOperations();
             setInterval(refreshOperations, 5000);
-        });
+        }
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBulkPage);
+} else {
+    initBulkPage();
+};
     </script>
     <script src="/static/mobile-nav.js"></script>
 </body>

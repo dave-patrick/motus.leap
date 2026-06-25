@@ -158,9 +158,16 @@
         }
         
         
-        document.addEventListener('DOMContentLoaded', () => {
+        // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+function initMaintenancePage() {
             loadMaintenance();
-        });
+        }
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMaintenancePage);
+} else {
+    initMaintenancePage();
+};
     </script>
     <script src="/static/mobile-nav.js"></script>
 </body>

@@ -365,9 +365,16 @@
         }
 
         // Auto-load on page load
-        document.addEventListener('DOMContentLoaded', () => {
+        // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+function initWatchLaterPage() {
             fetchWatchLaterRaw();
-        });
+        }
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWatchLaterPage);
+} else {
+    initWatchLaterPage();
+};
     </script>
     <script src="/static/ux-enhancements.js"></script>
     <script src="/static/mobile-nav.js"></script>
