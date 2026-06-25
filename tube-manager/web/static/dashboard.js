@@ -45,7 +45,7 @@ async function loadStats() {
         }
         if (subResp.ok) {
             const subData = await subResp.json();
-            document.getElementById('stat-subscriptions').textContent = (subData.subscriptions || []).length;
+            document.getElementById('stat-subscriptions').textContent = (subData.channels || []).length;
         }
     } catch (e) {
         console.warn('Failed to load stats', e);
@@ -113,8 +113,8 @@ async function callAction(action, payload = null) {
 }
 
 document.getElementById('btn-fetch-all').addEventListener('click', () => callAction('sync_playlists'));
-document.getElementById('btn-watch-later').addEventListener('click', () => callAction('watch_later_sync'));
-document.getElementById('btn-maintenance').addEventListener('click', () => callAction('apply_maintenance'));
+document.getElementById('btn-watch-later').addEventListener('click', () => callAction('sync_watch_later'));
+document.getElementById('btn-maintenance').addEventListener('click', () => callAction('run_maintenance'));
 document.getElementById('btn-cancel').addEventListener('click', async () => {
     try {
         const resp = await apiCall('/api/action/cancel', {method: 'POST', body: JSON.stringify({})});
@@ -147,93 +147,7 @@ document.getElementById('btn-clear-console').addEventListener('click', () => {
     logConsole('Console cleared.', 'info');
 });
 
-
-// Track progress locally since API doesn't provide real progress
-let progressValue = 0;
-let wasRunning = false;
-
-// Poll task status to update activity bar, scan details, and cancel button
-async function pollTaskStatus() {
-    try {
-        const resp = await apiCall('/api/stats');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const isRunning = data.running_tasks > 0 && data.current_task;
-        const taskName = data.current_task || '';
-        const pendingActions = data.pending_actions || 0;
-
-        // Update Scan Details card
-        const scanStatus = document.getElementById('scan-status');
-        const lastScan = document.getElementById('last-scan');
-        const queuedTasks = document.getElementById('queued-tasks');
-        const activeWorkers = document.getElementById('active-workers');
-
-        if (scanStatus) {
-            if (isRunning) {
-                scanStatus.innerHTML = '<span class="text-yellow-400 animate-pulse">\u25cf ' +
-                    DOMPurify.sanitize(taskName, {USE_PROFILES: {html: true}}) + '</span>';
-            } else {
-                scanStatus.textContent = 'Idle';
-                scanStatus.className = 'text-[#2f8fc9] font-medium';
-            }
-        }
-        if (queuedTasks) queuedTasks.textContent = isRunning ? pendingActions : 0;
-        if (activeWorkers) activeWorkers.textContent = isRunning ? 1 : 0;
-
-        // Last scan timestamp: update when a task finishes
-        if (isRunning) {
-            wasRunning = true;
-        } else if (wasRunning) {
-            wasRunning = false;
-            if (lastScan) lastScan.textContent = new Date().toLocaleString();
-        } else if (lastScan && data.last_scan && data.last_scan !== 'Never') {
-            lastScan.textContent = data.last_scan;
-        }
-
-        // Animated progress bar — smoothly increases while running, resets when idle
-        const activityBar = document.getElementById('activity-bar');
-        const activityPct = document.getElementById('activity-pct');
-        if (activityBar && activityPct) {
-            if (isRunning) {
-                // Asymptotic approach to 99% — big jumps early, tiny near end, always alive
-                progressValue = progressValue + (99 - progressValue) * 0.08 + 0.3;
-                activityBar.style.width = Math.round(progressValue) + '%';
-                activityPct.textContent = Math.round(progressValue) + '%';
-            } else {
-                if (progressValue > 0) {
-                    activityBar.style.width = '100%';
-                    activityPct.textContent = '100%';
-                    setTimeout(() => {
-                        activityBar.style.width = '0%';
-                        activityPct.textContent = '0%';
-                    }, 2000);
-                }
-                progressValue = 0;
-            }
-        }
-
-        // Cancel button: show in Scan Details card when running
-        const scanCancelBtn = document.getElementById('scan-cancel-btn');
-        if (scanCancelBtn) {
-            if (isRunning) scanCancelBtn.classList.remove('hidden');
-            else scanCancelBtn.classList.add('hidden');
-        }
-    } catch (e) {
-        console.warn('Failed to fetch task status', e);
-    }
-}
-
-async function initDashboardPage() {
+document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     connectWebSocket();
-    pollTaskStatus();
-    setInterval(pollTaskStatus, 5000);
-
-}
-
-// DOMContentLoaded may have already fired (SPA navigation). Run init either way.
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initDashboardPage);
-} else {
-    initDashboardPage();
-};
+});
