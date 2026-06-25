@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Trigger Render Deploy
-        uses: JorgeLNJunior/render-deploy@vmain
+        uses: JorgeLNJunior/render-deploy@main
         with:
           serviceId: ${{ secrets.RENDER_SERVICE_ID }}
           apiKey: ${{ secrets.RENDER_API_KEY }}
