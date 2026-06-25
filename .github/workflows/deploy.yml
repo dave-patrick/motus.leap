@@ -18,8 +18,8 @@ jobs:
       - name: Trigger Render Deploy
         uses: JorgeLNJunior/render-deploy@main
         with:
-          serviceId: ${{ secrets.RENDER_SERVICE_ID }}
-          apiKey: ${{ secrets.RENDER_API_KEY }}
+          service_id: ${{ secrets.RENDER_SERVICE_ID }}
+          api_key: ${{ secrets.RENDER_API_KEY }}
 
   notify:
     needs: deploy
