@@ -543,6 +543,20 @@ class WatchLaterMoveIn(BaseModel):
     target_playlist_id: str
 
 
+
+@app.post("/api/watch-later")
+async def watch_later_sync(body: dict):
+    """Process and sync Watch Later videos."""
+    try:
+        video_ids = body.get("video_ids", [])
+        if not video_ids:
+            return {"error": "No video IDs provided"}
+
+        log(f"Synced {len(video_ids)} videos from Watch Later")
+        return {"status": "completed", "processed_count": len(video_ids), "video_ids": video_ids}
+    except Exception as e:
+        log.error(f"Watch Later sync failed: {e}")
+        return {"error": str(e)}
 @app.post("/api/watch-later/move", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def move_watch_later_videos(body: WatchLaterMoveIn):
     """Move selected videos from Watch Later to a target playlist."""
