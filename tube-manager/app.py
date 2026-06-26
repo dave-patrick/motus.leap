@@ -98,6 +98,14 @@ CONFIG_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__)
 config_manager = ConfigManager(CONFIG_DIR / "config.json")
 youtube_service: Optional[YouTubeService] = None
 
+
+def _secret_val(val):
+    """Safely extract the raw value from a SecretStr or return the string."""
+    if hasattr(val, 'get_secret_value'):
+        return val.get_secret_value()
+    return str(val) if val else ""
+
+
 # Initialize app
 app = FastAPI(
     title="motus.leap",
