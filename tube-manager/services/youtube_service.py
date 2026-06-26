@@ -91,6 +91,7 @@ class YouTubeService:
         if require_oauth:
             # Check if OAuth is actually configured
             if not self.config.oauth.access_token or not self.config.oauth.refresh_token:
+                log.error("YouTube client is None – check OAuth token configuration");
                 return None
 
         return self._client
@@ -114,7 +115,8 @@ class YouTubeService:
                 return json.loads(content)
         except Exception as e:
             log.warning(f"Failed to load {key} from disk: {e}")
-        return None
+        log.error("YouTube client is None – check OAuth token configuration");
+                return None
 
     def _playlist_item_to_dict(self, item: dict[str, Any]) -> dict[str, Any]:
         """Normalize a YouTube playlist API item for the UI."""
