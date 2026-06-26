@@ -1400,12 +1400,6 @@ async def dispatch_action(body: dict):
     name = actions.get(action, action)
     log.info(f"Action dispatched: {name}")
 
-    # Broadcast status via WebSocket
-    await manager.broadcast(json.dumps({
-        "type": "log",
-        "message": f"[AGENT] Starting: {action}"
-    }))
-
     # Process based on action type
     try:
         if not background_worker:
@@ -1421,21 +1415,13 @@ async def dispatch_action(body: dict):
         if not handler:
             return {"status": "error", "error": f"Unknown action: {action}"}
 
-        # Run in background task so the endpoint returns immediately
+        # Run in background task — the handler itself broadcasts via WebSocket
         asyncio.create_task(handler(payload or {}))
     except Exception as e:
         log.error(f"Action {action} failed: {e}")
-        await manager.broadcast(json.dumps({
-            "type": "log",
-            "message": f"[AGENT] Failed: {action} — {str(e)}"
-        }))
         return {"status": "error", "error": str(e)}
 
-    await manager.broadcast(json.dumps({
-        "type": "log",
-        "message": f"[AGENT] Completed: {action}"
-    }))
-    return {"status": "completed", "action": action}
+    return {"status": "started", "action": action}
 
 
 @app.post("/api/action/cancel", dependencies=[Depends(get_current_user), Depends(verify_origin)])
@@ -1748,6 +1734,10 @@ async def websocket_terminal(websocket: WebSocket):
                         msg = json.loads(data)
                         if msg.get("type") == "pong":
                             ping_failures = 0
+                        elif msg.get("type") == "ping":
+                            # Client sent a ping while we were waiting for pong — respond and retry
+                            await websocket.send_text(json.dumps({"type": "pong"}))
+                            continue
                         else:
                             ping_failures += 1
                     except asyncio.TimeoutError:
