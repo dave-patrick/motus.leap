@@ -97,6 +97,8 @@ CONFIG_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__)
 # Initialize managers
 config_manager = ConfigManager(CONFIG_DIR / "config.json")
 youtube_service: Optional[YouTubeService] = None
+background_worker: Optional["BackgroundWorker"] = None
+worker = None  # backward compat alias
 
 
 def _secret_val(val):
@@ -277,6 +279,8 @@ async def lifespan(app: FastAPI):
     # Start background task processor
     from services.background_worker import BackgroundWorker
     worker = BackgroundWorker(youtube_service, manager, config_manager, task_queue)
+    global background_worker
+    background_worker = worker
     asyncio.create_task(worker.process_background_tasks())
     
     # Start nightly auto-apply mappings job if enabled
@@ -1377,7 +1381,74 @@ async def reset_settings():
     return {"message": "Settings reset to defaults"}
 
 
-# Diagnostics endpoint
+# Action dispatch endpoint for dashboard buttons
+@app.post("/api/action", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def dispatch_action(body: dict):
+    """Dispatch a dashboard action (sync_playlists, sync_watch_later, run_maintenance)."""
+    action = body.get("action", "")
+    payload = body.get("payload", None)
+
+    if not action:
+        return {"status": "error", "error": "No action specified"}
+
+    actions = {
+        "sync_playlists": "Full Playlist Sync",
+        "sync_watch_later": "Watch Later Sync",
+        "run_maintenance": "Run Maintenance",
+    }
+
+    name = actions.get(action, action)
+    log.info(f"Action dispatched: {name}")
+
+    # Broadcast status via WebSocket
+    await manager.broadcast(json.dumps({
+        "type": "log",
+        "message": f"[AGENT] Starting: {action}"
+    }))
+
+    # Process based on action type
+    try:
+        if not background_worker:
+            return {"status": "error", "error": "Background worker not initialized"}
+
+        action_map = {
+            "sync_watch_later": background_worker.watch_later_sync,
+            "sync_playlists": background_worker.full_cluster_scan,
+            "run_maintenance": background_worker.apply_maintenance,
+        }
+
+        handler = action_map.get(action)
+        if not handler:
+            return {"status": "error", "error": f"Unknown action: {action}"}
+
+        # Run in background task so the endpoint returns immediately
+        asyncio.create_task(handler(payload or {}))
+    except Exception as e:
+        log.error(f"Action {action} failed: {e}")
+        await manager.broadcast(json.dumps({
+            "type": "log",
+            "message": f"[AGENT] Failed: {action} — {str(e)}"
+        }))
+        return {"status": "error", "error": str(e)}
+
+    await manager.broadcast(json.dumps({
+        "type": "log",
+        "message": f"[AGENT] Completed: {action}"
+    }))
+    return {"status": "completed", "action": action}
+
+
+@app.post("/api/action/cancel", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def cancel_action():
+    """Cancel the currently running background task."""
+    global background_worker
+    if background_worker:
+        background_worker.cancel_current_task()
+    await manager.broadcast(json.dumps({"type": "log", "message": "[AGENT] Action cancelled by user"}))
+    return {"status": "cancelled"}
+
+
+# Diagnostic endpoints
 @app.get("/api/diagnostics/youtube")
 async def diagnostics_youtube() -> dict[str, Any]:
     """Check YouTube OAuth status and test API connectivity."""
