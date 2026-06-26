@@ -115,8 +115,7 @@ class YouTubeService:
                 return json.loads(content)
         except Exception as e:
             log.warning(f"Failed to load {key} from disk: {e}")
-        log.error("YouTube client is None – check OAuth token configuration");
-                return None
+        return None
 
     def _playlist_item_to_dict(self, item: dict[str, Any]) -> dict[str, Any]:
         """Normalize a YouTube playlist API item for the UI."""
