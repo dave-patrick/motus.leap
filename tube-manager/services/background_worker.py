@@ -15,6 +15,53 @@ from core.config_manager import ConfigManager
 log = logging.getLogger(__name__)
 
 
+def _is_retryable_error(exc: Exception) -> bool:
+    """Check if an exception is retryable (429 rate limit or 5xx server errors)."""
+    # Check for HTTP status codes in common exception patterns
+    status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if status_code is not None:
+        return status_code == 429 or (500 <= status_code < 600)
+
+    # Check for googleapiclient HttpError
+    if hasattr(exc, "resp") and hasattr(exc.resp, "status"):
+        status = exc.resp.status
+        return status == 429 or (500 <= status < 600)
+
+    # Check exception message for rate-limit / server-error indicators
+    msg = str(exc).lower()
+    return "429" in msg or "rate limit" in msg or "500" in msg or "503" in msg or "502" in msg or "504" in msg
+
+
+async def _retry_with_backoff(coro_fn, max_retries: int = 3, base_delay: float = 1.0, label: str = "API call") -> Any:
+    """Execute a coroutine with exponential backoff retry for retryable errors.
+
+    Args:
+        coro_fn: A callable that returns a coroutine (not yet awaited).
+        max_retries: Maximum number of retry attempts.
+        base_delay: Base delay in seconds (doubles each retry).
+        label: Human-readable label for logging.
+
+    Returns:
+        The result of the coroutine.
+
+    Raises:
+        The last exception if all retries are exhausted.
+    """
+    last_exc = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await coro_fn()
+        except Exception as e:
+            last_exc = e
+            if attempt < max_retries and _is_retryable_error(e):
+                delay = base_delay * (2 ** attempt)  # 1s, 2s, 4s
+                log.warning(f"[WORKER] {label} failed (attempt {attempt + 1}/{max_retries + 1}): {e}. Retrying in {delay}s...")
+                await asyncio.sleep(delay)
+            else:
+                raise
+    raise last_exc  # should not reach here, but safety net
+
+
 def get_formatted_mappings(config) -> dict[str, Any]:
     raw = config.channel_mappings if hasattr(config, "channel_mappings") else {}
     formatted: list[dict[str, Any]] = []
@@ -129,12 +176,6 @@ class BackgroundWorker:
                     await self.watch_later_sync(payload)
                 elif action == "diagnose_failures":
                     await self.diagnose_failures(payload)
-                elif action == "regenerate_queue":
-                    await self.regenerate_queue(payload)
-                elif action == "surface_diagnostics":
-                    await self.surface_diagnostics(payload)
-                elif action == "apply_maintenance":
-                    await self.apply_maintenance(payload)
                 elif action == "apply_rules":
                     await self.apply_rules(payload)
                 elif action == "sync_playlists":
@@ -169,7 +210,16 @@ class BackgroundWorker:
             playlists = []
             page_token = None
             while True:
-                playlists_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50, page_token=page_token)
+                try:
+                    playlists_resp = await _retry_with_backoff(
+                        lambda pt=page_token: asyncio.to_thread(client.list_mine_playlists, max_results=50, page_token=pt),
+                        max_retries=3,
+                        base_delay=1.0,
+                        label="list_mine_playlists",
+                    )
+                except Exception as page_err:
+                    log.warning(f"[WORKER] Failed to fetch playlists after retries: {page_err}")
+                    break
                 items = playlists_resp.get("items", [])
                 playlists.extend(items)
                 page_token = playlists_resp.get("nextPageToken")
@@ -191,7 +241,17 @@ class BackgroundWorker:
             for pl in playlists:
                 pl_id = pl.get("id")
                 pl_title = pl.get("snippet", {}).get("title", pl_id)
-                items_resp = await asyncio.to_thread(client.list_videos, pl_id, max_results=50)
+                try:
+                    items_resp = await _retry_with_backoff(
+                        lambda: asyncio.to_thread(client.list_videos, pl_id, max_results=50),
+                        max_retries=3,
+                        base_delay=1.0,
+                        label=f"list_videos({pl_id})",
+                    )
+                except Exception as video_err:
+                    log.warning(f"[WORKER] Failed to fetch videos for playlist {pl_id}: {video_err}")
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WORKER] Skipping playlist {pl_id}: {video_err}"}))
+                    continue
                 items = items_resp.get("items", [])
                 total_videos += len(items)
                 
@@ -398,7 +458,7 @@ class BackgroundWorker:
             # Fetch watch later items using the cached method
             force_refresh = payload.get("force_refresh", False) # Allow forcing refresh from payload
             watch_later_resp = await self.youtube_service.list_watch_later_items_cached(
-                playlist_id=self.channel_id if hasattr(self, "channel_id") and self.channel_id else (config_manager.config.watch_later_playlist_id if hasattr(config_manager.config, "watch_later_playlist_id") else ""),
+                playlist_id=self.channel_id if hasattr(self, "channel_id") and self.channel_id else (self.config_manager.config.watch_later_playlist_id if hasattr(self.config_manager.config, "watch_later_playlist_id") else ""),
                 force_refresh=force_refresh
             )
             watch_later_items = watch_later_resp.get("items", [])
@@ -431,16 +491,36 @@ class BackgroundWorker:
 
                 try:
                     # Insert into target playlist (offload sync call to thread)
-                    await asyncio.to_thread(client.move_video_to_playlist, video_id, playlist_id)
+                    try:
+                        await _retry_with_backoff(
+                            lambda: asyncio.to_thread(client.move_video_to_playlist, video_id, playlist_id),
+                            max_retries=3,
+                            base_delay=1.0,
+                            label=f"move_video_to_playlist({video_id})",
+                        )
+                    except Exception as move_err:
+                        failed.append({"video_id": video_id, "error": str(move_err)})
+                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {video_id} to playlist: {move_err}"}))
+                        continue  # skip this video, continue with the next
+
                     # Remove from Watch Later
                     if playlist_item_id:
-                        await asyncio.to_thread(client.remove_video_from_playlist, playlist_item_id)
+                        try:
+                            await _retry_with_backoff(
+                                lambda: asyncio.to_thread(client.remove_video_from_playlist, playlist_item_id),
+                                max_retries=3,
+                                base_delay=1.0,
+                                label=f"remove_video_from_playlist({playlist_item_id})",
+                            )
+                        except Exception as remove_err:
+                            log.warning(f"[WORKER] Failed to remove {playlist_item_id} from source after move: {remove_err}")
+
                     moved.append({"video_id": video_id, "from": origin, "to": playlist_id, "channel_id": channel_id})
                     # Record move for AI training memory
                     try:
                         from services.ai_classifier import record_move
                         item_snippet = item.get("snippet", {}) or {}
-                        record_move(
+                        await record_move(
                             video_id=video_id,
                             title=item_snippet.get("title", ""),
                             channel_id=channel_id or "",
@@ -453,9 +533,9 @@ class BackgroundWorker:
                         )
                     except Exception:
                         pass
-                except Exception as move_error:
-                    failed.append({"video_id": video_id, "error": str(move_error)})
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {video_id}: {move_error}"}))
+                except Exception as unexpected_error:
+                    failed.append({"video_id": video_id, "error": str(unexpected_error)})
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Unexpected error processing {video_id}: {unexpected_error}"}))
 
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Moved {len(moved)} video(s), skipped {len(skipped)}, failed {len(failed)}"}))
             if moved:
@@ -501,48 +581,8 @@ class BackgroundWorker:
         except Exception as e:
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG ERROR] {str(e)}"}))
 
-    async def regenerate_queue(self, payload):
-        """Regenerate queue rules."""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[QUEUE] Regenerating queue rules from current config..."}))
-        await asyncio.sleep(1)
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[QUEUE] Re-building classification rules from channel mappings"}))
-        await asyncio.sleep(1)
-        config = self.config_manager.config
-        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[QUEUE] {len(config.channel_mappings)} channel patterns loaded"}))
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[QUEUE] Complete"}))
-
-    async def surface_diagnostics(self, payload):
-        """Run surface diagnostics."""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SURFACE] Pinging surface diagnostics..."}))
-        await asyncio.sleep(1)
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SURFACE] Health: OK"}))
-        await asyncio.sleep(0.5)
-        
-        # Disk usage
-        import shutil
-        try:
-            total, used, free = shutil.disk_usage("/app/data")
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SURFACE] Disk: {used//1024//1024}/{total//1024//1024} MB used"}))
-        except:
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SURFACE] Disk: OK"}))
-        
-        await asyncio.sleep(0.5)
-        # Get real cache stats
-        if self.youtube_service:
-            cache_stats = self.youtube_service._cache.get_stats()
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SURFACE] Cache hit rate: {cache_stats['hit_rate']}"}))
-        else:
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SURFACE] Cache: N/A (service not initialized)"}))
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SURFACE] Complete"}))
-
-    async def apply_maintenance(self, payload):
-        """Apply maintenance actions."""
-        action = payload.get("action", "move")
-        items = payload.get("items", [])
-        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[MAINT] Applying {action} to {len(items)} items..."}))
-        await asyncio.sleep(1)
-        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[MAINT] {len(items)} items processed"}))
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[MAINT] Complete"}))
+    # Note: regenerate_queue, surface_diagnostics, and apply_maintenance
+    # stub methods were removed as part of cleanup of obsolete surfaces.
 
     async def apply_rules(self, payload):
         """Apply rules from editor."""

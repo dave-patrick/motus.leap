@@ -271,6 +271,14 @@ async def lifespan(app: FastAPI):
     config = await config_manager.load()
     youtube_service = YouTubeService(config)
     await create_default_admin()
+
+    # Clean up stale disk cache files on startup
+    try:
+        removed = await youtube_service.disk_cache_cleanup(max_age_days=7)
+        if removed:
+            log.info(f"Startup cache cleanup: removed {removed} stale files")
+    except Exception as e:
+        log.warning(f"Startup cache cleanup failed (non-fatal): {e}")
     
     # Store in app state for routers
     app.state.config = config_manager.config
@@ -1384,7 +1392,7 @@ async def reset_settings():
 # Action dispatch endpoint for dashboard buttons
 @app.post("/api/action", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def dispatch_action(body: dict):
-    """Dispatch a dashboard action (sync_playlists, sync_watch_later, run_maintenance)."""
+    """Dispatch a dashboard action (sync_playlists, sync_watch_later)."""
     action = body.get("action", "")
     payload = body.get("payload", None)
 
@@ -1394,7 +1402,6 @@ async def dispatch_action(body: dict):
     actions = {
         "sync_playlists": "Full Playlist Sync",
         "sync_watch_later": "Watch Later Sync",
-        "run_maintenance": "Run Maintenance",
     }
 
     name = actions.get(action, action)
@@ -1408,7 +1415,6 @@ async def dispatch_action(body: dict):
         action_map = {
             "sync_watch_later": background_worker.watch_later_sync,
             "sync_playlists": background_worker.full_cluster_scan,
-            "run_maintenance": background_worker.apply_maintenance,
         }
 
         handler = action_map.get(action)

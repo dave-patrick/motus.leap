@@ -16,20 +16,24 @@ class LRUAsyncCache:
     - Time-based expiration (TTL)
     - Thread-safe operations via asyncio.Lock
     - Access tracking for eviction decisions
+    - Stale entry cleanup (max_age separate from TTL)
     """
 
-    def __init__(self, max_size: int = 100, ttl: timedelta = timedelta(minutes=10)):
+    def __init__(self, max_size: int = 100, ttl: timedelta = timedelta(minutes=10), max_age: Optional[timedelta] = None):
         """Initialize LRU cache.
 
         Args:
             max_size: Maximum number of items to cache
             ttl: Time-to-live for cache entries
+            max_age: Maximum age before entry is considered stale (regardless of TTL). Defaults to 2x ttl if not set.
         """
         self._cache: Dict[str, Any] = {}
         self._expires_at: Dict[str, datetime] = {}
+        self._created_at: Dict[str, datetime] = {}
         self._access_count: Dict[str, int] = {}
         self._max_size = max_size
         self._ttl = ttl
+        self._max_age = max_age or (ttl * 2)
         self._lock = asyncio.Lock()
         self._hits = 0
         self._misses = 0
@@ -71,6 +75,7 @@ class LRUAsyncCache:
         async with self._lock:
             self._cache[key] = value
             self._expires_at[key] = datetime.now() + (ttl or self._ttl)
+            self._created_at[key] = datetime.now()
             self._access_count[key] = 0
             await self._maybe_evict()
 
@@ -87,13 +92,35 @@ class LRUAsyncCache:
         """Remove entry from cache."""
         self._cache.pop(key, None)
         self._expires_at.pop(key, None)
+        self._created_at.pop(key, None)
         self._access_count.pop(key, None)
+
+    async def cleanup_stale(self) -> int:
+        """Remove entries older than max_age regardless of TTL.
+
+        Returns:
+            Number of entries removed
+        """
+        async with self._lock:
+            stale_keys = []
+            now = datetime.now()
+            for key, created in self._created_at.items():
+                if now - created > self._max_age:
+                    stale_keys.append(key)
+
+            for key in stale_keys:
+                await self._evict(key)
+
+            if stale_keys:
+                log.info(f"Cache cleanup: removed {len(stale_keys)} stale entries")
+            return len(stale_keys)
 
     async def clear(self) -> None:
         """Clear all cache entries."""
         async with self._lock:
             self._cache.clear()
             self._expires_at.clear()
+            self._created_at.clear()
             self._access_count.clear()
             log.info("LRU cache cleared")
 
@@ -113,4 +140,5 @@ class LRUAsyncCache:
             "misses": self._misses,
             "hit_rate": f"{hit_rate:.2%}",
             "ttl_seconds": int(self._ttl.total_seconds()),
+            "max_age_seconds": int(self._max_age.total_seconds()),
         }
