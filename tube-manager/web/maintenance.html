@@ -148,13 +148,7 @@
         }
         
         async function applyMaintenance(type) {
-            const items = maintenanceData[`${type === 'move' ? 'move_from_x_to_y' : type === 'dup' ? 'duplicated_videos' : 'misplaced_videos'}`] || [];
-            await fetch('/api/action', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'apply_maintenance', payload: {action: type, items}})
-            });
-            toast(`${type} maintenance queued`, 'success');
+            toast(`${type} maintenance is currently disabled`, 'warning');
         }
         
         

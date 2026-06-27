@@ -4,12 +4,17 @@ Pytest configuration and fixtures for motus.leap test suite.
 
 import asyncio
 import json
+import os
 import pytest
 import pytest_asyncio
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
+
+# Set temp data dir before importing app modules
+os.environ.setdefault("TUBE_MANAGER_DATA_DIR", tempfile.mkdtemp(prefix="motus_test_"))
 
 # Import app and components
 import sys

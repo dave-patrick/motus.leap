@@ -114,7 +114,7 @@ async function callAction(action, payload = null) {
 
 document.getElementById('btn-fetch-all').addEventListener('click', () => callAction('sync_playlists'));
 document.getElementById('btn-watch-later').addEventListener('click', () => callAction('sync_watch_later'));
-document.getElementById('btn-maintenance').addEventListener('click', () => callAction('run_maintenance'));
+// Maintenance action removed — use sync_playlists for data refresh.
 document.getElementById('btn-cancel').addEventListener('click', async () => {
     try {
         const resp = await apiCall('/api/action/cancel', {method: 'POST', body: JSON.stringify({})});

@@ -3,6 +3,7 @@
 import json
 import hashlib
 import logging
+import os
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
@@ -53,8 +54,9 @@ class YouTubeService:
         self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(hours=6))
         self._watch_later_cache_ttl = timedelta(minutes=15) # Shorter TTL for Watch Later
 
-        # User-specific storage path
-        self._user_data_dir = Path("/app/data/users") / self._get_user_id()
+        # User-specific storage path — configurable via TUBE_MANAGER_DATA_DIR (defaults to /app/data on Render, tmp in tests)
+        _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+        self._user_data_dir = _data_dir / "users" / self._get_user_id()
         self._user_data_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_user_id(self) -> str:
@@ -92,7 +94,7 @@ class YouTubeService:
             # Check if OAuth is actually configured
             if not self.config.oauth.access_token or not self.config.oauth.refresh_token:
                 log.error("YouTube client is None – check OAuth token configuration")
-        return None
+                return None
 
         return self._client
 
@@ -116,6 +118,62 @@ class YouTubeService:
         except Exception as e:
             log.warning(f"Failed to load {key} from disk: {e}")
         return None
+
+    async def disk_cache_cleanup(self, max_age_days: int = 7) -> int:
+        """Remove stale JSON files from the disk cache directory.
+
+        Args:
+            max_age_days: Maximum age in days before a cache file is considered stale.
+
+        Returns:
+            Number of files removed.
+        """
+        removed = 0
+        cutoff = datetime.now() - timedelta(days=max_age_days)
+        try:
+            if not await asyncio.to_thread(self._user_data_dir.exists):
+                return 0
+            for file_path in self._user_data_dir.glob("*.json"):
+                try:
+                    file_stat = await asyncio.to_thread(file_path.stat)
+                    file_mtime = datetime.fromtimestamp(file_stat.st_mtime)
+                    if file_mtime < cutoff:
+                        await asyncio.to_thread(file_path.unlink)
+                        removed += 1
+                        log.debug(f"Removed stale cache file: {file_path.name}")
+                except Exception as e:
+                    log.warning(f"Failed to remove cache file {file_path}: {e}")
+            if removed:
+                log.info(f"Disk cache cleanup: removed {removed} stale files (older than {max_age_days} days)")
+        except Exception as e:
+            log.warning(f"Disk cache cleanup failed: {e}")
+        return removed
+
+    async def _cache_invalidate_playlist(self, playlist_id: str) -> None:
+        """Remove cached data for a specific playlist from memory and disk.
+
+        Args:
+            playlist_id: The playlist ID whose cache entries should be removed.
+        """
+        # Invalidate memory cache entries matching this playlist
+        async with self._cache._lock:
+            keys_to_remove = [
+                key for key in self._cache._cache
+                if playlist_id in key
+            ]
+            for key in keys_to_remove:
+                await self._cache._evict(key)
+
+        # Invalidate disk cache files for this playlist
+        disk_keys = [f"playlist_videos_{playlist_id}"]
+        for key in disk_keys:
+            cache_file = self._user_data_dir / f"{key}.json"
+            try:
+                if await asyncio.to_thread(cache_file.exists):
+                    await asyncio.to_thread(cache_file.unlink)
+                    log.info(f"Invalidated disk cache for playlist {playlist_id}")
+            except Exception as e:
+                log.warning(f"Failed to remove disk cache for playlist {playlist_id}: {e}")
 
     def _playlist_item_to_dict(self, item: dict[str, Any]) -> dict[str, Any]:
         """Normalize a YouTube playlist API item for the UI."""
