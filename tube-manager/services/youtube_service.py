@@ -91,8 +91,8 @@ class YouTubeService:
         if require_oauth:
             # Check if OAuth is actually configured
             if not self.config.oauth.access_token or not self.config.oauth.refresh_token:
-                log.error("YouTube client is None – check OAuth token configuration");
-                return None
+                log.error("YouTube client is None – check OAuth token configuration")
+        return None
 
         return self._client
 
