@@ -821,7 +821,7 @@ async def google_oauth_init():
 
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth"
-        f"?client_id={GOOGLE_OAUTH_CLIENT_ID}"
+        f"?client_id={client_id}"
         f"&redirect_uri={GOOGLE_OAUTH_REDIRECT_URI}"
         f"&response_type=code"
         f"&scope=openid%20email%20profile"
@@ -833,15 +833,31 @@ async def google_oauth_init():
 
 @router.get("/youtube")
 async def youtube_oauth_init():
-    """Initiate YouTube OAuth flow for data access (separate from login)."""
-    if not GOOGLE_OAUTH_CLIENT_ID:
-        return {"error": "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars."}
+    """Initiate YouTube OAuth flow for data access (separate from login).
+    
+    Checks environment variables first, falls back to config.json settings.
+    """
+    client_id = GOOGLE_OAUTH_CLIENT_ID
+    client_secret = GOOGLE_OAUTH_CLIENT_SECRET
+    
+    # Fall back to config.json settings if env vars not set
+    if not client_id or not client_secret:
+        try:
+            from app import config_manager as app_cm
+            if app_cm and app_cm.config.oauth.client_id:
+                client_id = app_cm.config.oauth.client_id
+                client_secret = app_cm.config.oauth.client_secret
+        except Exception:
+            pass
+    
+    if not client_id:
+        return {"error": "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars or configure in Settings."}
 
     # Use the same callback as login, but with a state parameter to identify it as YouTube OAuth
     state = secrets.token_urlsafe(16)
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth"
-        f"?client_id={GOOGLE_OAUTH_CLIENT_ID}"
+        f"?client_id={client_id}"
         f"&redirect_uri={GOOGLE_OAUTH_REDIRECT_URI}"
         f"&response_type=code"
         f"&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube"
@@ -864,10 +880,22 @@ _youtube_oauth_states: dict[str, bool] = {}
 @router.get("/google/callback")
 async def google_oauth_callback(code: str, state: str = None, response: Response = None): # Added response here
     """Handle Google OAuth callback. If state is a YouTube OAuth state, save YouTube tokens."""
-    if not GOOGLE_OAUTH_CLIENT_ID or not GOOGLE_OAUTH_CLIENT_SECRET:
+    # Try env vars first, fall back to config.json settings
+    cb_client_id = GOOGLE_OAUTH_CLIENT_ID
+    cb_client_secret = GOOGLE_OAUTH_CLIENT_SECRET
+    if not cb_client_id or not cb_client_secret:
+        try:
+            from app import config_manager as app_cm
+            if app_cm and app_cm.config.oauth.client_id:
+                cb_client_id = app_cm.config.oauth.client_id
+                cb_client_secret = app_cm.config.oauth.client_secret
+        except Exception:
+            pass
+
+    if not cb_client_id or not cb_client_secret:
         return HTMLResponse("""
             <h1 style="color: #ff4444;">❌ Google OAuth Not Configured</h1>
-            <p>Please set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables.</p>
+            <p>Please set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables, or configure OAuth in Settings.</p>
         """, status_code=400)
 
     # Check if this is a YouTube OAuth callback
@@ -876,8 +904,8 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
     token_url = "https://oauth2.googleapis.com/token"
     data = {
         "code": code,
-        "client_id": GOOGLE_OAUTH_CLIENT_ID,
-        "client_secret": GOOGLE_OAUTH_CLIENT_SECRET,
+        "client_id": cb_client_id,
+        "client_secret": cb_client_secret,
         "redirect_uri": GOOGLE_OAUTH_REDIRECT_URI,
         "grant_type": "authorization_code",
     }
