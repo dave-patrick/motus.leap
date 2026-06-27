@@ -121,6 +121,11 @@
                     throw new Error(data.error || 'Failed to fetch Watch Later videos');
                 }
 
+                // Check for API error even on 200 response
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
                 cachedVideos = data.items || [];
                 log('Loaded ' + cachedVideos.length + ' videos from ' + data.source);
                 if (cachedVideos.length > 0) {
