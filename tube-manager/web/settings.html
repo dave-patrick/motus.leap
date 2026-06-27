@@ -439,6 +439,18 @@
                     if (apiKeyStatus) apiKeyStatus.classList.add('hidden');
                 }
 
+                if (data.ai_api_key) {
+                    document.getElementById('ai-api-key').value = '';
+                    document.getElementById('ai-api-key').placeholder = '•••••••• — previously saved';
+                    const aiKeyStatus = document.getElementById('ai-key-status');
+                    if (aiKeyStatus) aiKeyStatus.classList.remove('hidden');
+                } else {
+                    document.getElementById('ai-api-key').value = '';
+                    document.getElementById('ai-api-key').placeholder = 'Enter API key';
+                    const aiKeyStatus = document.getElementById('ai-key-status');
+                    if (aiKeyStatus) aiKeyStatus.classList.add('hidden');
+                }
+
                 if (data.oauth_client_secret) {
                     document.getElementById('oauth-client-secret').value = '';
                     document.getElementById('oauth-client-secret').placeholder = '•••••••• — previously saved';

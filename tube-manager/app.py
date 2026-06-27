@@ -90,7 +90,7 @@ from services.youtube_service import YouTubeService
 
 # Paths
 WEB_DIR = Path(__file__).resolve().parent / "web"
-CONFIG_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__).resolve().parent
+CONFIG_DIR = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) if Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")).exists() else Path(__file__).resolve().parent
 
 # Initialize managers
 config_manager = ConfigManager(CONFIG_DIR / "config.json")
