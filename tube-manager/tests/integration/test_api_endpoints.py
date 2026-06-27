@@ -240,7 +240,10 @@ class TestWebSocket:
 
     def test_websocket_connection(self, test_client):
         """Test WebSocket connection."""
-        with test_client.websocket_connect("/ws/terminal") as websocket:
+        # Get auth token from cookie
+        token = test_client.cookies.get("token", "")
+        ws_url = f"/ws/terminal?token={token}" if token else "/ws/terminal?token=test"
+        with test_client.websocket_connect(ws_url) as websocket:
             # Send a message
             websocket.send_json({"type": "ping"})
 
@@ -250,9 +253,11 @@ class TestWebSocket:
 
     def test_websocket_broadcast(self, test_client):
         """Test WebSocket broadcast to multiple clients."""
+        token = test_client.cookies.get("token", "")
+        ws_url = f"/ws/terminal?token={token}" if token else "/ws/terminal?token=test"
         # Connect two clients
-        with test_client.websocket_connect("/ws/terminal") as ws1:
-            with test_client.websocket_connect("/ws/terminal") as ws2:
+        with test_client.websocket_connect(ws_url) as ws1:
+            with test_client.websocket_connect(ws_url) as ws2:
                 # Send message from ws1
                 ws1.send_json({"type": "test", "message": "Hello"})
 
@@ -266,7 +271,9 @@ class TestWebSocket:
 
     def test_websocket_throttling(self, test_client):
         """Test WebSocket message throttling."""
-        with test_client.websocket_connect("/ws/terminal") as websocket:
+        token = test_client.cookies.get("token", "")
+        ws_url = f"/ws/terminal?token={token}" if token else "/ws/terminal?token=test"
+        with test_client.websocket_connect(ws_url) as websocket:
             # Send many messages quickly
             for i in range(20):
                 websocket.send_json({"type": "test", "message": f"Message {i}"})

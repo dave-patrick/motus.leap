@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from typing import List, Dict, Any, Optional
 import json
 import csv
@@ -41,22 +41,43 @@ async def get_config_manager(request: Request) -> ConfigManager:
 
 class BulkMoveRequest(BaseModel):
     """Request for bulk move operation."""
-    video_ids: List[str]
+    video_ids: List[str] = Field(..., max_length=500)
     target_playlist_id: str
     source_playlist_id: Optional[str] = None
+
+    @validator("video_ids", each_item=True)
+    def validate_video_ids(cls, v):
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]{11}$', v):
+            raise ValueError(f"Invalid video ID format: {v}")
+        return v
 
 
 class BulkDeleteRequest(BaseModel):
     """Request for bulk delete operation."""
-    video_ids: List[str]
+    video_ids: List[str] = Field(..., max_length=500)
     playlist_id: str
+
+    @validator("video_ids", each_item=True)
+    def validate_video_ids(cls, v):
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]{11}$', v):
+            raise ValueError(f"Invalid video ID format: {v}")
+        return v
 
 
 class BulkTagRequest(BaseModel):
     """Request for bulk tag operation."""
-    video_ids: List[str]
+    video_ids: List[str] = Field(..., max_length=500)
     tags: List[str]
     action: str  # "add" or "remove"
+
+    @validator("video_ids", each_item=True)
+    def validate_video_ids(cls, v):
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]{11}$', v):
+            raise ValueError(f"Invalid video ID format: {v}")
+        return v
 
 
 class ExportRequest(BaseModel):

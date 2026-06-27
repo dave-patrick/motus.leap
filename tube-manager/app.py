@@ -33,6 +33,13 @@ from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import aiofiles
 
+# Video ID validation
+YOUTUBE_VIDEO_ID_RE = re.compile(r'^[a-zA-Z0-9_-]{11}$')
+
+def validate_video_id(vid: str) -> bool:
+    """Validate that a string matches YouTube's video ID format (11 chars, alphanumeric + _-)."""
+    return bool(YOUTUBE_VIDEO_ID_RE.match(vid))
+
 # Auth dependency
 from api.auth import get_current_user, verify_origin, create_default_admin # Import create_default_admin
 
@@ -144,7 +151,23 @@ async def lifespan(app: FastAPI):
         if removed:
             log.info(f"Startup cache cleanup: removed {removed} stale files")
     except Exception as e:
-        log.warning(f"Startup cache cleanup failed (non-fatal): {e}")
+        log.warning(f"Startup disk cache cleanup failed (non-fatal): {e}")
+
+    # Clean up stale LRU cache entries on startup (H11)
+    try:
+        if hasattr(youtube_service, '_cache'):
+            stale_removed = await youtube_service._cache.cleanup_stale()
+            if stale_removed:
+                log.info(f"Startup LRU cleanup: removed {stale_removed} stale entries")
+    except Exception as e:
+        log.warning(f"Startup LRU cleanup failed (non-fatal): {e}")
+
+    # Clean up idle sessions on startup
+    try:
+        from api.auth import cleanup_idle_sessions
+        await cleanup_idle_sessions()
+    except Exception as e:
+        log.warning(f"Idle session cleanup failed (non-fatal): {e}")
 
     # Store in app state for routers
     app.state.config = config_manager.config
@@ -380,6 +403,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
     return response
 
@@ -578,7 +602,7 @@ class WatchLaterMoveIn(BaseModel):
 
 
 
-@app.post("/api/watch-later")
+@app.post("/api/watch-later", dependencies=[Depends(get_current_user)])
 async def watch_later_sync(body: dict):
     """Process and sync Watch Later videos."""
     try:
@@ -652,7 +676,7 @@ async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: b
     return result
 
 
-@app.get("/api/youtube/duplicates")
+@app.get("/api/youtube/duplicates", dependencies=[Depends(get_current_user)])
 async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
     """Scan for duplicate videos in a playlist or all playlists."""
     if not youtube_service:
@@ -665,7 +689,7 @@ async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
     return {"duplicates": duplicates, "total_videos": len(video_ids), "playlist_id": playlist_id}
 
 
-@app.get("/api/youtube/misplaced")
+@app.get("/api/youtube/misplaced", dependencies=[Depends(get_current_user)])
 async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
     """Scan for misplaced videos based on channel mappings."""
     if not youtube_service:
@@ -689,7 +713,8 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
 
 # Stats endpoint
 @app.get("/api/stats", dependencies=[Depends(get_current_user)])
-async def stats() -> dict[str, Any]:
+@limiter.limit("30/minute")
+async def stats(request: Request) -> dict[str, Any]:
     """Dashboard statistics endpoint."""
     if youtube_service:
         yt_stats = await youtube_service.get_basic_stats()
@@ -732,7 +757,8 @@ async def stats() -> dict[str, Any]:
 
 # Playlists endpoint
 @app.get("/api/playlists", dependencies=[Depends(get_current_user)])
-async def api_playlists() -> dict[str, Any]:
+@limiter.limit("30/minute")
+async def api_playlists(request: Request) -> dict[str, Any]:
     """Get playlists data."""
     if youtube_service:
         return await youtube_service.list_playlists()
@@ -1008,7 +1034,7 @@ async def api_subscriptions() -> dict[str, Any]:
 
 
 # Maintenance endpoint
-@app.get("/api/maintenance")
+@app.get("/api/maintenance", dependencies=[Depends(get_current_user)])
 async def api_maintenance() -> dict[str, Any]:
     """Get maintenance data."""
     maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
@@ -1119,7 +1145,7 @@ async def playlist_detail(playlist_id: str):
     return await no_cache_file_response(WEB_DIR / "playlist.html")
 
 
-@app.get("/api/actions/status")
+@app.get("/api/actions/status", dependencies=[Depends(get_current_user)])
 async def action_status():
     """Get action status."""
     return {"queue_size": task_queue.qsize(), "running": worker.background_tasks_running if worker else False}
@@ -1303,7 +1329,7 @@ async def ai_classify_videos(body: AIClassifyIn):
                 channel = ""
                 description = ""
             
-            matched_playlist, error = classify_video(
+            matched_playlist, error = await classify_video(
                 title=title, channel=channel, description=description,
                 playlists=playlists, provider=provider, api_key=api_key,
                 prompt_template=prompt,
@@ -1571,11 +1597,29 @@ async def save_cookies(request: Request):
 
 @app.get("/api/system/logs")
 async def get_system_logs():
-    """Get recent system logs."""
-    return {
-        "logs": [],
-        "info": "System log aggregation not yet implemented. Use application stdout for logs."
-    }
+    """Get recent system logs from the log file."""
+    log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
+    if not log_file.exists():
+        return {
+            "logs": [],
+            "info": "No log file found. Logs are written to stdout by default.",
+            "total": 0,
+        }
+    try:
+        lines = await asyncio.to_thread(log_file.read_text)
+        lines = lines.strip().split("\n")
+        last_200 = lines[-200:] if len(lines) > 200 else lines
+        return {
+            "logs": last_200,
+            "total": len(lines),
+            "returned": len(last_200),
+        }
+    except Exception as e:
+        return {
+            "logs": [],
+            "info": f"Failed to read logs: {str(e)}",
+            "total": 0,
+        }
 
 
 @app.get("/system/logs")
@@ -1691,6 +1735,31 @@ async def test_webhook(body: dict):
 @app.websocket("/ws/terminal")
 async def websocket_terminal(websocket: WebSocket):
     """WebSocket endpoint for terminal interaction."""
+    # Validate token from query param before accepting connection
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing authentication token")
+        return
+
+    from api.auth import decode_access_token, is_token_revoked, get_users_db
+    try:
+        payload = decode_access_token(token)
+        if is_token_revoked(token):
+            await websocket.close(code=4001, reason="Token has been revoked")
+            return
+        username = payload.get("sub")
+        if not username:
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+        users_db = await get_users_db()
+        user = users_db.get(username)
+        if not user:
+            await websocket.close(code=4001, reason="User not found")
+            return
+    except Exception:
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+
     await manager.connect(websocket)
     ping_interval = 30
     pong_timeout = 10

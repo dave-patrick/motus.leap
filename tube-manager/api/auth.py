@@ -64,7 +64,7 @@ async def _load_users() -> Dict[str, Dict[str, Any]]:
     return {}
 
 async def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
-    """Save users to JSON file atomically (temp + rename to avoid partial writes)."""
+    """Save users to JSON file atomically (temp + rename to avoid partial writes), with debouncing (H13)."""
     _ensure_users_dir()
     # Convert datetime objects to ISO strings for JSON serialization
     serializable = {}
@@ -74,13 +74,41 @@ async def _save_users(users: Dict[str, Dict[str, Any]]) -> None:
             if isinstance(u.get(field), datetime):
                 u[field] = u[field].isoformat()
         serializable[k] = u
-    try:
-        content = json.dumps(serializable, indent=2, default=str)
-        tmp = USERS_FILE.with_suffix(".json.tmp")
-        await asyncio.to_thread(tmp.write_text, content)
-        await asyncio.to_thread(tmp.replace, USERS_FILE)
-    except Exception as e:
-        log.error("Failed to save users: %s", e)
+    content = json.dumps(serializable, indent=2, default=str)
+    await _debounced_write(USERS_FILE, content)
+
+
+# =============================================================================
+# Debounced file writes (H13)
+# =============================================================================
+
+_debounce_tasks: Dict[str, asyncio.Task] = {}
+_debounce_lock = asyncio.Lock()
+
+
+async def _debounced_write(path: Path, content: str, delay: float = 1.0) -> None:
+    """Write to file after a debounce delay. Subsequent calls reset the timer."""
+    key = str(path)
+    async with _debounce_lock:
+        existing = _debounce_tasks.get(key)
+        if existing and not existing.done():
+            existing.cancel()
+
+    async def _do_write():
+        await asyncio.sleep(delay)
+        try:
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            await asyncio.to_thread(tmp.write_text, content)
+            await asyncio.to_thread(tmp.replace, path)
+        except Exception as e:
+            log.error("Debounced write failed for %s: %s", path, e)
+        finally:
+            async with _debounce_lock:
+                _debounce_tasks.pop(key, None)
+
+    task = asyncio.create_task(_do_write())
+    async with _debounce_lock:
+        _debounce_tasks[key] = task
 
 # =============================================================================
 # Configuration
@@ -254,30 +282,56 @@ def _load_sessions() -> Dict[str, Dict[str, Any]]:
     return {}
 
 
-def _save_sessions(sessions: Dict[str, Dict[str, Any]]) -> None:
-    try:
-        SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        serializable: Dict[str, Dict[str, Any]] = {}
-        for token, entry in sessions.items():
-            s = dict(entry)
-            for field in ("created_at", "expires_at"):
-                val = s.get(field)
-                if isinstance(val, datetime):
-                    s[field] = val.isoformat()
-            serializable[token] = s
-        tmp = SESSIONS_FILE.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(serializable, indent=2, default=str), encoding="utf-8")
-        tmp.replace(SESSIONS_FILE)
-    except Exception as e:
-        log.error("Failed to save user sessions: %s", e)
+async def _save_sessions(sessions: Dict[str, Dict[str, Any]]) -> None:
+    """Save user sessions to disk with debouncing (H13)."""
+    serializable: Dict[str, Dict[str, Any]] = {}
+    for token, entry in sessions.items():
+        s = dict(entry)
+        for field in ("created_at", "expires_at"):
+            val = s.get(field)
+            if isinstance(val, datetime):
+                s[field] = val.isoformat()
+        serializable[token] = s
+    content = json.dumps(serializable, indent=2, default=str)
+    await _debounced_write(SESSIONS_FILE, content)
 
 
 user_sessions: Dict[str, Dict[str, Any]] = _load_sessions()
+
+# Idle session cleanup threshold (7 days)
+SESSION_IDLE_CUTOFF = timedelta(days=7)
+
+
+async def cleanup_idle_sessions() -> int:
+    """Remove sessions older than 7 days from the in-memory sessions dict."""
+    now = datetime.now()
+    expired = [
+        token for token, entry in user_sessions.items()
+        if isinstance(entry.get("created_at"), datetime) and (now - entry["created_at"]) > SESSION_IDLE_CUTOFF
+    ]
+    for token in expired:
+        user_sessions.pop(token, None)
+    if expired:
+        log.info(f"Session cleanup: removed {expired.__len__()} idle sessions")
+    return len(expired)
+
+# Token revocation list — stores hashes of revoked tokens
+_revoked_tokens: set = set()
 
 
 def _hash_token(token: str) -> str:
     """Hash a token for secure storage on disk."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def is_token_revoked(token: str) -> bool:
+    """Check if a token has been revoked."""
+    return _hash_token(token) in _revoked_tokens
+
+
+def revoke_token(token: str) -> None:
+    """Add a token's hash to the revocation list."""
+    _revoked_tokens.add(_hash_token(token))
 
 
 # =============================================================================
@@ -374,6 +428,15 @@ async def get_current_user(
         )
 
     payload = decode_access_token(token)
+
+    # Check if token has been revoked
+    if is_token_revoked(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     username: str = payload.get("sub")
 
     if username is None:
@@ -499,7 +562,7 @@ async def register(user_data: UserCreate, request: Request, users_db: Dict[str, 
         "created_at": datetime.now(),
         "expires_at": datetime.now() + access_token_expires,
     }
-    _save_sessions(user_sessions)
+    await _save_sessions(user_sessions)
 
     return TokenResponse(
         access_token=access_token,
@@ -533,7 +596,7 @@ async def login(user_data: UserLogin, request: Request, response: Response, user
         "created_at": datetime.now(),
         "expires_at": datetime.now() + access_token_expires,
     }
-    _save_sessions(user_sessions)
+    await _save_sessions(user_sessions)
 
     # Set the token in a secure, http-only cookie
     response.set_cookie(
@@ -625,7 +688,7 @@ async def logout(
     if token:
         token_hash = _hash_token(token)
         user_sessions.pop(token_hash, None)
-        _save_sessions(user_sessions)
+        await _save_sessions(user_sessions)
     
     # Clear the cookie on logout
     response.delete_cookie(key="token", path="/")
@@ -635,8 +698,28 @@ async def logout(
 
 
 @router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(verify_origin)])
-async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_active_user)):
-    """Issue a fresh 7-day token to keep the user logged in."""
+async def refresh_token(
+    request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_active_user),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    token_cookie: Optional[str] = Cookie(default=None, alias="token"),
+):
+    """Issue a fresh 7-day token and invalidate the old one (rotation)."""
+    # Extract old token for revocation
+    old_token = None
+    if credentials:
+        old_token = credentials.credentials
+    elif token_cookie:
+        old_token = token_cookie
+    elif request:
+        old_token = request.cookies.get("token")
+
+    # Revoke the old token if present
+    if old_token:
+        revoke_token(old_token)
+        old_hash = _hash_token(old_token)
+        user_sessions.pop(old_hash, None)
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     new_token = create_access_token(
         data={"sub": current_user["username"], "role": current_user["role"]},
@@ -649,7 +732,7 @@ async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_activ
         "created_at": datetime.now(),
         "expires_at": datetime.now() + access_token_expires,
     }
-    _save_sessions(user_sessions)
+    await _save_sessions(user_sessions)
     return TokenResponse(
         access_token=new_token,
         token_type="bearer",

@@ -239,6 +239,10 @@ class BackgroundWorker:
             
             total_videos = 0
             for pl in playlists:
+                if self._cancel_requested:
+                    log.info("[WORKER] Cancel requested during scan — stopping early")
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[WORKER] Scan cancelled by user"}))
+                    return
                 pl_id = pl.get("id")
                 pl_title = pl.get("snippet", {}).get("title", pl_id)
                 try:
@@ -256,6 +260,10 @@ class BackgroundWorker:
                 total_videos += len(items)
                 
                 for item in items:
+                    if self._cancel_requested:
+                        log.info("[WORKER] Cancel requested during video scan — stopping early")
+                        await self.manager.broadcast(json.dumps({"type": "log", "message": "[WORKER] Scan cancelled during video processing"}))
+                        return
                     video_id = item.get("contentDetails", {}).get("videoId")
                     video_title = item.get("snippet", {}).get("title", "Untitled")
                     if video_id:
@@ -469,6 +477,10 @@ class BackgroundWorker:
             skipped = []
             failed = []
             for item in watch_later_items:
+                if self._cancel_requested:
+                    log.info("[WORKER] Cancel requested during watch-later sync — stopping")
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[WORKER] Watch-later sync cancelled"}))
+                    break
                 video_id = item.get("contentDetails", {}).get("videoId")
                 playlist_item_id = item.get("id")
                 origin = item.get("snippet", {}).get("playlistId") or ""
@@ -633,8 +645,12 @@ class BackgroundWorker:
         playlist_id = payload.get("playlist_id") if payload else None
         location = f" in playlist {playlist_id}" if playlist_id else ""
         await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Scanning for duplicates{location}..."}))
-        await asyncio.sleep(0.5)
-        duplicates = len(getattr(self.youtube_service, "videos", [])) - len(set(v.get("video_id") for v in getattr(self.youtube_service, "videos", []))) if self.youtube_service else 0
+        duplicates = 0
+        if self.youtube_service:
+            videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
+            videos = videos_data.get("videos", [])
+            video_ids = [v.get("video_id") for v in videos if v.get("video_id")]
+            duplicates = len(video_ids) - len(set(video_ids))
         await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate videos"}))
         return {"duplicates": duplicates}
 
@@ -643,10 +659,10 @@ class BackgroundWorker:
         playlist_id = payload.get("playlist_id") if payload else None
         location = f" in playlist {playlist_id}" if playlist_id else ""
         await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Scanning for misplaced videos{location}..."}))
-        await asyncio.sleep(0.5)
         count = 0
         if self.youtube_service and hasattr(self.youtube_service, 'config') and hasattr(self.youtube_service.config, 'channel_mappings'):
-            videos = getattr(self.youtube_service, "videos", [])
+            videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
+            videos = videos_data.get("videos", [])
             for v in videos:
                 if playlist_id and v.get("playlist_id") != playlist_id:
                     continue
