@@ -125,7 +125,7 @@ async def login_and_get_auth_token(test_client_unauthenticated):
 
 @pytest.fixture
 def test_client(mock_youtube_service):
-    """Create test client with mocked dependencies."""
+    """Create test client with mocked dependencies and authenticated user."""
     # Import app here to avoid module-level initialization
     from app import app as fastapi_app
 
@@ -141,6 +141,31 @@ def test_client(mock_youtube_service):
     fastapi_app.router.lifespan_context = _noop_lifespan
 
     with TestClient(fastapi_app, base_url="http://localhost:8000", headers={"Origin": "http://localhost:8000"}) as client:
+        # Register and login a test user, then set auth cookie
+        import uuid
+        unique = f"testuser_{uuid.uuid4().hex[:8]}"
+        register_response = client.post(
+            "/api/auth/register",
+            json={
+                "username": unique,
+                "email": f"{unique}@example.com",
+                "password": "testpassword"
+            }
+        )
+        if register_response.status_code in [200, 201]:
+            token = register_response.json().get("access_token")
+            if token:
+                client.cookies.set("token", token)
+            else:
+                # Try logging in
+                login_response = client.post(
+                    "/api/auth/login",
+                    json={"username": unique, "password": "testpassword"}
+                )
+                if login_response.status_code == 200:
+                    token = login_response.json().get("access_token")
+                    if token:
+                        client.cookies.set("token", token)
         yield client
 
 

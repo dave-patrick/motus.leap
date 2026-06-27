@@ -1,0 +1,29 @@
+{
+  "youtube_api_key": "test_key",
+  "oauth": {
+    "client_id": "test_id",
+    "client_secret": "test_secret",
+    "access_token": null,
+    "refresh_token": null,
+    "token_expiry": null
+  },
+  "channel_mappings": {
+    "<script>alert('XSS')</script>": "playlist1"
+  },
+  "default_privacy": "private",
+  "scan_interval": "hourly",
+  "max_concurrent": 3,
+  "auto_sort": true,
+  "sync_watch_later": true,
+  "watch_later_playlist_id": "",
+  "notify_failures": false,
+  "dark_mode": true,
+  "log_level": "INFO",
+  "ai_provider": "",
+  "ai_api_key": "",
+  "ai_mode": "channel",
+  "ai_classification_prompt": "Classify this YouTube video into one of my playlists based on its title and description. Return ONLY the playlist name, nothing else. If unsure, return 'UNSURE'.",
+  "ai_custom_endpoint": "",
+  "ai_custom_model": "",
+  "ai_auto_apply_mappings": false
+}

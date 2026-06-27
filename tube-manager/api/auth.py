@@ -1,5 +1,6 @@
 """Authentication and authorization system."""
 
+import hashlib
 import json
 import logging
 import os
@@ -133,7 +134,6 @@ class UserUpdate(BaseModel):
     """User update request."""
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
-    role: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -273,6 +273,11 @@ def _save_sessions(sessions: Dict[str, Dict[str, Any]]) -> None:
 
 
 user_sessions: Dict[str, Dict[str, Any]] = _load_sessions()
+
+
+def _hash_token(token: str) -> str:
+    """Hash a token for secure storage on disk."""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 # =============================================================================
@@ -487,7 +492,8 @@ async def register(user_data: UserCreate, request: Request, users_db: Dict[str, 
         expires_delta=access_token_expires,
     )
 
-    user_sessions[access_token] = {
+    token_hash = _hash_token(access_token)
+    user_sessions[token_hash] = {
         "user_id": user["id"],
         "username": user["username"],
         "created_at": datetime.now(),
@@ -520,7 +526,8 @@ async def login(user_data: UserLogin, request: Request, response: Response, user
         expires_delta=access_token_expires,
     )
 
-    user_sessions[access_token] = {
+    token_hash = _hash_token(access_token)
+    user_sessions[token_hash] = {
         "user_id": user["id"],
         "username": user["username"],
         "created_at": datetime.now(),
@@ -537,7 +544,7 @@ async def login(user_data: UserLogin, request: Request, response: Response, user
         path="/",
         httponly=True,
         samesite="Lax",
-        secure=os.getenv("VERCEL_ENV") == "production" # Use secure in production
+        secure=os.getenv("ENV") == "production" # Use secure in production
     )
 
     return TokenResponse(
@@ -572,7 +579,7 @@ async def request_password_reset(request: Request, body: PasswordResetRequest, u
             "expires_at": expires_at,
         }
         await _save_users(users_db)
-        return {"message": "If that account exists, a reset has been prepared.", "reset_token": reset_token, "expires_at": expires_at}
+        return {"message": "If that account exists, a reset has been prepared."}
     return {"message": "If that account exists, a reset has been prepared."}
 
 
@@ -616,7 +623,8 @@ async def logout(
         token = request.cookies.get("token")
 
     if token:
-        user_sessions.pop(token, None)
+        token_hash = _hash_token(token)
+        user_sessions.pop(token_hash, None)
         _save_sessions(user_sessions)
     
     # Clear the cookie on logout
@@ -634,7 +642,8 @@ async def refresh_token(current_user: Dict[str, Any] = Depends(get_current_activ
         data={"sub": current_user["username"], "role": current_user["role"]},
         expires_delta=access_token_expires,
     )
-    user_sessions[new_token] = {
+    new_token_hash = _hash_token(new_token)
+    user_sessions[new_token_hash] = {
         "user_id": current_user["id"],
         "username": current_user["username"],
         "created_at": datetime.now(),
@@ -686,8 +695,6 @@ async def update_me(
 
     if user_update.full_name:
         current_user["full_name"] = user_update.full_name
-    if user_update.role:
-        current_user["role"] = user_update.role
     
     users_db[current_user["username"]] = current_user
     await _save_users(users_db)
@@ -821,7 +828,7 @@ async def google_oauth_init():
 
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth"
-        f"?client_id={client_id}"
+        f"?client_id={GOOGLE_OAUTH_CLIENT_ID}"
         f"&redirect_uri={GOOGLE_OAUTH_REDIRECT_URI}"
         f"&response_type=code"
         f"&scope=openid%20email%20profile"
@@ -887,8 +894,10 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
         try:
             from app import config_manager as app_cm
             if app_cm and app_cm.config.oauth.client_id:
-                cb_client_id = app_cm.config.oauth.client_id
-                cb_client_secret = app_cm.config.oauth.client_secret
+                raw_id = app_cm.config.oauth.client_id
+                cb_client_id = raw_id.get_secret_value() if hasattr(raw_id, 'get_secret_value') else raw_id
+                raw_secret = app_cm.config.oauth.client_secret
+                cb_client_secret = raw_secret.get_secret_value() if hasattr(raw_secret, 'get_secret_value') else raw_secret
         except Exception:
             pass
 
@@ -1018,7 +1027,8 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             expires_delta=access_token_expires,
         )
 
-        user_sessions[app_token] = {
+        app_token_hash = _hash_token(app_token)
+        user_sessions[app_token_hash] = {
             "user_id": user["id"],
             "username": user["username"],
             "created_at": datetime.now(),
@@ -1034,15 +1044,14 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
                 expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                 path="/",
                 httponly=True,
-                samesite="Lax",
-                secure=os.getenv("VERCEL_ENV") == "production"
+                samesite="Strict",
+                secure=os.getenv("ENV") == "production"
             )
 
-        # Redirect to auth page with token in URL fragment.
-        # auth.html handles extracting the token from the hash and redirecting to dashboard.
+        # Redirect to frontend — token is in the HttpOnly cookie, not the URL
         frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com").rstrip("/")
         return RedirectResponse(
-            url=f"{frontend_url}/auth#token={app_token}",
+            url=f"{frontend_url}/auth?status=success",
             status_code=302
         )
 
