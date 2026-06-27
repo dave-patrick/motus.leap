@@ -105,18 +105,18 @@ async def get_channel_mapping_suggestions() -> list[dict]:
             details[(cid, to_pid)]["sample_titles"] = samples
     
     suggestions = []
-    for (cid, to_pid), count in sorted(counts.items(), key=lambda x: -sum(x[1].values())):
-        if count >= MAPPING_THRESHOLD:
-            d = details.get((cid, to_pid), {})
-            suggestions.append({
-                "channel_title": d.get("channel_title", cid),
-                "channel_id": d.get("channel_id", ""),
-                "playlist_name": d.get("playlist_name", to_pid),
-                "playlist_id": to_pid,
-                "move_count": count,
-                "sample_titles": d.get("sample_titles", []),
-            })
-    
+    for cid, playlist_counts in counts.items():
+        for to_pid, count in playlist_counts.items():
+            if count >= MAPPING_THRESHOLD:
+                d = details.get((cid, to_pid), {})
+                suggestions.append({
+                    "channel_title": d.get("channel_title", cid),
+                    "channel_id": d.get("channel_id", ""),
+                    "playlist_name": d.get("playlist_name", to_pid),
+                    "playlist_id": to_pid,
+                    "move_count": count,
+                    "sample_titles": d.get("sample_titles", []),
+                })
     # Sort by most moves first, limit to 20
     suggestions.sort(key=lambda x: -x["move_count"])
     return suggestions[:20]

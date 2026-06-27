@@ -147,7 +147,11 @@ document.getElementById('btn-clear-console').addEventListener('click', () => {
     logConsole('Console cleared.', 'info');
 });
 
-document.addEventListener('DOMContentLoaded', () => {
+document.getElementById('btn-maintenance')?.addEventListener('click', function() {
+    window.location.href = '/maintenance';
+});
+
+document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     connectWebSocket();
 });
