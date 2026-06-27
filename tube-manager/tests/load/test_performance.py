@@ -222,8 +222,10 @@ class TestWebSocketLoad:
     def test_websocket_message_throughput(self, test_client):
         """Test WebSocket message throughput."""
         num_messages = 100
+        token = test_client.cookies.get("token", "")
+        ws_url = f"/ws/terminal?token={token}" if token else "/ws/terminal?token=test"
 
-        with test_client.websocket_connect("/ws/terminal") as websocket:
+        with test_client.websocket_connect(ws_url) as websocket:
             start = time.time()
 
             for i in range(num_messages):

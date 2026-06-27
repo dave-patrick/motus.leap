@@ -2,6 +2,7 @@
 Supports OpenAI, Anthropic (Claude), Groq, and Google AI for video classification.
 Also handles training memory — records manual moves and detects channel mapping patterns."""
 
+import asyncio
 import json
 import logging
 import os
@@ -10,7 +11,83 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+import httpx
+
 log = logging.getLogger(__name__)
+
+# Shared httpx.Client for connection reuse (M8)
+_shared_client: Optional[httpx.Client] = None
+
+
+def _get_shared_client() -> httpx.Client:
+    """Get or create the shared httpx.Client."""
+    global _shared_client
+    if _shared_client is None or _shared_client.is_closed:
+        _shared_client = httpx.Client(timeout=30.0)
+    return _shared_client
+
+
+def _classify_sync(provider: str, prompt: str, api_key: str, endpoint: str, model: str = "default") -> tuple:
+    """Synchronous classification call (runs in thread)."""
+    import httpx
+    client = _get_shared_client()
+    if provider == "openai":
+        resp = client.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+                "max_tokens": 50,
+            },
+        )
+    elif provider == "anthropic":
+        resp = client.post(
+            endpoint,
+            headers={"x-api-key": api_key, "Content-Type": "application/json", "anthropic-version": "2023-06-01"},
+            json={
+                "model": "claude-3-haiku-20240307",
+                "max_tokens": 50,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        )
+    elif provider == "groq":
+        resp = client.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+                "max_tokens": 50,
+            },
+        )
+    elif provider == "google":
+        resp = client.post(
+            endpoint,
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 50},
+            },
+        )
+    elif provider == "custom":
+        resp = client.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model or "default",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+                "max_tokens": 50,
+            },
+        )
+    else:
+        return None, f"Unknown provider: {provider}"
+    resp.raise_for_status()
+    data = resp.json()
+    return data, None
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 MEMORY_FILE = DATA_DIR / "ai_memory.json"
@@ -152,12 +229,12 @@ VIDEO DESCRIPTION: {description[:500]}
 Return ONLY the playlist name or UNSURE."""
 
 
-def classify_video(title: str, channel: str, description: str,
+async def classify_video(title: str, channel: str, description: str,
                    playlists: list[dict], provider: str, api_key: str,
                    prompt_template: str = DEFAULT_PROMPT,
                    custom_endpoint: str = "", custom_model: str = "") -> tuple[str | None, str | None]:
     """Classify a video into a playlist using the configured AI provider.
-    
+
     Returns (matched_playlist_name, error_message).
     matched_playlist_name is None if unsure or error.
     """
@@ -167,120 +244,30 @@ def classify_video(title: str, channel: str, description: str,
         return None, "No AI provider configured"
     if not playlists:
         return None, "No playlists available to classify into"
-    
+
     prompt = _build_prompt(prompt_template, title, channel, description, playlists)
-    
+
     try:
-        if provider == "openai":
-            return _classify_openai(prompt, api_key)
-        elif provider == "anthropic":
-            return _classify_anthropic(prompt, api_key)
-        elif provider == "groq":
-            return _classify_groq(prompt, api_key)
-        elif provider == "google":
-            return _classify_google(prompt, api_key)
+        endpoint = API_ENDPOINTS.get(provider, "")
+        if provider == "google":
+            endpoint = f"{endpoint}?key={api_key}"
         elif provider == "custom":
-            return _classify_custom(prompt, api_key, custom_endpoint, custom_model)
+            endpoint = custom_endpoint.rstrip("/") + "/chat/completions"
+
+        data = await asyncio.to_thread(_classify_sync, provider, prompt, api_key, endpoint, custom_model)
+        if data is None:
+            return None, "Empty response"
+
+        if provider == "openai" or provider == "groq" or provider == "custom":
+            text = data["choices"][0]["message"]["content"].strip()
+        elif provider == "anthropic":
+            text = data["content"][0]["text"].strip()
+        elif provider == "google":
+            text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
         else:
             return None, f"Unknown provider: {provider}"
+
+        return (text if text != "UNSURE" else None), None
     except Exception as e:
         log.error(f"[AI] Classification failed: {e}")
         return None, str(e)
-
-
-def _classify_openai(prompt: str, api_key: str) -> tuple[str | None, str | None]:
-    """Call OpenAI API."""
-    import httpx
-    resp = httpx.post(
-        API_ENDPOINTS["openai"],
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": "gpt-4o-mini",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "max_tokens": 50,
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    text = data["choices"][0]["message"]["content"].strip()
-    return (text if text != "UNSURE" else None), None
-
-
-def _classify_anthropic(prompt: str, api_key: str) -> tuple[str | None, str | None]:
-    """Call Anthropic Claude API."""
-    import httpx
-    resp = httpx.post(
-        API_ENDPOINTS["anthropic"],
-        headers={"x-api-key": api_key, "Content-Type": "application/json", "anthropic-version": "2023-06-01"},
-        json={
-            "model": "claude-3-haiku-20240307",
-            "max_tokens": 50,
-            "messages": [{"role": "user", "content": prompt}],
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    text = data["content"][0]["text"].strip()
-    return (text if text != "UNSURE" else None), None
-
-
-def _classify_groq(prompt: str, api_key: str) -> tuple[str | None, str | None]:
-    """Call Groq API (OpenAI-compatible)."""
-    import httpx
-    resp = httpx.post(
-        API_ENDPOINTS["groq"],
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": "llama-3.3-70b-versatile",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "max_tokens": 50,
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    text = data["choices"][0]["message"]["content"].strip()
-    return (text if text != "UNSURE" else None), None
-
-
-def _classify_google(prompt: str, api_key: str) -> tuple[str | None, str | None]:
-    """Call Google Gemini API."""
-    import httpx
-    resp = httpx.post(
-        f"{API_ENDPOINTS['google']}?key={api_key}",
-        headers={"Content-Type": "application/json"},
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 50},
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    return (text if text != "UNSURE" else None), None
-
-
-def _classify_custom(prompt: str, api_key: str, endpoint: str, model: str) -> tuple[str | None, str | None]:
-    """Call a custom OpenAI-compatible API endpoint (Ollama, LM Studio, OpenRouter, etc.)."""
-    import httpx
-    url = endpoint.rstrip("/") + "/chat/completions"
-    resp = httpx.post(
-        url,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model or "default",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "max_tokens": 50,
-        },
-        timeout=30,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    text = data["choices"][0]["message"]["content"].strip()
-    return (text if text != "UNSURE" else None), None

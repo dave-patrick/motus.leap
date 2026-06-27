@@ -23,7 +23,7 @@ def cache_result(key_prefix: str, ttl: Optional[timedelta] = None):
             force_refresh = kwargs.get('force_refresh', False)
             # Generate unique key from args and kwargs, excluding 'instance' from args for hashing
             # Use json.dumps to handle complex types in args/kwargs for hashing
-            cache_key = f"{key_prefix}_{instance._get_user_id()}_{hashlib.sha256(json.dumps(args).encode()).hexdigest()}_{hashlib.sha256(json.dumps(kwargs).encode()).hexdigest()}"
+            cache_key = f"{key_prefix}_{instance._get_user_id()}_{hashlib.sha256(json.dumps(args).encode() + json.dumps(kwargs).encode()).hexdigest()}"
 
             if not force_refresh:
                 cached_data = await instance._cache.get(cache_key)
@@ -133,7 +133,9 @@ class YouTubeService:
         try:
             if not await asyncio.to_thread(self._user_data_dir.exists):
                 return 0
-            for file_path in self._user_data_dir.glob("*.json"):
+            # Wrap sync glob() in asyncio.to_thread() to avoid blocking event loop (M6)
+            json_files = await asyncio.to_thread(lambda: list(self._user_data_dir.glob("*.json")))
+            for file_path in json_files:
                 try:
                     file_stat = await asyncio.to_thread(file_path.stat)
                     file_mtime = datetime.fromtimestamp(file_stat.st_mtime)
@@ -149,12 +151,16 @@ class YouTubeService:
             log.warning(f"Disk cache cleanup failed: {e}")
         return removed
 
-    async def _cache_invalidate_playlist(self, playlist_id: str) -> None:
-        """Remove cached data for a specific playlist from memory and disk.
+    async def _get_cached(self, key: str):
+        """Get value from internal cache."""
+        return await self._cache.get(key)
 
-        Args:
-            playlist_id: The playlist ID whose cache entries should be removed.
-        """
+    async def _set_cached(self, key: str, value, ttl=None):
+        """Set value in internal cache with optional TTL."""
+        await self._cache.set(key, value, ttl=ttl)
+
+    async def _cache_invalidate_playlist(self, playlist_id: str) -> None:
+        """Remove cached data for a specific playlist from memory and disk."""
         # Invalidate memory cache entries matching this playlist
         async with self._cache._lock:
             keys_to_remove = [
