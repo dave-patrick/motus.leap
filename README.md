@@ -164,3 +164,6 @@ MIT — see [LICENSE](LICENSE)
 <p align="center">
   <sub>Built with ❤️ by Dave Patrick</sub>
 </p>
+
+
+<!-- Trigger redeploy: 2026-06-27T02:58:17.530940 -->
