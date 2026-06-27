@@ -17,6 +17,7 @@ import asyncio
 from datetime import datetime
 import json
 import hashlib
+import re
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -35,14 +36,14 @@ import aiofiles
 # Auth dependency
 from api.auth import get_current_user, verify_origin, create_default_admin # Import create_default_admin
 
-# Auth dependency for page routes (redirects to /auth if not authenticated)
+# Auth dependency for page routes (raises 401 if not authenticated)
 async def require_auth(request: Request, response: Response, token: str = Cookie(default=None)) -> dict[str, Any]:
-    """Require authentication for page routes. Redirects to /auth if not authenticated."""
+    """Require authentication for page routes. Raises HTTPException(401) if not authenticated."""
     from api.auth import decode_access_token, get_user_by_username
 
     if not token:
-        log.warning("Auth: No token found. Redirecting to /auth.")
-        return RedirectResponse(url="/auth?reason=unauthenticated", status_code=302)
+        log.warning("Auth: No token found.")
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
         payload = decode_access_token(token)
@@ -57,14 +58,11 @@ async def require_auth(request: Request, response: Response, token: str = Cookie
         request.state.user = user
         log.debug(f"Auth: User {user['username']} authenticated.")
         return user
-    except HTTPException as e:
-        log.warning(f"Auth: Token validation failed: {e.detail}. Clearing token and redirecting to /auth.")
-        response.delete_cookie(key="token", path="/")
-        return RedirectResponse(url=f"/auth?reason={e.detail.lower().replace(' ', '')}", status_code=302)
+    except HTTPException:
+        raise
     except Exception as e:
-        log.error(f"Auth: Unexpected error during authentication: {e}. Clearing token and redirecting to /auth.")
-        response.delete_cookie(key="token", path="/") # Clear invalid token
-        return RedirectResponse(url="/auth?reason=error", status_code=302)
+        log.error(f"Auth: Unexpected error during authentication: {e}")
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
 # Rate limiting
 
@@ -108,12 +106,109 @@ def _secret_val(val):
     return str(val) if val else ""
 
 
-# Initialize app
+def _redact_secrets(obj):
+    """Recursively redact token/secret fields from a dict or list."""
+    sensitive_keys = {"access_token", "refresh_token", "token", "secret", "client_secret", "api_key", "key", "authorization", "bearer"}
+    if isinstance(obj, dict):
+        return {
+            k: "***REDACTED***" if k.lower() in sensitive_keys else _redact_secrets(v)
+            for k, v in obj.items()
+        }
+    elif isinstance(obj, list):
+        return [_redact_secrets(item) for item in obj]
+    return obj
+
+
+# =============================================================================
+# Application lifespan
+# =============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    global youtube_service, worker
+
+    # Set up file logging
+    log_dir = Path("/app/data")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "tube_manager.log"
+    setup_logging(log_file=log_file)
+
+    config = await config_manager.load()
+    youtube_service = YouTubeService(config)
+    await create_default_admin()
+
+    # Clean up stale disk cache files on startup
+    try:
+        removed = await youtube_service.disk_cache_cleanup(max_age_days=7)
+        if removed:
+            log.info(f"Startup cache cleanup: removed {removed} stale files")
+    except Exception as e:
+        log.warning(f"Startup cache cleanup failed (non-fatal): {e}")
+
+    # Store in app state for routers
+    app.state.config = config_manager.config
+    app.state.config_manager = config_manager
+
+    # Start background task processor
+    from services.background_worker import BackgroundWorker
+    worker = BackgroundWorker(youtube_service, manager, config_manager, task_queue)
+    global background_worker
+    background_worker = worker
+    asyncio.create_task(worker.process_background_tasks())
+
+    # Start nightly auto-apply mappings job if enabled
+    async def nightly_auto_apply_mappings():
+        """Nightly job to auto-apply AI mapping suggestions."""
+        while True:
+            try:
+                await asyncio.sleep(86400)  # 24 hours
+                config = config_manager.config
+                if getattr(config, "ai_auto_apply_mappings", False):
+                    log.info("[NIGHTLY] Running auto-apply mappings job...")
+                    from services.ai_classifier import get_channel_mapping_suggestions
+                    suggestions = await get_channel_mapping_suggestions()
+                    for s in suggestions:
+                        if s["move_count"] >= 3:
+                            config.channel_mappings[s["channel_id"]] = s["playlist_id"]
+                            log.info(f"[NIGHTLY] Auto-applied mapping: {s['channel_title']} -> {s['playlist_name']}")
+                    await config_manager.save(config)
+                    log.info("[NIGHTLY] Auto-apply mappings complete")
+            except Exception as e:
+                log.error(f"[NIGHTLY] Auto-apply mappings failed: {e}")
+
+    asyncio.create_task(nightly_auto_apply_mappings())
+
+    log.info("motus.leap started successfully")
+
+    yield
+
+    # Shutdown
+    log.info("motus.leap shutting down")
+    await shutdown_http_client()
+
+
+# =============================================================================
+# Rate limit handler
+# =============================================================================
+
+async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
+    """Handle rate limit exceeded errors."""
+    return PlainTextResponse(f"Rate limit exceeded: {exc.detail}", status_code=429)
+
+
+# =============================================================================
+# Create FastAPI app (single instance)
+# =============================================================================
+
 app = FastAPI(
     title="motus.leap",
     description="YouTube Playlist Management System",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Add CORS middleware
 # Get allowed origins from environment or use defaults
@@ -145,16 +240,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Store in app state for routers
-
-
 # Register routers
 app.include_router(bulk_router, tags=["bulk"])
-import sys
-print("[DEBUG] auth_router type:", type(auth_router), file=sys.stderr)
-print("[DEBUG] auth_router routes:", [r.path for r in auth_router.routes], file=sys.stderr)
-app.include_router(auth_router, tags=["auth"])
-print("[DEBUG] app routes after auth include:", [r.path for r in app.routes if hasattr(r, "path")], file=sys.stderr)
+app.include_router(auth_router)
 
 
 @app.on_event("startup")
@@ -257,85 +345,11 @@ current_task_name: Optional[str] = None
 worker: Optional[Any] = None
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
-    global youtube_service, worker
-
-    # Set up file logging
-    log_dir = Path("/app/data")
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "tube_manager.log"
-    setup_logging(log_file=log_file)
-
-    config = await config_manager.load()
-    youtube_service = YouTubeService(config)
-    await create_default_admin()
-
-    # Clean up stale disk cache files on startup
-    try:
-        removed = await youtube_service.disk_cache_cleanup(max_age_days=7)
-        if removed:
-            log.info(f"Startup cache cleanup: removed {removed} stale files")
-    except Exception as e:
-        log.warning(f"Startup cache cleanup failed (non-fatal): {e}")
-    
-    # Store in app state for routers
-    app.state.config = config_manager.config
-    app.state.config_manager = config_manager
-
-    # Start background task processor
-    from services.background_worker import BackgroundWorker
-    worker = BackgroundWorker(youtube_service, manager, config_manager, task_queue)
-    global background_worker
-    background_worker = worker
-    asyncio.create_task(worker.process_background_tasks())
-    
-    # Start nightly auto-apply mappings job if enabled
-    async def nightly_auto_apply_mappings():
-        """Nightly job to auto-apply AI mapping suggestions."""
-        while True:
-            try:
-                await asyncio.sleep(86400)  # 24 hours
-                config = config_manager.config
-                if getattr(config, "ai_auto_apply_mappings", False):
-                    log.info("[NIGHTLY] Running auto-apply mappings job...")
-                    from services.ai_classifier import get_channel_mapping_suggestions
-                    suggestions = get_channel_mapping_suggestions()
-                    for s in suggestions:
-                        if s["move_count"] >= 3:
-                            config.channel_mappings[s["channel_id"]] = s["playlist_id"]
-                            log.info(f"[NIGHTLY] Auto-applied mapping: {s['channel_title']} -> {s['playlist_name']}")
-                    await config_manager.save(config)
-                    log.info("[NIGHTLY] Auto-apply mappings complete")
-            except Exception as e:
-                log.error(f"[NIGHTLY] Auto-apply mappings failed: {e}")
-    
-    asyncio.create_task(nightly_auto_apply_mappings())
-    
-    log.info("motus.leap started successfully")
-    
-    yield
-    
-    # Shutdown
-    log.info("motus.leap shutting down")
-    await shutdown_http_client()
 
 
 
 
 
-# Initialize rate limiter
-
-# Rate limit exceeded handler
-async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
-    """Handle rate limit exceeded errors."""
-    return PlainTextResponse(f"Rate limit exceeded: {exc.detail}", status_code=429)
-
-# Configure existing FastAPI app
-app = FastAPI(lifespan=lifespan)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Mount static files
 if not any(getattr(route, "path", "") == "/static" for route in app.routes):
@@ -482,7 +496,7 @@ async def health() -> dict[str, str]:
 
 
 # Single-request endpoint - QUOTA OPTIMIZED
-@app.get("/api/youtube/fetch-all")
+@app.get("/api/youtube/fetch-all", dependencies=[Depends(get_current_user)])
 @limiter.limit("10/minute")  # Rate limit: 10 requests per minute
 async def fetch_all_youtube_data(request: Request, force_refresh: bool = False):
     """Fetch ALL YouTube data in one optimized request (subscriptions, playlists, videos with duration).
@@ -500,7 +514,7 @@ async def fetch_all_youtube_data(request: Request, force_refresh: bool = False):
     return result
 
 
-@app.get("/api/playlists/names")
+@app.get("/api/playlists/names", dependencies=[Depends(get_current_user)])
 async def api_playlist_names():
     """Return lightweight playlist ID+name pairs for dropdowns (fast, cached)."""
     if not youtube_service:
@@ -514,7 +528,7 @@ async def api_playlist_names():
         return {"playlists": []}
 
 
-@app.get("/api/watch-later")
+@app.get("/api/watch-later", dependencies=[Depends(get_current_user)])
 async def get_watch_later(force_refresh: bool = False):
     """Fetch Watch Later playlist contents using browser scraper (bypasses API restriction)."""
     try:
@@ -572,7 +586,7 @@ async def watch_later_sync(body: dict):
         if not video_ids:
             return {"error": "No video IDs provided"}
 
-        log(f"Synced {len(video_ids)} videos from Watch Later")
+        log.info(f"Synced {len(video_ids)} videos from Watch Later")
         return {"status": "completed", "processed_count": len(video_ids), "video_ids": video_ids}
     except Exception as e:
         log.error(f"Watch Later sync failed: {e}")
@@ -623,7 +637,7 @@ async def move_watch_later_videos(body: WatchLaterMoveIn):
         await youtube_service._cache.delete(f"watch_later_items_{youtube_service._get_user_id()}_auto")
 
 
-@app.get("/api/youtube/videos")
+@app.get("/api/youtube/videos", dependencies=[Depends(get_current_user)])
 async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: bool = False):
     """Get videos with duration (cached).
 
@@ -674,7 +688,7 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
 
 
 # Stats endpoint
-@app.get("/api/stats")
+@app.get("/api/stats", dependencies=[Depends(get_current_user)])
 async def stats() -> dict[str, Any]:
     """Dashboard statistics endpoint."""
     if youtube_service:
@@ -717,7 +731,7 @@ async def stats() -> dict[str, Any]:
 
 
 # Playlists endpoint
-@app.get("/api/playlists")
+@app.get("/api/playlists", dependencies=[Depends(get_current_user)])
 async def api_playlists() -> dict[str, Any]:
     """Get playlists data."""
     if youtube_service:
@@ -756,21 +770,21 @@ async def rename_playlist_endpoint(payload: dict):
         user_id = hashlib.sha256((config.oauth.access_token or "").encode()).hexdigest()[:16]
         all_key = f"all_data_{user_id}"
         if youtube_service._cache:
-            cached_all = await youtube_service._get_cached(all_key)
+            cached_all = await youtube_service._cache.get(all_key)
             if cached_all and "playlists" in cached_all:
                 for p in cached_all["playlists"]:
                     if p.get("id") == playlist_id:
                         p["title"] = new_title
                         break
-                await youtube_service._set_cached(all_key, cached_all)
-            cached_pl = await youtube_service._get_cached("playlists")
+                await youtube_service._cache.set(all_key, cached_all)
+            cached_pl = await youtube_service._cache.get("playlists")
             if cached_pl and "playlists" in cached_pl:
                 for p in cached_pl["playlists"]:
                     if p.get("id") == playlist_id:
                         p["title"] = new_title
                         break
                 cached_pl["playlists"].sort(key=lambda x: x["title"].lower())
-                await youtube_service._set_cached("playlists", cached_pl)
+                await youtube_service._cache.set("playlists", cached_pl)
         return {"status": "success", "message": f"Playlist renamed to {new_title}"}
     except Exception as e:
         log.error(f"Error renaming playlist: {e}")
@@ -801,17 +815,17 @@ async def delete_playlist_endpoint(payload: dict):
         all_key = f"all_data_{user_id}"
         # Remove from memory cache
         if youtube_service._cache:
-            cached_all = await youtube_service._get_cached(all_key)
+            cached_all = await youtube_service._cache.get(all_key)
             if cached_all and "playlists" in cached_all:
                 cached_all["playlists"] = [p for p in cached_all["playlists"] if p.get("id") != playlist_id]
                 cached_all["stats"]["total_playlists"] = len(cached_all["playlists"])
-                await youtube_service._set_cached(all_key, cached_all)
+                await youtube_service._cache.set(all_key, cached_all)
             # Also update playlists cache
-            cached_pl = await youtube_service._get_cached("playlists")
+            cached_pl = await youtube_service._cache.get("playlists")
             if cached_pl and "playlists" in cached_pl:
                 cached_pl["playlists"] = [p for p in cached_pl["playlists"] if p.get("id") != playlist_id]
                 cached_pl["stats"]["total_playlists"] = len(cached_pl["playlists"])
-                await youtube_service._set_cached("playlists", cached_pl)
+                await youtube_service._cache.set("playlists", cached_pl)
         
         return {"status": "success", "message": "Playlist deleted successfully"}
     except Exception as e:
@@ -973,7 +987,7 @@ async def delete_playlist_item_endpoint(payload: dict):
         yt_client.remove_video_from_playlist(playlist_item_id)
         if playlist_id:
             # Invalidate the specific playlist's cache key so the change is shown immediately
-            await youtube_service._set_cached(f"playlist_videos_{playlist_id}", None)
+            await youtube_service._cache.set(f"playlist_videos_{playlist_id}", None)
             
         return {"status": "success", "message": "Video removed from playlist"}
     except Exception as e:
@@ -982,7 +996,7 @@ async def delete_playlist_item_endpoint(payload: dict):
 
 
 # Subscriptions endpoint
-@app.get("/api/subscriptions")
+@app.get("/api/subscriptions", dependencies=[Depends(get_current_user)])
 async def api_subscriptions() -> dict[str, Any]:
     """Get subscriptions data."""
     if youtube_service:
@@ -1052,7 +1066,7 @@ def _extract_mapping_items(body: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
-@app.get("/api/mappings")
+@app.get("/api/mappings", dependencies=[Depends(get_current_user)])
 async def api_mappings() -> dict[str, Any]:
     """Get channel mappings."""
     config = config_manager.config
@@ -1091,15 +1105,6 @@ async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any
     await config_manager.save(config)
     return {"message": "Mappings saved", "mappings": mappings}
 
-# Action endpoint
-@app.post("/api/action", dependencies=[Depends(get_current_user), Depends(verify_origin)])
-@limiter.limit("20/minute")  # Rate limit: 20 actions per minute
-async def trigger_action(request: Request, body: ActionIn):
-    """Queue a background action."""
-    await task_queue.put({"action": body.action, "payload": body.payload or {}})
-    return {"status": "queued", "action": body.action}
-
-
 # Watch Later page with AI scan
 @app.get("/watch-later")
 async def watch_later_page():
@@ -1118,16 +1123,6 @@ async def playlist_detail(playlist_id: str):
 async def action_status():
     """Get action status."""
     return {"queue_size": task_queue.qsize(), "running": worker.background_tasks_running if worker else False}
-
-
-@app.post("/api/action/cancel", dependencies=[Depends(get_current_user), Depends(verify_origin)])
-async def cancel_action():
-    """Cancel the currently running background task."""
-    if worker:
-        worker.cancel_current_task()
-        await manager.broadcast(json.dumps({"type": "log", "message": "[CANCEL] Current task cancelled by user."}))
-        return {"status": "cancelled"}
-    return {"error": "No worker available"}
 
 
 # YouTube OAuth
@@ -1154,7 +1149,7 @@ def _validate_and_consume_state(state: str) -> dict:
 
 
 
-@app.get("/api/youtube/status")
+@app.get("/api/youtube/status", dependencies=[Depends(get_current_user)])
 async def youtube_status():
     """Check YouTube OAuth connection status."""
     config = config_manager.config
@@ -1346,7 +1341,7 @@ class RecordMoveIn(BaseModel):
 async def ai_record_move(body: RecordMoveIn):
     """Record a video move for AI training memory."""
     from services.ai_classifier import record_move
-    record_move(
+    await record_move(
         video_id=body.video_id,
         title=body.title,
         channel_id=body.channel_id,
@@ -1364,7 +1359,7 @@ async def ai_record_move(body: RecordMoveIn):
 async def ai_get_suggestions():
     """Get channel mapping suggestions from training memory."""
     from services.ai_classifier import get_channel_mapping_suggestions
-    suggestions = get_channel_mapping_suggestions()
+    suggestions = await get_channel_mapping_suggestions()
     return {"suggestions": suggestions}
 
 
@@ -1372,7 +1367,7 @@ async def ai_get_suggestions():
 async def ai_get_memory():
     """Get raw training memory entries."""
     from services.ai_classifier import _load_memory
-    memory = _load_memory()
+    memory = await _load_memory()
     return {"moves": memory[-100:]}
 
 
@@ -1492,7 +1487,10 @@ async def diagnostics_youtube() -> dict[str, Any]:
             )
             result["raw_api_status"] = raw_playlists.status_code
             try:
-                result["raw_api_response"] = raw_playlists.json()
+                raw_resp = raw_playlists.json()
+                # Redact any token/secret fields from the response
+                raw_resp = _redact_secrets(raw_resp)
+                result["raw_api_response"] = raw_resp
             except Exception:
                 result["raw_api_body"] = raw_playlists.text[:500]
     except Exception as e:
@@ -1547,32 +1545,6 @@ async def diagnostics_oauth_user() -> dict[str, Any]:
 
     
 
-@app.get("/api/user")
-async def api_user() -> dict[str, Any]:
-    """Return logged-in user info for header display."""
-    config = config_manager.config
-    if not (config.oauth.access_token and config.oauth.refresh_token):
-        return {"logged_in": False}
-    
-    result = {"logged_in": True, "channel_title": "Unknown Channel"}
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            channel_resp = await client.get(
-                "https://www.googleapis.com/youtube/v3/channels",
-                params={"part": "snippet", "mine": "true"},
-                headers={"Authorization": f"Bearer {config.oauth.access_token}"}
-            )
-            if channel_resp.status_code == 200:
-                data = channel_resp.json()
-                if data.get("items"):
-                    item = data["items"][0]
-                    result["channel_title"] = item.get("snippet", {}).get("title", "Unknown")
-                    result["channel_thumbnail"] = item.get("snippet", {}).get("thumbnails", {}).get("default", {}).get("url")
-    except Exception as e:
-        result["error"] = str(e)
-    return result
-
 # System endpoints
 
 @app.post("/api/cookies/save", dependencies=[Depends(get_current_user), Depends(verify_origin)])
@@ -1597,7 +1569,6 @@ async def save_cookies(request: Request):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-@app.get("/api/user")
 @app.get("/api/system/logs")
 async def get_system_logs():
     """Get recent system logs."""
@@ -1685,7 +1656,7 @@ async def clear_thumbnails():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/storage/export")
+@app.get("/api/storage/export", dependencies=[Depends(get_current_user)])
 async def export_data():
     """Export all data as JSON."""
     from datetime import datetime

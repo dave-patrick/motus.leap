@@ -159,11 +159,11 @@ class TestRateLimiting:
     @pytest.mark.slow
     def test_action_rate_limit_enforced(self, test_client):
         """Test rate limit is enforced on action endpoint."""
-        # Note: This endpoint requires auth, so we may get 401/403 before hitting rate limit
+        # Make requests WITHOUT auth - should get 401 (auth required)
         responses = []
-
-        # Make requests and collect responses
-        for i in range(5):  # Reduced from 21 to avoid too many auth failures
+        for i in range(5):
+            # Clear cookies to avoid auth
+            test_client.cookies.delete("token")
             response = test_client.post("/api/action", json={
                 "action": "full_cluster_scan",
                 "payload": {}

@@ -88,6 +88,11 @@ class LRUAsyncCache:
                 await self._evict(lru_key)
                 log.debug(f"LRU evicted: {lru_key}")
 
+    async def delete(self, key: str) -> None:
+        """Public method to delete a cache entry."""
+        async with self._lock:
+            await self._evict(key)
+
     async def _evict(self, key: str) -> None:
         """Remove entry from cache."""
         self._cache.pop(key, None)
