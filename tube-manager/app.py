@@ -129,7 +129,7 @@ async def lifespan(app: FastAPI):
     global youtube_service, worker
 
     # Set up file logging
-    log_dir = Path("/app/data")
+    log_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "tube_manager.log"
     setup_logging(log_file=log_file)
@@ -365,7 +365,7 @@ async def add_security_headers(request: Request, call_next):
     # Strict Content Security Policy — explicitly list all allowed script sources
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; "
-        f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/subscriptions.js /static/auth-check.js /static/ux-enhancements.js /static/auth.js /static/global_scripts.js /static/playlists.js /static/playlist.js /static/mobile-nav.js; "
+        f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/dashboard.js /static/subscriptions.js /static/auth-check.js /static/ux-enhancements.js /static/global_scripts.js /static/playlists.js /static/playlist.js /static/mobile-nav.js; "
         f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
         f"font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         f"img-src 'self' data: https://i.ytimg.com https://yt3.ggpht.com; "
@@ -682,7 +682,7 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             expected_channel = mappings[video_playlist_id]
             video_channel = v.get("channel_title", "")
             if expected_channel and video_channel and expected_channel not in video_channel:
-                misplaced.append({"video_id": v.get("video_id"), "title": v.get("title"), "reason": f"Expected channel: {expected_channel}"})
+                misplaced.append({"video_id": v.get("video_id"), "title": v.get("title"), "video_title": v.get("title"), "reason": f"Expected channel: {expected_channel}"})
     
     return {"misplaced": misplaced, "count": len(misplaced)}
 
@@ -1581,7 +1581,7 @@ async def get_system_logs():
 @app.get("/system/logs")
 async def system_logs_page():
     """System logs viewer page."""
-    log_file = Path("/app/data/tube_manager.log")
+    log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
     logs_html = ""
     if log_file.exists():
         try:
@@ -1647,7 +1647,7 @@ async def clear_thumbnails():
     """Clear thumbnail cache."""
     import shutil
     try:
-        thumb_dir = Path("/app/data/thumbnails")
+        thumb_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "thumbnails"
         if thumb_dir.exists():
             shutil.rmtree(thumb_dir)
         thumb_dir.mkdir(parents=True, exist_ok=True)
