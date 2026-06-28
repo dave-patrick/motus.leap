@@ -147,8 +147,11 @@
                                 <div id="activity-bar" class="bg-[#2f8fc9] h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
                             </div>
                         </div>
-                        <!-- Cancel Running Task (shown only while a task is running) -->
-                        <button id="scan-cancel-btn" class="hidden w-full mt-3 px-3 py-2 rounded-lg bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[11px] font-bold flex items-center justify-center gap-2 transition-colors" onclick="fetch('/api/action/cancel', {method:'POST', headers:{'X-CSRF-Protect':'1'}}).then(()=>{toast('Task cancelled','info')}).catch(e=>console.warn(e))">
+                        <!-- Run Scan + Cancel buttons -->
+                        <button id="btn-run-scan" class="w-full mt-3 px-3 py-2 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-[11px] font-bold flex items-center justify-center gap-2 transition-colors">
+                            <i class="fas fa-search"></i> Run Scan
+                        </button>
+                        <button id="scan-cancel-btn" class="hidden w-full mt-2 px-3 py-2 rounded-lg bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[11px] font-bold flex items-center justify-center gap-2 transition-colors">
                             <i class="fa-solid fa-stop"></i> Cancel Running Task
                         </button>
                         <button id="btn-cancel" class="hidden" onclick="fetch('/api/action/cancel', {method:'POST', headers:{'X-CSRF-Protect':'1'}}).catch(e=>console.warn(e))"></button>

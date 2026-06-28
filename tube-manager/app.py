@@ -726,6 +726,11 @@ async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
     video_ids = [v.get("video_id") for v in videos.get("videos", [])]
     duplicates = len(video_ids) - len(set(video_ids))
     
+    # Record scan time
+    config = config_manager.config
+    config.last_scan_time = datetime.utcnow().isoformat()
+    await config_manager.save(config)
+    
     return {"duplicates": duplicates, "total_videos": len(video_ids), "playlist_id": playlist_id}
 
 
@@ -791,7 +796,7 @@ async def stats(request: Request) -> dict[str, Any]:
         "learning_rate": f"{(channel_mappings_count / max(total_subscriptions, 1) * 100):.1f}%" if total_subscriptions > 0 else "0%",
         "learning_rates": str(channel_mappings_count),
         "cache_hit_rate": cache_hit_rate,
-        "last_scan": config.last_scan_time if hasattr(config, 'last_scan_time') else "Never",
+        "last_scan": config.last_scan_time or "Never",
     }
 
 
@@ -1463,6 +1468,8 @@ async def dispatch_action(body: dict):
     actions = {
         "sync_playlists": "Full Playlist Sync",
         "sync_watch_later": "Watch Later Sync",
+        "scan_duplicates": "Scan Duplicates",
+        "scan_misplaced": "Scan Misplaced",
     }
 
     name = actions.get(action, action)
@@ -1476,6 +1483,8 @@ async def dispatch_action(body: dict):
         action_map = {
             "sync_watch_later": background_worker.watch_later_sync,
             "sync_playlists": background_worker.full_cluster_scan,
+            "scan_duplicates": background_worker.scan_duplicates,
+            "scan_misplaced": background_worker.scan_misplaced,
         }
 
         handler = action_map.get(action)

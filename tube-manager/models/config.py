@@ -33,6 +33,7 @@ class TubeManagerConfig(BaseModel):
     ai_custom_endpoint: str = Field(default="")
     ai_custom_model: str = Field(default="")
     ai_auto_apply_mappings: bool = Field(default=False)
+    last_scan_time: Optional[str] = Field(default=None)
 
     def to_dict_for_storage(self) -> Dict[str, Any]:
         """Convert to dictionary for safe storage, excluding secrets."""

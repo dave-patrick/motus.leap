@@ -803,6 +803,9 @@ function initSystemActivityController() {
     pollStats();
     startStatsPolling();
 
+    // Also refresh scan details panel on each poll cycle
+    if (window.refreshScanDetails) window.refreshScanDetails();
+
     // Pause polling when page is hidden
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
@@ -1128,6 +1131,9 @@ function startAgentActivityTracker() {
     // Initial load
     pollStats();
     startStatsPolling();
+
+    // Also refresh scan details panel on each poll cycle
+    if (window.refreshScanDetails) window.refreshScanDetails();
 
     // Pause polling when page is hidden
     document.addEventListener('visibilitychange', () => {

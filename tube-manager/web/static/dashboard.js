@@ -178,7 +178,132 @@ document.getElementById('btn-maintenance')?.addEventListener('click', function()
     window.location.href = '/maintenance';
 });
 
+document.getElementById('btn-run-scan')?.addEventListener('click', () => {
+    if (window.runScan) window.runScan();
+});
+
+document.getElementById('scan-cancel-btn')?.addEventListener('click', async () => {
+    try {
+        const resp = await apiCall('/api/action/cancel', { method: 'POST', body: JSON.stringify({}) });
+        if (resp.ok) logConsole('Task cancelled.', 'success');
+        else logConsole('Cancel request failed.', 'error');
+    } catch (e) {
+        logConsole(`Cancel error: ${e.message}`, 'error');
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     connectWebSocket();
+    loadScanDetails();
 });
+
+// Scan Details — fetch duplicate/misplaced scan results + worker status
+async function loadScanDetails() {
+    try {
+        // Use apiCall (sends auth header) — both endpoints require authentication.
+        // Also fetch /api/stats for last_scan, queue size, and worker count.
+        const [dupResp, misResp, statsResp] = await Promise.all([
+            apiCall('/api/youtube/duplicates'),
+            apiCall('/api/youtube/misplaced'),
+            apiCall('/api/stats')
+        ]);
+
+        const dupData = await dupResp.json().catch(() => ({}));
+        const misData = await misResp.json().catch(() => ({}));
+        const statsData = await statsResp.json().catch(() => ({}));
+
+        const dupCount = dupData.duplicates || 0;
+        const misCount = misData.misplaced?.length || misData.count || 0;
+        const totalIssues = dupCount + misCount;
+
+        // Last scan time from server (or "Never" if not yet scanned)
+        const lastScan = statsData.last_scan || 'Never';
+        const lastScanEl = document.getElementById('last-scan');
+        if (lastScanEl) {
+            lastScanEl.textContent = lastScan === 'Never' ? 'Never' : new Date(lastScan).toLocaleTimeString();
+        }
+
+        // Status — show scan result severity
+        const statusEl = document.getElementById('scan-status');
+        if (statusEl) {
+            if (totalIssues === 0) {
+                statusEl.textContent = 'Clean';
+                statusEl.className = 'text-green-400 font-medium';
+            } else if (totalIssues <= 5) {
+                statusEl.textContent = `${totalIssues} issue${totalIssues > 1 ? 's' : ''}`;
+                statusEl.className = 'text-yellow-400 font-medium';
+            } else {
+                statusEl.textContent = `${totalIssues} issues`;
+                statusEl.className = 'text-red-400 font-medium';
+            }
+        }
+
+        // Queued tasks & active workers from /api/stats
+        const queuedEl = document.getElementById('queued-tasks');
+        if (queuedEl) queuedEl.textContent = statsData.pending_actions ?? 0;
+
+        const workersEl = document.getElementById('active-workers');
+        if (workersEl) workersEl.textContent = statsData.running_tasks ?? 0;
+
+        // Show/hide cancel button when a task is running
+        const cancelBtn = document.getElementById('scan-cancel-btn');
+        if (cancelBtn) {
+            const isRunning = (statsData.running_tasks || 0) > 0;
+            cancelBtn.classList.toggle('hidden', !isRunning);
+        }
+
+        // Activity bar — base on worker load (running tasks + queue) with issues as a modifier
+        const load = (statsData.running_tasks || 0) + (statsData.pending_actions || 0);
+        const activityPct = Math.min(load * 15 + (totalIssues > 0 ? 10 : 0), 100);
+        const actPctEl = document.getElementById('activity-pct');
+        const actBarEl = document.getElementById('activity-bar');
+        if (actPctEl) actPctEl.textContent = activityPct + '%';
+        if (actBarEl) actBarEl.style.width = activityPct + '%';
+
+        // Log results
+        if (totalIssues > 0) {
+            logConsole(`Scan: ${dupCount} duplicate${dupCount !== 1 ? 's' : ''}, ${misCount} misplaced.`, 'warn');
+        } else {
+            logConsole('Scan: No issues found.', 'success');
+        }
+    } catch (e) {
+        const statusEl = document.getElementById('scan-status');
+        if (statusEl) {
+            statusEl.textContent = 'Error';
+            statusEl.className = 'text-red-400 font-medium';
+        }
+        console.warn('loadScanDetails failed', e);
+    }
+}
+
+// Run Scan button handler — triggers background scan via /api/action
+async function runScan() {
+    try {
+        const resp = await apiCall('/api/action', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'scan_duplicates' })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data.status === 'started') {
+            logConsole('Duplicate scan started in background.', 'success');
+            // Also kick off misplaced scan
+            await apiCall('/api/action', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'scan_misplaced' })
+            });
+            // Refresh details after a short delay to pick up results
+            const statusEl = document.getElementById('scan-status');
+            if (statusEl) { statusEl.textContent = 'Scanning…'; statusEl.className = 'text-blue-400 font-medium'; }
+            setTimeout(loadScanDetails, 4000);
+        } else {
+            logConsole(`Scan failed: ${data.error || data.detail || resp.status}`, 'error');
+        }
+    } catch (e) {
+        logConsole(`Scan error: ${e.message}`, 'error');
+    }
+}
+
+// Make available globally for button click and stats refresh
+window.refreshScanDetails = loadScanDetails;
+window.runScan = runScan;
