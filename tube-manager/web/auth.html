@@ -59,8 +59,10 @@
             } else {
                 icon.innerHTML = '<i class="fa-solid fa-lock text-gray-500"></i>';
                 title.textContent = 'Authentication';
-                message.textContent = 'No status provided. You can close this window.';
+                message.textContent = 'Please sign in to access your playlists.';
                 backLink.classList.remove('hidden');
+                backLink.textContent = 'Sign in with Google';
+                backLink.href = '/api/auth/google';
             }
         })();
     </script>

@@ -36,13 +36,18 @@ function logConsole(text, type = 'info') {
 }
 
 async function apiCall(url, options = {}) {
+    const headers = {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+    };
+    // Only add Bearer header if we have a token in localStorage.
+    // Otherwise, rely on the HttpOnly cookie (sent automatically).
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
     const resp = await fetch(url, {
         ...options,
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            ...(options.headers || {})
-        }
+        headers
     });
     return resp;
 }
@@ -72,6 +77,22 @@ async function loadStats() {
         console.warn('Failed to load stats', e);
     }
 }
+
+// Handle OAuth popup callback messages
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'youtube-oauth-success') {
+        // Extract token from URL if provided
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token') || e.data.token;
+        if (token) {
+            localStorage.setItem('token', token);
+            window.location.reload();
+        } else {
+            // Token was set as cookie by server — reload to pick it up
+            window.location.reload();
+        }
+    }
+});
 
 function connectWebSocket() {
     if (ws) ws.close();
