@@ -4,6 +4,7 @@ import os
 import ssl
 import time
 import json
+import asyncio
 import logging
 import threading
 from typing import Any
@@ -117,6 +118,14 @@ def _with_retry(sync_func, *args, **kwargs):
             # never crashes the worker process. Log it and re-raise as a
             # RuntimeError with the original message.
             log.error(f"Unexpected error in _with_retry (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {type(e).__name__}: {e}")
+            raise
+        except BaseException as e:
+            # Safety net for BaseException subclasses that aren't Exception
+            # (e.g. asyncio.CancelledError in Python 3.13 where it is BaseException).
+            # CancelledError should propagate immediately; others are logged as critical.
+            if isinstance(e, asyncio.CancelledError):
+                raise
+            log.critical(f"Non-Exception BaseException caught in _with_retry (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {type(e).__name__}: {e}")
             raise
 
 
@@ -444,7 +453,8 @@ class YouTubeClient:
                 },
             }
         }
-        return client.playlistItems().insert(part="snippet", body=add_body).execute()
+        with _client_lock:
+            return client.playlistItems().insert(part="snippet", body=add_body).execute()
 
     def create_playlist(self, title: str, description: str = "", privacy_status: str = "private") -> dict[str, Any]:
         client = self._get_client()
@@ -477,4 +487,5 @@ class YouTubeClient:
         client = self._get_client(require_oauth=True)
         if not client:
             return {"error": "OAuth client not available"}
-        return client.playlistItems().delete(id=playlist_item_id).execute()
+        with _client_lock:
+            return client.playlistItems().delete(id=playlist_item_id).execute()
