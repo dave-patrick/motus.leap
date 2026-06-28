@@ -192,10 +192,15 @@ class BackgroundWorker:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
                 self.task_queue.task_done()
                 self.current_task_name = None
+            except asyncio.CancelledError:
+                log.info("[WORKER] Background task processor cancelled — shutting down")
+                self.current_task_name = None
+                raise
             except Exception as e:
                 log.error(f"Background task error: {e}")
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] {str(e)}"}))
                 self.current_task_name = None
+                self.task_queue.task_done()
 
     async def full_cluster_scan(self, payload):
         """Perform a full cluster scan."""
