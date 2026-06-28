@@ -11,3 +11,6 @@ data/
 .env
 .env.*
 .secret_key
+config.json
+*.json
+users.json
