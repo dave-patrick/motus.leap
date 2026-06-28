@@ -379,6 +379,46 @@ if not any(getattr(route, "path", "") == "/static" for route in app.routes):
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
 
+# H6 FIX: Gzip compression middleware for JSON responses
+@app.middleware("http")
+async def add_compression(request: Request, call_next):
+    """Add gzip compression for JSON responses to reduce bandwidth."""
+    response = await call_next(request)
+    
+    # Only compress JSON responses over 500 bytes
+    accept_encoding = request.headers.get("accept-encoding", "")
+    if "gzip" in accept_encoding and response.headers.get("content-type", "").startswith("application/json"):
+        body = getattr(response, 'body', None)
+        if body and len(body) > 500:
+            import gzip
+            compressed = gzip.compress(body)
+            if len(compressed) < len(body):
+                from starlette.responses import Response
+                response = Response(
+                    content=compressed,
+                    status_code=response.status_code,
+                    headers=dict(response.headers)
+                )
+                response.headers["Content-Encoding"] = "gzip"
+                response.headers["Content-Length"] = str(len(compressed))
+    
+    # H9/H17 FIX: Add ETag and Cache-Control headers for static assets
+    path = request.url.path
+    if path.startswith("/static/"):
+        # H10 FIX: Versioned assets get long cache, non-versioned get stale-while-revalidate
+        if "?v=" in path or any(ext in path for ext in [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff2"]):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
+        # H9 FIX: Add ETag for conditional requests
+        if response.status_code == 200 and hasattr(response, 'body'):
+            import hashlib
+            etag = hashlib.md5(response.body).hexdigest()
+            response.headers["ETag"] = f'"{etag}"'
+    
+    return response
+
+
 # Security middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):

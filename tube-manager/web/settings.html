@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
     <title>Settings - motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -21,7 +22,7 @@
     <script src="/static/auth-check.js?v=1781919149"></script>
 </head>
 <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
-<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 <body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <header class="h-16 border-b border-[#2a2f3a] bg-[#1a1d24] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4"><img src="/static/logo_icon.png?v=3" class="w-8 h-8 shrink-0 object-contain"><div><h1 class="text-3xl font-semibold tracking-wide text-white leading-tight">mot<span class="text-[#2f8fc9]">u</span><span class="text-white">s</span><span class="text-gray-500">.</span>leap</h1></div></div>
@@ -72,16 +73,16 @@
                                 <div class="space-y-4">
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="api-key-status" class="hidden text-[9px] text-green-400 ml-2"><i class="fa-solid fa-check-circle"></i> Saved</span></label>
-                                        <input type="password" id="yt-api-key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="Enter API key">
+                                        <input type="password" id="yt-api-key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]" placeholder="Enter API key">
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client ID</label>
-                                        <input type="text" id="oauth-client-id" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none" placeholder="xxxxx.apps.googleusercontent.com">
+                                        <input type="text" id="oauth-client-id" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]" placeholder="xxxxx.apps.googleusercontent.com">
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">OAuth Client Secret</label>
                                         <div class="relative">
-                                            <input type="password" id="oauth-client-secret" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none pr-10" placeholder="••••••••">
+                                            <input type="password" id="oauth-client-secret" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px] pr-10" placeholder="••••••••">
                                             <button type="button" onclick="toggleSecretVisibility('oauth-client-secret', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors" title="Show/Hide secret">
                                                 <i class="fa-solid fa-eye" id="oauth-secret-eye"></i>
                                             </button>
@@ -115,7 +116,7 @@
                                 <div class="space-y-4">
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Default Playlist Privacy</label>
-                                        <select id="default-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                        <select id="default-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                             <option value="private">Private</option>
                                             <option value="unlisted">Unlisted</option>
                                             <option value="public">Public</option>
@@ -123,7 +124,7 @@
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Scan Interval</label>
-                                        <select id="scan-interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                        <select id="scan-interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                             <option value="15min">Every 15 minutes</option>
                                             <option value="hourly" selected>Every hour</option>
                                             <option value="6hour">Every 6 hours</option>
@@ -132,11 +133,11 @@
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Max Concurrent Operations</label>
-                                        <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                        <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Watch Later / Sync Source</label>
-                                        <select id="watch-later-source" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                        <select id="watch-later-source" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                             <option value="">-- Auto-detect (Watch Later / Queue / Sort) --</option>
                                         </select>
                                         <div class="flex items-center gap-1 mt-1.5">
@@ -168,7 +169,7 @@
                                         <h4 class="text-xs font-semibold text-gray-300">YouTube Cookies for Browser Scraper</h4>
                                         <p class="text-[9px] text-gray-500">Export cookies from YouTube (using EditThisCookie or Get cookies.txt) and upload the JSON file here to enable native Watch Later scraping.</p>
                                         <div class="flex gap-2">
-                                            <input type="file" id="cookie-file" accept=".json" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <input type="file" id="cookie-file" accept=".json" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                             <button id="upload-cookies-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-4 py-2 rounded">Upload Cookies</button>
                                         </div>
                                         <div id="cookie-status" class="text-[9px] text-gray-500 min-h-[14px]"></div>
@@ -182,7 +183,7 @@
                                 <div class="space-y-4">
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Log Level</label>
-                                        <select id="log-level" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                        <select id="log-level" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                             <option value="DEBUG">DEBUG</option>
                                             <option value="INFO" selected>INFO</option>
                                             <option value="WARNING">WARNING</option>
@@ -290,7 +291,7 @@
                                 <div class="space-y-4">
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Provider</label>
-                                        <select id="ai-provider" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                        <select id="ai-provider" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                             <option value="">-- Disabled --</option>
                                             <option value="openai">OpenAI (GPT-4o-mini)</option>
                                             <option value="anthropic">Anthropic (Claude 3 Haiku)</option>
@@ -302,20 +303,20 @@
                                     <div id="ai-custom-fields" class="hidden space-y-3">
                                         <div>
                                             <label class="text-[10px] text-gray-400 mb-1 block">Endpoint URL</label>
-                                            <input type="text" id="ai-custom-endpoint" placeholder="https://your-llm-api.com/v1" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <input type="text" id="ai-custom-endpoint" placeholder="https://your-llm-api.com/v1" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                         </div>
                                         <div>
                                             <label class="text-[10px] text-gray-400 mb-1 block">Model Name</label>
-                                            <input type="text" id="ai-custom-model" placeholder="gpt-4o-mini" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                            <input type="text" id="ai-custom-model" placeholder="gpt-4o-mini" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                         </div>
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="ai-key-status" class="hidden text-[9px] text-green-400 ml-2"><i class="fa-solid fa-check-circle"></i> Saved</span></label>
-                                        <input type="password" id="ai-api-key" placeholder="Enter your AI provider API key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                        <input type="password" id="ai-api-key" placeholder="Enter your AI provider API key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Classification Mode</label>
-                                        <select id="ai-mode" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none">
+                                        <select id="ai-mode" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                             <option value="channel">Channel Mappings (current)</option>
                                             <option value="ai">AI Classification</option>
                                         </select>

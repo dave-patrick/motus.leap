@@ -78,7 +78,7 @@ function renderSubscriptionsList(channels, apiMappings) {
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <input type="text" id="map-${c.id}" value="${saved}" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-28" placeholder="Playlist ID" onchange="saveMapping('${c.id}', this.value)">
+                <input type="text" id="map-${c.id}" value="${saved}" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-full max-w-xs min-h-[44px]" placeholder="Playlist ID" onchange="saveMapping('${c.id}', this.value)">
                 <button onclick="saveMapping('${c.id}', document.getElementById('map-${c.id}').value)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-3 py-1.5 rounded">Map</button>
                 <button onclick="actionUnsubscribe('${c.id}')" class="bg-[#20242c] hover:bg-red-600/20 border border-[#2a2f3a] hover:border-red-500/30 text-gray-300 hover:text-red-400 text-xs px-3 py-1.5 rounded transition-colors">Unsubscribe</button>
             </div>

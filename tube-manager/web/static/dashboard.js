@@ -4,6 +4,21 @@ let ws = null;
 let pingInterval = null;
 let pongTimeout = null;
 let missedPongs = 0;
+let statsIntervalId = null; // H3 FIX: Track single stats poller
+
+// H4/H18 FIX: Fetch wrapper with retry logic for mobile network failures
+async function fetchWithRetry(url, options = {}, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const resp = await fetch(url, options);
+            if (resp.ok) return resp;
+            if (resp.status < 500) return resp; // Don't retry client errors
+        } catch (e) {
+            if (i === retries - 1) throw e;
+            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+        }
+    }
+}
 
 function logConsole(text, type = 'info') {
     const line = document.createElement('div');
@@ -60,8 +75,10 @@ function connectWebSocket() {
     ws.onopen = () => {
         logConsole('WebSocket connected.', 'success');
         missedPongs = 0;
+        // H3 FIX: Clear existing ping interval before setting new one
+        if (pingInterval) clearInterval(pingInterval);
         pingInterval = setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({type: 'ping'}));
                 pongTimeout = setTimeout(() => {
                     missedPongs++;
@@ -96,9 +113,19 @@ function connectWebSocket() {
     ws.onclose = () => {
         clearInterval(pingInterval);
         logConsole('WebSocket disconnected.', 'warn');
-        setTimeout(connectWebSocket, 3000);
+        // H16 FIX: Only reconnect if tab is visible (save mobile battery)
+        if (!document.hidden) {
+            setTimeout(connectWebSocket, 3000);
+        }
     };
 }
+
+// H16 FIX: Resume WebSocket when tab becomes visible again
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && (!ws || ws.readyState !== WebSocket.OPEN)) {
+        connectWebSocket();
+    }
+});
 
 async function callAction(action, payload = null) {
     try {

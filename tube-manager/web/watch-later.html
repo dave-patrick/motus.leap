@@ -2,55 +2,63 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
     <title>Watch Later • motus.leap</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" type="image/png" href="/static/favicon.png?v=7">
+    <link rel="apple-touch-icon" href="/static/logo_icon.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/static/auth-check.js?v=7"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; background-color: #0e1014; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
         .bento-card { background: #181c24; border: 1px solid #2a2f3a; border-radius: 0.75rem; }
         .bento-card-dark { background: #0e1014; border: 1px solid #2a2f3a; border-radius: 0.75rem; }
+        input[type="text"], input[type="password"], input[type="number"], select, textarea { min-height: 44px; }
     </style>
 </head>
 <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
-<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
-<body class="bg-[#0e1014] min-h-screen flex">
-    <!-- Sidebar -->
-    <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#121419] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
-        <div class="p-4">
-            <a href="/" class="flex items-center gap-3 text-white no-underline">
-                <img src="/static/logo_icon.png?v=3" class="w-5 h-5 shrink-0 object-contain">
-                <h1 class="text-sm font-bold tracking-wide leading-tight">mot<span class="text-[#2f8fc9]">u</span>s.leap</h1>
-            </a>
+<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+<body class="bg-[#0e1014] min-h-screen flex selection:bg-[#2f8fc9]/30">
+    <!-- Sidebar (standardized to match other pages) -->
+    <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
+        <nav class="flex flex-col gap-1">
+            <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+            <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+            <a href="/watch-later" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center text-[#2f8fc9]"></i> Watch Later</a>
+            <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+            <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+        </nav>
+        <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+            <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
         </div>
-        <div class="flex-1 px-3 space-y-1 overflow-y-auto">
-            <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gauge w-5 text-center"></i> Dashboard</a>
-            <a href="/playlists" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-list w-5 text-center"></i> Playlists</a>
-            <a href="/watch-later" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-white bg-[#1e232d] border border-[#2a2f3a] text-xs font-medium"><i class="fa-regular fa-clock w-5 text-center text-[#2f8fc9]"></i> Watch Later</a>
-            <a href="/subscriptions" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-users w-5 text-center"></i> Subscriptions</a>
-            <a href="/maintenance" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors"><i class="fa-solid fa-gear w-5 text-center"></i> Settings</a>
+    </aside>
+
+    <!-- Main Content with header -->
+    <div class="flex flex-col flex-1 min-h-screen">
+    <header class="h-16 border-b border-[#2a2f3a] bg-[#1a1d24] flex items-center justify-between px-4 md:px-6 shrink-0">
+        <div class="flex items-center gap-3">
+            <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="w-8 h-8 object-contain">
+            <h1 class="text-xl md:text-3xl font-semibold text-white tracking-tight">mot<span class="text-[#2f8fc9]">u</span><span class="text-white">s</span><span class="text-gray-500">.</span>leap</h1>
         </div>
-    </nav>
+        <button onclick="logout()" class="w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+    </header>
 
     <!-- Main Content -->
-    <main class="flex-1 overflow-y-auto p-6">
+    <main class="flex-1 overflow-y-auto p-4 md:p-6">
         <div class="max-w-6xl mx-auto space-y-4">
             <!-- Header -->
-            <div class="flex items-center justify-between mb-2">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-3">
                 <div>
-                    <h2 class="text-xl font-bold text-white"><i class="fa-regular fa-clock text-[#2f8fc9] mr-2"></i>Watch Later</h2>
+                    <h2 class="text-lg md:text-xl font-bold text-white"><i class="fa-regular fa-clock text-[#2f8fc9] mr-2"></i>Watch Later</h2>
                 </div>
-                <div class="flex gap-2">
-                    <button id="btn-sync" onclick="watchLaterSync()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 transition-colors">
+                <div class="flex flex-wrap gap-2">
+                    <button id="btn-sync" onclick="watchLaterSync()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors">
                         <i class="fa-solid fa-rotate"></i> Watch Later Sync
                     </button>
-                    <button id="btn-apply" onclick="applyMoves()" disabled class="bg-[#2f8fc9]/40 text-white/40 text-xs font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 cursor-not-allowed transition-colors">
+                    <button id="btn-apply" onclick="applyMoves()" disabled class="bg-[#2f8fc9]/40 text-white/40 text-xs font-medium px-4 py-2.5 rounded-lg flex items-center gap-2 cursor-not-allowed transition-colors">
                         <i class="fa-solid fa-check-double"></i> Apply All (<span id="apply-count">0</span>)
                     </button>
                 </div>
@@ -79,7 +87,7 @@
             <div id="wl-log" class="hidden bento-card p-4 font-mono text-[9px] text-gray-400 max-h-32 overflow-y-auto"></div>
         </div>
     </main>
-
+</div>
     <script>
         let cachedVideos = [];
         let aiPlans = [];
@@ -222,22 +230,22 @@
                 const selected = selectedPlans.has(vid);
 
                 return '<div class="bento-card p-4 hover:border-[#2a7db8]/30 transition-colors" data-vid="' + vid + '">' +
-                    '<div class="flex items-center gap-3">' +
-                        '<input type="checkbox" class="plan-cb accent-[#2f8fc9] shrink-0" ' + (selected ? 'checked' : '') + ' onchange="togglePlan(this, \'' + vid + '\')" style="width:14px;height:14px">' +
-                        '<img src="' + thumb + '" class="w-24 h-14 rounded object-cover shrink-0">' +
+                    '<div class="flex flex-wrap items-center gap-2 sm:gap-3">' +
+                        '<input type="checkbox" class="plan-cb accent-[#2f8fc9] shrink-0 w-6 h-6" ' + (selected ? 'checked' : '') + ' onchange="togglePlan(this, \\'' + vid + '\\')">' +
+                        '<img src="' + thumb + '" class="w-20 h-12 sm:w-24 sm:h-14 rounded object-cover shrink-0 loading="lazy"">' +
                         '<div class="flex-1 min-w-0">' +
                             '<div class="text-[11px] font-medium text-white truncate">' + (plan.title || 'Unknown') + '</div>' +
                             '<div class="text-[9px] text-gray-400 truncate">' + (plan.channel || '') + '</div>' +
-                            '<div class="flex items-center gap-2 mt-1">' +
-                                (hasAI ? '<span class="text-[8px] px-1.5 py-0.5 rounded bg-[#2f8fc9]/20 text-[#2f8fc9] border border-[#2f8fc9]/20"><i class="fa-solid fa-robot text-[7px] mr-0.5"></i>' + suggested + '</span>' : '<span class="text-[8px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-500 border border-gray-600/20">unsure</span>') +
-                                (corrected ? '<span class="text-[8px] px-1.5 py-0.5 rounded bg-green-600/20 text-green-400 border border-green-500/20"><i class="fa-solid fa-pen-to-square text-[7px] mr-0.5"></i>' + corrected + '</span>' : '') +
+                            '<div class="flex flex-wrap items-center gap-1 mt-1">' +
+                                (hasAI ? '<span class="text-[8px] px-1.5 py-0.5 rounded bg-[#2f8fc9]/20 text-[#2f8fc9] border border-[#2f8fc9]/20 inline-block"><i class="fa-solid fa-robot text-[7px] mr-0.5"></i>' + suggested + '</span>' : '<span class="text-[8px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-500 border border-gray-600/20 inline-block">unsure</span>') +
+                                (corrected ? '<span class="text-[8px] px-1.5 py-0.5 rounded bg-green-600/20 text-green-400 border border-green-500/20 inline-block"><i class="fa-solid fa-pen-to-square text-[7px] mr-0.5"></i>' + corrected + '</span>' : '') +
                             '</div>' +
                         '</div>' +
-                        '<select class="plan-target bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[9px] rounded px-1.5 py-1 outline-none w-32 ml-2" onchange="correctPlan(this, \'' + vid + '\')">' +
+                        '<select class="plan-target bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[9px] rounded px-1.5 py-1 outline-none w-full sm:w-32 ml-2" onchange="correctPlan(this, \\'' + vid + '\\')">' +
                             '<option value="">-- Pick --</option>' +
                             targetPlaylists.map(p => '<option value="' + p.id + '" ' + (displayPlaylist === p.title ? 'selected' : '') + '>' + p.title + '</option>').join('') +
                         '</select>' +
-                        '<a href="https://youtube.com/watch?v=' + vid + '" target="_blank" class="text-gray-400 hover:text-white p-1 rounded hover:bg-[#2a2f3a] transition-colors shrink-0" title="Watch"><i class="fa-solid fa-play text-[9px]"></i></a>' +
+                        '<a href="https://youtube.com/watch?v=' + vid + '" target="_blank" class="text-gray-400 hover:text-white p-2 rounded hover:bg-[#2a2f3a] transition-colors shrink-0" title="Watch"><i class="fa-solid fa-play text-sm"></i></a>' +
                     '</div>' +
                 '</div>';
             }).join('');
