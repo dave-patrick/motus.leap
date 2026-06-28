@@ -276,6 +276,7 @@ class TestBackgroundWorkerResilience:
         )
         mock_config_manager.config.channel_mappings = {"ch1": "pl_target"}
         mock_config_manager.config.watch_later_playlist_id = ""
+        mock_config_manager.config.watch_later_target_playlist_id = "pl_target"
 
         worker = BackgroundWorker(
             mock_youtube_service, mock_manager, mock_config_manager, asyncio.Queue()
@@ -359,3 +360,136 @@ class TestBackgroundWorkerResilience:
         assert _is_retryable_error(FakeHttpError(404)) is False
         assert _is_retryable_error(ValueError("something")) is False
         assert _is_retryable_error(Exception("429 rate limit")) is True
+
+    @pytest.mark.asyncio
+    async def test_watch_later_sync_returns_early_without_target(self):
+        """watch_later_sync returns early when no target playlist is configured."""
+        from services.background_worker import BackgroundWorker
+
+        mock_youtube_service = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_config_manager = MagicMock()
+        mock_config_manager.config = MagicMock()
+        mock_config_manager.config.youtube_api_key = SecretStr("key")
+        mock_config_manager.config.oauth = YouTubeOAuthConfig(
+            client_id="test",
+            client_secret=SecretStr("secret"),
+            access_token="token",
+            refresh_token="refresh",
+        )
+        mock_config_manager.config.channel_mappings = {"ch1": "pl_old"}
+        mock_config_manager.config.watch_later_playlist_id = ""
+        mock_config_manager.config.watch_later_target_playlist_id = ""  # Not set
+
+        worker = BackgroundWorker(
+            mock_youtube_service, mock_manager, mock_config_manager, asyncio.Queue()
+        )
+        type(worker).youtube_service = property(lambda self: mock_youtube_service)
+        mock_client = MagicMock()
+        mock_youtube_service.get_client.return_value = mock_client
+
+        await worker.watch_later_sync({"dry_run": False})
+
+        broadcast_calls = [call.args[0] for call in mock_manager.broadcast.call_args_list]
+        messages = [json.loads(msg)["message"] for msg in broadcast_calls]
+
+        # Should have error about no target configured
+        error_msgs = [m for m in messages if "No Watch Later target playlist configured" in m]
+        assert len(error_msgs) == 1
+        # Should NOT have moved any videos
+        move_msgs = [m for m in messages if "Moved" in m and "video" in m]
+        assert len(move_msgs) == 0
+
+    @pytest.mark.asyncio
+    async def test_watch_later_move_basic(self):
+        """watch_later_move moves all videos directly to target playlist."""
+        from services.background_worker import BackgroundWorker
+
+        mock_youtube_service = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_config_manager = MagicMock()
+        mock_config_manager.config = MagicMock()
+        mock_config_manager.config.youtube_api_key = SecretStr("key")
+        mock_config_manager.config.oauth = YouTubeOAuthConfig(
+            client_id="test",
+            client_secret=SecretStr("secret"),
+            access_token="token",
+            refresh_token="refresh",
+        )
+        mock_config_manager.config.watch_later_playlist_id = ""
+        mock_config_manager.config.watch_later_target_playlist_id = "pl_direct_target"
+
+        worker = BackgroundWorker(
+            mock_youtube_service, mock_manager, mock_config_manager, asyncio.Queue()
+        )
+        type(worker).youtube_service = property(lambda self: mock_youtube_service)
+        mock_client = MagicMock()
+        mock_youtube_service.get_client.return_value = mock_client
+
+        watch_later_items = {
+            "items": [
+                {
+                    "id": "item1",
+                    "contentDetails": {"videoId": "vid1"},
+                    "snippet": {"title": "Video 1", "playlistId": "watch_later"},
+                },
+                {
+                    "id": "item2",
+                    "contentDetails": {"videoId": "vid2"},
+                    "snippet": {"title": "Video 2", "playlistId": "watch_later"},
+                },
+            ]
+        }
+        mock_youtube_service.list_watch_later_items_cached = AsyncMock(return_value=watch_later_items)
+        mock_client.move_video_to_playlist.return_value = True
+        mock_client.remove_video_from_playlist.return_value = True
+
+        await worker.watch_later_move({})
+
+        broadcast_calls = [call.args[0] for call in mock_manager.broadcast.call_args_list]
+        messages = [json.loads(msg)["message"] for msg in broadcast_calls]
+
+        # Should have moved both videos
+        summary_msgs = [m for m in messages if "Moved 2 video" in m]
+        assert len(summary_msgs) == 1
+        # Should have called move_video_to_playlist for each video with the target playlist
+        assert mock_client.move_video_to_playlist.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_watch_later_move_returns_early_without_target(self):
+        """watch_later_move returns early when no target playlist is configured."""
+        from services.background_worker import BackgroundWorker
+
+        mock_youtube_service = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_config_manager = MagicMock()
+        mock_config_manager.config = MagicMock()
+        mock_config_manager.config.youtube_api_key = SecretStr("key")
+        mock_config_manager.config.oauth = YouTubeOAuthConfig(
+            client_id="test",
+            client_secret=SecretStr("secret"),
+            access_token="token",
+            refresh_token="refresh",
+        )
+        mock_config_manager.config.watch_later_playlist_id = ""
+        mock_config_manager.config.watch_later_target_playlist_id = ""  # Not set
+
+        worker = BackgroundWorker(
+            mock_youtube_service, mock_manager, mock_config_manager, asyncio.Queue()
+        )
+        type(worker).youtube_service = property(lambda self: mock_youtube_service)
+        mock_client = MagicMock()
+        mock_youtube_service.get_client.return_value = mock_client
+
+        await worker.watch_later_move({})
+
+        broadcast_calls = [call.args[0] for call in mock_manager.broadcast.call_args_list]
+        messages = [json.loads(msg)["message"] for msg in broadcast_calls]
+
+        error_msgs = [m for m in messages if "No Watch Later target playlist configured" in m]
+        assert len(error_msgs) == 1
+        # Should NOT have moved any videos
+        mock_client.move_video_to_playlist.assert_not_called()

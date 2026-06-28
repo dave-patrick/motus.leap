@@ -174,6 +174,8 @@ class BackgroundWorker:
                     await self.full_cluster_scan(payload)
                 elif action == "watch_later_sync":
                     await self.watch_later_sync(payload)
+                elif action == "watch_later_move":
+                    await self.watch_later_move(payload)
                 elif action == "diagnose_failures":
                     await self.diagnose_failures(payload)
                 elif action == "apply_rules":
@@ -366,7 +368,7 @@ class BackgroundWorker:
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Scan failed: {error_details}"}))
 
     async def watch_later_sync(self, payload):
-        """Sync Watch Later playlist."""
+        """Sync Watch Later playlist — classify via AI/channel mapping, then move ALL results to the target playlist."""
         await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Syncing Watch Later playlist..."}))
         
         client = self.youtube_service.get_client(require_oauth=True) if self.youtube_service else None
@@ -391,8 +393,10 @@ class BackgroundWorker:
                 if title:
                     mapping_channel_title_scores.append((channel_id, playlist_id, float(len(title))))
 
-            if not mapping_by_channel_id:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] No channel mappings configured. Add mappings in Rules/Settings."}))
+            # Check for target playlist — required for the new sync behavior
+            target_playlist_id = getattr(config, "watch_later_target_playlist_id", "") or ""
+            if not target_playlist_id:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] No Watch Later target playlist configured. Set a target in Settings → Watch Later Move Target."}))
                 await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete"}))
                 return
 
@@ -487,25 +491,25 @@ class BackgroundWorker:
                 if not video_id:
                     skipped.append(item)
                     continue
-                channel_id, playlist_id = classify(item)
-                if not playlist_id:
-                    skipped.append(item)
-                    continue
+                # Classify (still runs for AI training memory / logging)
+                channel_id, _classified_playlist_id = classify(item)
+                # All results go to the user-chosen target playlist
+                destination_playlist_id = target_playlist_id
                 
                 # Safeguard: skip if the target playlist is the same as the source playlist
-                if playlist_id == origin:
+                if destination_playlist_id == origin:
                     skipped.append(item)
                     continue
                 
                 if dry_run:
-                    moved.append({"video_id": video_id, "from": origin, "to": playlist_id, "channel_id": channel_id})
+                    moved.append({"video_id": video_id, "from": origin, "to": destination_playlist_id, "channel_id": channel_id})
                     continue
 
                 try:
                     # Insert into target playlist (offload sync call to thread)
                     try:
                         await _retry_with_backoff(
-                            lambda: asyncio.to_thread(client.move_video_to_playlist, video_id, playlist_id),
+                            lambda: asyncio.to_thread(client.move_video_to_playlist, video_id, destination_playlist_id),
                             max_retries=3,
                             base_delay=1.0,
                             label=f"move_video_to_playlist({video_id})",
@@ -527,7 +531,7 @@ class BackgroundWorker:
                         except Exception as remove_err:
                             log.warning(f"[WORKER] Failed to remove {playlist_item_id} from source after move: {remove_err}")
 
-                    moved.append({"video_id": video_id, "from": origin, "to": playlist_id, "channel_id": channel_id})
+                    moved.append({"video_id": video_id, "from": origin, "to": destination_playlist_id, "channel_id": channel_id})
                     # Record move for AI training memory
                     try:
                         from services.ai_classifier import record_move
@@ -540,7 +544,7 @@ class BackgroundWorker:
                             from_playlist_name="Watch Later",
                             from_playlist_id=origin,
                             to_playlist_name="",
-                            to_playlist_id=playlist_id,
+                            to_playlist_id=destination_playlist_id,
                             source="sync",
                         )
                     except Exception:
@@ -549,7 +553,7 @@ class BackgroundWorker:
                     failed.append({"video_id": video_id, "error": str(unexpected_error)})
                     await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Unexpected error processing {video_id}: {unexpected_error}"}))
 
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Moved {len(moved)} video(s), skipped {len(skipped)}, failed {len(failed)}"}))
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Moved {len(moved)} video(s) to target playlist, skipped {len(skipped)}, failed {len(failed)}"}))
             if moved:
                 for move in moved[:20]:
                     await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] {move['video_id']} -> {move['to']} (from {move.get('from', 'watch later')})"}))
@@ -564,6 +568,103 @@ class BackgroundWorker:
             except Exception:
                 pass
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Sync failed: {error_details}"}))
+
+    async def watch_later_move(self, payload):
+        """Move ALL Watch Later videos directly to the target playlist (no classification)."""
+        await self.manager.broadcast(json.dumps({"type": "log", "message": "[MOVE] Moving all Watch Later videos to target playlist..."}))
+        
+        client = self.youtube_service.get_client(require_oauth=True) if self.youtube_service else None
+        if not client:
+            await self.manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] OAuth required. Connect YouTube in Settings."}))
+            return
+        
+        try:
+            config = self.config_manager.config
+            target_playlist_id = getattr(config, "watch_later_target_playlist_id", "") or ""
+            if not target_playlist_id:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] No Watch Later target playlist configured. Set a target in Settings → Watch Later Move Target."}))
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[MOVE] Complete"}))
+                return
+
+            # Fetch watch later items
+            force_refresh = payload.get("force_refresh", False) if isinstance(payload, dict) else False
+            watch_later_resp = await self.youtube_service.list_watch_later_items_cached(
+                playlist_id=self.channel_id if hasattr(self, "channel_id") and self.channel_id else (config.watch_later_playlist_id if hasattr(config, "watch_later_playlist_id") else ""),
+                force_refresh=force_refresh
+            )
+            watch_later_items = watch_later_resp.get("items", [])
+
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[MOVE] Fetched {len(watch_later_items)} videos from sync source"}))
+
+            if not watch_later_items:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[MOVE] No videos to move."}))
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[MOVE] Complete"}))
+                return
+
+            moved = []
+            skipped = []
+            failed = []
+            for item in watch_later_items:
+                if self._cancel_requested:
+                    log.info("[WORKER] Cancel requested during watch-later move — stopping")
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[WORKER] Watch-later move cancelled"}))
+                    break
+                video_id = item.get("contentDetails", {}).get("videoId")
+                playlist_item_id = item.get("id")
+                origin = item.get("snippet", {}).get("playlistId") or ""
+                if not video_id:
+                    skipped.append(item)
+                    continue
+
+                # Skip if target is same as source
+                if target_playlist_id == origin:
+                    skipped.append(item)
+                    continue
+
+                try:
+                    # Add to target playlist
+                    try:
+                        await _retry_with_backoff(
+                            lambda: asyncio.to_thread(client.move_video_to_playlist, video_id, target_playlist_id),
+                            max_retries=3,
+                            base_delay=1.0,
+                            label=f"move_video_to_playlist({video_id})",
+                        )
+                    except Exception as move_err:
+                        failed.append({"video_id": video_id, "error": str(move_err)})
+                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {video_id}: {move_err}"}))
+                        continue
+
+                    # Remove from Watch Later
+                    if playlist_item_id:
+                        try:
+                            await _retry_with_backoff(
+                                lambda: asyncio.to_thread(client.remove_video_from_playlist, playlist_item_id),
+                                max_retries=3,
+                                base_delay=1.0,
+                                label=f"remove_video_from_playlist({playlist_item_id})",
+                            )
+                        except Exception as remove_err:
+                            log.warning(f"[WORKER] Failed to remove {playlist_item_id} from source after move: {remove_err}")
+
+                    moved.append({"video_id": video_id, "from": origin, "to": target_playlist_id})
+                except Exception as unexpected_error:
+                    failed.append({"video_id": video_id, "error": str(unexpected_error)})
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Unexpected error processing {video_id}: {unexpected_error}"}))
+
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[MOVE] Moved {len(moved)} video(s) to target playlist, skipped {len(skipped)}, failed {len(failed)}"}))
+            if moved:
+                for move_rec in moved[:20]:
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[MOVE] {move_rec['video_id']} -> {move_rec['to']}"}))
+            await self.manager.broadcast(json.dumps({"type": "log", "message": "[MOVE] Complete"}))
+
+        except Exception as e:
+            error_details = f"{type(e).__name__}: {str(e)}"
+            try:
+                error_details += f" | {traceback.format_exc()}"
+            except Exception:
+                pass
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Move failed: {error_details}"}))
 
     async def diagnose_failures(self, payload):
         """Diagnose system health."""

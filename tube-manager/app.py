@@ -1271,6 +1271,7 @@ class SettingsIn(BaseModel):
     auto_sort: bool | None = None
     sync_watch_later: bool | None = None
     watch_later_playlist_id: str | None = None
+    watch_later_target_playlist_id: str | None = None
     notify_failures: bool | None = None
     dark_mode: bool | None = None
     log_level: str | None = None
@@ -1297,6 +1298,7 @@ async def get_settings():
         "auto_sort": config.auto_sort,
         "sync_watch_later": config.sync_watch_later,
         "watch_later_playlist_id": getattr(config, "watch_later_playlist_id", ""),
+        "watch_later_target_playlist_id": getattr(config, "watch_later_target_playlist_id", ""),
         "notify_failures": config.notify_failures,
         "dark_mode": config.dark_mode,
         "log_level": config.log_level,
@@ -1483,6 +1485,7 @@ async def dispatch_action(body: dict):
     actions = {
         "sync_playlists": "Full Playlist Sync",
         "sync_watch_later": "Watch Later Sync",
+        "watch_later_move": "Watch Later Move",
         "scan_duplicates": "Scan Duplicates",
         "scan_misplaced": "Scan Misplaced",
     }
@@ -1497,6 +1500,7 @@ async def dispatch_action(body: dict):
 
         action_map = {
             "sync_watch_later": background_worker.watch_later_sync,
+            "watch_later_move": background_worker.watch_later_move,
             "sync_playlists": background_worker.full_cluster_scan,
             "scan_duplicates": background_worker.scan_duplicates,
             "scan_misplaced": background_worker.scan_misplaced,
