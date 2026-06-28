@@ -5,6 +5,7 @@ import ssl
 import time
 import json
 import logging
+import threading
 from typing import Any
 
 log = logging.getLogger(__name__)
@@ -34,19 +35,27 @@ if httpx is not None:
 else:  # pragma: no cover
     _shared_client = None  # type: ignore
 
+# Lock to protect the shared httpx client from concurrent close/replace
+# while other threads are still using it.
+_client_lock = threading.Lock()
+
 
 def _reset_shared_client():
     """Reset the shared httpx client, closing stale connections and starting fresh.
 
     Use this when a connection enters a bad state (e.g. SSL errors after
     a network change or proxy renegotiation).
+
+    Thread-safe: acquires a module-level lock so concurrent callsers cannot
+    close / replace the client while another thread holds a reference to it.
     """
     global _shared_client
-    if _shared_client is not None:
-        try:
-            _shared_client.close()
-        except Exception:
-            pass
+    with _client_lock:
+        if _shared_client is not None:
+            try:
+                _shared_client.close()
+            except Exception:
+                pass
         _shared_client = httpx.Client(timeout=45.0)
         log.info("Reset shared httpx client (closed stale connections, created fresh client)")
 
@@ -103,6 +112,12 @@ def _with_retry(sync_func, *args, **kwargs):
             else:
                 log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
                 raise
+        except Exception as e:
+            # Safety net: catch any unexpected error so a single bad request
+            # never crashes the worker process. Log it and re-raise as a
+            # RuntimeError with the original message.
+            log.error(f"Unexpected error in _with_retry (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {type(e).__name__}: {e}")
+            raise
 
 
 class YouTubeClient:
@@ -226,8 +241,15 @@ class YouTubeClient:
         url = f"{YOUTUBE_API_BASE}/{endpoint}"
         headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
         log.debug(f"[YOUTUBE] _oauth_request GET {url} params={params}")
-        client = _shared_client or httpx.Client(timeout=45.0)
-        resp = _with_retry(client.get, url, headers=headers, params=params)
+
+        # Re-resolve the client on each call so that if _reset_shared_client()
+        # was triggered by an SSL error in another thread, we pick up the new
+        # client instead of using the stale (closed) one.
+        def _do_get():
+            c = _shared_client or httpx.Client(timeout=45.0)
+            return c.get(url, headers=headers, params=params)
+
+        resp = _with_retry(_do_get)
         log.debug(f"[YOUTUBE] _oauth_request response status={resp.status_code}")
         resp.raise_for_status()
         try:

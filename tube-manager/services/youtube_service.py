@@ -481,9 +481,6 @@ class YouTubeService:
                 if consecutive_errors >= max_consecutive_errors:
                     log.error("_fetch_all_paginated: Too many consecutive SSL errors, stopping pagination")
                     break
-                # Reset the shared client to clear stale connections
-                from services.youtube_client import _reset_shared_client
-                _reset_shared_client()
                 continue
             except (ConnectionError, OSError) as e:
                 consecutive_errors += 1
@@ -491,8 +488,6 @@ class YouTubeService:
                 if consecutive_errors >= max_consecutive_errors:
                     log.error("_fetch_all_paginated: Too many consecutive connection errors, stopping pagination")
                     break
-                from services.youtube_client import _reset_shared_client
-                _reset_shared_client()
                 continue
             except Exception as e:
                 log.warning(f"_fetch_all_paginated: fetch_fn raised: {e}. Stopping pagination.")
