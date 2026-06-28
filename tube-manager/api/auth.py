@@ -898,8 +898,32 @@ async def create_default_admin() -> None:
 # Google OAuth Login
 # =============================================================================
 
-GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
-GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+import os
+from pathlib import Path
+
+def _load_oauth_credentials():
+    """Load Google OAuth credentials from environment or config.json."""
+    client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+    client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+    
+    # Fallback: load from config.json
+    if not client_id or not client_secret:
+        try:
+            config_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+            config_file = config_dir / "config.json"
+            if config_file.exists():
+                import json
+                with open(config_file) as f:
+                    config = json.load(f)
+                oauth = config.get("oauth", {})
+                client_id = oauth.get("client_id", "")
+                client_secret = oauth.get("client_secret", "")
+        except Exception:
+            pass
+    
+    return client_id, client_secret
+
+GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET = _load_oauth_credentials()
 GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "https://tubemanager.onrender.com/api/auth/google/callback")
 
 
