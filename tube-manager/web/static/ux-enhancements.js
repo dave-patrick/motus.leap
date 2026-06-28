@@ -898,31 +898,24 @@ async function navigateSPA(url) {
 
 // Intercept clicks on links or button navigation
 document.addEventListener('click', (e) => {
-    // 1. Anchor tag clicks
-    let link = e.target.closest('a');
-    if (link && link.getAttribute('href')) {
-        const href = link.getAttribute('href');
-        if (href.startsWith('/') && !href.startsWith('/auth') && !href.startsWith('/oauth') && !href.startsWith('/api')) {
+    // H1 FIX: Don't intercept clicks on buttons or elements with their own handlers
+    // that are not navigation links. Only intercept sidebar nav links.
+    const closestButton = e.target.closest('button');
+    const closestLink = e.target.closest('a');
+    
+    // Only intercept actual navigation links in the sidebar nav
+    if (closestLink && closestLink.getAttribute('href')) {
+        const href = closestLink.getAttribute('href');
+        // Only intercept sidebar nav links (not buttons, not links with their own JS handlers)
+        const isNavLink = closestLink.classList.contains('nav-item') || 
+                          closestLink.closest('nav') ||
+                          closestLink.closest('aside');
+        
+        if (isNavLink && href.startsWith('/') && !href.startsWith('/auth') && !href.startsWith('/oauth') && !href.startsWith('/api')) {
             e.preventDefault();
             window.history.pushState(null, '', href);
             navigateSPA(href);
             return;
-        }
-    }
-
-    // 2. Elements with inline onclick="window.location.href='...'"
-    let onclickEl = e.target.closest('[onclick]');
-    if (onclickEl) {
-        const onclickAttr = onclickEl.getAttribute('onclick');
-        const match = onclickAttr.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/);
-        if (match) {
-            const href = match[1];
-            if (href.startsWith('/') && !href.startsWith('/auth') && !href.startsWith('/oauth') && !href.startsWith('/api')) {
-                e.preventDefault();
-                e.stopPropagation();
-                window.history.pushState(null, '', href);
-                navigateSPA(href);
-            }
         }
     }
 }, true); // Capture phase to run before inline handlers

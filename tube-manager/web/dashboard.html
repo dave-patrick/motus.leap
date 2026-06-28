@@ -1,10 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>motus.leap - Dashboard</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta property="og:title" content="motus.leap — YouTube Playlist Manager">
+    <meta property="og:description" content="Automated YouTube playlist orchestrator">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>motus.leap</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="apple-touch-icon" href="/static/logo_icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -41,7 +52,7 @@
     <script src="/static/auth-check.js"></script>
 </head>
 <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
-<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 <body class="flex flex-col min-h-screen selection:bg-[#2f8fc9]/30">
 
     <!-- Banner/Header - Both graphic and text on left side (graphic left of text) -->
@@ -164,5 +175,24 @@
     <script src="/static/dashboard.js"></script>
     <script src="/static/ux-enhancements.js"></script>
     <script src="/static/mobile-nav.js"></script>
+    <script>
+        // H8 FIX: Register service worker for offline caching
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+            });
+        }
+        // Add pull-to-refresh on main pages (H21)
+        let touchStartY = 0;
+        document.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            const touchEndY = e.changedTouches[0].clientY;
+            if (touchEndY - touchStartY > 150 && window.scrollY === 0) {
+                window.location.reload();
+            }
+        }, { passive: true });
+    </script>
 </body>
 </html>

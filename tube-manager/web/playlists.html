@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
     <title>Playlists - motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com /static/ux-enhancements.js?v=1781919149 /static/auth-check.js?v=1781919149 /static/playlists.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-ancestors 'self';">
@@ -26,7 +27,7 @@
     <script src="/static/auth-check.js?v=1781919149"></script>
 </head>
 <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
-<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 <body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
 
     <!-- Top Header -->
@@ -44,6 +45,7 @@
             <nav class="flex flex-col gap-1">
                 <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
                 <a href="/playlists" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/watch-later" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
                 <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
                 <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
@@ -71,9 +73,9 @@
                 <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3 hidden" id="playlists-list"></div>
             </div>
         
-    <div id="create-playlist-modal" class="hidden fixed inset-0 z-50">
+    <div id="create-playlist-modal" class="hidden fixed inset-0 z-50 p-4">
         <div class="absolute inset-0 bg-black/60" onclick="closeCreatePlaylistModal()"></div>
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bento-card p-6">
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bento-card p-6 mx-4">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-semibold text-white">Create New Playlist</h3>
                 <button onclick="closeCreatePlaylistModal()" class="text-gray-400 hover:text-white text-xs">Close</button>
