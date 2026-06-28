@@ -1,5 +1,11 @@
 const consoleOutput = document.getElementById('console-output');
 const token = localStorage.getItem('token') || '';
+
+// Redirect to auth if no token present
+if (!token) {
+    window.location.href = '/auth';
+}
+
 let ws = null;
 let pingInterval = null;
 let pongTimeout = null;

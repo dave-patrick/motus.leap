@@ -488,9 +488,9 @@ async def index():
     """Serve root page - redirects to /auth if not authenticated."""
     return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
-@app.get("/dashboard", dependencies=[Depends(require_auth)])
+@app.get("/dashboard")
 async def dashboard():
-    """Dashboard page."""
+    """Dashboard page - available without auth (frontend handles auth check)."""
     return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
 
