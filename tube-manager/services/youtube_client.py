@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import ssl
 import time
 import json
 import logging
@@ -34,6 +35,22 @@ else:  # pragma: no cover
     _shared_client = None  # type: ignore
 
 
+def _reset_shared_client():
+    """Reset the shared httpx client, closing stale connections and starting fresh.
+
+    Use this when a connection enters a bad state (e.g. SSL errors after
+    a network change or proxy renegotiation).
+    """
+    global _shared_client
+    if _shared_client is not None:
+        try:
+            _shared_client.close()
+        except Exception:
+            pass
+        _shared_client = httpx.Client(timeout=45.0)
+        log.info("Reset shared httpx client (closed stale connections, created fresh client)")
+
+
 def _with_retry(sync_func, *args, **kwargs):
     last_exc = None
     for attempt in range(RETRY_ATTEMPTS):
@@ -41,6 +58,29 @@ def _with_retry(sync_func, *args, **kwargs):
             resp = sync_func(*args, **kwargs)
             resp.raise_for_status()
             return resp
+        except (ssl.SSLError, ssl.SSLEOFError) as e:
+            # SSL errors usually indicate a poisoned / mismatched connection in the pool.
+            # Reset the shared client once, then retry immediately on the fresh client.
+            last_exc = e
+            log.warning(f"SSL error on API call (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Resetting HTTP client...")
+            if httpx is not None:
+                _reset_shared_client()
+            if attempt < RETRY_ATTEMPTS - 1:
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts with SSL error: {e}")
+                raise
+        except httpx.ConnectError as e:
+            # Connection-level errors (reset, timeout, etc.) — reset client and retry
+            last_exc = e
+            log.warning(f"Connection error on API call (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Resetting HTTP client...")
+            if httpx is not None:
+                _reset_shared_client()
+            if attempt < RETRY_ATTEMPTS - 1:
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
+                raise
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
             last_exc = e
             if attempt < RETRY_ATTEMPTS - 1:
@@ -176,7 +216,22 @@ class YouTubeClient:
         resp = _with_retry(client.get, url, headers=headers, params=params)
         log.debug(f"[YOUTUBE] _oauth_request response status={resp.status_code}")
         resp.raise_for_status()
-        return resp.json()
+        try:
+            return resp.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            # Server returned non-JSON (e.g. HTML error page, empty body)
+            content_type = resp.headers.get("content-type", "unknown")
+            body_preview = resp.text[:500] if resp.text else "(empty)"
+            log.error(
+                f"[YOUTUBE] _oauth_request received non-JSON response: "
+                f"content-type={content_type}, status={resp.status_code}, "
+                f"body={body_preview!r}"
+            )
+            raise RuntimeError(
+                f"YouTube API returned non-JSON response (status={resp.status_code}, "
+                f"content-type={content_type}). This usually indicates a proxy/network "
+                f"issue or auth problem."
+            ) from e
 
     def get_playlist(self, playlist_id: str) -> dict[str, Any]:
         client = self._get_client()

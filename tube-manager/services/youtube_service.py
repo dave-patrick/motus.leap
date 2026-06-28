@@ -4,6 +4,7 @@ import json
 import hashlib
 import logging
 import os
+import ssl
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
@@ -467,10 +468,39 @@ class YouTubeService:
         """Fetch paginated results with caps and early exit."""
         all_items = []
         page_token = None
+        consecutive_errors = 0
+        max_consecutive_errors = 3
 
         while len(all_items) < max_items:
             # Run the blocking sync fetch_fn in a separate thread to unblock the main FastAPI event loop
-            resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
+            try:
+                resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
+            except ssl.SSLError as e:
+                consecutive_errors += 1
+                log.warning(f"_fetch_all_paginated: SSL error ({consecutive_errors}/{max_consecutive_errors}): {e}")
+                if consecutive_errors >= max_consecutive_errors:
+                    log.error("_fetch_all_paginated: Too many consecutive SSL errors, stopping pagination")
+                    break
+                # Reset the shared client to clear stale connections
+                from services.youtube_client import _reset_shared_client
+                _reset_shared_client()
+                continue
+            except (ConnectionError, OSError) as e:
+                consecutive_errors += 1
+                log.warning(f"_fetch_all_paginated: connection error ({consecutive_errors}/{max_consecutive_errors}): {e}")
+                if consecutive_errors >= max_consecutive_errors:
+                    log.error("_fetch_all_paginated: Too many consecutive connection errors, stopping pagination")
+                    break
+                from services.youtube_client import _reset_shared_client
+                _reset_shared_client()
+                continue
+            except Exception as e:
+                log.warning(f"_fetch_all_paginated: fetch_fn raised: {e}. Stopping pagination.")
+                break
+
+            # Reset error counter on successful fetch
+            consecutive_errors = 0
+
             if resp is None or "items" not in resp:
                 log.warning(f"_fetch_all_paginated: fetch_fn returned None or missing 'items'. Response: {resp}. Stopping pagination.")
                 break
@@ -536,10 +566,59 @@ class YouTubeService:
         try:
             # Step 1: Fetch all subscriptions (1 API call with pagination)
             log.info("[FETCH] Getting subscriptions...")
-            
-            # Use the cached list_subscriptions method
-            subscriptions_data = await self.list_subscriptions(force_refresh=force_refresh)
-            subscriptions = subscriptions_data.get("channels", [])
+
+            # Inline subscription fetching to avoid circular calls
+            # (previously delegated to self.list_subscriptions which called fetch_all_data back)
+            subscriptions = []
+            try:
+                all_subs = await self._fetch_all_paginated(
+                    lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
+                    max_results=50,
+                    max_items=5000,
+                )
+
+                channel_ids = []
+                seen_channels = set()
+                for sub in all_subs:
+                    snippet = sub.get("snippet", {}) or {}
+                    resource = snippet.get("resourceId", {}) or {}
+                    cid = resource.get("channelId", "")
+                    if cid and cid not in seen_channels:
+                        seen_channels.add(cid)
+                        channel_ids.append(cid)
+
+                channel_stats = {}
+                if channel_ids:
+                    log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
+                    try:
+                        enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
+                        for item in enriched.get("items", []):
+                            cid = item.get("id", "")
+                            if cid:
+                                channel_stats[cid] = item
+                    except Exception as e:
+                        log.warning(f"Channel enrichment failed: {e}")
+
+                for cid in channel_ids:
+                    stats = channel_stats.get(cid, {})
+                    snippet = stats.get("snippet", {}) or {}
+                    statistics = stats.get("statistics", {}) or {}
+
+                    subscriptions.append({
+                        "id": cid,
+                        "title": snippet.get("title", "Unknown"),
+                        "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
+                        "description": snippet.get("description", ""),
+                        "subscribers": statistics.get("subscriberCount", "0"),
+                        "video_count": int(statistics.get("videoCount", "0") or "0"),
+                        "view_count": statistics.get("viewCount", "0"),
+                        "channel_url": f"https://www.youtube.com/channel/{cid}",
+                    })
+
+                subscriptions.sort(key=lambda x: x["title"].lower())
+            except Exception as e:
+                log.warning(f"Failed to fetch subscriptions for all_data: {e}")
+
             result["subscriptions"] = subscriptions
             result["stats"]["total_subscriptions"] = len(subscriptions)
             
@@ -583,11 +662,21 @@ class YouTubeService:
                         )
                         playlist_videos = []
                         for vid in video_items:
-                            video = self._video_item_to_dict(vid, pl_id, playlist["title"])
-                            playlist_videos.append(video)
+                            try:
+                                video = self._video_item_to_dict(vid, pl_id, playlist["title"])
+                                playlist_videos.append(video)
+                            except (KeyError, ValueError, TypeError) as e:
+                                log.warning(f"Skipping malformed video in playlist {pl_id}: {e}")
+                                continue
                         return playlist_videos
+                    except ssl.SSLError as e:
+                        log.warning(f"SSL error fetching videos for playlist {pl_id}: {e}. Skipping playlist.")
+                        return []
+                    except ConnectionError as e:
+                        log.warning(f"Connection error fetching videos for playlist {pl_id}: {e}. Skipping playlist.")
+                        return []
                     except Exception as e:
-                        log.warning(f"Failed to fetch videos for playlist {pl_id}: {e}")
+                        log.warning(f"Failed to fetch videos for playlist {pl_id}: {e}. Skipping playlist.")
                         return []
             
             # Create tasks for all playlists
@@ -621,23 +710,6 @@ class YouTubeService:
         except Exception as e:
             log.error(f"Failed to fetch all data: {e}")
             return {"error": str(e)}
-
-    @cache_result("subscriptions", ttl=timedelta(minutes=10)) # Cache for 10 minutes
-    async def list_subscriptions(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """List user's subscriptions with channel stats (cached)."""
-
-        # Args:
-        #     force_refresh: If True, bypass cache and fetch fresh data
-
-        # Returns:
-        #     Dictionary containing channels list or error
-        # """
-        # Use fetch_all_data for efficiency
-        all_data = await self.fetch_all_data(force_refresh=force_refresh)
-        if "error" in all_data:
-            return {"channels": [], "error": all_data["error"]}
-        
-        return {"channels": all_data.get("subscriptions", [])}
 
     async def get_stats(self) -> Dict[str, Any]:
         """Get YouTube statistics without fetching every video duration."""
