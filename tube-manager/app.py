@@ -483,9 +483,9 @@ class ConfigUpdateIn(BaseModel):
 # =============================================================================
 
 
-@app.get("/", dependencies=[Depends(require_auth)])
+@app.get("/")
 async def index():
-    """Serve root page - dark theme dashboard."""
+    """Serve root page - redirects to /auth if not authenticated."""
     return await no_cache_file_response(WEB_DIR / "dashboard.html")
 
 @app.get("/dashboard", dependencies=[Depends(require_auth)])
