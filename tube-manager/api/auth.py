@@ -928,8 +928,13 @@ GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "https://tube
 
 
 @router.get("/google")
-async def google_oauth_init():
-    """Initiate Google OAuth flow for user login."""
+async def google_oauth_init(request: Request):
+    """Initiate Google OAuth flow for user login.
+
+    When called by a browser (no Accept: application/json and no ?format=json),
+    returns a 302 redirect to Google's auth URL.  API clients that request JSON
+    get the auth_url in a JSON body instead.
+    """
     if not GOOGLE_OAUTH_CLIENT_ID:
         return {"error": "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars."}
 
@@ -942,7 +947,17 @@ async def google_oauth_init():
         f"&access_type=offline"
         f"&prompt=consent%20select_account"
     )
-    return {"auth_url": auth_url}
+
+    # API clients explicitly request JSON via header or query param
+    accept_header = request.headers.get("accept", "")
+    format_param = request.query_params.get("format", "")
+    wants_json = "application/json" in accept_header or format_param == "json"
+
+    if wants_json:
+        return {"auth_url": auth_url}
+
+    # Browser navigation: redirect directly to Google
+    return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
 
 
 @router.get("/youtube")

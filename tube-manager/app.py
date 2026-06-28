@@ -736,7 +736,12 @@ async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
 
 @app.get("/api/youtube/misplaced", dependencies=[Depends(get_current_user)])
 async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
-    """Scan for misplaced videos based on channel mappings."""
+    """Scan for misplaced videos based on channel mappings.
+    
+    channel_mappings maps channel_id → target_playlist_id.
+    A video is misplaced if its channel_id has a mapping and the video's
+    current playlist_id differs from the mapped target playlist.
+    """
     if not youtube_service:
         return {"misplaced": [], "error": "YouTube service not initialized"}
     
@@ -746,12 +751,22 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
     videos = await youtube_service.get_videos(playlist_id=playlist_id)
     misplaced = []
     for v in videos.get("videos", []):
+        video_channel_id = v.get("channel_id") or v.get("videoOwnerChannelId", "")
         video_playlist_id = v.get("playlist_id")
-        if video_playlist_id and video_playlist_id in mappings:
-            expected_channel = mappings[video_playlist_id]
-            video_channel = v.get("channel_title", "")
-            if expected_channel and video_channel and expected_channel not in video_channel:
-                misplaced.append({"video_id": v.get("video_id"), "title": v.get("title"), "video_title": v.get("title"), "reason": f"Expected channel: {expected_channel}"})
+        if not video_channel_id or not video_playlist_id:
+            continue
+        if video_channel_id in mappings:
+            mapped_playlist_id = mappings[video_channel_id]
+            if mapped_playlist_id and mapped_playlist_id != video_playlist_id:
+                misplaced.append({
+                    "video_id": v.get("video_id"),
+                    "title": v.get("title"),
+                    "video_title": v.get("title"),
+                    "channel_id": video_channel_id,
+                    "current_playlist_id": video_playlist_id,
+                    "mapped_playlist_id": mapped_playlist_id,
+                    "reason": f"Channel {video_channel_id} mapped to playlist {mapped_playlist_id}, but video is in {video_playlist_id}",
+                })
     
     return {"misplaced": misplaced, "count": len(misplaced)}
 

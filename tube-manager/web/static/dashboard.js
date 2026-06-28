@@ -231,14 +231,14 @@ async function loadScanDetails() {
         // Use apiCall (sends auth header) — both endpoints require authentication.
         // Also fetch /api/stats for last_scan, queue size, and worker count.
         const [dupResp, misResp, statsResp] = await Promise.all([
-            apiCall('/api/youtube/duplicates'),
-            apiCall('/api/youtube/misplaced'),
-            apiCall('/api/stats')
+            apiCall('/api/youtube/duplicates').catch(() => null),
+            apiCall('/api/youtube/misplaced').catch(() => null),
+            apiCall('/api/stats').catch(() => null)
         ]);
 
-        const dupData = await dupResp.json().catch(() => ({}));
-        const misData = await misResp.json().catch(() => ({}));
-        const statsData = await statsResp.json().catch(() => ({}));
+        const dupData = (dupResp && dupResp.ok) ? await dupResp.json().catch(() => ({})) : {};
+        const misData = (misResp && misResp.ok) ? await misResp.json().catch(() => ({})) : {};
+        const statsData = (statsResp && statsResp.ok) ? await statsResp.json().catch(() => ({})) : {};
 
         const dupCount = dupData.duplicates || 0;
         const misCount = misData.misplaced?.length || misData.count || 0;

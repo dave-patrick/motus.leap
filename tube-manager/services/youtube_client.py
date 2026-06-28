@@ -81,7 +81,21 @@ def _with_retry(sync_func, *args, **kwargs):
             else:
                 log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
                 raise
-        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+        except httpx.HTTPStatusError as e:
+            # 4xx client errors (403, 404, etc.) won't succeed on retry — raise immediately.
+            # 5xx server errors (502, 503, etc.) are retryable.
+            if e.response.status_code < 500:
+                log.warning(f"API call returned client error (non-retryable): {e.response.status_code}")
+                raise
+            last_exc = e
+            if attempt < RETRY_ATTEMPTS - 1:
+                log.warning(f"API call failed with server error (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
+                raise
+        except httpx.RequestError as e:
+            # Other request-level errors (timeouts, etc.) — retry
             last_exc = e
             if attempt < RETRY_ATTEMPTS - 1:
                 log.warning(f"API call failed (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
@@ -377,9 +391,23 @@ class YouTubeClient:
             if page_token:
                 params["pageToken"] = page_token
             return self._oauth_request("playlistItems", params)
+        except httpx.HTTPStatusError as e:
+            # YouTube returns 403 Forbidden for the native Watch Later playlist (WL).
+            # This is a known API restriction — the playlistItems.list endpoint is
+            # blocked for Watch Later even with valid OAuth. Return empty rather than
+            # crashing or retrying, and include the error so the caller can fall back
+            # to browser scraping.
+            status = e.response.status_code
+            if status == 403:
+                log.warning(f"[YOUTUBE] Watch Later playlistItems returned 403 (known YouTube API restriction). "
+                           f"Use browser scraper or configure a custom playlist ID.")
+                return {"items": [], "error": "YouTube Watch Later playlist is access-restricted (403). "
+                        "Configure watch_later_playlist_id in settings or use browser cookies."}
+            log.error(f"[YOUTUBE] list_watch_later_items HTTP error: {e}")
+            return {"items": [], "error": f"YouTube API error: {status}"}
         except Exception as e:
             log.error(f"[YOUTUBE] list_watch_later_items error: {e}")
-            return {"items": []}
+            return {"items": [], "error": str(e)}
 
     def move_video_to_playlist(self, video_id: str, target_playlist_id: str) -> dict[str, Any]:
         client = self._get_client(require_oauth=True)
