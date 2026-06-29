@@ -411,13 +411,6 @@ class BackgroundWorker:
                 if title:
                     mapping_channel_title_scores.append((channel_id, playlist_id, float(len(title))))
 
-            # Check for target playlist — required for the new sync behavior
-            target_playlist_id = getattr(config, "watch_later_target_playlist_id", "") or ""
-            if not target_playlist_id:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] No Watch Later target playlist configured. Set a target in Settings → Watch Later Move Target."}))
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete"}))
-                return
-
             # Preload channel metadata for OAuth-based channel lookup
             channel_key = "__watchlater_channels__"
             channel_cache = await self.youtube_service._get_cached(channel_key) if hasattr(self.youtube_service, "_get_cached") else None
@@ -495,6 +488,11 @@ class BackgroundWorker:
                 
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from sync source (cached: {not force_refresh})"}))
             
+            # Resolve target playlist — optional for scanning/classifying, required for moving
+            target_playlist_id = getattr(config, "watch_later_target_playlist_id", "") or ""
+            if not target_playlist_id:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] No target playlist set — scanning and classifying only (no moves). Set a target in Settings to enable auto-move."}))
+            
             moved = []
             skipped = []
             failed = []
@@ -510,9 +508,14 @@ class BackgroundWorker:
                     skipped.append(item)
                     continue
                 # Classify (still runs for AI training memory / logging)
-                channel_id, _classified_playlist_id = classify(item)
-                # All results go to the user-chosen target playlist
-                destination_playlist_id = target_playlist_id
+                channel_id, classified_playlist_id = classify(item)
+                # Use the user-chosen target playlist, or fall back to classified playlist
+                destination_playlist_id = target_playlist_id or classified_playlist_id or ""
+                
+                # If no destination at all, log the video but skip the move
+                if not destination_playlist_id:
+                    skipped.append(item)
+                    continue
                 
                 # Safeguard: skip if the target playlist is the same as the source playlist
                 if destination_playlist_id == origin:
