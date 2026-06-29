@@ -153,6 +153,16 @@
                                         </select>
                                         <p class="text-[9px] text-gray-500 mt-1">Destination playlist for Watch Later Sync & Move. Videos are moved here instead of auto-distributing.</p>
                                     </div>
+                                    <div id="watch-later-config-warning" class="hidden mt-2">
+                                        <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                                            <i class="fa-solid fa-triangle-exclamation text-yellow-400 text-xs"></i>
+                                            <p class="text-[9px] text-yellow-300">
+                                                YouTube's native Watch Later playlist is API-restricted.
+                                                <a href="/settings" onclick="loadSettings()" class="underline">Configure a playlist ID</a>
+                                                or upload cookies to access your data.
+                                            </p>
+                                        </div>
+                                    </div>
                                     <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
                                         <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-sort" class="accent-[#2f8fc9]" checked> Auto-sort new videos</label>
                                         <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="sync-watch-later" class="accent-[#2f8fc9]" checked> Sync Watch Later on scan</label>
@@ -499,6 +509,15 @@
                 if (data.watch_later_target_playlist_id) {
                     const targetSelect = document.getElementById('watch-later-target');
                     if (targetSelect) targetSelect.value = data.watch_later_target_playlist_id;
+                }
+
+                const warning = document.getElementById('watch-later-config-warning');
+                const targetVal = data.watch_later_target_playlist_id || '';
+                const wlId = data.watch_later_playlist_id || '';
+                if (warning && !targetVal && !wlId) {
+                    warning.classList.remove('hidden');
+                } else if (warning) {
+                    warning.classList.add('hidden');
                 }
 
                 const aiProvider = document.getElementById('ai-provider');

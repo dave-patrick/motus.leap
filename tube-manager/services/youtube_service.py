@@ -457,7 +457,12 @@ class YouTubeService:
             resp = await asyncio.to_thread(client.list_watch_later_items, max_results=50, playlist_id=playlist_id)
             items = resp.get("items", [])
             result = {"items": items}
-            await self._cache.set(cache_key, result, ttl=self._watch_later_cache_ttl) # Use _cache.set with ttl
+            # Don't cache error results — the caller needs to see the error and the
+            # user may fix the config (e.g. set watch_later_playlist_id) without waiting for cache expiry.
+            if resp.get("error"):
+                result["error"] = resp["error"]
+            else:
+                await self._cache.set(cache_key, result, ttl=self._watch_later_cache_ttl)
             log.info(f"Fetched {len(items)} Watch Later items via API for {playlist_id or 'auto'}")
             return result
         except Exception as e:

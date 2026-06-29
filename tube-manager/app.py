@@ -92,6 +92,7 @@ from models.task import Task, TaskStatus, TaskPriority
 
 # Service imports
 from services.youtube_service import YouTubeService
+from services.browser_scraper import has_cookies
 
 # Setup logging
 
@@ -616,6 +617,11 @@ async def get_watch_later(force_refresh: bool = False):
         # If it was a browser scrape, the log from youtube_service will indicate it, no need to re-scrape here
         if not configured_id and items and watch_later_data.get("source") == "browser": # Check if source was browser scrape from the cached data
              source = "browser"
+
+        if not items:
+            if not configured_id and not has_cookies():
+                return {"items": [], "source": "needs-setup", "error": "No Watch Later playlist configured and no cookies uploaded. Set a playlist ID in Settings, or upload YouTube cookies."}
+            return {"items": [], "source": "empty"}
 
         # Try to get the playlist title for the display badge if configured_id is used
         pl_name = configured_id
