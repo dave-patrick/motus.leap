@@ -14,7 +14,7 @@ from core.logger import setup_logging
 log = logging.getLogger(__name__)
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import hashlib
 import re
@@ -724,9 +724,24 @@ async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: b
 
 @app.get("/api/youtube/duplicates", dependencies=[Depends(get_current_user)])
 async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
-    """Scan for duplicate videos in a playlist or all playlists."""
+    """Scan for duplicate videos in a playlist or all playlists.
+    
+    Reads from maintenance.json (populated by background worker) when
+    available, falling back to live scan otherwise.
+    """
     if not youtube_service:
         return {"duplicates": 0, "error": "YouTube service not initialized"}
+    
+    # Try reading from worker's maintenance.json first
+    _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    maintenance_file = _data_dir / "maintenance.json"
+    try:
+        if maintenance_file.exists():
+            maintenance = json.loads(await asyncio.to_thread(maintenance_file.read_text))
+            dup_videos = maintenance.get("duplicated_videos", [])
+            return {"duplicates": len(dup_videos), "total_videos": len(dup_videos), "playlist_id": playlist_id, "items": dup_videos}
+    except Exception:
+        pass
     
     videos = await youtube_service.get_videos(playlist_id=playlist_id)
     video_ids = [v.get("video_id") for v in videos.get("videos", [])]
@@ -734,7 +749,7 @@ async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
     
     # Record scan time
     config = config_manager.config
-    config.last_scan_time = datetime.utcnow().isoformat()
+    config.last_scan_time = datetime.now(timezone.utc).isoformat()
     await config_manager.save(config)
     
     return {"duplicates": duplicates, "total_videos": len(video_ids), "playlist_id": playlist_id}
@@ -744,12 +759,22 @@ async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
 async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
     """Scan for misplaced videos based on channel mappings.
     
-    channel_mappings maps channel_id → target_playlist_id.
-    A video is misplaced if its channel_id has a mapping and the video's
-    current playlist_id differs from the mapped target playlist.
+    Reads from maintenance.json (populated by background worker) when
+    available, falling back to live scan otherwise.
     """
     if not youtube_service:
         return {"misplaced": [], "error": "YouTube service not initialized"}
+    
+    # Try reading from worker's maintenance.json first
+    _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    maintenance_file = _data_dir / "maintenance.json"
+    try:
+        if maintenance_file.exists():
+            maintenance = json.loads(await asyncio.to_thread(maintenance_file.read_text))
+            mis_videos = maintenance.get("misplaced_videos", [])
+            return {"misplaced": mis_videos, "count": len(mis_videos)}
+    except Exception:
+        pass
     
     config = config_manager.config
     mappings = config.channel_mappings if hasattr(config, 'channel_mappings') else {}
@@ -1781,7 +1806,7 @@ async def export_data():
     config = config_manager.config
     
     export_data = {
-        "exported_at": datetime.utcnow().isoformat(),
+        "exported_at": datetime.now(timezone.utc).isoformat(),
         "config": config.model_dump(exclude={'oauth': {'client_secret', 'access_token', 'refresh_token'}}),
         "stats": await stats(),
     }

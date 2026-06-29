@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, List, Dict
 
@@ -193,7 +193,7 @@ class BackgroundWorker:
                 if action.startswith("scan_") or action == "full_cluster_scan":
                     try:
                         config = self.config_manager.config
-                        config.last_scan_time = datetime.utcnow().isoformat()
+                        config.last_scan_time = datetime.now(timezone.utc).isoformat()
                         await self.config_manager.save(config)
                     except Exception:
                         pass
