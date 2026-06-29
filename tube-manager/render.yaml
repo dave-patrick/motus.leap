@@ -4,7 +4,7 @@ services:
     runtime: python
     runtimeVersion: "3.11"
     plan: starter
-    buildCommand: pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt
+    buildCommand: apt-get update && apt-get install -y --no-install-recommends libgtk-3-0t64 libnotify4 libnss3 libxss1 xdg-utils libatk-bridge2.0-0 libdrm2 libxkbcommon0 libatspi2.0-0 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxrandr2 libgbm1 libxcb1 libasound2 libcups2 && pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt && python -m playwright install chromium && python -m playwright install firefox && pip install camoufox && python -c "from camoufox.sync_api import Camofox; print('camoufox OK')"
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: YOUTUBE_CLIENT_ID
