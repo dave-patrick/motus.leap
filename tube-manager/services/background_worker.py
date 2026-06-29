@@ -188,7 +188,16 @@ class BackgroundWorker:
                 elif action == "scan_misplaced":
                     result = await self.scan_misplaced(payload)
                     await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
-                
+
+                # Update last_scan_time for any scan-type action
+                if action.startswith("scan_") or action == "full_cluster_scan":
+                    try:
+                        config = self.config_manager.config
+                        config.last_scan_time = datetime.utcnow().isoformat()
+                        await self.config_manager.save(config)
+                    except Exception:
+                        pass
+
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
                 self.task_queue.task_done()
                 self.current_task_name = None
