@@ -253,12 +253,25 @@ class BackgroundWorker:
                 pl_id = pl.get("id")
                 pl_title = pl.get("snippet", {}).get("title", pl_id)
                 try:
-                    items_resp = await _retry_with_backoff(
-                        lambda: asyncio.to_thread(client.list_videos, pl_id, max_results=50),
-                        max_retries=3,
-                        base_delay=1.0,
-                        label=f"list_videos({pl_id})",
-                    )
+                    # Paginate past YouTube's 50-per-page cap so long playlists
+                    # are fully collected rather than silently truncated.
+                    page_token = None
+                    all_items = []
+                    while True:
+                        page_resp = await _retry_with_backoff(
+                            lambda pt=page_token: asyncio.to_thread(
+                                client.list_videos, pl_id, max_results=50, page_token=pt
+                            ),
+                            max_retries=3,
+                            base_delay=1.0,
+                            label=f"list_videos({pl_id})",
+                        )
+                        all_items.extend(page_resp.get("items", []))
+                        next_token = page_resp.get("nextPageToken")
+                        if not next_token:
+                            break
+                        page_token = next_token
+                    items_resp = {"items": all_items}
                 except Exception as video_err:
                     log.warning(f"[WORKER] Failed to fetch videos for playlist {pl_id}: {video_err}")
                     await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WORKER] Skipping playlist {pl_id}: {video_err}"}))
