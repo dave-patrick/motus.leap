@@ -131,6 +131,22 @@ def _load_secret_key() -> str:
 
 SECRET_KEY = _load_secret_key()
 
+
+def _cookie_secure() -> bool:
+    """True when running over HTTPS in production.
+
+    This app is deployed on Render (which sets RENDER=true), not Vercel,
+    so the cookie `secure` flag must track the Render/production environment.
+    Falls back to the legacy VERCEL_ENV/ENV checks for compatibility.
+    Stays False for plain-http local dev so the `token` cookie is stored.
+    """
+    return (
+        os.getenv("RENDER", "").lower() == "true"
+        or os.getenv("VERCEL_ENV") == "production"
+        or os.getenv("ENV") == "production"
+    )
+
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 7 days
 
@@ -607,7 +623,7 @@ async def login(user_data: UserLogin, request: Request, response: Response, user
         path="/",
         httponly=True,
         samesite="Lax",
-        secure=os.getenv("ENV") == "production" # Use secure in production
+        secure=_cookie_secure() # Use secure in production (Render/HTTPS)
     )
 
     return TokenResponse(
@@ -1158,24 +1174,26 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
         }
 
         # Set the token in a secure, http-only cookie for OAuth login
-        if response:
-            response.set_cookie(
-                key="token",
-                value=app_token,
-                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                path="/",
-                httponly=True,
-                samesite="Strict",
-                secure=os.getenv("ENV") == "production"
-            )
-
-        # Redirect to frontend — token is in the HttpOnly cookie, not the URL
+        # IMPORTANT: the cookie MUST be set on the RedirectResponse that is
+        # returned. Setting it on a separate injected Response object is
+        # discarded by Starlette — the browser then never stores the token,
+        # require_auth redirects to /auth, and the user loops.
         frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com").rstrip("/")
-        return RedirectResponse(
-            url=f"{frontend_url}/auth?status=success",
+        redirect = RedirectResponse(
+            url=f"{frontend_url}/dashboard#token={app_token}",
             status_code=302
         )
+        redirect.set_cookie(
+            key="token",
+            value=app_token,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            path="/",
+            httponly=True,
+            samesite="Lax",
+            secure=_cookie_secure(),
+        )
+        return redirect
 
     except httpx.RequestError as e:
         log.error(f"HTTP request failed: {e}")
