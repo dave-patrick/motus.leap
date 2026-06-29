@@ -54,6 +54,7 @@ class YouTubeService:
         # LRU cache to avoid redundant API calls with eviction policy
         self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(hours=6))
         self._watch_later_cache_ttl = timedelta(minutes=15) # Shorter TTL for Watch Later
+        self._enrich_lock = asyncio.Lock()  # Prevent concurrent enrichment from crashing (heap corruption)
 
         # User-specific storage path — configurable via TUBE_MANAGER_DATA_DIR (defaults to /app/data on Render, tmp in tests)
         _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
@@ -391,15 +392,16 @@ class YouTubeService:
             
             channel_stats = {}
             if channel_ids:
-                log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
-                try:
-                    enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
-                    for item in enriched.get("items", []):
-                        cid = item.get("id", "")
-                        if cid:
-                            channel_stats[cid] = item
-                except Exception as e:
-                    log.warning(f"Channel enrichment failed: {e}")
+                async with self._enrich_lock:
+                    log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
+                    try:
+                        enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
+                        for item in enriched.get("items", []):
+                            cid = item.get("id", "")
+                            if cid:
+                                channel_stats[cid] = item
+                    except Exception as e:
+                        log.warning(f"Channel enrichment failed: {e}")
             
             subscriptions = []
             for cid in channel_ids:
@@ -589,15 +591,16 @@ class YouTubeService:
 
                 channel_stats = {}
                 if channel_ids:
-                    log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
-                    try:
-                        enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
-                        for item in enriched.get("items", []):
-                            cid = item.get("id", "")
-                            if cid:
-                                channel_stats[cid] = item
-                    except Exception as e:
-                        log.warning(f"Channel enrichment failed: {e}")
+                    async with self._enrich_lock:
+                        log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
+                        try:
+                            enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
+                            for item in enriched.get("items", []):
+                                cid = item.get("id", "")
+                                if cid:
+                                    channel_stats[cid] = item
+                        except Exception as e:
+                            log.warning(f"Channel enrichment failed: {e}")
 
                 for cid in channel_ids:
                     stats = channel_stats.get(cid, {})
