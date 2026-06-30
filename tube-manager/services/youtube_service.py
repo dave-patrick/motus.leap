@@ -55,6 +55,7 @@ class YouTubeService:
         self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(hours=6))
         self._watch_later_cache_ttl = timedelta(minutes=15) # Shorter TTL for Watch Later
         self._enrich_lock = asyncio.Lock()  # Prevent concurrent enrichment from crashing (heap corruption)
+        self._data_lock = asyncio.Lock()    # Single-flight: serialize ALL heavy data fetches to prevent heap corruption
 
         # User-specific storage path — configurable via TUBE_MANAGER_DATA_DIR (defaults to /app/data on Render, tmp in tests)
         _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
@@ -253,37 +254,37 @@ class YouTubeService:
     @cache_result("basic_stats", ttl=timedelta(minutes=10))
     async def get_basic_stats(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Return lightweight playlist/video counts without fetching video durations."""
+        async with self._data_lock:
+            client = self.get_client(require_oauth=True)
+            if not client:
+                return {
+                    "total_playlists": 0,
+                    "total_videos": 0,
+                    "total_subscriptions": 0,
+                }
 
-        client = self.get_client(require_oauth=True)
-        if not client:
-            return {
-                "total_playlists": 0,
-                "total_videos": 0,
-                "total_subscriptions": 0,
-            }
-
-        try:
-            playlists = await self._fetch_all_paginated(
-                lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
-                max_results=50,
-                max_items=5000,
-            )
-            total_videos = sum(int((pl.get("contentDetails", {}) or {}).get("itemCount", 0) or 0) for pl in playlists)
-            subscriptions_data = await self.list_subscriptions(force_refresh=force_refresh)
-            total_subscriptions = subscriptions_data.get("total_subscriptions", 0)
-            stats = {
-                "total_playlists": len(playlists),
-                "total_videos": total_videos,
-                "total_subscriptions": total_subscriptions,
-            }
-            return stats
-        except Exception as e:
-            log.warning(f"Failed to fetch lightweight stats: {e}")
-            return {
-                "total_playlists": 0,
-                "total_videos": 0,
-                "total_subscriptions": 0,
-            }
+            try:
+                playlists = await self._fetch_all_paginated(
+                    lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
+                    max_results=50,
+                    max_items=5000,
+                )
+                total_videos = sum(int((pl.get("contentDetails", {}) or {}).get("itemCount", 0) or 0) for pl in playlists)
+                subscriptions_data = await self.list_subscriptions(force_refresh=force_refresh)
+                total_subscriptions = subscriptions_data.get("total_subscriptions", 0)
+                stats = {
+                    "total_playlists": len(playlists),
+                    "total_videos": total_videos,
+                    "total_subscriptions": total_subscriptions,
+                }
+                return stats
+            except Exception as e:
+                log.warning(f"Failed to fetch lightweight stats: {e}")
+                return {
+                    "total_playlists": 0,
+                    "total_videos": 0,
+                    "total_subscriptions": 0,
+                }
 
     @cache_result("playlists", ttl=timedelta(minutes=10))
     async def list_playlists(self, force_refresh: bool = False) -> Dict[str, Any]:
@@ -521,24 +522,27 @@ class YouTubeService:
         return all_items[:max_items]
 
 
-    @cache_result("all_data", ttl=timedelta(minutes=10)) # Cache for 10 minutes
     async def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """Fetch ALL YouTube data in one optimized request sequence with caching."""
+        """Single-flight wrapper: concurrent callers share one in-flight fetch."""
+        async with self._data_lock:
+            if not force_refresh:
+                # Check cache first without acquiring the lock
+                cached = await self._cache.get("all_data")
+                if cached is not None:
+                    return cached
+                disk_data = await self._load_from_disk("all_data")
+                if disk_data:
+                    await self._cache.set("all_data", disk_data, timedelta(minutes=10))
+                    return disk_data
+            # No cache — run the actual fetch
+            result = await self._fetch_all_data_impl(force_refresh=force_refresh)
+            # Cache the result for subsequent callers
+            if "error" not in result:
+                await self._cache.set("all_data", result, timedelta(minutes=10))
+            return result
 
-        # This is the QUOTA-OPTIMIZED entry point. It fetches:
-        # - Subscriptions with channel stats
-        # - All playlists with video counts
-        # - Playlist videos with duration
-        # - Channel mapping data
-
-        # All data is cached for 10 minutes to minimize API calls.
-
-        # Args:
-        #     force_refresh: If True, bypass cache and fetch fresh data
-
-        # Returns:
-        #     Dictionary containing all YouTube data
-        # """
+    async def _fetch_all_data_impl(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """Actual fetch implementation. Caller is responsible for caching."""
         user_id = self._get_user_id()
         
         # 1. Try persistent disk cache if not in memory (decorator already handled memory)
