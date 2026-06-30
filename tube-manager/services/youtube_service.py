@@ -464,10 +464,17 @@ class YouTubeService:
 
             # Fallback to API (playlist_id is already None for "WL" — auto-detected at top of function)
             log.info(f"[WL SYNC] Calling API with playlist_id={playlist_id}")
-            resp = await asyncio.to_thread(client.list_watch_later_items, max_results=50, playlist_id=playlist_id)
-            items = resp.get("items", [])
-            api_error = resp.get("error")
-            log.info(f"[WL SYNC] API returned {len(items)} items, error={api_error}")
+            # Use pagination to fetch ALL items (up to 1000), not just the first page
+            all_items = await self._fetch_all_paginated(
+                lambda max_results, page_token: client.list_watch_later_items(
+                    max_results=max_results, page_token=page_token, playlist_id=playlist_id
+                ),
+                max_results=50,
+                max_items=1000,
+            )
+            items = all_items
+            api_error = None  # If pagination completed, assume success
+            log.info(f"[WL SYNC] API pagination returned {len(items)} items")
             result = {"items": items}
             # Don't cache error results — the caller needs to see the error and the
             # user may fix the config (e.g. set watch_later_playlist_id) without waiting for cache expiry.
