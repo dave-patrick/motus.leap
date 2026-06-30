@@ -1,7 +1,7 @@
 // playlists.js - Playlists specific scripts
 
 // Store all playlists for manage function
-let allPlaylists = [];
+var allPlaylists = [];
 
 // Synchronous render of cached playlists for instant display
 function renderCachedPlaylists() {

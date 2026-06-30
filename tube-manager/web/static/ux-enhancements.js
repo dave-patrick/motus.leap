@@ -3,8 +3,8 @@
 // ============================================
 
 // Global state for loading states
-const loadingStates = new Map();
-const errorQueue = [];
+var loadingStates = new Map();
+var errorQueue = [];
 
 // ============================================
 // LOADING STATES

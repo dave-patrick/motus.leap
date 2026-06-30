@@ -1,16 +1,16 @@
-const consoleOutput = document.getElementById('console-output');
-const token = localStorage.getItem('token') || '';
+var consoleOutput = document.getElementById('console-output');
+var token = localStorage.getItem('token') || '';
 
 // Redirect to auth if no token present
 if (!token) {
     window.location.href = '/auth';
 }
 
-let ws = null;
-let pingInterval = null;
-let pongTimeout = null;
-let missedPongs = 0;
-let statsIntervalId = null; // H3 FIX: Track single stats poller
+var ws = null;
+var pingInterval = null;
+var pongTimeout = null;
+var missedPongs = 0;
+var statsIntervalId = null; // H3 FIX: Track single stats poller
 
 // H4/H18 FIX: Fetch wrapper with retry logic for mobile network failures
 async function fetchWithRetry(url, options = {}, retries = 3) {
