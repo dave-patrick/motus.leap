@@ -429,6 +429,11 @@ class YouTubeService:
 
     # This method is not using the decorator, it directly handles its own caching
     async def list_watch_later_items_cached(self, playlist_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
+        # If playlist_id is "WL" (native Watch Later — API restricted), force auto-detect
+        if playlist_id == "WL":
+            log.info("[WL SYNC] watch_later_playlist_id is WL — using auto-detect instead")
+            playlist_id = None
+
         user_id = self._get_user_id()
         cache_key = f"watch_later_items_{user_id}_{playlist_id or 'auto'}"
 
@@ -449,6 +454,7 @@ class YouTubeService:
                 if has_cookies():
                     log.info("[WATCH LATER CACHE] YouTube cookies found. Attempting browser scrape for native Watch Later...")
                     scraped = await asyncio.to_thread(scrape_watch_later_videos, 500)
+                    log.info(f"[WATCH LATER CACHE] Browser scrape attempt: items={len(scraped.get('items', []))}, error={scraped.get('error')}")
                     if scraped.get("items"):
                         log.info(f"[WATCH LATER CACHE] Browser scrape retrieved {len(scraped['items'])} videos from native Watch Later!")
                         await self._cache.set(cache_key, scraped, ttl=self._watch_later_cache_ttl) # Use _cache.set with ttl
@@ -456,16 +462,17 @@ class YouTubeService:
                     else:
                         log.info("[WATCH LATER CACHE] Browser scrape returned 0 videos. Falling back to API...")
 
-            # Fallback to API if no cookies, scrape failed, or specific playlist_id was requested
-            # If playlist_id is "WL" (native Watch Later — API restricted), use auto-detect instead
-            api_playlist_id = None if playlist_id == "WL" else playlist_id
-            resp = await asyncio.to_thread(client.list_watch_later_items, max_results=50, playlist_id=api_playlist_id)
+            # Fallback to API (playlist_id is already None for "WL" — auto-detected at top of function)
+            log.info(f"[WL SYNC] Calling API with playlist_id={playlist_id}")
+            resp = await asyncio.to_thread(client.list_watch_later_items, max_results=50, playlist_id=playlist_id)
             items = resp.get("items", [])
+            api_error = resp.get("error")
+            log.info(f"[WL SYNC] API returned {len(items)} items, error={api_error}")
             result = {"items": items}
             # Don't cache error results — the caller needs to see the error and the
             # user may fix the config (e.g. set watch_later_playlist_id) without waiting for cache expiry.
-            if resp.get("error"):
-                result["error"] = resp["error"]
+            if api_error:
+                result["error"] = api_error
             else:
                 await self._cache.set(cache_key, result, ttl=self._watch_later_cache_ttl)
             log.info(f"Fetched {len(items)} Watch Later items via API for {playlist_id or 'auto'}")
