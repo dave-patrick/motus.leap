@@ -568,6 +568,8 @@ class YouTubeService:
                 log.warning(f"Approaching item cap {max_items}, stopping pagination")
                 break
 
+        if len(all_items) >= max_items:
+            log.warning(f"_fetch_all_paginated: hit cap at {max_items} items — results may be truncated")
         return all_items[:max_items]
 
 
@@ -714,7 +716,7 @@ class YouTubeService:
                         video_items = await self._fetch_all_paginated(
                             lambda max_results, page_token: client.list_videos(pl_id, max_results=max_results, page_token=page_token),
                             max_results=50,
-                            max_items=min(500, max(0, max_total_videos - len(videos))),
+                            max_items=500,
                         )
                         playlist_videos = []
                         for vid in video_items:
