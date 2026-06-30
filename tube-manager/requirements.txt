@@ -18,4 +18,5 @@ python-dotenv>=1.0.0
 
 
 # Headless browser for Watch Later scraping (bypasses YouTube API restriction)
-playwright>=1.40.0
+playwright>=1.40.0,<1.51.0
+camoufox[geoip]>=0.2.3

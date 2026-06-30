@@ -4,7 +4,7 @@ services:
     runtime: python
     runtimeVersion: "3.11"
     plan: starter
-    buildCommand: pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt && python -m playwright install chromium --with-deps
+    buildCommand: pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt && python -m playwright install chromium chromium-headless-shell --with-deps && python -m camoufox fetch
     startCommand: uvicorn tube-manager.app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: YOUTUBE_CLIENT_ID
