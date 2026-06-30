@@ -54,24 +54,19 @@ async function apiCall(url, options = {}) {
 
 async function loadStats() {
     try {
-        const [plResp, wlResp, subResp] = await Promise.all([
-            apiCall('/api/playlists'),
-            apiCall('/api/watch-later'),
-            apiCall('/api/subscriptions')
+        const [statsResp, wlResp] = await Promise.all([
+            apiCall('/api/stats').catch(() => null),
+            apiCall('/api/watch-later').catch(() => null)
         ]);
-        if (plResp.ok) {
-            const plData = await plResp.json();
-            const playlists = plData.playlists || [];
-            document.getElementById('stat-playlists').textContent = playlists.length;
-            document.getElementById('stat-videos').textContent = playlists.reduce((a, p) => a + (p.video_count || 0), 0);
+        if (statsResp && statsResp.ok) {
+            const s = await statsResp.json().catch(() => ({}));
+            document.getElementById('stat-playlists').textContent = s.total_playlists ?? '--';
+            document.getElementById('stat-videos').textContent = s.total_videos ?? '--';
+            document.getElementById('stat-subscriptions').textContent = s.total_subscriptions ?? '--';
         }
-        if (wlResp.ok) {
-            const wlData = await wlResp.json();
+        if (wlResp && wlResp.ok) {
+            const wlData = await wlResp.json().catch(() => ({}));
             document.getElementById('stat-watch-later').textContent = (wlData.items || []).length;
-        }
-        if (subResp.ok) {
-            const subData = await subResp.json();
-            document.getElementById('stat-subscriptions').textContent = (subData.channels || []).length;
         }
     } catch (e) {
         console.warn('Failed to load stats', e);
