@@ -78,7 +78,7 @@ function renderPlaylistsGrid(playlists) {
         <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-[18px] flex flex-col cursor-pointer hover:border-[#2a7db8]/50 transition-colors h-full relative">
             <div class="flex items-start justify-between mb-2">
                 <div class="w-12 h-7 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
-                <button onclick="openPlaylist('${p.id}', event)" class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[8px] mr-1"></i> YouTube</button>
+                <button onclick="openPlaylist('${p.id}', event)" class="text-[9px] px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[8px]"></i></button>
             </div>
             <h3 class="text-xs font-semibold text-white truncate mb-0.5">${p.title}</h3>
             <p class="text-[9px] text-gray-400 mb-2">${p.video_count} videos</p>
@@ -277,11 +277,19 @@ async function actionDeletePlaylist(playlistId, title) {
     }
 }
 
+// SPA-safe init: retry if script hasn't loaded yet
+function safeLoadPlaylists() {
+    if (typeof loadPlaylists === 'function') {
+        loadPlaylists();
+    } else {
+        setTimeout(safeLoadPlaylists, 100);
+    }
+}
 // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadPlaylists);
+    document.addEventListener('DOMContentLoaded', safeLoadPlaylists);
 } else {
-    loadPlaylists();
+    safeLoadPlaylists();
 }
 
 async function syncPlaylists(e) {

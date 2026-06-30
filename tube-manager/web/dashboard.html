@@ -59,7 +59,7 @@
 
         /* Mobile responsive header */
         @media (max-width: 767px) {
-            .site-logo { height: 48px !important; width: auto !important; }
+            .site-logo { height: 64px !important; width: auto !important; }
         }</style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js"></script>
@@ -72,7 +72,7 @@
     <header class="bg-[#1a1d24] px-4 md:px-8 py-3 md:py-6 flex items-center">
         <div class="flex items-center space-x-3 md:space-x-4 pl-12 md:pl-0">
             <div class="flex items-center">
-                <img src="/static/logo_icon.png?v=3" alt="motus.leap graphic" class="site-logo" style="height: 115px; width: auto; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));">
+                <img src="/static/logo_icon.png?v=3" alt="motus.leap graphic" class="site-logo" style="height: 153px; width: auto; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));">
             </div>
             <div class="flex flex-col justify-center">
                 <h1 class="text-3xl md:text-[5.0625rem] font-bold tracking-tight mb-1 flex items-baseline leading-none site-title">
@@ -98,8 +98,7 @@
             <nav class="flex flex-col gap-1">
                 <a href="/dashboard" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
                 <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-                <a href="/watch-later" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
-                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
                 <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
             <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
@@ -137,10 +136,10 @@
                 <div class="bento-card p-5">
                     <h4 class="text-xs font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fas fa-robot accent"></i> Agent Control Center</h4>
                     <div class="flex flex-wrap items-center justify-start gap-3">
-                        <button id="btn-fetch-all" class="px-4 py-2.5 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-sync"></i> Full Playlist Sync</button>
-                        <button id="btn-watch-later" class="px-4 py-2.5 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-clock"></i> Watch Later Sync</button>
+                        <button id="btn-fetch-all" data-refresh="stats" class="px-4 py-2.5 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-sync"></i> Full Playlist Sync</button>
+                        <button id="btn-watch-later" data-refresh="stats" class="px-4 py-2.5 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-clock"></i> Watch Later Sync</button>
                         <button id="btn-watch-later-move" class="px-4 py-2.5 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-arrows-alt"></i> Watch Later Move</button>
-                        <button id="btn-maintenance" class="px-4 py-2.5 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-wrench"></i> Run Maintenance</button>
+                        <button id="btn-maintenance" data-refresh="stats" class="px-4 py-2.5 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-wrench"></i> Run Maintenance</button>
                     </div>
                 </div>
 

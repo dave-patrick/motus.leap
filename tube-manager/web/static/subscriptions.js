@@ -139,11 +139,19 @@ function closeMaintenanceModal() {
     document.getElementById('sub-maint-modal').classList.add('hidden');
 }
 
+// SPA-safe init: retry if script hasn't loaded yet
+function safeLoadSubscriptions() {
+    if (typeof loadSubscriptions === 'function') {
+        loadSubscriptions();
+    } else {
+        setTimeout(safeLoadSubscriptions, 100);
+    }
+}
 // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadSubscriptions);
+    document.addEventListener('DOMContentLoaded', safeLoadSubscriptions);
 } else {
-    loadSubscriptions();
+    safeLoadSubscriptions();
 }
 
 async function actionSubscribe() {

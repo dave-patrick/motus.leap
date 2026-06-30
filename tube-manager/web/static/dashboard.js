@@ -154,8 +154,19 @@ async function callAction(action, payload = null) {
         const options = { method: 'POST', body: JSON.stringify({action, payload}) };
         const resp = await apiCall('/api/action', options);
         const data = await resp.json().catch(() => ({}));
-        if (resp.ok) logConsole(`${action} initiated.`, 'success');
-        else logConsole(`${action} failed: ${data.detail || data.error || resp.status}`, 'error');
+        if (resp.ok) {
+            logConsole(`${action} initiated.`, 'success');
+            // Refresh dashboard stats + scan details after action completes
+            setTimeout(() => {
+                loadDashboardStats();
+                const dupEl = document.getElementById('stat-duplicates');
+                const misEl = document.getElementById('stat-misplaced');
+                if (dupEl) dupEl.textContent = '...';
+                if (misEl) misEl.textContent = '...';
+            }, 3000);
+        } else {
+            logConsole(`${action} failed: ${data.detail || data.error || resp.status}`, 'error');
+        }
     } catch (e) {
         logConsole(`${action} error: ${e.message}`, 'error');
     }

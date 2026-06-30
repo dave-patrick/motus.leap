@@ -1225,8 +1225,9 @@ async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any
 # Watch Later page with AI scan
 @app.get("/watch-later")
 async def watch_later_page():
-    """Serve the Watch Later full page with AI scan and correction UI."""
-    return await no_cache_file_response(WEB_DIR / "watch-later.html")
+    """Watch Later page removed — redirect to dashboard."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard")
 
 
 # Playlist detail page

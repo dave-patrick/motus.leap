@@ -512,8 +512,16 @@ async function initPlaylistPage() {
 }
 
 // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+// SPA-safe init: retry if script hasn't loaded yet (SPA fires DOMContentLoaded before external scripts finish)
+function safeInitPlaylistPage() {
+    if (typeof initPlaylistPage === 'function') {
+        initPlaylistPage();
+    } else {
+        setTimeout(safeInitPlaylistPage, 100);
+    }
+}
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initPlaylistPage);
+    document.addEventListener('DOMContentLoaded', safeInitPlaylistPage);
 } else {
-    initPlaylistPage();
+    safeInitPlaylistPage();
 }

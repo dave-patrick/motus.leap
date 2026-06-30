@@ -34,11 +34,22 @@
 <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
 <button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 <body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
-    <header class="h-16 border-b border-[#2a2f3a] bg-[#1a1d24] flex items-center justify-between px-6 shrink-0">
+    <header class="bg-[#1a1d24] px-4 md:px-8 py-3 md:py-6 flex items-center justify-between">
         <div class="flex items-center gap-4">
-            <img src="/static/logo_icon.png?v=3" class="w-8 h-8 shrink-0 object-contain">
+            <img src="/static/logo_icon.png?v=3" class="site-logo" style="height: 48px; width: auto; object-fit: contain;">
             <div>
-                <h1 class="text-sm font-bold tracking-wide text-white leading-tight site-title">mot<span class="text-[#2f8fc9]">u</span>s.leap</h1>
+                <h1 class="text-3xl md:text-[5.0625rem] font-bold tracking-tight mb-1 flex items-baseline leading-none site-title">
+                    <span class="text-white">m</span>
+                    <span class="text-white">o</span>
+                    <span class="text-white">t</span>
+                    <span class="text-[#2f8fc9]">u</span>
+                    <span class="text-white">s</span>
+                    <span class="text-gray-500">.</span>
+                    <span class="text-white">l</span>
+                    <span class="text-white">e</span>
+                    <span class="text-white">a</span>
+                    <span class="text-white">p</span>
+                </h1>
             </div>
         </div>
         <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
@@ -49,8 +60,7 @@
             <nav class="flex flex-col gap-1">
                 <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
                 <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-                <a href="/watch-later" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fa-regular fa-clock w-5 text-center"></i> Watch Later</a>
-                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
                 <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
             <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
