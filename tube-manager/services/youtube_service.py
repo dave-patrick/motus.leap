@@ -476,6 +476,34 @@ class YouTubeService:
             api_error = None  # If pagination completed, assume success
             log.info(f"[WL SYNC] API pagination returned {len(items)} items")
             result = {"items": items}
+            # If API returned 0 items (likely 403 on native WL), try fallback: search user playlists by title
+            if len(items) == 0 and api_error is None:
+                log.info("[WL SYNC] API returned 0 items — searching user playlists by title as fallback...")
+                try:
+                    pl_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
+                    pl_items = pl_resp.get("items", [])
+                    target_titles = {"watch later", "watchlater", "queue", "sync queue", "wl", "sort", "1~sort", "triage"}
+                    for pl in pl_items:
+                        title = pl.get("snippet", {}).get("title", "").strip().lower()
+                        if title in target_titles:
+                            fallback_id = pl.get("id")
+                            if fallback_id and fallback_id != playlist_id:
+                                log.info(f"[WL SYNC] Found fallback playlist '{title}' ({fallback_id}) — fetching with pagination")
+                                fallback_items = await self._fetch_all_paginated(
+                                    lambda mr, pt, fid=fallback_id: client.list_watch_later_items(
+                                        max_results=mr, page_token=pt, playlist_id=fid
+                                    ),
+                                    max_results=50,
+                                    max_items=1000,
+                                )
+                                if fallback_items:
+                                    log.info(f"[WL SYNC] Fallback returned {len(fallback_items)} items")
+                                    result = {"items": fallback_items}
+                                    items = fallback_items
+                                    break
+                except Exception as e:
+                    log.warning(f"[WL SYNC] Fallback playlist search failed: {e}")
+
             # Don't cache error results — the caller needs to see the error and the
             # user may fix the config (e.g. set watch_later_playlist_id) without waiting for cache expiry.
             if api_error:
