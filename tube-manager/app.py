@@ -1682,13 +1682,22 @@ async def save_cookies(request: Request):
         if not isinstance(cookies, list):
             return JSONResponse(status_code=400, content={"error": "Invalid cookie format: expected array"})
 
-        cookies_file = Path(__file__).resolve().parent / "data" / "youtube_cookies.json"
+        from services.browser_scraper import _cookies_path
+        cookies_file = _cookies_path()
         cookies_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(cookies_file, 'w') as f:
             json.dump(cookies, f, indent=2)
 
         log.info(f"Saved {len(cookies)} YouTube cookies to {cookies_file}")
+        # Invalidate Watch Later cache so next sync uses fresh cookies
+        if youtube_service and hasattr(youtube_service, '_cache') and youtube_service._cache:
+            try:
+                user_id = youtube_service._get_user_id()
+                await youtube_service._cache.delete(f"watch_later_items_{user_id}_auto")
+                log.info("[COOKIES] Invalidated Watch Later cache after cookie upload")
+            except Exception:
+                pass
         return {"status": "success", "count": len(cookies), "path": str(cookies_file)}
     except Exception as e:
         log.error(f"Failed to save cookies: {e}")

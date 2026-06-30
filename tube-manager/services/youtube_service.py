@@ -482,12 +482,12 @@ class YouTubeService:
                 try:
                     pl_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
                     pl_items = pl_resp.get("items", [])
-                    target_titles = {"watch later", "watchlater", "queue", "sync queue", "wl", "sort", "1~sort", "triage"}
+                    target_titles = {"watch later", "watchlater", "queue", "sync queue", "wl", "sort", "triage"}
                     for pl in pl_items:
                         title = pl.get("snippet", {}).get("title", "").strip().lower()
                         if title in target_titles:
                             fallback_id = pl.get("id")
-                            if fallback_id and fallback_id != playlist_id:
+                            if fallback_id and fallback_id != playlist_id and fallback_id != getattr(self.config, "watch_later_target_playlist_id", None):
                                 log.info(f"[WL SYNC] Found fallback playlist '{title}' ({fallback_id}) — fetching with pagination")
                                 fallback_items = await self._fetch_all_paginated(
                                     lambda mr, pt, fid=fallback_id: client.list_watch_later_items(
