@@ -461,7 +461,8 @@ class YouTubeService:
                         await self._cache.set(cache_key, scraped, ttl=self._watch_later_cache_ttl) # Use _cache.set with ttl
                         return scraped
                     else:
-                        log.info("[WATCH LATER CACHE] Browser scrape returned 0 videos. Falling back to API...")
+                        scraped_error = scraped.get("error", "unknown")
+                        log.info(f"[WATCH LATER CACHE] Browser scrape returned 0 videos (error={scraped_error}). Falling back to API...")
 
             # Fallback to API (playlist_id is already None for "WL" — auto-detected at top of function)
             log.info(f"[WL SYNC] Calling API with playlist_id={playlist_id}")
