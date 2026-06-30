@@ -444,11 +444,11 @@ class YouTubeService:
 
         try:
             # Try browser scraper first (bypasses API restriction) if no specific playlist_id is provided
-            if not playlist_id:
+            if not playlist_id or playlist_id == "WL":
                 from services.browser_scraper import has_cookies, scrape_watch_later_videos
                 if has_cookies():
                     log.info("[WATCH LATER CACHE] YouTube cookies found. Attempting browser scrape for native Watch Later...")
-                    scraped = await asyncio.to_thread(scrape_watch_later_videos, 200)
+                    scraped = await asyncio.to_thread(scrape_watch_later_videos, 500)
                     if scraped.get("items"):
                         log.info(f"[WATCH LATER CACHE] Browser scrape retrieved {len(scraped['items'])} videos from native Watch Later!")
                         await self._cache.set(cache_key, scraped, ttl=self._watch_later_cache_ttl) # Use _cache.set with ttl

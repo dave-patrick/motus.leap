@@ -47,7 +47,7 @@ def has_cookies() -> bool:
         return False
 
 
-def scrape_watch_later_videos(max_items: int = 200) -> dict:
+def scrape_watch_later_videos(max_items: int = 500) -> dict:
     """Scrape the native YouTube Watch Later playlist using a headless browser.
     
     Returns dict with 'items' list (same format as YouTube API playlistItems).

@@ -162,7 +162,7 @@ async function callAction(action, payload = null) {
 }
 
 document.getElementById('btn-fetch-all').addEventListener('click', () => callAction('sync_playlists'));
-document.getElementById('btn-watch-later').addEventListener('click', () => callAction('sync_watch_later'));
+document.getElementById('btn-watch-later').addEventListener('click', () => callAction('sync_watch_later', {force_refresh: true}));
 document.getElementById('btn-watch-later-move').addEventListener('click', () => callAction('watch_later_move'));
 // Maintenance action removed — use sync_playlists for data refresh.
 document.getElementById('btn-cancel').addEventListener('click', async () => {
