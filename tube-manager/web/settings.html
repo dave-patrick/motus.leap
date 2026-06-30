@@ -17,7 +17,16 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-    </style>
+    
+        @font-face {
+            font-family: 'Corpta DEMO';
+            src: url('/static/CorptaDemo.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        .site-title { font-family: 'Corpta DEMO', serif; }
+</style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
 </head>
@@ -27,7 +36,7 @@
     <header class="h-16 border-b border-[#2a2f3a] bg-[#1a1d24] flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-3">
             <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="w-8 h-8 object-contain">
-            <h1 class="text-3xl font-semibold text-white tracking-tight">mot<span class="text-[#2f8fc9]">u</span><span class="text-white">s</span><span class="text-gray-500">.</span>leap</h1>
+            <h1 class="text-3xl font-semibold text-white tracking-tight site-title">mot<span class="text-[#2f8fc9]">u</span><span class="text-white">s</span><span class="text-gray-500">.</span>leap</h1>
         </div>
         <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
     </header>

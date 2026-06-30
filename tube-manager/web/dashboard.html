@@ -47,7 +47,16 @@
         .console-line.warn { border-color: #f59e0b; }
         .nav-item.active { background-color: #2f8fc9; color: #ffffff; }
         .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
-    </style>
+    
+        @font-face {
+            font-family: 'Corpta DEMO';
+            src: url('/static/CorptaDemo.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        .site-title { font-family: 'Corpta DEMO', serif; }
+</style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js"></script>
 </head>
@@ -62,7 +71,7 @@
                 <img src="/static/logo_icon.png?v=3" alt="motus.leap graphic" style="height: 128px; width: auto; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));">
             </div>
             <div class="flex flex-col justify-center">
-                <h1 class="text-[5.0625rem] font-bold tracking-tight mb-1 flex items-baseline leading-none">
+                <h1 class="text-[5.0625rem] font-bold tracking-tight mb-1 flex items-baseline leading-none site-title">
                     <span class="text-white">m</span>
                     <span class="text-white">o</span>
                     <span class="text-white">t</span>

@@ -17,7 +17,16 @@
         .bento-card { background: #181c24; border: 1px solid #2a2f3a; border-radius: 0.75rem; }
         .bento-card-dark { background: #0e1014; border: 1px solid #2a2f3a; border-radius: 0.75rem; }
         input[type="text"], input[type="password"], input[type="number"], select, textarea { min-height: 44px; }
-    </style>
+    
+        @font-face {
+            font-family: 'Corpta DEMO';
+            src: url('/static/CorptaDemo.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        .site-title { font-family: 'Corpta DEMO', serif; }
+</style>
 </head>
 <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
 <button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
@@ -41,7 +50,7 @@
     <header class="h-16 border-b border-[#2a2f3a] bg-[#1a1d24] flex items-center justify-between px-4 md:px-6 shrink-0">
         <div class="flex items-center gap-3">
             <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="w-8 h-8 object-contain">
-            <h1 class="text-xl md:text-3xl font-semibold text-white tracking-tight">mot<span class="text-[#2f8fc9]">u</span><span class="text-white">s</span><span class="text-gray-500">.</span>leap</h1>
+            <h1 class="text-xl md:text-3xl font-semibold text-white tracking-tight site-title">mot<span class="text-[#2f8fc9]">u</span><span class="text-white">s</span><span class="text-gray-500">.</span>leap</h1>
         </div>
         <button onclick="logout()" class="w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
     </header>
