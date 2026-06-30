@@ -23,7 +23,7 @@ except ImportError:
     except ImportError:
         pass
 
-COOKIES_DIR = Path(__file__).parent.parent / "data"
+COOKIES_DIR = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
 
 
 def _cookies_path() -> Path:
