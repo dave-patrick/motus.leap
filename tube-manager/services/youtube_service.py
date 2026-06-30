@@ -655,8 +655,8 @@ class YouTubeService:
             max_total_videos = 2000 if force_refresh else 500
             
             # Process only the playlists needed to keep duration scans quota-safe.
-            # Use semaphore to limit concurrent playlist fetches (max 5 concurrent)
-            semaphore = asyncio.Semaphore(5)
+            # Use semaphore to limit concurrent playlist fetches (1 on Render to avoid heap corruption)
+            semaphore = asyncio.Semaphore(1)
             
             async def fetch_playlist_videos(playlist):
                 pl_id = playlist["id"]
