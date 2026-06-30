@@ -267,7 +267,7 @@ class YouTubeService:
                 playlists = await self._fetch_all_paginated(
                     lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
                     max_results=50,
-                    max_items=5000,
+                    max_items=500,
                 )
                 total_videos = sum(int((pl.get("contentDetails", {}) or {}).get("itemCount", 0) or 0) for pl in playlists)
                 subscriptions_data = await self.list_subscriptions(force_refresh=force_refresh)
@@ -305,7 +305,7 @@ class YouTubeService:
             playlist_items = await self._fetch_all_paginated(
                 lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
                 max_results=50,
-                max_items=5000,
+                max_items=500,
             )
             current_playlists = sorted((self._playlist_item_to_dict(pl) for pl in playlist_items), key=lambda x: x["title"].lower())
             
@@ -378,7 +378,7 @@ class YouTubeService:
             all_subs = await self._fetch_all_paginated(
                 lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
                 max_results=50,
-                max_items=5000,
+                max_items=500,
             )
             
             channel_ids = []
@@ -457,6 +457,7 @@ class YouTubeService:
                     log.info(f"[WATCH LATER CACHE] Browser scrape attempt: items={len(scraped.get('items', []))}, error={scraped.get('error')}")
                     if scraped.get("items"):
                         log.info(f"[WATCH LATER CACHE] Browser scrape retrieved {len(scraped['items'])} videos from native Watch Later!")
+                        scraped["source"] = "browser"
                         await self._cache.set(cache_key, scraped, ttl=self._watch_later_cache_ttl) # Use _cache.set with ttl
                         return scraped
                     else:
@@ -470,7 +471,7 @@ class YouTubeService:
                     max_results=max_results, page_token=page_token, playlist_id=playlist_id
                 ),
                 max_results=50,
-                max_items=1000,
+                max_items=300,
             )
             items = all_items
             api_error = None  # If pagination completed, assume success
@@ -482,7 +483,7 @@ class YouTubeService:
                 try:
                     pl_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
                     pl_items = pl_resp.get("items", [])
-                    target_titles = {"watch later", "watchlater", "queue", "sync queue", "wl", "sort", "triage"}
+                    target_titles = {"watch later", "watchlater", "queue", "sync queue", "wl"}
                     for pl in pl_items:
                         title = pl.get("snippet", {}).get("title", "").strip().lower()
                         if title in target_titles:
@@ -494,7 +495,7 @@ class YouTubeService:
                                         max_results=mr, page_token=pt, playlist_id=fid
                                     ),
                                     max_results=50,
-                                    max_items=1000,
+                                    max_items=300,
                                 )
                                 if fallback_items:
                                     log.info(f"[WL SYNC] Fallback returned {len(fallback_items)} items")
@@ -553,6 +554,10 @@ class YouTubeService:
                 break
             items = resp.get("items", [])
             all_items.extend(items)
+
+            # Yield control to event loop to prevent blocking on 512MB Render instances
+            if len(all_items) % 50 == 0:
+                await asyncio.sleep(0)
 
             page_token = resp.get("nextPageToken")
             if not page_token:
@@ -624,7 +629,7 @@ class YouTubeService:
                 all_subs = await self._fetch_all_paginated(
                     lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
                     max_results=50,
-                    max_items=5000,
+                    max_items=500,
                 )
 
                 channel_ids = []
@@ -679,7 +684,7 @@ class YouTubeService:
             all_playlists = await self._fetch_all_paginated(
                 lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
                 max_results=50,
-                max_items=5000,
+                max_items=500,
             )
             playlists = sorted((self._playlist_item_to_dict(pl) for pl in all_playlists), key=lambda x: x["title"].lower())
             total_videos = sum(pl["video_count"] for pl in playlists)
@@ -709,7 +714,7 @@ class YouTubeService:
                         video_items = await self._fetch_all_paginated(
                             lambda max_results, page_token: client.list_videos(pl_id, max_results=max_results, page_token=page_token),
                             max_results=50,
-                            max_items=max(0, max_total_videos - len(videos)),
+                            max_items=min(500, max(0, max_total_videos - len(videos))),
                         )
                         playlist_videos = []
                         for vid in video_items:
