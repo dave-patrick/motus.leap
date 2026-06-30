@@ -488,7 +488,7 @@ class BackgroundWorker:
                 playlist_title_list.append({"id": pid, "title": pt})
 
             # Fetch watch later items using the cached method
-            force_refresh = payload.get("force_refresh", False) # Allow forcing refresh from payload
+            force_refresh = payload.get("force_refresh", True) # Always bypass cache for Watch Later sync
             watch_later_resp = await self.youtube_service.list_watch_later_items_cached(
                 playlist_id=self.channel_id if hasattr(self, "channel_id") and self.channel_id else (self.config_manager.config.watch_later_playlist_id if hasattr(self.config_manager.config, "watch_later_playlist_id") else ""),
                 force_refresh=force_refresh
