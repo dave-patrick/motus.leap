@@ -457,7 +457,9 @@ class YouTubeService:
                         log.info("[WATCH LATER CACHE] Browser scrape returned 0 videos. Falling back to API...")
 
             # Fallback to API if no cookies, scrape failed, or specific playlist_id was requested
-            resp = await asyncio.to_thread(client.list_watch_later_items, max_results=50, playlist_id=playlist_id)
+            # If playlist_id is "WL" (native Watch Later — API restricted), use auto-detect instead
+            api_playlist_id = None if playlist_id == "WL" else playlist_id
+            resp = await asyncio.to_thread(client.list_watch_later_items, max_results=50, playlist_id=api_playlist_id)
             items = resp.get("items", [])
             result = {"items": items}
             # Don't cache error results — the caller needs to see the error and the
