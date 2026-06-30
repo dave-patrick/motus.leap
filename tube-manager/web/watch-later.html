@@ -25,7 +25,7 @@
             font-style: normal;
             font-display: swap;
         }
-        .site-title { font-family: 'Mokoto', serif; }
+        .site-title { font-family: 'Mokoto', serif; font-weight: normal !important; }
 </style>
 </head>
 <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
@@ -98,10 +98,10 @@
     </main>
 </div>
     <script>
-        let cachedVideos = [];
-        let aiPlans = [];
-        let targetPlaylists = [];
-        let selectedPlans = new Set();
+        var cachedVideos = [];
+        var aiPlans = [];
+        var targetPlaylists = [];
+        var selectedPlans = new Set();
 
         function log(msg) {
             const el = document.getElementById('wl-log');

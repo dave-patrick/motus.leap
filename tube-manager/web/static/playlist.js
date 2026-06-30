@@ -1,10 +1,10 @@
 // playlist.js - Playlist specific scripts
 
-let allVideos = [];
-let selectedVideos = new Set();
-let playlistId = window.location.pathname.split('/').pop();
-let allPlaylists = []; // To populate the dropdown, fetched on load
-let currentScanResults = {
+var allVideos = [];
+var selectedVideos = new Set();
+var playlistId = window.location.pathname.split('/').pop();
+var allPlaylists = []; // To populate the dropdown, fetched on load
+var currentScanResults = {
     duplicates: [],
     misplaced: []
 };
