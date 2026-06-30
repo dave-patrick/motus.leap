@@ -1667,6 +1667,7 @@ async def diagnostics_oauth_user() -> dict[str, Any]:
             result["youtube_client_error"] = "Could not build YouTube OAuth client"
     except Exception as e:
         result["error"] = f"{type(e).__name__}: {str(e)}"
+    return result
 
     
 

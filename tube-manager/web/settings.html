@@ -157,9 +157,12 @@
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Watch Later Move Target</label>
-                                        <select id="watch-later-target" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                            <option value="">-- Select a playlist --</option>
-                                        </select>
+                                        <div class="flex gap-2 items-start">
+                                            <select id="watch-later-target" onchange="saveSingleSetting('watch_later_target_playlist_id', this.value)" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                                <option value="">-- Select a playlist --</option>
+                                            </select>
+                                            <button onclick="loadPlaylistNames()" title="Refresh playlist list" class="shrink-0 w-10 h-[44px] rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-400 hover:text-[#2f8fc9] flex items-center justify-center transition-colors"><i class="fa-solid fa-rotate text-xs"></i></button>
+                                        </div>
                                         <p class="text-[9px] text-gray-500 mt-1">Destination playlist for Watch Later Sync & Move. Videos are moved here instead of auto-distributing.</p>
                                     </div>
 
@@ -408,6 +411,27 @@
             el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
             container.appendChild(el);
             setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, duration);
+        }
+
+        // Auto-save a single setting immediately
+        async function saveSingleSetting(key, value) {
+            try {
+                const payload = {};
+                payload[key] = value || null;
+                const resp = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-Protect': '1'},
+                    body: JSON.stringify(payload)
+                });
+                if (resp.ok) {
+                    toast(value ? 'Watch Later target saved!' : 'Watch Later target cleared', 'success');
+                } else {
+                    const data = await resp.json().catch(() => ({}));
+                    toast('Failed to save: ' + (data.detail || 'Server error'), 'error');
+                }
+            } catch (e) {
+                toast('Network error saving setting', 'error');
+            }
         }
 
         // Settings actions
@@ -1074,6 +1098,9 @@ if (document.readyState === 'loading') {
 } else {
     initSettingsPage();
 };
+
+// SPA safety: re-populate dropdown after navigation
+setTimeout(loadPlaylistNames, 300);
     </script>
     <script src="/static/mobile-nav.js"></script>
 </body>
