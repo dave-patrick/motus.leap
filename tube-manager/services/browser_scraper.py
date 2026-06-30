@@ -112,7 +112,7 @@ def _scrape_with_camoufox(cookies_path: Path, max_items: int) -> dict:
         page.goto("https://www.youtube.com/playlist?list=WL", wait_until="networkidle")
         
         # Scroll to load more videos
-        for _ in range(5):
+        for _ in range(10):
             page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
             page.wait_for_timeout(2000)
         
@@ -182,7 +182,7 @@ def _scrape_with_playwright(cookies_path: Path, max_items: int) -> dict:
         page = context.new_page()
         page.goto("https://www.youtube.com/playlist?list=WL", wait_until="networkidle")
         
-        for _ in range(5):
+        for _ in range(10):
             page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
             page.wait_for_timeout(2000)
         
