@@ -207,6 +207,8 @@
                                             <input type="file" id="cookie-file" accept=".json" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                             <button id="upload-cookies-btn" onclick="uploadCookies()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-4 py-2 rounded">Upload Cookies</button>
                                         </div>
+                                        <button id="check-cookies-btn" onclick="checkCookies()" class="bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 text-xs px-4 py-2 rounded w-full mt-2">Check Cookies</button>
+
                                         <div id="cookie-status" class="text-[9px] text-gray-500 min-h-[14px]"></div>
                                         <div id="cookie-location" class="text-[9px] text-gray-500"></div>
                                     </div>
@@ -768,6 +770,36 @@
         async function viewSystemLogs() {
             window.open('/system/logs', '_blank');
         }
+
+        async function checkCookies() {
+            const statusEl = document.getElementById("cookie-status");
+            const locationEl = document.getElementById("cookie-location");
+            statusEl.textContent = "Checking...";
+            statusEl.className = "text-[9px] text-gray-500 min-h-[14px]";
+            locationEl.textContent = "";
+            try {
+                const resp = await fetch("/api/diagnostics/cookies");
+                if (!resp.ok) throw new Error("Server returned " + resp.status);
+                const data = await resp.json();
+                let msg;
+                if (data.has_cookies) {
+                    msg = data.cookie_count + " cookies found" +
+                          (data.has_sapisid ? ", SAPISID present \u2705" : ", SAPISID missing \u274c");
+                    locationEl.textContent = "Path: " + data.cookies_path;
+                    statusEl.className = "text-[9px] text-green-400 min-h-[14px]";
+                } else {
+                    msg = "No cookies saved \u274c";
+                    locationEl.textContent = "Expected path: " + data.cookies_path;
+                    statusEl.className = "text-[9px] text-red-400 min-h-[14px]";
+                }
+                if (data.error) msg += " (read error: " + data.error + ")";
+                statusEl.textContent = msg;
+            } catch (e) {
+                statusEl.textContent = "Diagnostics error: " + e.message;
+                statusEl.className = "text-[9px] text-red-400 min-h-[14px]";
+            }
+        }
+
 
         function toggleCustomAiFields() {
             const provider = document.getElementById('ai-provider')?.value;

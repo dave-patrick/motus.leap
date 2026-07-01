@@ -92,7 +92,7 @@ from models.task import Task, TaskStatus, TaskPriority
 
 # Service imports
 from services.youtube_service import YouTubeService
-from services.browser_scraper import has_cookies
+from services.browser_scraper import has_cookies, _cookies_path, _load_cookies_raw
 
 # Setup logging
 
@@ -1671,6 +1671,31 @@ async def diagnostics_oauth_user() -> dict[str, Any]:
     return result
 
     
+
+@app.get("/api/diagnostics/cookies", dependencies=[Depends(get_current_user)])
+async def diagnostics_cookies() -> dict:
+    """Check if YouTube cookies are saved and report diagnostic info."""
+    cp = _cookies_path()
+    exists = cp.exists()
+    result = {
+        "has_cookies": exists,
+        "cookies_path": str(cp),
+        "cookie_count": 0,
+        "has_sapisid": False,
+    }
+    if exists:
+        try:
+            cookies = _load_cookies_raw()
+            result["cookie_count"] = len(cookies)
+            for c in cookies:
+                name = c.get("name", "")
+                if name in ("SAPISID", "__Secure-3PAPISID"):
+                    result["has_sapisid"] = True
+                    break
+        except Exception as e:
+            result["error"] = str(e)
+    return result
+
 
 # System endpoints
 
