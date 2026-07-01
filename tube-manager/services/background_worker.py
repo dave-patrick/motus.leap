@@ -499,6 +499,10 @@ class BackgroundWorker:
             scraper_error = watch_later_resp.get("scraper_error") or (watch_later_resp.get("items") is None and watch_later_resp.get("error"))
             if scraper_error and not watch_later_items:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER ERROR] {scraper_error}"}))
+            elif not watch_later_items:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCRAPER] No cookies or scraper returned 0 items — using API fallback"}))
+            elif len(watch_later_items) > 0:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER] Retrieved {len(watch_later_items)} videos from scraper"}))
                 
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from sync source (cached: {not force_refresh})"}))
             

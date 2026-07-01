@@ -51,7 +51,7 @@ def _build_cookie_header(cookies: list[dict]) -> str:
     """Build 'Cookie' header string from browser-cookie JSON array."""
     parts = []
     for c in cookies:
-        name = c.get("name", "")
+        name = c.get("name", "") or c.get("key", "")
         value = c.get("value", "")
         if name and value:
             parts.append(f"{name}={value}")
@@ -65,7 +65,7 @@ def _get_sapisid_hash(cookies: list[dict]) -> str:
     """
     sapisid = None
     for c in cookies:
-        name = c.get("name", "")
+        name = c.get("name", "") or c.get("key", "")
         if name in ("SAPISID", "__Secure-3PAPISID"):
             sapisid = c["value"]
             break
