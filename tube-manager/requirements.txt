@@ -15,8 +15,3 @@ PyJWT>=2.8.0
 python-multipart>=0.0.6
 email-validator>=2.0
 python-dotenv>=1.0.0
-
-
-# Headless browser for Watch Later scraping (bypasses YouTube API restriction)
-playwright>=1.40.0,<1.51.0
-camoufox[geoip]>=0.2.3
