@@ -20,3 +20,5 @@ services:
       name: tube-data
       mountPath: /app/data
       sizeGB: 1
+      mountPath: /app/data
+      sizeGB: 1
