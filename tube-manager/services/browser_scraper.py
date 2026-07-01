@@ -101,20 +101,58 @@ def _get_client_version(html: str) -> str:
 
 
 def _extract_yt_initial_data(html: str) -> Optional[dict]:
-    """Extract ytInitialData JSON from YouTube page HTML."""
-    match = re.search(r'ytInitialData\s*=\s*({.*?});', html, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            pass
-    # Fallback: try window['ytInitialData']
-    match = re.search(r'window\[["\']ytInitialData["\']\]\s*=\s*({.*?});', html, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            pass
+    """Extract ytInitialData JSON from YouTube page HTML.
+
+    Uses a brace-counting approach instead of non-greedy regex to correctly
+    extract the complete JSON object even when it contains nested braces
+    (e.g. in JSON strings, thumbnail URLs, etc.).
+    """
+    for marker in (
+        r'ytInitialData\s*=\s*',
+        r'window\[["\']ytInitialData["\']\]\s*=\s*',
+    ):
+        m = re.search(marker, html)
+        if not m:
+            continue
+        json_start = m.end()
+        if json_start >= len(html) or html[json_start] != '{':
+            continue
+
+        depth = 0
+        in_str = False
+        escape = False
+        brace_end = -1
+        for i in range(json_start, len(html)):
+            ch = html[i]
+            if escape:
+                escape = False
+                continue
+            if in_str:
+                if ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+                continue
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    brace_end = i
+                    break
+
+        if brace_end > json_start:
+            raw = html[json_start:brace_end + 1]
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                log.warning("[SCRAPER] ytInitialData JSON decode failed (length=%d, first 200=%s...)",
+                           len(raw), raw[:200].replace(chr(10), ' '))
+                continue
+
     return None
 
 
@@ -514,7 +552,14 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
 
             result_items = all_items[:max_items]
             log.info("[HTTPX SCRAPER] Total: %d videos from Watch Later", len(result_items))
-            return {"items": result_items}
+            # Count videoIds via regex for diagnostic purposes
+            vid_count = len(re.findall(r'["\']videoId["\']\s*:\s*["\']([a-zA-Z0-9_-]{11})["\']', html))
+            log.info("[HTTPX SCRAPER] RAW HTML videoId count: %d", vid_count)
+            return {
+                "items": result_items,
+                "debug_html_video_id_count": vid_count,
+                "debug_yt_data_found": yt_data is not None,
+            }
 
     except Exception as e:
         log.error("[HTTPX SCRAPER] Scrape failed: %s", e)

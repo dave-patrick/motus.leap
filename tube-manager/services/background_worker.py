@@ -502,7 +502,14 @@ class BackgroundWorker:
             elif not watch_later_items:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCRAPER] No cookies or scraper returned 0 items — using API fallback"}))
             elif len(watch_later_items) > 0:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER] Retrieved {len(watch_later_items)} videos from scraper"}))
+                source_label = watch_later_resp.get("source", "api")
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER] Retrieved {len(watch_later_items)} videos from scraper (source: {source_label})"}))
+                # Diagnostic: if count is suspiciously low (< 10), log HTML diagnostics from the scrape result
+                if len(watch_later_items) < 10:
+                    html_video_ids = watch_later_resp.get("debug_html_video_id_count", 0)
+                    yt_data_found = watch_later_resp.get("debug_yt_data_found", False)
+                    if html_video_ids:
+                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER DIAG] ytInitialData found={yt_data_found}, videoIds in raw HTML={html_video_ids}"}))
                 
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from sync source (cached: {not force_refresh})"}))
             
