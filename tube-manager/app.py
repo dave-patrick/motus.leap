@@ -30,7 +30,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 from starlette.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 import aiofiles
 
 # Video ID validation
@@ -203,6 +203,19 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(nightly_auto_apply_mappings())
 
+    # Load persisted bulk operations
+    try:
+        from api.bulk_operations import operations_storage
+        await operations_storage.load()
+        log.info("Bulk operations loaded from disk")
+    except Exception as e:
+        log.warning(f"Failed to load bulk operations (non-fatal): {e}")
+
+    # Log registered routes for diagnostics
+    log.info("[DIAG] Registered bulk routes: %s", [r.path for r in bulk_router.routes])
+    log.info("[DIAG] Registered auth routes: %s", [r.path for r in auth_router.routes])
+    log.info("[DIAG] Total app routes: %s", [r.path for r in app.routes])
+
     log.info("motus.leap started successfully")
 
     yield
@@ -267,15 +280,6 @@ app.add_middleware(
 # Register routers
 app.include_router(bulk_router, tags=["bulk"])
 app.include_router(auth_router)
-
-
-@app.on_event("startup")
-async def _route_diagnostics():
-    import logging
-    log = logging.getLogger("uvicorn")
-    log.info("[DIAG] Registered bulk routes: %s", [r.path for r in bulk_router.routes])
-    log.info("[DIAG] Registered auth routes: %s", [r.path for r in auth_router.routes])
-    log.info("[DIAG] Total app routes: %s", [r.path for r in app.routes])
 
 
 async def no_cache_file_response(file_path: Path) -> Response:
@@ -367,6 +371,24 @@ task_queue: asyncio.Queue = asyncio.Queue()
 background_tasks_running = False
 current_task_name: Optional[str] = None
 worker: Optional[Any] = None
+
+
+def _sync_worker_youtube_service() -> None:
+    """Point the running background worker at the current youtube_service.
+
+    After endpoints (disconnect / save_settings / reset) replace the module
+    global ``youtube_service`` with a fresh instance, the worker would
+    otherwise keep a stale client reference (and a stale playlist cache built
+    from the old account). The worker's ``youtube_service`` property reads
+    ``app.youtube_service`` dynamically, but its fallback ``_youtube_service``
+    and ``_playlist_cache`` must be refreshed explicitly so in-flight and
+    future tasks use the new credentials.
+    """
+    if background_worker is not None and youtube_service is not None:
+        background_worker._youtube_service = youtube_service
+        # Drop any playlist cache derived from the old account.
+        background_worker._playlist_cache = None
+        background_worker._playlist_cache_time = 0
 
 
 
@@ -645,6 +667,14 @@ async def get_watch_later(force_refresh: bool = False):
 class WatchLaterMoveIn(BaseModel):
     video_ids: list[str]
     target_playlist_id: str
+
+    @field_validator("video_ids")
+    @classmethod
+    def validate_video_ids(cls, v):
+        for item in v:
+            if not validate_video_id(item):
+                raise ValueError(f"Invalid video ID format: {item}")
+        return v
 
 
 
@@ -1289,6 +1319,7 @@ async def youtube_disconnect():
     await config_manager.save(config)
     # Recreate YouTubeService without OAuth tokens
     youtube_service = YouTubeService(config)
+    _sync_worker_youtube_service()
     return {"message": "YouTube OAuth disconnected. Re-authorize in Settings to reconnect."}
 
 
@@ -1362,7 +1393,8 @@ async def save_settings(body: SettingsIn):
     # Update YouTube service if credentials changed
     global youtube_service
     youtube_service = YouTubeService(config)
-    
+    _sync_worker_youtube_service()
+
     return {
         "status": "saved",
         "youtube_api_key": (_secret_val(config.youtube_api_key) or "")[:4] + "••••" if _secret_val(config.youtube_api_key) else "",
@@ -1500,7 +1532,8 @@ async def reset_settings():
     
     global youtube_service
     youtube_service = YouTubeService(config)
-    
+    _sync_worker_youtube_service()
+
     return {"message": "Settings reset to defaults"}
 
 
@@ -1530,20 +1563,25 @@ async def dispatch_action(body: dict):
         if not background_worker:
             return {"status": "error", "error": "Background worker not initialized"}
 
-        action_map = {
-            "sync_watch_later": background_worker.watch_later_sync,
-            "watch_later_move": background_worker.watch_later_move,
-            "sync_playlists": background_worker.full_cluster_scan,
-            "scan_duplicates": background_worker.scan_duplicates,
-            "scan_misplaced": background_worker.scan_misplaced,
+        known_actions = {
+            "sync_watch_later",
+            "watch_later_move",
+            "sync_playlists",
+            "scan_duplicates",
+            "scan_misplaced",
+            "full_cluster_scan",
+            "diagnose_failures",
+            "apply_rules",
         }
-
-        handler = action_map.get(action)
-        if not handler:
+        if action not in known_actions:
             return {"status": "error", "error": f"Unknown action: {action}"}
 
-        # Run in background task — the handler itself broadcasts via WebSocket
-        asyncio.create_task(handler(payload or {}))
+        # Enqueue onto the task queue. The single background consumer
+        # (process_background_tasks) serializes actions and dispatches them,
+        # so cancel_current_task() can drain pending work and hard-cancel the
+        # in-flight task. Launching via asyncio.create_task here would bypass
+        # the queue, making cancellation and queue stats ineffective.
+        await task_queue.put({"action": action, "payload": payload or {}})
     except Exception as e:
         log.error(f"Action {action} failed: {e}")
         return {"status": "error", "error": str(e)}
@@ -1897,55 +1935,56 @@ async def websocket_terminal(websocket: WebSocket):
 
     await manager.connect(websocket)
     ping_interval = 30
-    pong_timeout = 10
     max_ping_failures = 3
     ping_failures = 0
-    
+    last_pong = time.monotonic()
+
     try:
         await websocket.send_text(json.dumps({"type": "log", "message": "[WS] Connected to agent terminal"}))
-        
+
+        # ping_loop only SENDS pings and checks staleness of last_pong.
+        # It must never call receive_text() — the main loop below is the
+        # single reader that owns the WebSocket. Concurrent reads on a
+        # Starlette WebSocket are unsafe and silently steal each other's
+        # messages.
         async def ping_loop():
-            nonlocal ping_failures
+            nonlocal ping_failures, last_pong
             while True:
                 await asyncio.sleep(ping_interval)
                 try:
                     await websocket.send_text(json.dumps({"type": "ping"}))
-                    try:
-                        data = await asyncio.wait_for(websocket.receive_text(), timeout=pong_timeout)
-                        msg = json.loads(data)
-                        if msg.get("type") == "pong":
-                            ping_failures = 0
-                        elif msg.get("type") == "ping":
-                            # Client sent a ping while we were waiting for pong — respond and retry
-                            await websocket.send_text(json.dumps({"type": "pong"}))
-                            continue
-                        else:
-                            ping_failures += 1
-                    except asyncio.TimeoutError:
+                    # If we haven't seen a pong since the last ping, count a failure.
+                    if time.monotonic() - last_pong > ping_interval + 5:
                         ping_failures += 1
-                    
                     if ping_failures >= max_ping_failures:
                         await manager.broadcast(json.dumps({"type": "log", "message": "[WS] Connection lost - max ping failures reached"}))
                         break
                 except Exception as e:
                     log.debug(f"WebSocket handler terminated: {e}")
                     break
-        
+
         ping_task = asyncio.create_task(ping_loop())
-        
+
+        # Single reader — owns all incoming messages and dispatches them.
         while True:
             data = await websocket.receive_text()
             msg = json.loads(data)
-            if msg.get("type") == "ping":
+            mtype = msg.get("type")
+            if mtype == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
-            elif msg.get("type") == "pong":
+            elif mtype == "pong":
                 ping_failures = 0
-                
+                last_pong = time.monotonic()
+
     except WebSocketDisconnect:
         pass
     except Exception as e:
         log.error(f"Broad WebSocket error: {e}")
-        await manager.broadcast(json.dumps({"type": "log", "message": f"[WS ERROR] {str(e)}"}))
+        # Send the error only to the affected connection, not broadcast to all clients.
+        try:
+            await websocket.send_text(json.dumps({"type": "log", "message": "[WS ERROR] connection error"}))
+        except Exception:
+            pass
         # Log error but don't break - let the connection be handled normally
     finally:
         ping_task.cancel()

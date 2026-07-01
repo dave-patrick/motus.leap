@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Dict, Any, Optional
 import json
 import csv
@@ -13,6 +13,7 @@ import io
 from datetime import datetime
 import base64
 import asyncio
+import threading
 
 from api.bulk_operations_impl import BulkOperationsService
 from core.config_manager import ConfigManager
@@ -45,11 +46,13 @@ class BulkMoveRequest(BaseModel):
     target_playlist_id: str
     source_playlist_id: Optional[str] = None
 
-    @validator("video_ids", each_item=True)
+    @field_validator("video_ids")
+    @classmethod
     def validate_video_ids(cls, v):
         import re
-        if not re.match(r'^[a-zA-Z0-9_-]{11}$', v):
-            raise ValueError(f"Invalid video ID format: {v}")
+        for item in v:
+            if not re.match(r'^[a-zA-Z0-9_-]{11}$', item):
+                raise ValueError(f"Invalid video ID format: {item}")
         return v
 
 
@@ -58,11 +61,13 @@ class BulkDeleteRequest(BaseModel):
     video_ids: List[str] = Field(..., max_length=500)
     playlist_id: str
 
-    @validator("video_ids", each_item=True)
+    @field_validator("video_ids")
+    @classmethod
     def validate_video_ids(cls, v):
         import re
-        if not re.match(r'^[a-zA-Z0-9_-]{11}$', v):
-            raise ValueError(f"Invalid video ID format: {v}")
+        for item in v:
+            if not re.match(r'^[a-zA-Z0-9_-]{11}$', item):
+                raise ValueError(f"Invalid video ID format: {item}")
         return v
 
 
@@ -72,11 +77,13 @@ class BulkTagRequest(BaseModel):
     tags: List[str]
     action: str  # "add" or "remove"
 
-    @validator("video_ids", each_item=True)
+    @field_validator("video_ids")
+    @classmethod
     def validate_video_ids(cls, v):
         import re
-        if not re.match(r'^[a-zA-Z0-9_-]{11}$', v):
-            raise ValueError(f"Invalid video ID format: {v}")
+        for item in v:
+            if not re.match(r'^[a-zA-Z0-9_-]{11}$', item):
+                raise ValueError(f"Invalid video ID format: {item}")
         return v
 
 
@@ -131,28 +138,36 @@ class OperationsStorage:
     def __init__(self, file_path: Path):
         self.file_path = file_path
         self._operations: Dict[str, BulkOperationResponse] = {}
-        self._lock = asyncio.Lock()
+        # Guards all in-memory access (get/set/delete/list_all) AND the
+        # snapshot taken in save(). Background task processors mutate
+        # operations while the status endpoint reads them concurrently; a
+        # threading.Lock works from both sync accessors and async methods and
+        # ensures save() snapshots a consistent dict (the disk write itself
+        # runs outside the lock to avoid blocking the event loop on I/O).
+        self._lock = threading.Lock()
 
     async def load(self) -> None:
-        async with self._lock:
-            if await asyncio.to_thread(self.file_path.exists):
-                try:
-                    content = await asyncio.to_thread(self.file_path.read_text)
-                    data = json.loads(content)
+        if await asyncio.to_thread(self.file_path.exists):
+            try:
+                content = await asyncio.to_thread(self.file_path.read_text)
+                data = json.loads(content)
+                with self._lock:
                     for k, v in data.items():
                         if "started_at" in v and isinstance(v["started_at"], str):
                             v["started_at"] = datetime.fromisoformat(v["started_at"])
                         if "completed_at" in v and isinstance(v["completed_at"], str):
                             v["completed_at"] = datetime.fromisoformat(v["completed_at"])
                         self._operations[k] = BulkOperationResponse(**v)
-                except Exception as e:
-                    log.warning("Failed to load operations: %s", e)
-            
+            except Exception as e:
+                log.warning("Failed to load operations: %s", e)
+
 
     async def save(self) -> None:
-        async with self._lock:
-            try:
-                self.file_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            await asyncio.to_thread(self.file_path.parent.mkdir, parents=True, exist_ok=True)
+            # Snapshot under the lock so concurrent set()/delete() can't
+            # mutate the dict mid-serialization.
+            with self._lock:
                 serializable = {}
                 for k, v in self._operations.items():
                     d = v.model_dump()
@@ -161,36 +176,35 @@ class OperationsStorage:
                     if isinstance(d.get("completed_at"), datetime):
                         d["completed_at"] = d["completed_at"].isoformat()
                     serializable[k] = d
-                await asyncio.to_thread(self.file_path.write_text, json.dumps(serializable, indent=2))
-            except Exception as e:
-                log.error("Failed to save operations: %s", e)
+            await asyncio.to_thread(self.file_path.write_text, json.dumps(serializable, indent=2))
+        except Exception as e:
+            log.error("Failed to save operations: %s", e)
 
     def get(self, operation_id: str) -> Optional[BulkOperationResponse]:
-        return self._operations.get(operation_id)
+        with self._lock:
+            return self._operations.get(operation_id)
 
     def set(self, operation_id: str, operation: BulkOperationResponse) -> None:
-        self._operations[operation_id] = operation
+        with self._lock:
+            self._operations[operation_id] = operation
 
     def delete(self, operation_id: str) -> None:
-        if operation_id in self._operations:
-            del self._operations[operation_id]
+        with self._lock:
+            if operation_id in self._operations:
+                del self._operations[operation_id]
 
     def list_all(self) -> List[BulkOperationResponse]:
-        return list(self._operations.values())
-    
+        with self._lock:
+            return list(self._operations.values())
+
     async def update_and_save(self, operation: BulkOperationResponse) -> None:
         """Update an operation in memory and save all operations to disk."""
-        self._operations[operation.operation_id] = operation
+        with self._lock:
+            self._operations[operation.operation_id] = operation
         await self.save()
 
 
 operations_storage = OperationsStorage(OPERATIONS_FILE)
-
-# Modify lifespan to load operations at startup
-@router.on_event("startup")
-async def startup_event():
-    await operations_storage.load()
-
 
 # Helper for dependency injection in routes
 async def get_operations_storage():
@@ -206,7 +220,7 @@ async def bulk_move_videos(
     background_tasks: BackgroundTasks,
     config: TubeManagerConfig = Depends(get_config),
     config_manager: ConfigManager = Depends(get_config_manager),
-    ops_storage: Any = None
+    ops_storage: OperationsStorage = Depends(get_operations_storage)
 ):
     """Bulk move videos between playlists."""
     operation_id = f"move_{datetime.now().strftime('%Y%m%d_%H%M%S')}"

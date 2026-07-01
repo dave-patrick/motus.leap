@@ -23,6 +23,11 @@ class ConfigManager:
         """
         self.config_path = config_path or self._get_default_config_path()
         self._config: Optional[TubeManagerConfig] = None
+        # Serializes overlapping saves. The background worker updates
+        # ``last_scan_time`` and saves while a user /api/settings save may be
+        # in flight; without a lock the two write paths can interleave and
+        # clobber each other's snapshot on disk.
+        self._save_lock = asyncio.Lock()
 
     def _get_default_config_path(self) -> Path:
         """Get the default config path based on environment."""
@@ -54,16 +59,17 @@ class ConfigManager:
 
     async def save(self, config: TubeManagerConfig) -> None:
         """Save configuration to file."""
-        try:
-            await asyncio.to_thread(self.config_path.parent.mkdir, parents=True, exist_ok=True)
-            data = config.to_dict_for_storage()
-            async with aiofiles.open(self.config_path, mode='w', encoding='utf-8') as f:
-                await f.write(await asyncio.to_thread(json.dumps, data, indent=2))
-            self._config = config
-            log.info(f"Configuration saved to {self.config_path}")
-        except Exception as e:
-            log.error(f"Failed to save config: {e}")
-            raise
+        async with self._save_lock:
+            try:
+                await asyncio.to_thread(self.config_path.parent.mkdir, parents=True, exist_ok=True)
+                data = config.to_dict_for_storage()
+                async with aiofiles.open(self.config_path, mode='w', encoding='utf-8') as f:
+                    await f.write(await asyncio.to_thread(json.dumps, data, indent=2))
+                self._config = config
+                log.info(f"Configuration saved to {self.config_path}")
+            except Exception as e:
+                log.error(f"Failed to save config: {e}")
+                raise
 
     @property
     def config(self) -> TubeManagerConfig:

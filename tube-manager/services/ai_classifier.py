@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -112,7 +112,7 @@ async def _save_memory(memory: list[dict]):
     """Save recorded move examples asynchronously."""
     await asyncio.to_thread(DATA_DIR.mkdir, parents=True, exist_ok=True)
     # Remove entries older than 90 days
-    cutoff = (datetime.utcnow() - timedelta(days=90)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
     memory = [m for m in memory if m.get("timestamp", "") > cutoff]
     try:
         await asyncio.to_thread(MEMORY_FILE.write_text, json.dumps(memory, indent=2))
@@ -139,7 +139,7 @@ async def record_move(video_id: str, title: str, channel_id: str, channel_title:
         "to_playlist_name": to_playlist_name,
         "to_playlist_id": to_playlist_id,
         "source": source,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     })
     # Keep last 1000 moves
     if len(memory) > 1000:

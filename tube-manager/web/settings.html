@@ -8,6 +8,7 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=1781919149">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
@@ -72,16 +73,6 @@
                         <button id="tab-btn-general" class="text-sm font-bold tracking-wide text-white border-b-2 border-[#2f8fc9] pb-2 px-1 focus:outline-none transition-colors">General & API</button>
                         <button id="tab-btn-rules" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">Rules & Mappings</button>
                         <button id="tab-btn-ai" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">AI Integration</button>
-                    </div>
-                </div>
-
-                <div id="security-warning" class="hidden rounded-lg border border-yellow-600/50 bg-yellow-900/20 px-4 py-3 text-xs text-yellow-200">
-                    <div class="flex items-start gap-3">
-                        <i class="fa-solid fa-triangle-exclamation mt-0.5 text-yellow-400"></i>
-                        <div>
-                            <p class="font-semibold text-yellow-100">Session stability warning</p>
-                            <p id="security-warning-text"></p>
-                        </div>
                     </div>
                 </div>
 
@@ -694,19 +685,6 @@
             }
         }
 
-        async function checkSecurityStatus() {
-            try {
-                const resp = await fetch('/api/auth/security/status');
-                if (!resp.ok) return;
-                const data = await resp.json();
-                if (!data.sessions_stable && data.warning) {
-                    const banner = document.getElementById('security-warning');
-                    document.getElementById('security-warning-text').textContent = data.warning;
-                    banner.classList.remove('hidden');
-                }
-            } catch (e) { console.warn('Security status check failed:', e); }
-        }
-
         async function clearThumbnailCache() {
             try {
                 const resp = await fetch('/api/storage/clear-thumbnails', {method: 'POST'});
@@ -1101,7 +1079,6 @@
 function initSettingsPage() {
             loadDashboardStats();
             loadSettings();
-            checkSecurityStatus();
             loadChannelMappings();
 
             // Highlight active sidebar link based on current path

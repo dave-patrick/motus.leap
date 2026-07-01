@@ -95,14 +95,35 @@ class BackgroundWorker:
         self.task_queue = task_queue
         self.background_tasks_running = False
         self.current_task_name = None
+        self._current_task: Optional[asyncio.Task] = None
         self._cancel_requested = False
         # Playlist cache for AI mode
         self._playlist_cache = None
         self._playlist_cache_time = 0
         self._playlist_cache_ttl = 3600  # 1 hour TTL
-    
+
+    @staticmethod
+    def _is_scraper_item(item: dict) -> bool:
+        """Detect if a Watch Later item came from the browser scraper.
+
+        The YouTube API returns playlist_item_id as a base64-like string in
+        ``item["id"]`` (e.g. "UExlZGF...==" — longer than 11 chars). The
+        browser scraper uses the video_id as ``item["id"]``, which is always
+        exactly 11 characters of ``[a-zA-Z0-9_-]``.
+        """
+        item_id = item.get("id", "")
+        return bool(item_id and len(item_id) == 11)
+
     def cancel_current_task(self):
-        """Request cancellation of the currently running task."""
+        """Request cancellation of the currently running task.
+
+        Does two things:
+        1. Sets the cooperative cancel flag so long-running handlers can stop
+           at their next checkpoint (they check ``self._cancel_requested``).
+        2. Drains the queue so tasks waiting to run are dropped.
+        3. Hard-cancels the in-flight asyncio.Task so it stops even if a
+           handler is blocked and not checking the flag.
+        """
         self._cancel_requested = True
         self.current_task_name = None
         # Drain the queue so pending tasks are cleared
@@ -112,6 +133,9 @@ class BackgroundWorker:
                 self.task_queue.task_done()
             except asyncio.QueueEmpty:
                 break
+        # Hard-cancel the in-flight task (cooperative checks may be mid-await)
+        if self._current_task is not None and not self._current_task.done():
+            self._current_task.cancel()
         log.info("[WORKER] Cancel requested — current task will stop, queue drained")
 
     async def _ensure_playlist_cache(self, client):
@@ -166,39 +190,63 @@ class BackgroundWorker:
                     continue
                 
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Starting: {action}"}))
-                
+
                 self.current_task_name = action
-                
-                # Process different actions
-                if action == "full_cluster_scan":
-                    await self.full_cluster_scan(payload)
-                elif action == "watch_later_sync":
-                    await self.watch_later_sync(payload)
-                elif action == "watch_later_move":
-                    await self.watch_later_move(payload)
-                elif action == "diagnose_failures":
-                    await self.diagnose_failures(payload)
-                elif action == "apply_rules":
-                    await self.apply_rules(payload)
-                elif action == "sync_playlists":
-                    await self.sync_playlists(payload)
-                elif action == "scan_duplicates":
-                    result = await self.scan_duplicates(payload)
-                    await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
-                elif action == "scan_misplaced":
-                    result = await self.scan_misplaced(payload)
-                    await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
 
-                # Update last_scan_time for any scan-type action
-                if action.startswith("scan_") or action == "full_cluster_scan":
-                    try:
-                        config = self.config_manager.config
-                        config.last_scan_time = datetime.now(timezone.utc).isoformat()
-                        await self.config_manager.save(config)
-                    except Exception:
-                        pass
+                async def _run_handler():
+                    """Run the selected handler and post-process scan timing."""
+                    if action == "full_cluster_scan":
+                        await self.full_cluster_scan(payload)
+                    elif action == "watch_later_sync":
+                        await self.watch_later_sync(payload)
+                    elif action == "watch_later_move":
+                        await self.watch_later_move(payload)
+                    elif action == "diagnose_failures":
+                        await self.diagnose_failures(payload)
+                    elif action == "apply_rules":
+                        await self.apply_rules(payload)
+                    elif action == "sync_playlists":
+                        await self.sync_playlists(payload)
+                    elif action == "scan_duplicates":
+                        result = await self.scan_duplicates(payload)
+                        await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
+                    elif action == "scan_misplaced":
+                        result = await self.scan_misplaced(payload)
+                        await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
 
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
+                    # Update last_scan_time for any scan-type action
+                    if action.startswith("scan_") or action == "full_cluster_scan":
+                        try:
+                            config = self.config_manager.config
+                            config.last_scan_time = datetime.now(timezone.utc).isoformat()
+                            await self.config_manager.save(config)
+                        except Exception:
+                            pass
+
+                # Run the handler as a tracked task so cancel_current_task()
+                # can hard-cancel an in-flight action without killing this
+                # consumer loop. Catching CancelledError here lets the loop
+                # continue to the next queued task.
+                self._current_task = asyncio.create_task(_run_handler())
+                try:
+                    await self._current_task
+                except asyncio.CancelledError:
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Cancelled: {action}"}))
+                    self.task_queue.task_done()
+                    self.current_task_name = None
+                    self._current_task = None
+                    self._cancel_requested = False
+                    continue
+                finally:
+                    self._current_task = None
+
+                # Distinguish cooperative cancel (handler checked _cancel_requested
+                # and returned early) from normal completion.
+                if self._cancel_requested:
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Cancelled: {action}"}))
+                    self._cancel_requested = False
+                else:
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
                 self.task_queue.task_done()
                 self.current_task_name = None
             except asyncio.CancelledError:
@@ -489,14 +537,22 @@ class BackgroundWorker:
 
             # Fetch watch later items using the cached method
             force_refresh = payload.get("force_refresh", True) # Always bypass cache for Watch Later sync
+            configured_wl_id = getattr(self.config_manager.config, "watch_later_playlist_id", "") or ""
+            log.info(f"[SYNC] Fetching Watch Later: playlist_id={configured_wl_id!r}, force_refresh={force_refresh}")
             watch_later_resp = await self.youtube_service.list_watch_later_items_cached(
-                playlist_id=self.channel_id if hasattr(self, "channel_id") and self.channel_id else (self.config_manager.config.watch_later_playlist_id if hasattr(self.config_manager.config, "watch_later_playlist_id") else ""),
+                playlist_id=configured_wl_id,
                 force_refresh=force_refresh
             )
             watch_later_items = watch_later_resp.get("items", [])
-            
+            log.info(f"[SYNC] list_watch_later_items_cached returned {len(watch_later_items)} items, "
+                     f"error={watch_later_resp.get('error')}, "
+                     f"scraper_error={watch_later_resp.get('scraper_error')}")
+
             # Broadcast scraper error if the httpx scraper failed
-            scraper_error = watch_later_resp.get("scraper_error") or (watch_later_resp.get("items") is None and watch_later_resp.get("error"))
+            api_error = watch_later_resp.get("error")
+            if api_error:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[API ERROR] {api_error}"}))
+            scraper_error = watch_later_resp.get("scraper_error")
             if scraper_error and not watch_later_items:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER ERROR] {scraper_error}"}))
             elif not watch_later_items:
@@ -536,19 +592,23 @@ class BackgroundWorker:
                 channel_id, classified_playlist_id = classify(item)
                 # Use the user-chosen target playlist, or fall back to classified playlist
                 destination_playlist_id = target_playlist_id or classified_playlist_id or ""
-                
+
                 # If no destination at all, log the video but skip the move
                 if not destination_playlist_id:
-                    skipped.append(item)
+                    log.info("[SYNC] Skipping %s: no target playlist configured and classification found no matching channel mapping", video_id)
+                    skipped.append({"video_id": video_id, "reason": "no destination"})
                     continue
-                
+
                 # Safeguard: skip if the target playlist is the same as the source playlist
                 if destination_playlist_id == origin:
-                    skipped.append(item)
+                    log.info("[SYNC] Skipping %s: target playlist is the same as the source (already there)", video_id)
+                    skipped.append({"video_id": video_id, "reason": "already in target"})
                     continue
-                
+
                 if dry_run:
                     moved.append({"video_id": video_id, "from": origin, "to": destination_playlist_id, "channel_id": channel_id})
+                    # Log each dry-run move so the user can see what WOULD happen
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DRY-RUN] {video_id} -> {destination_playlist_id}"}))
                     continue
 
                 try:
@@ -565,8 +625,13 @@ class BackgroundWorker:
                         await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {video_id} to playlist: {move_err}"}))
                         continue  # skip this video, continue with the next
 
-                    # Remove from Watch Later
-                    if playlist_item_id:
+                    # Remove from Watch Later — only for API items that have a
+                    # real playlist_item_id (YouTube API format). Scraper items
+                    # use the video_id as item["id"] which is not a valid
+                    # playlist_item_id and would 400 on the API. For scraper
+                    # items the video stays in native Watch Later (which the
+                    # scraper can read but the API can't modify), and that's OK.
+                    if playlist_item_id and not self._is_scraper_item(item):
                         try:
                             await _retry_with_backoff(
                                 lambda: asyncio.to_thread(client.remove_video_from_playlist, playlist_item_id),
@@ -575,7 +640,17 @@ class BackgroundWorker:
                                 label=f"remove_video_from_playlist({playlist_item_id})",
                             )
                         except Exception as remove_err:
+                            # Partial failure: insert succeeded but source removal failed.
+                            # The video now exists in BOTH playlists. Treat as a failure
+                            # (not a successful move) so it's reported honestly and not
+                            # recorded as a successful move in AI training memory.
                             log.warning(f"[WORKER] Failed to remove {playlist_item_id} from source after move: {remove_err}")
+                            failed.append({"video_id": video_id, "error": f"inserted but not removed from source (now duplicated): {remove_err}"})
+                            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WARN] {video_id} inserted but source removal failed — video is now in both playlists"}))
+                            continue
+                    elif playlist_item_id:
+                        # Scraper item: log that we can't remove from native WL
+                        log.info("[SYNC] Scraper-sourced item %s: inserted into target; can't remove from native Watch Later via API (no playlist_item_id available)", video_id)
 
                     moved.append({"video_id": video_id, "from": origin, "to": destination_playlist_id, "channel_id": channel_id})
                     # Record move for AI training memory
@@ -634,11 +709,15 @@ class BackgroundWorker:
 
             # Fetch watch later items
             force_refresh = payload.get("force_refresh", False) if isinstance(payload, dict) else False
+            configured_wl_id = getattr(config, "watch_later_playlist_id", "") or ""
+            log.info(f"[MOVE] Fetching Watch Later: playlist_id={configured_wl_id!r}, force_refresh={force_refresh}")
             watch_later_resp = await self.youtube_service.list_watch_later_items_cached(
-                playlist_id=self.channel_id if hasattr(self, "channel_id") and self.channel_id else (config.watch_later_playlist_id if hasattr(config, "watch_later_playlist_id") else ""),
+                playlist_id=configured_wl_id,
                 force_refresh=force_refresh
             )
             watch_later_items = watch_later_resp.get("items", [])
+            log.info(f"[MOVE] list_watch_later_items_cached returned {len(watch_later_items)} items, "
+                     f"error={watch_later_resp.get('error')}")
 
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[MOVE] Fetched {len(watch_later_items)} videos from sync source"}))
 
@@ -664,7 +743,8 @@ class BackgroundWorker:
 
                 # Skip if target is same as source
                 if target_playlist_id == origin:
-                    skipped.append(item)
+                    log.info("[MOVE] Skipping %s: target playlist is the same as the source", video_id)
+                    skipped.append({"video_id": video_id, "reason": "already in target"})
                     continue
 
                 try:
@@ -681,8 +761,10 @@ class BackgroundWorker:
                         await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {video_id}: {move_err}"}))
                         continue
 
-                    # Remove from Watch Later
-                    if playlist_item_id:
+                    # Remove from Watch Later — only for API items with a real
+                    # playlist_item_id. Scraper items use video_id as item["id"]
+                    # which is not a valid playlist_item_id for the YouTube API.
+                    if playlist_item_id and not self._is_scraper_item(item):
                         try:
                             await _retry_with_backoff(
                                 lambda: asyncio.to_thread(client.remove_video_from_playlist, playlist_item_id),
@@ -691,7 +773,13 @@ class BackgroundWorker:
                                 label=f"remove_video_from_playlist({playlist_item_id})",
                             )
                         except Exception as remove_err:
+                            # Partial failure: insert succeeded but source removal failed.
                             log.warning(f"[WORKER] Failed to remove {playlist_item_id} from source after move: {remove_err}")
+                            failed.append({"video_id": video_id, "error": f"inserted but not removed from source (now duplicated): {remove_err}"})
+                            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WARN] {video_id} inserted but source removal failed — video is now in both playlists"}))
+                            continue
+                    elif playlist_item_id:
+                        log.info("[MOVE] Scraper-sourced item %s: inserted into target; can't remove from native Watch Later via API", video_id)
 
                     moved.append({"video_id": video_id, "from": origin, "to": target_playlist_id})
                 except Exception as unexpected_error:
@@ -716,21 +804,30 @@ class BackgroundWorker:
         """Diagnose system health."""
         await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] Diagnosing system health..."}))
         
-        client = self.youtube_service.get_client(require_oauth=False) if self.youtube_service else None
+        # Check what's actually configured. Every real worker action
+        # (sync/move/scan) requires OAuth, so diagnose with require_oauth=True
+        # to report whether actions will actually work — not just whether a
+        # read-only API-key client exists.
+        oauth_client = self.youtube_service.get_client(require_oauth=True) if self.youtube_service else None
+        apikey_client = self.youtube_service.get_client(require_oauth=False) if self.youtube_service else None
         config = self.config_manager.config
-        
+
         try:
-            # Test API connectivity
-            if client:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube API: Connected"}))
+            # OAuth status — the actionable one (required for all sync/move/scan actions)
+            if oauth_client:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube OAuth: Connected — actions (sync/move/scan) are available"}))
             else:
+                has_tokens = bool(config.oauth.access_token and config.oauth.refresh_token)
+                if has_tokens:
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube OAuth: Tokens present but client could not be built — actions will fail. Check OAuth config."}))
+                else:
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube OAuth: NOT connected — actions (sync/move/scan) will fail. Connect YouTube in Settings."}))
+
+            # Read-only API-key status (informational)
+            if apikey_client and not oauth_client:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube API key: configured (read-only); OAuth still required for actions"}))
+            elif not apikey_client:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube API: Not configured (no API key or OAuth)"}))
-            
-            # Check OAuth status
-            if config.oauth.access_token:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] OAuth: Connected"}))
-            else:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] OAuth: Not connected"}))
             
             # Check config
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Channel mappings: {len(config.channel_mappings)}"}))

@@ -309,30 +309,66 @@ class YouTubeService:
             )
             current_playlists = sorted((self._playlist_item_to_dict(pl) for pl in playlist_items), key=lambda x: x["title"].lower())
             
-            # Detect mismatch (addition, removal, or name changes) compared to disk_playlists if it existed
-            mismatch = False
-            if disk_playlists_payload: # if there was a disk cache, compare against it
+            # Detect changes compared to disk cache:
+            #   - structural change (addition/removal): needs a full sync to
+            #     fetch video durations for new/changed playlists.
+            #   - rename-only (same count + same IDs, titles differ): does NOT
+            #     need a full re-sync — patch the titles in place. A rename
+            #     previously triggered fetch_all_data(force_refresh=True), which
+            #     re-fetched every subscription + up to 2000 video durations for
+            #     a trivial title change (quota burn + multi-second latency).
+            structural_change = False
+            rename_only = False
+            if disk_playlists_payload:
                 dp_playlists = disk_playlists_payload.get("playlists", [])
                 if not dp_playlists or len(dp_playlists) != len(current_playlists):
-                    mismatch = True
+                    structural_change = True
                 else:
                     cached_by_id = {p["id"]: p for p in dp_playlists}
+                    titles_differ = False
                     for curr in current_playlists:
                         cid = curr["id"]
                         if cid not in cached_by_id:
-                            mismatch = True
+                            structural_change = True
                             break
-                        # Detect renaming
                         if cached_by_id[cid]["title"] != curr["title"]:
                             log.info(f"[SYNC DETECT] Playlist renamed: '{cached_by_id[cid]['title']}' -> '{curr['title']}'")
-                            mismatch = True
-                            break
-            else: # no disk cache, so consider it a mismatch to trigger full sync
-                mismatch = True
+                            titles_differ = True
+                    if not structural_change and titles_differ:
+                        rename_only = True
+            else:
+                # No disk cache: treat as structural so we build a full cache.
+                structural_change = True
 
-            # If a change was detected externally or forced, run a full fresh sync
-            if mismatch or force_refresh:
-                log.info("[SYNC DETECT] Playlist change (rename, removal, or addition) detected! Performing full fresh sync...")
+            # A forced refresh always does a full sync.
+            if force_refresh:
+                structural_change = True
+
+            # Rename-only: patch titles in the cached all_data and return
+            # current_playlists without a quota-burning full re-sync.
+            if rename_only and not structural_change:
+                try:
+                    all_data = await self._load_from_disk("all_data")
+                    if all_data and "playlists" in all_data:
+                        title_by_id = {p["id"]: p["title"] for p in current_playlists}
+                        for pl in all_data.get("playlists", []):
+                            if pl.get("id") in title_by_id:
+                                pl["title"] = title_by_id[pl["id"]]
+                        await self._save_to_disk("all_data", all_data)
+                except Exception as patch_err:
+                    log.warning(f"[SYNC DETECT] Rename patch of all_data failed (non-fatal): {patch_err}")
+                stats = {
+                    "total_playlists": len(current_playlists),
+                    "total_videos": sum(pl["video_count"] for pl in current_playlists),
+                }
+                payload = {"playlists": current_playlists, "stats": stats}
+                await self._save_to_disk("playlists", payload)
+                return payload
+
+            # Structural change (addition/removal) or forced: full fresh sync
+            # to fetch video durations for new/changed playlists.
+            if structural_change:
+                log.info("[SYNC DETECT] Playlist change (removal or addition) detected! Performing full fresh sync...")
                 sync_result = await self.fetch_all_data(force_refresh=True)
                 if "error" not in sync_result:
                     playlists = sync_result.get("playlists", [])
@@ -343,7 +379,7 @@ class YouTubeService:
                     payload = {"playlists": playlists, "stats": stats}
                     await self._save_to_disk("playlists", payload)
                     return payload
-            
+
             # If no change detected or initial fetch, save current_playlists if no disk cache existed
             if not disk_playlists_payload:
                 stats = {
@@ -353,7 +389,7 @@ class YouTubeService:
                 payload = {"playlists": current_playlists, "stats": stats}
                 await self._save_to_disk("playlists", payload)
                 return payload
-            
+
             # If no mismatch and disk cache existed, return the current_playlists as payload to be cached by decorator
             stats = {
                 "total_playlists": len(current_playlists),
@@ -468,18 +504,35 @@ class YouTubeService:
                         _scraper_error = scraped_error
 
             # Fallback to API (playlist_id is already None for "WL" — auto-detected at top of function)
-            log.info(f"[WL SYNC] Calling API with playlist_id={playlist_id}")
+            log.info(f"[WL SYNC] Calling API with playlist_id={playlist_id!r}")
             # Use pagination to fetch ALL items (up to 1000), not just the first page
             all_items = await self._fetch_all_paginated(
                 lambda max_results, page_token: client.list_watch_later_items(
                     max_results=max_results, page_token=page_token, playlist_id=playlist_id
                 ),
                 max_results=50,
-                max_items=300,
+                max_items=1000,
             )
             items = all_items
-            api_error = None  # If pagination completed, assume success
             log.info(f"[WL SYNC] API pagination returned {len(items)} items")
+
+            # Detect API errors: if pagination returned 0 items, do a quick
+            # single-fetch probe to distinguish "empty playlist" from
+            # "access restricted" or other API errors.
+            api_error = None
+            if len(items) == 0 and playlist_id:
+                try:
+                    probe = await asyncio.to_thread(
+                        client.list_watch_later_items,
+                        max_results=1, page_token=None, playlist_id=playlist_id,
+                    )
+                    probe_error = probe.get("error") if isinstance(probe, dict) else None
+                    if probe_error:
+                        api_error = probe_error
+                        log.warning(f"[WL SYNC] API error probe for playlist {playlist_id}: {probe_error}")
+                except Exception as probe_err:
+                    log.warning(f"[WL SYNC] API error probe failed: {probe_err}")
+
             result = {"items": items}
             # If API returned 0 items (likely 403 on native WL), try fallback: search user playlists by title
             if len(items) == 0 and api_error is None:
@@ -501,7 +554,7 @@ class YouTubeService:
                                         max_results=mr, page_token=pt, playlist_id=fid
                                     ),
                                     max_results=50,
-                                    max_items=300,
+                                    max_items=1000,
                                 )
                                 if fallback_items:
                                     log.info(f"[WL SYNC] Fallback returned {len(fallback_items)} items")
@@ -559,6 +612,13 @@ class YouTubeService:
 
             if resp is None or "items" not in resp:
                 log.warning(f"_fetch_all_paginated: fetch_fn returned None or missing 'items'. Response: {resp}. Stopping pagination.")
+                break
+            # Check for API-level errors baked into the response (e.g. 403
+            # restriction on native Watch Later playlistItems — the method
+            # returns a dict with both "items" and "error" keys so it passes
+            # the "items" check above but the result is an empty page).
+            if resp.get("error"):
+                log.warning(f"_fetch_all_paginated: fetch_fn returned error: {resp['error']}. Stopping pagination.")
                 break
             items = resp.get("items", [])
             all_items.extend(items)
