@@ -197,7 +197,7 @@ class BackgroundWorker:
                     """Run the selected handler and post-process scan timing."""
                     if action == "full_cluster_scan":
                         await self.full_cluster_scan(payload)
-                    elif action == "watch_later_sync":
+                    elif action == "sync_watch_later":
                         await self.watch_later_sync(payload)
                     elif action == "watch_later_move":
                         await self.watch_later_move(payload)
