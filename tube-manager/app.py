@@ -212,9 +212,10 @@ async def lifespan(app: FastAPI):
         log.warning(f"Failed to load bulk operations (non-fatal): {e}")
 
     # Log registered routes for diagnostics
-    log.info("[DIAG] Registered bulk routes: %s", [r.path for r in bulk_router.routes])
-    log.info("[DIAG] Registered auth routes: %s", [r.path for r in auth_router.routes])
-    log.info("[DIAG] Total app routes: %s", [r.path for r in app.routes])
+    # Use getattr to handle both Route and APIRouter/IncludedRouter objects
+    log.info("[DIAG] Registered bulk routes: %s", [getattr(r, 'path', None) for r in bulk_router.routes])
+    log.info("[DIAG] Registered auth routes: %s", [getattr(r, 'path', None) for r in auth_router.routes])
+    log.info("[DIAG] Total app routes: %s", [getattr(r, 'path', None) for r in app.routes])
 
     log.info("motus.leap started successfully")
 
