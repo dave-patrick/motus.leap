@@ -417,27 +417,33 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
                                 browse_resp.status_code)
                     # Don't fail yet — try the HTML parsing approach a different way
 
-            # If still nothing, try parsing the HTML page more aggressively
-            if not all_items:
-                log.info("[HTTPX SCRAPER] Trying HTML content parsing for video data...")
-                # Look for video IDs embedded in the page
-                vid_matches = re.findall(r'/watch\?v=([a-zA-Z0-9_-]{11})', html)
-                title_matches = re.findall(
-                    r'title["\']?\s*:\s*["\']([^"\']+)["\']', html
-                )
-                unique_vids = list(dict.fromkeys(vid_matches))  # deduplicate preserving order
-                for i, vid in enumerate(unique_vids[:max_items]):
-                    all_items.append({
-                        "id": vid,
-                        "snippet": {
-                            "title": title_matches[i] if i < len(title_matches) else "",
-                            "videoOwnerChannelTitle": "",
-                            "playlistId": "WL",
-                        },
-                        "contentDetails": {"videoId": vid},
-                    })
-                log.info("[HTTPX SCRAPER] Regex fallback found %d unique video IDs",
+            # If nothing found from structured parsing, extract video IDs via regex
+            # YouTube's WL page embeds ALL videoIds in the HTML, even when loaded piecemeal
+            if not all_items or len(all_items) < max_items:
+                log.info("[HTTPX SCRAPER] Using regex to extract all video IDs from HTML...")
+                # Find all videoId in JSON-like structures
+                vid_pattern = r'["\']videoId["\']\s*:\s*["\']([a-zA-Z0-9_-]{11})["\']'
+                vid_matches = re.findall(vid_pattern, html)
+                unique_vids = list(dict.fromkeys(vid_matches))
+                log.info("[HTTPX SCRAPER] Regex found %d unique video IDs in HTML",
                          len(unique_vids))
+                if len(unique_vids) > len(all_items):
+                    # Build items from regex data, preserving any existing ones
+                    existing_ids = {v.get("contentDetails", {}).get("videoId", v.get("id")) for v in all_items}
+                    for vid in unique_vids[:max_items]:
+                        if vid not in existing_ids:
+                            all_items.append({
+                                "id": vid,
+                                "snippet": {
+                                    "title": "",
+                                    "videoOwnerChannelTitle": "",
+                                    "playlistId": "WL",
+                                },
+                                "contentDetails": {"videoId": vid},
+                            })
+                    log.info("[HTTPX SCRAPER] Combined items: %d", len(all_items))
+                # Reset continuation since we exhausted page data
+                continuation_token = None
 
             # Step 4: Paginate through continuation tokens
             while continuation_token and len(all_items) < max_items:
