@@ -340,7 +340,7 @@ class TestBackgroundWorkerResilience:
         assert len(error_msgs) == 1
 
         # Final summary should show 2 moved, 1 failed
-        summary_msgs = [m for m in messages if "Moved 2 video" in m]
+        summary_msgs = [m for m in messages if "Moved 2," in m]
         assert len(summary_msgs) == 1
 
     @pytest.mark.asyncio
@@ -388,8 +388,11 @@ class TestBackgroundWorkerResilience:
         type(worker).youtube_service = property(lambda self: mock_youtube_service)
         mock_client = MagicMock()
         mock_youtube_service.get_client.return_value = mock_client
-        # Setup for the scan path (target is optional now — sync should still scan)
-        mock_youtube_service.list_watch_later_items_cached = AsyncMock(return_value={"items": []})
+        # Return some items so the method reaches the target check
+        mock_youtube_service.list_watch_later_items_cached = AsyncMock(return_value={
+            "items": [{"id": "i1", "contentDetails": {"videoId": "v1"}, "snippet": {"playlistId": "wl"}}],
+            "source": "test",
+        })
         mock_youtube_service._get_cached = AsyncMock(return_value={})
         mock_youtube_service._set_cached = AsyncMock()
         mock_youtube_service._ensure_playlist_cache = AsyncMock()
@@ -401,10 +404,10 @@ class TestBackgroundWorkerResilience:
         messages = [json.loads(msg)["message"] for msg in broadcast_calls]
 
         # Should warn about no target but NOT error-out
-        warn_msgs = [m for m in messages if "No target playlist set" in m or "no moves" in m.lower()]
+        warn_msgs = [m for m in messages if "No target playlist set" in m]
         assert len(warn_msgs) >= 1
         # Should NOT have moved any videos
-        move_msgs = [m for m in messages if "Moved" in m and "video(s)" in m and not "Moved 0" in m]
+        move_msgs = [m for m in messages if "Moved 1," in m]
         assert len(move_msgs) == 0
 
     @pytest.mark.asyncio

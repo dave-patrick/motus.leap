@@ -465,117 +465,114 @@ class YouTubeService:
 
     # This method is not using the decorator, it directly handles its own caching
     async def list_watch_later_items_cached(self, playlist_id: Optional[str] = None, force_refresh: bool = False) -> Dict[str, Any]:
-        # If playlist_id is "WL" (native Watch Later — API restricted), force auto-detect
-        if playlist_id == "WL":
-            log.info("[WL SYNC] watch_later_playlist_id is WL — using auto-detect instead")
-            playlist_id = None
+        """Fetch Watch Later items.
+
+        Two modes:
+        1. playlist_id is a real playlist ID (configured in settings):
+           Use the YouTube Data API directly — fast, reliable, paginated.
+
+        2. playlist_id is None / "WL" / empty (native Watch Later):
+           YouTube Data API blocks playlistItems.list for WL (403).
+           Fall back to the browser-cookie scraper.
+           If no cookies, return empty with a clear error.
+        """
+        # Normalise inputs
+        if not playlist_id or playlist_id in ("WL", ""):
+            playlist_id = None  # native Watch Later — API restricted
 
         user_id = self._get_user_id()
-        cache_key = f"watch_later_items_{user_id}_{playlist_id or 'auto'}"
+        cache_key = f"watch_later_items_{user_id}_{playlist_id or 'native'}"
 
         if not force_refresh:
-            cached_data = await self._cache.get(cache_key) # Use _cache.get directly
-            if cached_data:
-                log.info(f"Using cached Watch Later items for {playlist_id or 'auto'}")
-                return cached_data
+            cached = await self._cache.get(cache_key)
+            if cached:
+                log.info(f"[WL] Cache hit: {playlist_id or 'native'} ({len(cached.get('items', []))} items)")
+                return cached
 
         client = self.get_client(require_oauth=True)
         if not client:
             return {"items": [], "error": "YouTube not connected. OAuth required."}
 
-        _scraper_error = None
         try:
-            # Try browser scraper first (bypasses API restriction) if no specific playlist_id is provided
-            if not playlist_id or playlist_id == "WL":
-                from services.browser_scraper import has_cookies, scrape_watch_later_videos
-                if has_cookies():
-                    log.info("[WATCH LATER CACHE] YouTube cookies found. Attempting httpx scrape for native Watch Later...")
-                    scraped = await asyncio.to_thread(scrape_watch_later_videos, 500)
-                    log.info(f"[WATCH LATER CACHE] Httpx scrape attempt: items={len(scraped.get('items', []))}, error={scraped.get('error')}")
-                    if scraped.get("items"):
-                        log.info(f"[WATCH LATER CACHE] Httpx scrape retrieved {len(scraped['items'])} videos from native Watch Later!")
-                        scraped["source"] = "browser"
-                        await self._cache.set(cache_key, scraped, ttl=self._watch_later_cache_ttl) # Use _cache.set with ttl
-                        return scraped
-                    else:
-                        scraped_error = scraped.get("error", "unknown")
-                        log.warning(f"[WATCH LATER CACHE] Httpx scrape returned 0 videos (error={scraped_error}). Falling back to API...")
-                        # Store scraper error to propagate to caller
-                        _scraper_error = scraped_error
-
-            # Fallback to API (playlist_id is already None for "WL" — auto-detected at top of function)
-            log.info(f"[WL SYNC] Calling API with playlist_id={playlist_id!r}")
-            # Use pagination to fetch ALL items (up to 1000), not just the first page
-            all_items = await self._fetch_all_paginated(
-                lambda max_results, page_token: client.list_watch_later_items(
-                    max_results=max_results, page_token=page_token, playlist_id=playlist_id
-                ),
-                max_results=50,
-                max_items=1000,
-            )
-            items = all_items
-            log.info(f"[WL SYNC] API pagination returned {len(items)} items")
-
-            # Detect API errors: if pagination returned 0 items, do a quick
-            # single-fetch probe to distinguish "empty playlist" from
-            # "access restricted" or other API errors.
-            api_error = None
-            if len(items) == 0 and playlist_id:
-                try:
+            # --- PATH A: configured playlist ID → use API directly ---
+            if playlist_id:
+                log.info(f"[WL] API fetch for playlist_id={playlist_id}")
+                items = await self._fetch_all_paginated(
+                    lambda mr, pt, pid=playlist_id: client.list_watch_later_items(
+                        max_results=mr, page_token=pt, playlist_id=pid
+                    ),
+                    max_results=50, max_items=1000,
+                )
+                result = {"items": items, "source": "api"}
+                # Check for API errors wrapped in the response
+                if not items:
                     probe = await asyncio.to_thread(
                         client.list_watch_later_items,
                         max_results=1, page_token=None, playlist_id=playlist_id,
                     )
-                    probe_error = probe.get("error") if isinstance(probe, dict) else None
-                    if probe_error:
-                        api_error = probe_error
-                        log.warning(f"[WL SYNC] API error probe for playlist {playlist_id}: {probe_error}")
-                except Exception as probe_err:
-                    log.warning(f"[WL SYNC] API error probe failed: {probe_err}")
+                    probe_err = probe.get("error") if isinstance(probe, dict) else None
+                    if probe_err:
+                        result["error"] = probe_err
+                        log.warning(f"[WL] API probe returned error for {playlist_id}: {probe_err}")
+                if "error" not in result:
+                    await self._cache.set(cache_key, result, ttl=self._watch_later_cache_ttl)
+                log.info(f"[WL] API returned {len(items)} items for playlist {playlist_id}")
+                return result
 
-            result = {"items": items}
-            # If API returned 0 items (likely 403 on native WL), try fallback: search user playlists by title
-            if len(items) == 0 and api_error is None:
-                if _scraper_error:
-                    log.warning(f"[WL SYNC] Scraper failed ({_scraper_error}) AND API returned 0 items — search fallback next")
+            # --- PATH B: native Watch Later → try browser scraper ---
+            log.info("[WL] No playlist_id configured — trying browser-cookie scraper for native Watch Later")
+            from services.browser_scraper import has_cookies, scrape_watch_later_videos
 
-                try:
-                    pl_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
-                    pl_items = pl_resp.get("items", [])
-                    target_titles = {"watch later", "watchlater", "queue", "sync queue", "wl"}
-                    for pl in pl_items:
-                        title = pl.get("snippet", {}).get("title", "").strip().lower()
-                        if title in target_titles:
-                            fallback_id = pl.get("id")
-                            if fallback_id and fallback_id != playlist_id and fallback_id != getattr(self.config, "watch_later_target_playlist_id", None):
-                                log.info(f"[WL SYNC] Found fallback playlist '{title}' ({fallback_id}) — fetching with pagination")
-                                fallback_items = await self._fetch_all_paginated(
-                                    lambda mr, pt, fid=fallback_id: client.list_watch_later_items(
-                                        max_results=mr, page_token=pt, playlist_id=fid
-                                    ),
-                                    max_results=50,
-                                    max_items=1000,
-                                )
-                                if fallback_items:
-                                    log.info(f"[WL SYNC] Fallback returned {len(fallback_items)} items")
-                                    result = {"items": fallback_items}
-                                    items = fallback_items
-                                    break
-                except Exception as e:
-                    log.warning(f"[WL SYNC] Fallback playlist search failed: {e}")
+            if not has_cookies():
+                return {
+                    "items": [],
+                    "error": (
+                        "YouTube API cannot read native Watch Later (known restriction). "
+                        "Either set 'Watch Later Playlist ID' in Settings to a regular playlist, "
+                        "or upload YouTube cookies in Settings → Cookies to enable browser scraping."
+                    ),
+                    "source": "none",
+                }
 
-            # Don't cache error results — the caller needs to see the error and the
-            # user may fix the config (e.g. set watch_later_playlist_id) without waiting for cache expiry.
-            if api_error:
-                result["error"] = api_error
-            else:
+            scraped = await asyncio.to_thread(scrape_watch_later_videos, 500)
+            items = scraped.get("items", [])
+            scraper_err = scraped.get("error")
+
+            if items:
+                log.info(f"[WL] Scraper retrieved {len(items)} videos from native Watch Later")
+                result = {"items": items, "source": "browser"}
                 await self._cache.set(cache_key, result, ttl=self._watch_later_cache_ttl)
-            if _scraper_error and len(items) == 0:
-                result["scraper_error"] = _scraper_error
-            log.info(f"Fetched {len(items)} Watch Later items via API for {playlist_id or 'auto'}")
+                return result
+
+            # Scraper returned 0 items
+            log.warning(f"[WL] Scraper returned 0 items (error={scraper_err})")
+            result = {"items": [], "scraper_error": scraper_err, "source": "scraper"}
+            # Try one more thing: search for a "Watch Later" playlist by name
+            try:
+                pl_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
+                for pl in pl_resp.get("items", []):
+                    title = pl.get("snippet", {}).get("title", "").strip().lower()
+                    if title in ("watch later", "watchlater", "wl"):
+                        fid = pl.get("id")
+                        if fid:
+                            log.info(f"[WL] Found playlist '{title}' ({fid}) — trying API fallback")
+                            fallback = await self._fetch_all_paginated(
+                                lambda mr, pt, fid=fid: client.list_watch_later_items(
+                                    max_results=mr, page_token=pt, playlist_id=fid
+                                ),
+                                max_results=50, max_items=1000,
+                            )
+                            if fallback:
+                                result = {"items": fallback, "source": "api-fallback"}
+                                await self._cache.set(cache_key, result, ttl=self._watch_later_cache_ttl)
+                                return result
+            except Exception as e:
+                log.warning(f"[WL] Playlist-name fallback search failed: {e}")
+
             return result
+
         except Exception as e:
-            log.error(f"Failed to fetch Watch Later items (cached): {e}")
+            log.error(f"[WL] Failed to fetch Watch Later items: {e}")
             return {"items": [], "error": str(e)}
 
     async def _fetch_all_paginated(self, fetch_fn, max_results: int = 50, max_items: int = 500) -> List[Any]:

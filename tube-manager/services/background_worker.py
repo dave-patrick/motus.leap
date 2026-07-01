@@ -443,245 +443,130 @@ class BackgroundWorker:
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Scan failed: {error_details}"}))
 
     async def watch_later_sync(self, payload):
-        """Sync Watch Later playlist — classify via AI/channel mapping, then move ALL results to the target playlist."""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Syncing Watch Later playlist..."}))
-        
+        """Sync Watch Later playlist — move all videos to the configured target playlist."""
+        await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] Starting sync..."}))
+
         client = self.youtube_service.get_client(require_oauth=True) if self.youtube_service else None
         if not client:
             await self.manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] OAuth required. Connect YouTube in Settings."}))
             return
-        
+
         try:
             dry_run = bool(payload.get("dry_run") if isinstance(payload, dict) else False)
-            # Fetch channel->playlist mappings from config
             config = self.config_manager.config
-            mappings = get_formatted_mappings(config)
-            mapping_by_channel_id = {}
-            mapping_channel_title_scores: list[tuple[str, str, float]] = []
-            for mapping in mappings.get("mappings", []):
-                channel_id = mapping.get("channel_id")
-                playlist_id = mapping.get("playlist")
-                title = mapping.get("channel", "")
-                if not channel_id or not playlist_id:
-                    continue
-                mapping_by_channel_id[channel_id] = playlist_id
-                if title:
-                    mapping_channel_title_scores.append((channel_id, playlist_id, float(len(title))))
 
-            # Preload channel metadata for OAuth-based channel lookup
-            channel_key = "__watchlater_channels__"
-            channel_cache = await self.youtube_service._get_cached(channel_key) if hasattr(self.youtube_service, "_get_cached") else None
-            if not channel_cache:
-                channel_cache = {}
-                # Refresh via YouTubeService if available
-                if hasattr(self.youtube_service, "fetch_all_data"):
-                    async def _safe_fetch():
-                        return await self.youtube_service.fetch_all_data(force_refresh=True)
-                    try:
-                        all_data = await _safe_fetch()
-                        for channel in all_data.get("subscriptions", []):
-                            channel_cache[channel.get("id", "")] = {
-                                "title": channel.get("title", ""),
-                                "channel_id": channel.get("id", ""),
-                            }
-                        await self.youtube_service._set_cached(channel_key, channel_cache)
-                    except Exception:
-                        pass
+            # 1. Fetch Watch Later items
+            force_refresh = payload.get("force_refresh", True)
+            configured_wl_id = getattr(config, "watch_later_playlist_id", "") or ""
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WATCH LATER] Reading playlist (configured_id={configured_wl_id or 'native WL'})..."}))
 
-            # Use extracted classify method
-            def classify(item):
-                owner_id = ""
-                owner_title = ""
-                owner = item.get("contentDetails", {}).get("videoOwnerChannelId") or item.get("snippet", {}).get("videoOwnerChannelId")
-                if owner:
-                    owner_id = owner.strip()
-                channel_obj = (item.get("snippet", {}) or {}).get("videoOwnerChannelName")
-                if isinstance(channel_obj, str):
-                    owner_title = channel_obj.strip()
-                if not owner_id:
-                    owner_id = owner_title
-
-                if owner_id:
-                    if owner_id in mapping_by_channel_id:
-                        return owner_id, mapping_by_channel_id[owner_id]
-                    meta = channel_cache.get(owner_id)
-                    if meta:
-                        if meta.get("channel_id") in mapping_by_channel_id:
-                            return meta.get("channel_id"), mapping_by_channel_id[meta.get("channel_id")]
-                        title_for_match = meta.get("title", owner_title or "").lower()
-                        for channel_title_id, channel_playlist_id, title_len in mapping_channel_title_scores:
-                            if title_for_match and channel_title_id.lower() in title_for_match:
-                                return channel_title_id, channel_playlist_id
-
-                snippet = item.get("snippet", {}) or {}
-                candidates: list[str] = []
-                for key in ("title", "description"):
-                    val = snippet.get(key, "")
-                    if isinstance(val, str):
-                        candidates.append(val)
-                lower_candidates = [c.lower() for c in candidates]
-
-                for candidate in lower_candidates:
-                    for channel_title_id, channel_playlist_id, title_len in mapping_channel_title_scores:
-                        if channel_title_id.lower() in candidate:
-                            return channel_title_id, channel_playlist_id
-                return None, None
-
-            # Pre-build playlist lookup data for AI classification
-            playlist_id_title_pairs: list[tuple[str, str]] = []
-            playlist_title_list: list[dict] = []
-            await self._ensure_playlist_cache(client)
-            for pid, pt in self._playlist_cache:
-                playlist_id_title_pairs.append((pid, pt))
-                playlist_title_list.append({"id": pid, "title": pt})
-
-            # Fetch watch later items using the cached method
-            force_refresh = payload.get("force_refresh", True) # Always bypass cache for Watch Later sync
-            configured_wl_id = getattr(self.config_manager.config, "watch_later_playlist_id", "") or ""
-            log.info(f"[SYNC] Fetching Watch Later: playlist_id={configured_wl_id!r}, force_refresh={force_refresh}")
             watch_later_resp = await self.youtube_service.list_watch_later_items_cached(
                 playlist_id=configured_wl_id,
                 force_refresh=force_refresh
             )
-            watch_later_items = watch_later_resp.get("items", [])
-            log.info(f"[SYNC] list_watch_later_items_cached returned {len(watch_later_items)} items, "
-                     f"error={watch_later_resp.get('error')}, "
-                     f"scraper_error={watch_later_resp.get('scraper_error')}")
-
-            # Broadcast scraper error if the httpx scraper failed
+            items = watch_later_resp.get("items", [])
+            source = watch_later_resp.get("source", "unknown")
             api_error = watch_later_resp.get("error")
-            if api_error:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[API ERROR] {api_error}"}))
             scraper_error = watch_later_resp.get("scraper_error")
-            if scraper_error and not watch_later_items:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER ERROR] {scraper_error}"}))
-            elif not watch_later_items:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCRAPER] No cookies or scraper returned 0 items — using API fallback"}))
-            elif len(watch_later_items) > 0:
-                source_label = watch_later_resp.get("source", "api")
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER] Retrieved {len(watch_later_items)} videos from scraper (source: {source_label})"}))
-                # Diagnostic: if count is suspiciously low (< 10), log HTML diagnostics from the scrape result
-                if len(watch_later_items) < 10:
-                    html_video_ids = watch_later_resp.get("debug_html_video_id_count", 0)
-                    yt_data_found = watch_later_resp.get("debug_yt_data_found", False)
-                    if html_video_ids:
-                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER DIAG] ytInitialData found={yt_data_found}, videoIds in raw HTML={html_video_ids}"}))
-                
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from sync source (cached: {not force_refresh})"}))
-            
-            # Resolve target playlist — optional for scanning/classifying, required for moving
+
+            # Broadcast result
+            if api_error:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WATCH LATER] Error: {api_error}"}))
+            elif scraper_error and not items:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WATCH LATER] Scraper error: {scraper_error}"}))
+            elif not items:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] No videos found in Watch Later."}))
+
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WATCH LATER] Found {len(items)} video(s) via {source}"}))
+            if not items:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] Nothing to sync."}))
+                return
+
+            # 2. Resolve target playlist
             target_playlist_id = getattr(config, "watch_later_target_playlist_id", "") or ""
             if not target_playlist_id:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] No target playlist set — scanning and classifying only (no moves). Set a target in Settings to enable auto-move."}))
-            
-            moved = []
-            skipped = []
-            failed = []
-            for item in watch_later_items:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] No target playlist set. Go to Settings → Watch Later Move Target."}))
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] Use dry_run=1 to preview which videos would be moved."}))
+                if not dry_run:
+                    return
+
+            # 3. Build channel-mapping lookup
+            mappings = get_formatted_mappings(config)
+            channel_to_playlist = {}
+            for m in mappings.get("mappings", []):
+                cid = m.get("channel_id") or m.get("channel")
+                pid = m.get("playlist")
+                if cid and pid:
+                    channel_to_playlist[cid] = pid
+
+            # 4. Process each video
+            moved, skipped, failed = [], [], []
+            for item in items:
                 if self._cancel_requested:
-                    log.info("[WORKER] Cancel requested during watch-later sync — stopping")
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[WORKER] Watch-later sync cancelled"}))
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] Cancelled by user"}))
                     break
+
                 video_id = item.get("contentDetails", {}).get("videoId")
                 playlist_item_id = item.get("id")
                 origin = item.get("snippet", {}).get("playlistId") or ""
+
                 if not video_id:
                     skipped.append(item)
                     continue
-                # Classify (still runs for AI training memory / logging)
-                channel_id, classified_playlist_id = classify(item)
-                # Use the user-chosen target playlist, or fall back to classified playlist
-                destination_playlist_id = target_playlist_id or classified_playlist_id or ""
 
-                # If no destination at all, log the video but skip the move
-                if not destination_playlist_id:
-                    log.info("[SYNC] Skipping %s: no target playlist configured and classification found no matching channel mapping", video_id)
-                    skipped.append({"video_id": video_id, "reason": "no destination"})
+                # Determine destination: configured target > channel mapping > skip
+                dest = target_playlist_id
+                if not dest:
+                    channel_id = item.get("contentDetails", {}).get("videoOwnerChannelId") or item.get("snippet", {}).get("videoOwnerChannelId", "")
+                    dest = channel_to_playlist.get(channel_id, "")
+                if not dest:
+                    skipped.append({"video_id": video_id, "reason": "no target"})
                     continue
-
-                # Safeguard: skip if the target playlist is the same as the source playlist
-                if destination_playlist_id == origin:
-                    log.info("[SYNC] Skipping %s: target playlist is the same as the source (already there)", video_id)
-                    skipped.append({"video_id": video_id, "reason": "already in target"})
+                if dest == origin:
+                    skipped.append({"video_id": video_id, "reason": "already there"})
                     continue
 
                 if dry_run:
-                    moved.append({"video_id": video_id, "from": origin, "to": destination_playlist_id, "channel_id": channel_id})
-                    # Log each dry-run move so the user can see what WOULD happen
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DRY-RUN] {video_id} -> {destination_playlist_id}"}))
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DRY-RUN] Would move {video_id} -> {dest}"}))
+                    moved.append({"video_id": video_id, "from": origin, "to": dest})
                     continue
 
+                # Move: insert into target
                 try:
-                    # Insert into target playlist (offload sync call to thread)
+                    await _retry_with_backoff(
+                        lambda: asyncio.to_thread(client.move_video_to_playlist, video_id, dest),
+                        max_retries=3, base_delay=1.0, label=f"move({video_id})",
+                    )
+                except Exception as e:
+                    failed.append({"video_id": video_id, "error": str(e)})
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Move failed {video_id}: {e}"}))
+                    continue
+
+                # Remove from Watch Later (scraper items can't be removed via API)
+                if playlist_item_id and not self._is_scraper_item(item):
                     try:
                         await _retry_with_backoff(
-                            lambda: asyncio.to_thread(client.move_video_to_playlist, video_id, destination_playlist_id),
-                            max_retries=3,
-                            base_delay=1.0,
-                            label=f"move_video_to_playlist({video_id})",
+                            lambda: asyncio.to_thread(client.remove_video_from_playlist, playlist_item_id),
+                            max_retries=3, base_delay=1.0, label=f"remove({playlist_item_id})",
                         )
-                    except Exception as move_err:
-                        failed.append({"video_id": video_id, "error": str(move_err)})
-                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Failed to move {video_id} to playlist: {move_err}"}))
-                        continue  # skip this video, continue with the next
+                    except Exception as e:
+                        log.warning(f"[WORKER] Inserted {video_id} but could not remove from source: {e}")
+                        failed.append({"video_id": video_id, "error": f"inserted but not removed: {e}"})
+                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WARN] {video_id} now in both playlists (insert OK, remove failed)"}))
+                        continue
 
-                    # Remove from Watch Later — only for API items that have a
-                    # real playlist_item_id (YouTube API format). Scraper items
-                    # use the video_id as item["id"] which is not a valid
-                    # playlist_item_id and would 400 on the API. For scraper
-                    # items the video stays in native Watch Later (which the
-                    # scraper can read but the API can't modify), and that's OK.
-                    if playlist_item_id and not self._is_scraper_item(item):
-                        try:
-                            await _retry_with_backoff(
-                                lambda: asyncio.to_thread(client.remove_video_from_playlist, playlist_item_id),
-                                max_retries=3,
-                                base_delay=1.0,
-                                label=f"remove_video_from_playlist({playlist_item_id})",
-                            )
-                        except Exception as remove_err:
-                            # Partial failure: insert succeeded but source removal failed.
-                            # The video now exists in BOTH playlists. Treat as a failure
-                            # (not a successful move) so it's reported honestly and not
-                            # recorded as a successful move in AI training memory.
-                            log.warning(f"[WORKER] Failed to remove {playlist_item_id} from source after move: {remove_err}")
-                            failed.append({"video_id": video_id, "error": f"inserted but not removed from source (now duplicated): {remove_err}"})
-                            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WARN] {video_id} inserted but source removal failed — video is now in both playlists"}))
-                            continue
-                    elif playlist_item_id:
-                        # Scraper item: log that we can't remove from native WL
-                        log.info("[SYNC] Scraper-sourced item %s: inserted into target; can't remove from native Watch Later via API (no playlist_item_id available)", video_id)
+                moved.append({"video_id": video_id, "from": origin, "to": dest})
 
-                    moved.append({"video_id": video_id, "from": origin, "to": destination_playlist_id, "channel_id": channel_id})
-                    # Record move for AI training memory
-                    try:
-                        from services.ai_classifier import record_move
-                        item_snippet = item.get("snippet", {}) or {}
-                        await record_move(
-                            video_id=video_id,
-                            title=item_snippet.get("title", ""),
-                            channel_id=channel_id or "",
-                            channel_title=item_snippet.get("videoOwnerChannelTitle", ""),
-                            from_playlist_name="Watch Later",
-                            from_playlist_id=origin,
-                            to_playlist_name="",
-                            to_playlist_id=destination_playlist_id,
-                            source="sync",
-                        )
-                    except Exception:
-                        pass
-                except Exception as unexpected_error:
-                    failed.append({"video_id": video_id, "error": str(unexpected_error)})
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Unexpected error processing {video_id}: {unexpected_error}"}))
+            # 5. Summary
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WATCH LATER] Moved {len(moved)}, skipped {len(skipped)}, failed {len(failed)}"}))
+            if moved and not dry_run:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] Sync complete — refreshing cache..."}))
+                try:
+                    await self.youtube_service.fetch_all_data(force_refresh=True)
+                except Exception:
+                    pass
+            await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] Done."}))
 
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Moved {len(moved)} video(s) to target playlist, skipped {len(skipped)}, failed {len(failed)}"}))
-            if moved:
-                for move in moved[:20]:
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] {move['video_id']} -> {move['to']} (from {move.get('from', 'watch later')})"}))
-            if dry_run and moved:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Dry run: no changes applied."}))
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete"}))
-            
         except Exception as e:
             error_details = f"{type(e).__name__}: {str(e)}"
             try:
