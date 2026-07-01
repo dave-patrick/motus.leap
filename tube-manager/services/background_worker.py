@@ -494,6 +494,11 @@ class BackgroundWorker:
                 force_refresh=force_refresh
             )
             watch_later_items = watch_later_resp.get("items", [])
+            
+            # Broadcast scraper error if the httpx scraper failed
+            scraper_error = watch_later_resp.get("scraper_error") or (watch_later_resp.get("items") is None and watch_later_resp.get("error"))
+            if scraper_error and not watch_later_items:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCRAPER ERROR] {scraper_error}"}))
                 
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SYNC] Fetched {len(watch_later_items)} videos from sync source (cached: {not force_refresh})"}))
             

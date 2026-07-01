@@ -447,6 +447,7 @@ class YouTubeService:
         if not client:
             return {"items": [], "error": "YouTube not connected. OAuth required."}
 
+        _scraper_error = None
         try:
             # Try browser scraper first (bypasses API restriction) if no specific playlist_id is provided
             if not playlist_id or playlist_id == "WL":
@@ -462,7 +463,9 @@ class YouTubeService:
                         return scraped
                     else:
                         scraped_error = scraped.get("error", "unknown")
-                        log.info(f"[WATCH LATER CACHE] Httpx scrape returned 0 videos (error={scraped_error}). Falling back to API...")
+                        log.warning(f"[WATCH LATER CACHE] Httpx scrape returned 0 videos (error={scraped_error}). Falling back to API...")
+                        # Store scraper error to propagate to caller
+                        _scraper_error = scraped_error
 
             # Fallback to API (playlist_id is already None for "WL" — auto-detected at top of function)
             log.info(f"[WL SYNC] Calling API with playlist_id={playlist_id}")
@@ -480,7 +483,9 @@ class YouTubeService:
             result = {"items": items}
             # If API returned 0 items (likely 403 on native WL), try fallback: search user playlists by title
             if len(items) == 0 and api_error is None:
-                log.info("[WL SYNC] API returned 0 items — searching user playlists by title as fallback...")
+                if _scraper_error:
+                    log.warning(f"[WL SYNC] Scraper failed ({_scraper_error}) AND API returned 0 items — search fallback next")
+
                 try:
                     pl_resp = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
                     pl_items = pl_resp.get("items", [])
@@ -512,6 +517,8 @@ class YouTubeService:
                 result["error"] = api_error
             else:
                 await self._cache.set(cache_key, result, ttl=self._watch_later_cache_ttl)
+            if _scraper_error and len(items) == 0:
+                result["scraper_error"] = _scraper_error
             log.info(f"Fetched {len(items)} Watch Later items via API for {playlist_id or 'auto'}")
             return result
         except Exception as e:
