@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends, Cookie
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
@@ -40,36 +40,8 @@ def validate_video_id(vid: str) -> bool:
     """Validate that a string matches YouTube's video ID format (11 chars, alphanumeric + _-)."""
     return bool(YOUTUBE_VIDEO_ID_RE.match(vid))
 
-# Auth dependency
-from api.auth import get_current_user, verify_origin, create_default_admin # Import create_default_admin
-
 # Auth dependency for page routes (raises 401 if not authenticated)
-async def require_auth(request: Request, response: Response, token: str = Cookie(default=None)) -> dict[str, Any]:
-    """Require authentication for page routes. Raises HTTPException(401) if not authenticated."""
-    from api.auth import decode_access_token, get_user_by_username
-
-    if not token:
-        log.warning("Auth: No token found.")
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    try:
-        payload = decode_access_token(token)
-        username = payload.get("sub")
-        if username is None:
-            raise HTTPException(status_code=401, detail="Could not validate credentials")
-        from api.auth import get_users_db
-        users_db = await get_users_db()
-        user = users_db.get(username)
-        if user is None:
-            raise HTTPException(status_code=401, detail="User not found")
-        request.state.user = user
-        log.debug(f"Auth: User {user['username']} authenticated.")
-        return user
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Auth: Unexpected error during authentication: {e}")
-        raise HTTPException(status_code=401, detail="Not authenticated")
+from api.auth import get_current_user, verify_origin, create_default_admin # Import create_default_admin
 
 # Rate limiting
 
@@ -525,54 +497,54 @@ async def auth():
 
 
 
-@app.get("/playlists", dependencies=[Depends(require_auth)])
+@app.get("/playlists")
 async def playlists():
     """Playlists page."""
     return await no_cache_file_response(WEB_DIR / "playlists.html")
 
 
-@app.get("/subscriptions", dependencies=[Depends(require_auth)])
+@app.get("/subscriptions")
 async def subscriptions():
     """Subscriptions page."""
     return await no_cache_file_response(WEB_DIR / "subscriptions.html")
 
 
-@app.get("/maintenance", dependencies=[Depends(require_auth)])
+@app.get("/maintenance")
 async def maintenance():
     """Maintenance page."""
     return await no_cache_file_response(WEB_DIR / "maintenance.html")
 
 
-@app.get("/rules", dependencies=[Depends(require_auth)])
+@app.get("/rules")
 async def rules():
     """Rules & Mappings page."""
     return await no_cache_file_response(WEB_DIR / "settings.html")
 
 
-@app.get("/ai", dependencies=[Depends(require_auth)])
+@app.get("/ai")
 async def ai():
     """AI Integration page."""
     return await no_cache_file_response(WEB_DIR / "settings.html")
 
 
-@app.get("/bulk", dependencies=[Depends(require_auth)])
+@app.get("/bulk")
 async def bulk():
     """Bulk operations page."""
     return await no_cache_file_response(WEB_DIR / "bulk.html")
 
 
-@app.get("/settings", dependencies=[Depends(require_auth)])
+@app.get("/settings")
 async def settings():
     """Settings page."""
     return await no_cache_file_response(WEB_DIR / "settings.html")
 
 
-@app.get("/roadmap", dependencies=[Depends(require_auth)])
+@app.get("/roadmap")
 async def roadmap_page() -> Response:
     return await no_cache_file_response(WEB_DIR / "roadmap.html")
 
 
-@app.get("/test", dependencies=[Depends(require_auth)])
+@app.get("/test")
 async def test_page():
     """Test page."""
     return await no_cache_file_response(WEB_DIR / "test.html")
