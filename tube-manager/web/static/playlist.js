@@ -143,15 +143,15 @@ function renderVideos() {
             </select>
         </div>
         ${allVideos.map((v, i) => `
-            <div class="video-row flex items-center gap-2 py-1" data-video-id="${v.video_id}">
-                <input type="checkbox" class="video-checkbox w-4 h-4 rounded" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''}>
-                <img src="${v.thumbnail || 'https://picsum.photos/160/90'}" class="w-24 h-14 rounded object-cover flex-shrink-0">
+            <div class="video-row flex items-center gap-3 py-1.5" data-video-id="${v.video_id}">
+                <input type="checkbox" class="video-checkbox w-5 h-5 rounded" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''}>
+                <img src="${v.thumbnail || 'https://picsum.photos/160/90'}" class="w-48 h-28 rounded object-cover flex-shrink-0">
                 <div class="flex-1 min-w-0">
-                    <div class="text-[11px] text-white truncate">${DOMPurify.sanitize(v.title || 'Unknown title')}</div>
-                    <div class="text-[9px] text-gray-400">${DOMPurify.sanitize(v.channel_title || 'Unknown channel')}</div>
+                    <div class="text-sm text-white truncate">${DOMPurify.sanitize(v.title || 'Unknown title')}</div>
+                    <div class="text-xs text-gray-400">${DOMPurify.sanitize(v.channel_title || 'Unknown channel')}</div>
                 </div>
-                <span class="text-[9px] text-gray-300 font-mono bg-[#20242c] px-1.5 py-0.5 rounded">${formatDuration(v.duration)}</span>
-                <span class="text-[9px] text-gray-500 w-12 text-right">${i + 1}</span>
+                <span class="text-xs text-gray-300 font-mono bg-[#20242c] px-1.5 py-0.5 rounded">${formatDuration(v.duration)}</span>
+                <span class="text-xs text-gray-500 w-12 text-right">${i + 1}</span>
             </div>
         `).join('')}
     `;
