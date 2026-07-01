@@ -329,6 +329,9 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
                 return {"items": [], "error": f"page_fetch_failed: {page_resp.status_code}"}
 
             html = page_resp.text
+            log.info("[HTTPX SCRAPER] Page HTML: %d bytes, status=%d, title=%s", 
+                     len(html), page_resp.status_code,
+                     (html[html.find('<title>'):html.find('</title>')+8][:100] if '<title>' in html else 'N/A'))
 
             # Detect sign-in wall
             if "sign in" in html.lower()[:5000] and (
@@ -341,8 +344,16 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
             # Extract API key and client version for InnerTube API calls
             api_key = _get_api_key_from_page(html)
             client_version = _get_client_version(html)
-            log.info("[HTTPX SCRAPER] API key found: %s, client version: %s",
-                     bool(api_key), client_version)
+            log.info("[HTTPX SCRAPER] API key: %s, client version: %s, sapisid: %s",
+                     bool(api_key), client_version, bool(sapisid_hash))
+            if not api_key:
+                log.warning("[HTTPX SCRAPER] No API key found - InnerTube API calls will fail")
+                # Log what keys ARE available
+                for key in ['INNERTUBE_API_KEY', 'innertubeApiKey', 'API_KEY']:
+                    idx = html.find(key)
+                    if idx >= 0:
+                        log.warning("[HTTPX SCRAPER] Found '%s' at byte %d: ...%s...", 
+                                   key, idx, html[idx:idx+100].replace(chr(10), ' '))
 
             # Step 2: Build InnerTube auth headers
             api_headers = {
@@ -365,8 +376,18 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
                 log.info("[HTTPX SCRAPER] Found ytInitialData in page HTML")
                 items = _extract_playlist_items_from_data(yt_data)
                 all_items.extend(items)
-                log.info("[HTTPX SCRAPER] Extracted %d items from ytInitialData", len(items))
+                log.info("[HTTPX SCRAPER] Extracted %d items from ytInitialData, has_ct=%s", 
+                         len(items), bool(_extract_continuation_token(yt_data)))
                 continuation_token = _extract_continuation_token(yt_data)
+            else:
+                log.warning("[HTTPX SCRAPER] No ytInitialData found in page HTML - searching for ytInitialData pattern...")
+                # Log a small sample to diagnose
+                idx = html.find('ytInitialData')
+                if idx >= 0:
+                    log.warning("[HTTPX SCRAPER] ytInitialData found at byte %d but regex failed to extract - context: %s...", 
+                               idx, html[idx:idx+200].replace(chr(10), ' '))
+                else:
+                    log.warning("[HTTPX SCRAPER] ytInitialData NOT FOUND in page HTML")
 
             # If that didn't work, try the InnerTube browse API
             if not all_items and api_key:
