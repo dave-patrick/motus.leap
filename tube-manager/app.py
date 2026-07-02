@@ -1779,6 +1779,54 @@ async def save_cookies(request: Request):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+@app.get("/api/diagnostics/scraper-test", dependencies=[Depends(get_current_user)])
+async def diagnostics_scraper_test():
+    """Test the YouTube scraper and report what YouTube's page looks like."""
+    from services.browser_scraper import _cookies_path, has_cookies, _load_cookies_raw
+    result = {
+        "has_cookies": has_cookies(),
+        "cookies_path": str(_cookies_path()),
+        "cookie_file_exists": _cookies_path().exists(),
+    }
+    if result["cookie_file_exists"]:
+        try:
+            raw = _load_cookies_raw()
+            result["cookie_count"] = len(raw)
+            names = [c.get("name") for c in raw]
+            result["cookie_names"] = names
+            result["has_sapisid"] = "SAPISID" in names or "__Secure-3PAPISID" in names
+            # Try the actual scrape
+            import httpx
+            header_cookie = "; ".join(f"{c.get('name','')}={c.get('value','')}" for c in raw if c.get("name") and c.get("value"))
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                resp = await client.get(
+                    "https://www.youtube.com/playlist?list=WL",
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                        "Cookie": header_cookie,
+                        "Accept-Language": "en-US,en;q=0.9",
+                    }
+                )
+                result["youtube_status"] = resp.status_code
+                result["youtube_page_size"] = len(resp.text)
+                result["youtube_url"] = str(resp.url)
+                if "<title>" in resp.text:
+                    title_start = resp.text.find("<title>")
+                    title_end = resp.text.find("</title>")
+                    result["youtube_title"] = resp.text[title_start+7:title_end]
+                # Check for sign-in wall
+                result["sign_in_wall"] = "sign in" in resp.text.lower()[:5000]
+                # Check for video IDs
+                import re
+                vids = re.findall(r'videoId["\']\s*:\s*["\']([a-zA-Z0-9_-]{11})["\']', resp.text)
+                result["unique_video_ids_in_html"] = len(set(vids))
+                # Check for ytInitialData
+                result["yt_initial_data_found"] = "ytInitialData" in resp.text
+        except Exception as e:
+            result["error"] = str(e)
+    return result
+
+
 @app.get("/api/system/logs")
 async def get_system_logs():
     """Get recent system logs from the log file."""
