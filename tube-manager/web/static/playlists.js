@@ -281,6 +281,8 @@ if (document.readyState === "loading") {
     safeLoadPlaylists();
 }
 
+bindPlaylistActions();
+
 async function syncPlaylists(e) {
     const btn = e.target.closest("button") || e.target;
     btn.disabled = true;
