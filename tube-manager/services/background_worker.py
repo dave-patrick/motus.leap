@@ -513,13 +513,24 @@ class BackgroundWorker:
             total_videos = result.get("stats", {}).get("total_videos", 0)
             total_subs = result.get("stats", {}).get("total_subscriptions", 0)
             sub_error = result.get("subscriptions_error")
+            pl_error = result.get("playlists_error")
 
-            msg = f"[SYNC] Successfully synchronized {total_playlists} playlists, {total_videos} videos, {total_subs} subscriptions. Cache updated."
-            if sub_error:
-                msg = f"[SYNC] Synchronized {total_playlists} playlists, {total_videos} videos. Subscriptions failed: {sub_error}"
+            if sub_error or pl_error:
+                if pl_error:
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Playlists: {pl_error}"}))
+                if sub_error:
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Subscriptions: {sub_error}"}))
+                # Both failing with 403 likely means OAuth token issue
+                if ("403" in (sub_error or "") or "403" in (pl_error or "")):
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] YouTube returned 403 — your OAuth token may be expired or missing the YouTube scope."}))
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] Go to Settings → scroll to YouTube section → click 'Re-authorize YouTube' to get a fresh token."}))
+                msg = f"[SYNC] Sync failed — YouTube API returned errors"
+            else:
+                msg = f"[SYNC] Successfully synchronized {total_playlists} playlists, {total_videos} videos, {total_subs} subscriptions. Cache updated."
             await self.manager.broadcast(json.dumps({"type": "log", "message": msg}))
-            await asyncio.sleep(0.5)
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete • All data cached locally. No further API calls needed for reads."}))
+            if not sub_error and not pl_error:
+                await asyncio.sleep(0.5)
+                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete • All data cached locally. No further API calls needed for reads."}))
             
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
