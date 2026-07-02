@@ -265,7 +265,8 @@ async def no_cache_file_response(file_path: Path) -> Response:
             '<title>motus.leap</title>',
             f'<title>motus.leap</title>\n    <meta name="deploy-time" content="{deploy_tag}">'
         )
-        content = content.replace('?v=7', f'?v={deploy_tag}')
+        import re
+        content = re.sub(r"\?v=\d+", f'?v={deploy_tag}', content)
         return Response(
             content=content,
             media_type="text/html; charset=utf-8",
