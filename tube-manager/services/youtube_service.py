@@ -5,6 +5,11 @@ import hashlib
 import logging
 import os
 import ssl
+
+try:
+    import httpx
+except ImportError:
+    httpx = None  # type: ignore
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
@@ -487,6 +492,11 @@ class YouTubeService:
                     log.error("_fetch_all_paginated: Too many consecutive connection errors, stopping pagination")
                     break
                 continue
+            except httpx.HTTPStatusError as e:
+                # 4xx errors (401/403/404) won't succeed on retry — raise immediately
+                err_msg = f"_fetch_all_paginated: HTTP {e.response.status_code} on API call: {e}. Stopping pagination."
+                log.warning(err_msg)
+                raise
             except Exception as e:
                 log.warning(f"_fetch_all_paginated: fetch_fn raised: {e}. Stopping pagination.")
                 break
@@ -536,7 +546,18 @@ class YouTubeService:
                     await self._cache.set("all_data", disk_data, timedelta(minutes=10))
                     return disk_data
             # No cache — run the actual fetch
-            result = await self._fetch_all_data_impl(force_refresh=force_refresh)
+            try:
+                result = await self._fetch_all_data_impl(force_refresh=force_refresh)
+            except httpx.HTTPStatusError as e:
+                log.error(f"[FETCH] HTTP error in fetch_all_data: {e.response.status_code} {e}")
+                try:
+                    detail = e.response.json().get("error", {}).get("message", str(e))
+                except Exception:
+                    detail = str(e)
+                return {"error": f"YouTube API error ({e.response.status_code}): {detail}"}
+            except Exception as e:
+                log.error(f"[FETCH] Unexpected error in fetch_all_data: {e}")
+                return {"error": str(e)}
             # Cache the result for subsequent callers
             if "error" not in result:
                 await self._cache.set("all_data", result, timedelta(minutes=10))
@@ -641,17 +662,28 @@ class YouTubeService:
             
             # Step 2: Fetch all playlists (1 API call with pagination)
             log.info("[FETCH] Getting playlists...")
-            
-            all_playlists = await self._fetch_all_paginated(
-                lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
-                max_results=50,
-                max_items=500,
-            )
-            playlists = sorted((self._playlist_item_to_dict(pl) for pl in all_playlists), key=lambda x: x["title"].lower())
-            total_videos = sum(pl["video_count"] for pl in playlists)
+            playlist_error = None
+            try:
+                all_playlists = await self._fetch_all_paginated(
+                    lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
+                    max_results=50,
+                    max_items=500,
+                )
+                if not all_playlists:
+                    log.warning("[FETCH] Playlists returned 0 items")
+                    playlist_error = "API returned 0 playlists"
+                playlists = sorted((self._playlist_item_to_dict(pl) for pl in all_playlists), key=lambda x: x["title"].lower())
+                total_videos = sum(pl["video_count"] for pl in playlists)
+            except Exception as e:
+                playlist_error = f"Failed to fetch playlists: {e}"
+                log.warning(playlist_error)
+                playlists = []
+                total_videos = 0
             result["playlists"] = playlists
             result["stats"]["total_playlists"] = len(playlists)
             result["stats"]["total_videos"] = total_videos
+            if playlist_error:
+                result["playlists_error"] = playlist_error
             # _set_cached for basic_stats will be handled by its own decorator
 
             # Step 3: Fetch videos from playlists with duration (BATCH OPTIMIZED)
