@@ -455,18 +455,19 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
                                 browse_resp.status_code)
                     # Don't fail yet — try the HTML parsing approach a different way
 
-            # If nothing found from structured parsing, extract video IDs via regex
-            # YouTube's WL page embeds ALL videoIds in the HTML, even when loaded piecemeal
-            if not all_items or len(all_items) < max_items:
-                log.info("[HTTPX SCRAPER] Using regex to extract all video IDs from HTML...")
-                # Find all videoId in JSON-like structures
+            # Use regex to extract any additional video IDs from HTML that
+            # weren't captured by structured parsing. Only use this as a
+            # supplement when there's no continuation token (i.e. the page
+            # has all videos inline). If a continuation token exists, the
+            # pagination loop below will fetch the rest.
+            if not continuation_token and len(all_items) < max_items:
+                log.info("[HTTPX SCRAPER] No continuation token — using regex to find more video IDs in HTML...")
                 vid_pattern = r'["\']videoId["\']\s*:\s*["\']([a-zA-Z0-9_-]{11})["\']'
                 vid_matches = re.findall(vid_pattern, html)
                 unique_vids = list(dict.fromkeys(vid_matches))
                 log.info("[HTTPX SCRAPER] Regex found %d unique video IDs in HTML",
                          len(unique_vids))
                 if len(unique_vids) > len(all_items):
-                    # Build items from regex data, preserving any existing ones
                     existing_ids = {v.get("contentDetails", {}).get("videoId", v.get("id")) for v in all_items}
                     for vid in unique_vids[:max_items]:
                         if vid not in existing_ids:
@@ -480,8 +481,6 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
                                 "contentDetails": {"videoId": vid},
                             })
                     log.info("[HTTPX SCRAPER] Combined items: %d", len(all_items))
-                # Reset continuation since we exhausted page data
-                continuation_token = None
 
             # Step 4: Paginate through continuation tokens
             while continuation_token and len(all_items) < max_items:
@@ -539,7 +538,7 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
 
                     # Brief delay to avoid rate limiting
                     if continuation_token:
-                        time.sleep(0.5)
+                        time.sleep(1.0)
 
                 except Exception as e:
                     log.warning("[HTTPX SCRAPER] Continuation page %d failed: %s",
