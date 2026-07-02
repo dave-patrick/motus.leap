@@ -75,16 +75,16 @@ function renderPlaylistsGrid(playlists) {
         return;
     }
     playlistsList.innerHTML = playlists.map(p => `
-        <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-[18px] flex flex-col cursor-pointer hover:border-[#2a7db8]/50 transition-colors h-full relative">
+        <div onclick="window.location.href='/playlist/${p.id}'" class="bento-card p-3 md:p-[18px] w-full flex flex-col cursor-pointer hover:border-[#2a7db8]/50 transition-colors h-full relative">
             <div class="flex items-start justify-between mb-2">
-                <div class="w-24 h-14 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
-                <button onclick="openPlaylist('${p.id}', event)" class="text-xs px-1.5 py-0.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[10px]"></i></button>
+                <div class="w-20 h-12 md:w-24 md:h-14 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover"></div>
+                <button onclick="openPlaylist('${p.id}', event)" class="text-xs px-2 py-1.5 rounded bg-[#20242c] text-gray-400 border border-[#2a2f3a] hover:text-white hover:border-[#374151] transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[10px]"></i></button>
             </div>
             <h3 class="text-base font-semibold text-white truncate mb-0.5">${p.title}</h3>
             <p class="text-xs text-gray-400 mb-2">${p.video_count} videos</p>
-            <div class="flex items-center gap-1 mt-auto pt-1.5 border-t border-[#2a2f3a]" onclick="event.stopPropagation()">
-                <button onclick="rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1 px-2.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-xs"></i></button>
-                <button onclick="openManagePlaylistModal('${p.id}', \`${p.title.replace(/\'/g, "\\'")}\`, event)" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1 rounded transition-colors"><i class="fa-solid fa-cog text-xs"></i> Manage</button>
+            <div class="flex items-center gap-2 mt-auto pt-1.5 border-t border-[#2a2f3a]" onclick="event.stopPropagation()">
+                <button onclick="rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 px-3 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-xs"></i></button>
+                <button onclick="openManagePlaylistModal('${p.id}', \`${p.title.replace(/\'/g, "\\'")}\`, event)" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 px-3 rounded transition-colors transition-colors"><i class="fa-solid fa-cog text-xs"></i> Manage</button>
             </div>
         </div>
     `).join('');
