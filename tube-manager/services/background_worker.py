@@ -478,6 +478,11 @@ class BackgroundWorker:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] No videos found in Watch Later."}))
 
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WATCH LATER] Found {len(items)} video(s) via {source}"}))
+            # Broadcast debug data from the scraper if available
+            debug_vid_count = watch_later_resp.get("debug_html_video_id_count")
+            debug_yt_data = watch_later_resp.get("debug_yt_data_found")
+            if debug_vid_count is not None:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WATCH LATER] Debug: ytInitialData={debug_yt_data}, videoIds in raw HTML={debug_vid_count}"}))
             if not items:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] Nothing to sync."}))
                 return
