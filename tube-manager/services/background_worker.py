@@ -481,8 +481,10 @@ class BackgroundWorker:
             # Broadcast debug data from the scraper if available
             debug_vid_count = watch_later_resp.get("debug_html_video_id_count")
             debug_yt_data = watch_later_resp.get("debug_yt_data_found")
+            debug_ct_pages = watch_later_resp.get("debug_continuation_pages")
+            debug_ct_avail = watch_later_resp.get("debug_continuation_token_present")
             if debug_vid_count is not None:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WATCH LATER] Debug: ytInitialData={debug_yt_data}, videoIds in raw HTML={debug_vid_count}"}))
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WATCH LATER] Debug: ytInitialData={debug_yt_data}, rawHTML_videoIds={debug_vid_count}, contPages={debug_ct_pages}, hadContToken={debug_ct_avail}"}))
             if not items:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": "[WATCH LATER] Nothing to sync."}))
                 return

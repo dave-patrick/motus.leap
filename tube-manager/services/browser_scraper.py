@@ -415,9 +415,9 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
                 log.info("[HTTPX SCRAPER] Found ytInitialData in page HTML")
                 items = _extract_playlist_items_from_data(yt_data)
                 all_items.extend(items)
-                log.info("[HTTPX SCRAPER] Extracted %d items from ytInitialData, has_ct=%s", 
-                         len(items), bool(_extract_continuation_token(yt_data)))
                 continuation_token = _extract_continuation_token(yt_data)
+                log.info("[HTTPX SCRAPER] Extracted %d items from ytInitialData, has_ct=%s",
+                         len(items), bool(continuation_token))
             else:
                 log.warning("[HTTPX SCRAPER] No ytInitialData found in page HTML - searching for ytInitialData pattern...")
                 # Log a small sample to diagnose
@@ -457,12 +457,12 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
                     # Don't fail yet — try the HTML parsing approach a different way
 
             # Use regex to extract any additional video IDs from HTML that
-            # weren't captured by structured parsing. Only use this as a
-            # supplement when there's no continuation token (i.e. the page
-            # has all videos inline). If a continuation token exists, the
-            # pagination loop below will fetch the rest.
-            if not continuation_token and len(all_items) < max_items:
-                log.info("[HTTPX SCRAPER] No continuation token — using regex to find more video IDs in HTML...")
+            # weren't captured by structured parsing. YouTube's page HTML
+            # embeds ALL video IDs even for paginated playlists, so this
+            # supplements whatever the structured parse found (which may
+            # be only ~100 from the first page).
+            if len(all_items) < max_items:
+                log.info("[HTTPX SCRAPER] Using regex to find additional video IDs in HTML (beyond the %d extracted by parser)...", len(all_items))
                 vid_pattern = r'["\']videoId["\']\s*:\s*["\']([a-zA-Z0-9_-]{11})["\']'
                 vid_matches = re.findall(vid_pattern, html)
                 unique_vids = list(dict.fromkeys(vid_matches))
@@ -551,7 +551,8 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
                     break
 
             result_items = all_items[:max_items]
-            log.info("[HTTPX SCRAPER] Total: %d videos from Watch Later", len(result_items))
+            log.info("[HTTPX SCRAPER] Total: %d videos from Watch Later (%d continuation pages)",
+                     len(result_items), page_count)
             # Count videoIds via regex for diagnostic purposes
             vid_count = len(re.findall(r'["\']videoId["\']\s*:\s*["\']([a-zA-Z0-9_-]{11})["\']', html))
             log.info("[HTTPX SCRAPER] RAW HTML videoId count: %d", vid_count)
@@ -559,6 +560,8 @@ def scrape_watch_later_videos(max_items: int = 500) -> dict:
                 "items": result_items,
                 "debug_html_video_id_count": vid_count,
                 "debug_yt_data_found": yt_data is not None,
+                "debug_continuation_pages": page_count,
+                "debug_continuation_token_present": continuation_token is not None,
             }
 
     except Exception as e:
