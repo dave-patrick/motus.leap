@@ -158,8 +158,12 @@
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Custom Source Playlist ID (optional)</label>
-                                        <input type="text" id="watch-later-source-id" placeholder="e.g. PL... — leave empty for auto-detect" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                        <div class="flex gap-2">
+                                            <input type="text" id="watch-later-source-id" placeholder="e.g. PL... — leave empty for auto-detect" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                            <button onclick="detectWatchLater()" class="px-3 rounded-lg bg-[#2f8fc9] text-white text-xs font-semibold hover:bg-[#3a9fd9] transition-colors whitespace-nowrap min-h-[44px]">Detect</button>
+                                        </div>
                                         <p class="text-[9px] text-gray-500 mt-1">Overrides auto-detect. Find this in your YouTube playlist URL: <code class="text-[#2f8fc9]">youtube.com/playlist?list=PL...</code></p>
+                                        <div id="wl-detect-status" class="hidden mt-1 text-[9px]"></div>
                                     </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">Watch Later Move Target</label>
@@ -682,6 +686,30 @@
                 input.type = 'password';
                 icon.classList.remove('fa-eye-slash');
                 icon.classList.add('fa-eye');
+            }
+        }
+
+        async function detectWatchLater() {
+            const status = document.getElementById('wl-detect-status');
+            status.className = 'mt-1 text-[9px] text-gray-400';
+            status.textContent = 'Detecting...';
+            status.classList.remove('hidden');
+            try {
+                const resp = await fetch('/api/diagnostics/watch-later-id');
+                const data = await resp.json();
+                if (data.found && data.id) {
+                    document.getElementById('watch-later-source-id').value = data.id;
+                    status.textContent = `Found: ${data.id}. Note: Native Watch Later requires browser cookies (API is blocked).`;
+                    status.className = 'mt-1 text-[9px] text-yellow-300';
+                    // Save it automatically
+                    await fetch('/api/diagnostics/watch-later-id/save', {method: 'POST'});
+                } else {
+                    status.textContent = data.message || data.error || 'Could not detect Watch Later.';
+                    status.className = 'mt-1 text-[9px] text-red-400';
+                }
+            } catch (e) {
+                status.textContent = 'Detection failed: ' + e.message;
+                status.className = 'mt-1 text-[9px] text-red-400';
             }
         }
 

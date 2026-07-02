@@ -1708,6 +1708,44 @@ async def diagnostics_cookies() -> dict:
     return result
 
 
+@app.get("/api/diagnostics/watch-later-id", dependencies=[Depends(get_current_user)])
+async def diagnostics_watch_later_id():
+    """Auto-detect the native Watch Later playlist ID and save it to config."""
+    if not youtube_service:
+        return {"error": "YouTube service not initialized"}
+    try:
+        wl_id = await youtube_service._resolve_watch_later_id()
+        if not wl_id:
+            return {"found": False, "message": "Could not resolve Watch Later playlist ID from YouTube API."}
+        config = config_manager.config
+        current = getattr(config, "watch_later_playlist_id", "") or ""
+        return {
+            "found": True,
+            "id": wl_id,
+            "already_configured": current == wl_id,
+            "message": f"Watch Later ID is {wl_id}. This is the native YouTube Watch Later — it can only be read via browser cookies."
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/diagnostics/watch-later-id/save", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def save_watch_later_id():
+    """Save the auto-detected Watch Later playlist ID to settings."""
+    if not youtube_service:
+        return {"error": "YouTube service not initialized"}
+    try:
+        wl_id = await youtube_service._resolve_watch_later_id()
+        if not wl_id:
+            return {"error": "Could not resolve Watch Later ID"}
+        config = config_manager.config
+        config.watch_later_playlist_id = wl_id
+        await config_manager.save(config)
+        return {"status": "saved", "id": wl_id, "message": f"Watch Later playlist ID saved ({wl_id})"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # System endpoints
 
 @app.post("/api/cookies/save", dependencies=[Depends(get_current_user), Depends(verify_origin)])
