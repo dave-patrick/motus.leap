@@ -455,6 +455,20 @@ class BackgroundWorker:
             elif not apikey_client:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube API: Not configured (no API key or OAuth)"}))
             
+            # Test subscriptions API
+            await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] Testing subscriptions API..."}))
+            try:
+                if oauth_client:
+                    sub_resp = await asyncio.to_thread(oauth_client.list_mine_subscriptions, max_results=3)
+                    sub_items = sub_resp.get("items", [])
+                    sub_error = sub_resp.get("error")
+                    if sub_error:
+                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Subscriptions API error: {sub_error}"}))
+                    else:
+                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Subscriptions API test: {len(sub_items)} items (good — API is working)"}))
+            except Exception as e:
+                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Subscriptions API test failed: {e}"}))
+
             # Check config
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Channel mappings: {len(config.channel_mappings)}"}))
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Rules configured: {'Yes' if config.rules else 'No'}"}))
@@ -498,11 +512,12 @@ class BackgroundWorker:
             total_playlists = result.get("stats", {}).get("total_playlists", 0)
             total_videos = result.get("stats", {}).get("total_videos", 0)
             total_subs = result.get("stats", {}).get("total_subscriptions", 0)
-            
-            await self.manager.broadcast(json.dumps({
-                "type": "log",
-                "message": f"[SYNC] Successfully synchronized {total_playlists} playlists, {total_videos} videos, {total_subs} subscriptions. Cache updated."
-            }))
+            sub_error = result.get("subscriptions_error")
+
+            msg = f"[SYNC] Successfully synchronized {total_playlists} playlists, {total_videos} videos, {total_subs} subscriptions. Cache updated."
+            if sub_error:
+                msg = f"[SYNC] Synchronized {total_playlists} playlists, {total_videos} videos. Subscriptions failed: {sub_error}"
+            await self.manager.broadcast(json.dumps({"type": "log", "message": msg}))
             await asyncio.sleep(0.5)
             await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete • All data cached locally. No further API calls needed for reads."}))
             

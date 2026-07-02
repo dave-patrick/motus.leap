@@ -497,11 +497,9 @@ class YouTubeService:
             if resp is None or "items" not in resp:
                 log.warning(f"_fetch_all_paginated: fetch_fn returned None or missing 'items'. Response: {resp}. Stopping pagination.")
                 break
-            # Check for API-level errors baked into the response (e.g. 403
-            # restriction on native Watch Later playlistItems — the method
-            # returns a dict with both "items" and "error" keys so it passes
-            # the "items" check above but the result is an empty page).
-            if resp.get("error"):
+            # Check for API-level errors. If the fetch function caught an
+            # error and returned it, stop pagination.
+            if isinstance(resp, dict) and resp.get("error"):
                 log.warning(f"_fetch_all_paginated: fetch_fn returned error: {resp['error']}. Stopping pagination.")
                 break
             items = resp.get("items", [])
@@ -579,12 +577,17 @@ class YouTubeService:
             # Inline subscription fetching to avoid circular calls
             # (previously delegated to self.list_subscriptions which called fetch_all_data back)
             subscriptions = []
+            sub_fetch_error = None
             try:
                 all_subs = await self._fetch_all_paginated(
                     lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
                     max_results=50,
                     max_items=500,
                 )
+
+                if not all_subs:
+                    log.warning("[FETCH] Subscriptions returned 0 items (possible API error or auth scope issue)")
+                    sub_fetch_error = "API returned 0 subscriptions"
 
                 channel_ids = []
                 seen_channels = set()
@@ -627,7 +630,11 @@ class YouTubeService:
 
                 subscriptions.sort(key=lambda x: x["title"].lower())
             except Exception as e:
-                log.warning(f"Failed to fetch subscriptions for all_data: {e}")
+                err_msg = f"Failed to fetch subscriptions: {e}"
+                log.warning(err_msg)
+                result["subscriptions_error"] = err_msg
+            if sub_fetch_error and not result.get("subscriptions_error"):
+                result["subscriptions_error"] = sub_fetch_error
 
             result["subscriptions"] = subscriptions
             result["stats"]["total_subscriptions"] = len(subscriptions)

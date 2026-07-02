@@ -339,15 +339,16 @@ class YouTubeClient:
 
     def list_mine_subscriptions(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
         if not self.oauth_access_token or not self.oauth_refresh_token:
+            log.warning("[YOUTUBE] list_mine_subscriptions: no OAuth tokens available")
             return {"items": []}
-        try:
-            params = {"part": "snippet,contentDetails", "mine": "true", "maxResults": max_results}
-            if page_token:
-                params["pageToken"] = page_token
-            return self._oauth_request("subscriptions", params)
-        except Exception as e:
-            log.error(f"[YOUTUBE] list_mine_subscriptions error: {e}")
-            return {"items": []}
+        params = {"part": "snippet,contentDetails", "mine": "true", "maxResults": max_results}
+        if page_token:
+            params["pageToken"] = page_token
+        log.info(f"[YOUTUBE] list_mine_subscriptions: fetching page (maxResults={max_results}, pageToken={bool(page_token)})")
+        resp = self._oauth_request("subscriptions", params)
+        count = len(resp.get("items", []))
+        log.info(f"[YOUTUBE] list_mine_subscriptions: returned {count} items")
+        return resp
 
     def list_channels_by_ids(self, ids: list[str], max_results: int = 50) -> dict[str, Any]:
         client = self._get_client(require_oauth=False)
