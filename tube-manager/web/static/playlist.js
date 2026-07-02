@@ -471,30 +471,44 @@ function filterScanResults() {
 
 async function deleteDuplicateItems() {
     if (!confirm(`Are you sure you want to delete ${currentScanResults.duplicates.length} duplicate videos from this playlist? This action cannot be undone.`)) return;
-    
+    if (!currentScanResults.duplicates.length) return;
+
     toast(`Deleting ${currentScanResults.duplicates.length} duplicates...`, 'info');
-    const videoIdsToDelete = currentScanResults.duplicates.map(item => item.playlist_item_id);
-    
+    const playlistItemIds = currentScanResults.duplicates.map(item => item.playlist_item_id).filter(Boolean);
+    if (!playlistItemIds.length) {
+        toast('No valid duplicate items to delete', 'error');
+        return;
+    }
+
     try {
-        const resp = await fetch('/api/bulk/delete', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({playlist_id: playlistId, video_ids: videoIdsToDelete})
+        const results = await Promise.allSettled(
+            playlistItemIds.map(playlistItemId =>
+                fetch('/api/youtube/playlistitems/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({playlist_item_id: playlistItemId, playlist_id: playlistId})
+                })
+                .then(res => res.json().catch(() => ({})))
+                .then(data => ({ok: true, data}))
+            )
+        );
+
+        let succeeded = 0;
+        let failed = 0;
+        results.forEach((result) => {
+            if (result.status === 'fulfilled' && result.value && result.value.data && result.value.data.status === 'success') succeeded += 1;
+            else failed += 1;
         });
-        const result = await resp.json();
-        if (resp.ok) {
-            toast(`Deleted ${result.succeeded} duplicates, failed ${result.failed}`, 'success');
-            currentScanResults.duplicates = []; // Clear duplicates after successful deletion
-            await loadPlaylist(); // Refresh playlist and re-run scan to update UI
-        } else {
-            const errorMessage = result.error || resp.statusText || 'Failed to delete duplicates';
-            toast(`Failed to delete duplicates: ${DOMPurify.sanitize(errorMessage)}`, 'error');
-        }
+
+        currentScanResults.duplicates = [];
+        if (failed > 0) toast(`Deleted ${succeeded} duplicates, failed ${failed}`, 'error');
+        else toast(`Deleted ${succeeded} duplicates`, 'success');
+        await loadPlaylist();
     } catch (e) {
         toast(`Network error: Failed to delete duplicates: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
         console.error('Delete duplicates error:', e);
     } finally {
-        showScanBox(document.getElementById('scan-filter').value); // Re-render scan results
+        showScanBox(document.getElementById('scan-filter').value);
     }
 }
 
