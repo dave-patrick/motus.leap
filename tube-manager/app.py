@@ -64,8 +64,6 @@ from models.task import Task, TaskStatus, TaskPriority
 
 # Service imports
 from services.youtube_service import YouTubeService
-from services.browser_scraper import has_cookies, _cookies_path, _load_cookies_raw
-
 # Setup logging
 
 # Paths
@@ -588,128 +586,6 @@ async def api_playlist_names():
         return {"playlists": []}
 
 
-@app.get("/api/watch-later", dependencies=[Depends(get_current_user)])
-async def get_watch_later(force_refresh: bool = False):
-    """Fetch Watch Later playlist contents using browser scraper (bypasses API restriction)."""
-    try:
-        if not youtube_service:
-            return {"items": [], "source": "none", "error": "YouTube service not initialized"}
-
-        configured_id = config_manager.config.watch_later_playlist_id if hasattr(config_manager.config, 'watch_later_playlist_id') else ""
-
-        # Use the cached method
-        watch_later_data = await youtube_service.list_watch_later_items_cached(
-            playlist_id=configured_id if configured_id else None,
-            force_refresh=force_refresh
-        )
-        
-        if watch_later_data.get("error"):
-            return {"items": [], "source": "error", "error": watch_later_data["error"]}
-
-        items = watch_later_data.get("items", [])
-        source = "api-cached" # Default to API cached for now, browser scrape will override
-
-        # If it was a browser scrape, the log from youtube_service will indicate it, no need to re-scrape here
-        if not configured_id and items and watch_later_data.get("source") == "browser": # Check if source was browser scrape from the cached data
-             source = "browser"
-
-        if not items:
-            if not configured_id and not has_cookies():
-                return {"items": [], "source": "needs-setup", "error": "No Watch Later playlist configured and no cookies uploaded. Set a playlist ID in Settings, or upload YouTube cookies."}
-            return {"items": [], "source": "empty"}
-
-        # Try to get the playlist title for the display badge if configured_id is used
-        pl_name = configured_id
-        if configured_id and items:
-            try:
-                pl_data = await youtube_service.list_playlists()
-                for p in pl_data.get("playlists", []):
-                    if p.get("id") == configured_id:
-                        pl_name = p.get("title", configured_id)
-                        break
-            except Exception:
-                pass
-            source = f"configured: {pl_name}"
-            
-        return {"items": items, "source": source}
-    except Exception as e:
-        log.error(f"Watch Later fetch failed: {e}")
-        return {"items": [], "error": str(e), "source": "error"}
-
-
-class WatchLaterMoveIn(BaseModel):
-    video_ids: list[str]
-    target_playlist_id: str
-
-    @field_validator("video_ids")
-    @classmethod
-    def validate_video_ids(cls, v):
-        for item in v:
-            if not validate_video_id(item):
-                raise ValueError(f"Invalid video ID format: {item}")
-        return v
-
-
-
-@app.post("/api/watch-later", dependencies=[Depends(get_current_user)])
-async def watch_later_sync(body: dict):
-    """Process and sync Watch Later videos."""
-    try:
-        video_ids = body.get("video_ids", [])
-        if not video_ids:
-            return {"error": "No video IDs provided"}
-
-        log.info(f"Synced {len(video_ids)} videos from Watch Later")
-        return {"status": "completed", "processed_count": len(video_ids), "video_ids": video_ids}
-    except Exception as e:
-        log.error(f"Watch Later sync failed: {e}")
-        return {"error": str(e)}
-@app.post("/api/watch-later/move", dependencies=[Depends(get_current_user), Depends(verify_origin)])
-async def move_watch_later_videos(body: WatchLaterMoveIn):
-    """Move selected videos from Watch Later to a target playlist."""
-    if not youtube_service:
-        return {"error": "YouTube service not initialized"}
-    
-    yt_client = youtube_service.get_client(require_oauth=True)
-    if not yt_client:
-        return {"error": "OAuth required"}
-    
-    results = {"moved": [], "failed": []}
-    watch_later_id = getattr(config_manager.config, "watch_later_playlist_id", None) if config_manager else None
-    
-    # Build mapping of video_id -> playlist_item_id from Watch Later
-    video_to_playlist_item: dict[str, str] = {}
-    if watch_later_id:
-        try:
-            wl_resp = await youtube_service.list_watch_later_items_cached(playlist_id=watch_later_id)
-            for item in wl_resp.get("items", []):
-                vid = item.get("contentDetails", {}).get("videoId")
-                pid = item.get("id")
-                if vid and pid:
-                    video_to_playlist_item[vid] = pid
-        except Exception as e:
-            log.warning(f"Failed to enumerate Watch Later items for move cleanup: {e}")
-    
-    for video_id in body.video_ids:
-        try:
-            # Add to target playlist
-            await asyncio.to_thread(yt_client.move_video_to_playlist, video_id, body.target_playlist_id)
-            # Remove from Watch Later source
-            pl_item_id = video_to_playlist_item.get(video_id)
-            if pl_item_id:
-                await asyncio.to_thread(yt_client.remove_video_from_playlist, pl_item_id)
-            results["moved"].append(video_id)
-        except Exception as e:
-            log.error(f"Failed to move video {video_id}: {e}")
-            results["failed"].append({"video_id": video_id, "error": str(e)})
-
-    # Invalidate Watch Later cache after moves
-    watch_later_id = getattr(config_manager.config, "watch_later_playlist_id", None) if config_manager else None
-    if watch_later_id:
-        await youtube_service._cache.delete(f"watch_later_items_{youtube_service._get_user_id()}_{watch_later_id}")
-        await youtube_service._cache.delete(f"watch_later_items_{youtube_service._get_user_id()}_auto")
-
-
 @app.get("/api/youtube/videos", dependencies=[Depends(get_current_user)])
 async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: bool = False):
     """Get videos with duration (cached).
@@ -1225,14 +1101,6 @@ async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any
     await config_manager.save(config)
     return {"message": "Mappings saved", "mappings": mappings}
 
-# Watch Later page with AI scan
-@app.get("/watch-later")
-async def watch_later_page():
-    """Watch Later page removed — redirect to dashboard."""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/dashboard")
-
-
 # Playlist detail page
 @app.get("/playlist/{playlist_id}")
 async def playlist_detail(playlist_id: str):
@@ -1305,9 +1173,6 @@ class SettingsIn(BaseModel):
     scan_interval: str | None = None
     max_concurrent: int | None = None
     auto_sort: bool | None = None
-    sync_watch_later: bool | None = None
-    watch_later_playlist_id: str | None = None
-    watch_later_target_playlist_id: str | None = None
     notify_failures: bool | None = None
     dark_mode: bool | None = None
     log_level: str | None = None
@@ -1332,9 +1197,6 @@ async def get_settings():
         "scan_interval": config.scan_interval,
         "max_concurrent": config.max_concurrent,
         "auto_sort": config.auto_sort,
-        "sync_watch_later": config.sync_watch_later,
-        "watch_later_playlist_id": getattr(config, "watch_later_playlist_id", ""),
-        "watch_later_target_playlist_id": getattr(config, "watch_later_target_playlist_id", ""),
         "notify_failures": config.notify_failures,
         "dark_mode": config.dark_mode,
         "log_level": config.log_level,
@@ -1522,8 +1384,6 @@ async def dispatch_action(body: dict):
 
     actions = {
         "sync_playlists": "Full Playlist Sync",
-        "sync_watch_later": "Watch Later Sync",
-        "watch_later_move": "Watch Later Move",
         "scan_duplicates": "Scan Duplicates",
         "scan_misplaced": "Scan Misplaced",
     }
@@ -1537,8 +1397,6 @@ async def dispatch_action(body: dict):
             return {"status": "error", "error": "Background worker not initialized"}
 
         known_actions = {
-            "sync_watch_later",
-            "watch_later_move",
             "sync_playlists",
             "scan_duplicates",
             "scan_misplaced",
@@ -1683,148 +1541,14 @@ async def diagnostics_oauth_user() -> dict[str, Any]:
 
     
 
-@app.get("/api/diagnostics/cookies", dependencies=[Depends(get_current_user)])
-async def diagnostics_cookies() -> dict:
-    """Check if YouTube cookies are saved and report diagnostic info."""
-    cp = _cookies_path()
-    exists = cp.exists()
-    result = {
-        "has_cookies": exists,
-        "cookies_path": str(cp),
-        "cookie_count": 0,
-        "has_sapisid": False,
-    }
-    if exists:
-        try:
-            cookies = _load_cookies_raw()
-            result["cookie_count"] = len(cookies)
-            for c in cookies:
-                name = c.get("name", "")
-                if name in ("SAPISID", "__Secure-3PAPISID"):
-                    result["has_sapisid"] = True
-                    break
-        except Exception as e:
-            result["error"] = str(e)
-    return result
 
 
-@app.get("/api/diagnostics/watch-later-id", dependencies=[Depends(get_current_user)])
-async def diagnostics_watch_later_id():
-    """Auto-detect the native Watch Later playlist ID and save it to config."""
-    if not youtube_service:
-        return {"error": "YouTube service not initialized"}
-    try:
-        wl_id = await youtube_service._resolve_watch_later_id()
-        if not wl_id:
-            return {"found": False, "message": "Could not resolve Watch Later playlist ID from YouTube API."}
-        config = config_manager.config
-        current = getattr(config, "watch_later_playlist_id", "") or ""
-        return {
-            "found": True,
-            "id": wl_id,
-            "already_configured": current == wl_id,
-            "message": f"Watch Later ID is {wl_id}. This is the native YouTube Watch Later — it can only be read via browser cookies."
-        }
-    except Exception as e:
-        return {"error": str(e)}
 
 
-@app.post("/api/diagnostics/watch-later-id/save", dependencies=[Depends(get_current_user), Depends(verify_origin)])
-async def save_watch_later_id():
-    """Save the auto-detected Watch Later playlist ID to settings."""
-    if not youtube_service:
-        return {"error": "YouTube service not initialized"}
-    try:
-        wl_id = await youtube_service._resolve_watch_later_id()
-        if not wl_id:
-            return {"error": "Could not resolve Watch Later ID"}
-        config = config_manager.config
-        config.watch_later_playlist_id = wl_id
-        await config_manager.save(config)
-        return {"status": "saved", "id": wl_id, "message": f"Watch Later playlist ID saved ({wl_id})"}
-    except Exception as e:
-        return {"error": str(e)}
 
 
-# System endpoints
-
-@app.post("/api/cookies/save", dependencies=[Depends(get_current_user), Depends(verify_origin)])
-async def save_cookies(request: Request):
-    """Save YouTube cookies for browser scraper."""
-    try:
-        body = await request.json()
-        cookies = body.get("cookies", [])
-        if not isinstance(cookies, list):
-            return JSONResponse(status_code=400, content={"error": "Invalid cookie format: expected array"})
-
-        from services.browser_scraper import _cookies_path
-        cookies_file = _cookies_path()
-        cookies_file.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(cookies_file, 'w') as f:
-            json.dump(cookies, f, indent=2)
-
-        log.info(f"Saved {len(cookies)} YouTube cookies to {cookies_file}")
-        # Invalidate Watch Later cache so next sync uses fresh cookies
-        if youtube_service and hasattr(youtube_service, '_cache') and youtube_service._cache:
-            try:
-                user_id = youtube_service._get_user_id()
-                await youtube_service._cache.delete(f"watch_later_items_{user_id}_auto")
-                log.info("[COOKIES] Invalidated Watch Later cache after cookie upload")
-            except Exception:
-                pass
-        return {"status": "success", "count": len(cookies), "path": str(cookies_file)}
-    except Exception as e:
-        log.error(f"Failed to save cookies: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-@app.get("/api/diagnostics/scraper-test", dependencies=[Depends(get_current_user)])
-async def diagnostics_scraper_test():
-    """Test the YouTube scraper and report what YouTube's page looks like."""
-    from services.browser_scraper import _cookies_path, has_cookies, _load_cookies_raw
-    result = {
-        "has_cookies": has_cookies(),
-        "cookies_path": str(_cookies_path()),
-        "cookie_file_exists": _cookies_path().exists(),
-    }
-    if result["cookie_file_exists"]:
-        try:
-            raw = _load_cookies_raw()
-            result["cookie_count"] = len(raw)
-            names = [c.get("name") for c in raw]
-            result["cookie_names"] = names
-            result["has_sapisid"] = "SAPISID" in names or "__Secure-3PAPISID" in names
-            # Try the actual scrape
-            import httpx
-            header_cookie = "; ".join(f"{c.get('name','')}={c.get('value','')}" for c in raw if c.get("name") and c.get("value"))
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                resp = await client.get(
-                    "https://www.youtube.com/playlist?list=WL",
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                        "Cookie": header_cookie,
-                        "Accept-Language": "en-US,en;q=0.9",
-                    }
-                )
-                result["youtube_status"] = resp.status_code
-                result["youtube_page_size"] = len(resp.text)
-                result["youtube_url"] = str(resp.url)
-                if "<title>" in resp.text:
-                    title_start = resp.text.find("<title>")
-                    title_end = resp.text.find("</title>")
-                    result["youtube_title"] = resp.text[title_start+7:title_end]
-                # Check for sign-in wall
-                result["sign_in_wall"] = "sign in" in resp.text.lower()[:5000]
-                # Check for video IDs
-                import re
-                vids = re.findall(r'videoId["\']\s*:\s*["\']([a-zA-Z0-9_-]{11})["\']', resp.text)
-                result["unique_video_ids_in_html"] = len(set(vids))
-                # Check for ytInitialData
-                result["yt_initial_data_found"] = "ytInitialData" in resp.text
-        except Exception as e:
-            result["error"] = str(e)
-    return result
 
 
 @app.get("/api/system/logs")

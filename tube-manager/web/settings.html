@@ -148,37 +148,9 @@
                                         <label class="text-[10px] text-gray-400 mb-1 block">Max Concurrent Operations</label>
                                         <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                     </div>
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Watch Later Source</label>
-                                        <div class="bento-card p-3 flex items-center gap-2">
-                                            <i class="fa-regular fa-clock text-[#2f8fc9] text-xs"></i>
-                                            <span class="text-gray-300 text-xs font-medium">Watch Later Queue</span>
-                                        </div>
-                                        <p class="text-[9px] text-gray-500 mt-1">The native Watch Later playlist is blocked by YouTube's API. You can set a <strong>custom playlist ID</strong> below as your source instead — create a public/unlisted playlist on YouTube, add your videos there, and paste its ID here. Leave empty to use auto-detect.</p>
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Custom Source Playlist ID (optional)</label>
-                                        <div class="flex gap-2">
-                                            <input type="text" id="watch-later-source-id" placeholder="e.g. PL... — leave empty for auto-detect" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                            <button onclick="detectWatchLater()" class="px-3 rounded-lg bg-[#2f8fc9] text-white text-xs font-semibold hover:bg-[#3a9fd9] transition-colors whitespace-nowrap min-h-[44px]">Detect</button>
-                                        </div>
-                                        <p class="text-[9px] text-gray-500 mt-1">Overrides auto-detect. Find this in your YouTube playlist URL: <code class="text-[#2f8fc9]">youtube.com/playlist?list=PL...</code></p>
-                                        <div id="wl-detect-status" class="hidden mt-1 text-[9px]"></div>
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Watch Later Move Target</label>
-                                        <div class="flex gap-2 items-start">
-                                            <select id="watch-later-target" onchange="saveSingleSetting('watch_later_target_playlist_id', this.value)" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                                <option value="">-- Select a playlist --</option>
-                                            </select>
-                                            <button onclick="loadPlaylistNames()" title="Refresh playlist list" class="shrink-0 w-10 h-[44px] rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-400 hover:text-[#2f8fc9] flex items-center justify-center transition-colors"><i class="fa-solid fa-rotate text-xs"></i></button>
-                                        </div>
-                                        <p class="text-[9px] text-gray-500 mt-1">Destination playlist for Watch Later Sync & Move. Videos are moved here instead of auto-distributing.</p>
-                                    </div>
 
                                     <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
                                         <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="auto-sort" class="accent-[#2f8fc9]" checked> Auto-sort new videos</label>
-                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="sync-watch-later" class="accent-[#2f8fc9]" checked> Sync Watch Later on scan</label>
                                         <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="notify-failures" class="accent-[#2f8fc9]"> Notify on failures</label>
                                         <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="dark-mode" class="accent-[#2f8fc9]" checked> Dark mode only</label>
                                     </div>
@@ -195,18 +167,7 @@
                                         <button id="clear-thumbnail-cache-btn" onclick="clearThumbnailCache()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Thumbnail Cache</button>
                                         <button id="export-all-data-btn" onclick="exportAllData()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Export All Data (JSON)</button>
                                     </div>
-                                    <div class="pt-4 border-t border-[#2a2f3a] space-y-3">
-                                        <h4 class="text-xs font-semibold text-gray-300">YouTube Cookies for Browser Scraper</h4>
-                                        <p class="text-[9px] text-gray-500">Export cookies from YouTube (using EditThisCookie or Get cookies.txt) and upload the JSON file here to enable native Watch Later scraping.</p>
-                                        <div class="flex gap-2">
-                                            <input type="file" id="cookie-file" accept=".json" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                            <button id="upload-cookies-btn" onclick="uploadCookies()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-4 py-2 rounded">Upload Cookies</button>
-                                        </div>
-                                        <button id="check-cookies-btn" onclick="checkCookies()" class="bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 text-xs px-4 py-2 rounded w-full mt-2">Check Cookies</button>
-
-                                        <div id="cookie-status" class="text-[9px] text-gray-500 min-h-[14px]"></div>
-                                        <div id="cookie-location" class="text-[9px] text-gray-500"></div>
-                                    </div>
+        
                                 </div>
                             </div>
 
@@ -436,8 +397,7 @@
                     body: JSON.stringify(payload)
                 });
                 if (resp.ok) {
-                    toast(value ? 'Watch Later target saved!' : 'Watch Later target cleared', 'success');
-                } else {
+                                    } else {
                     const data = await resp.json().catch(() => ({}));
                     toast('Failed to save: ' + (data.detail || 'Server error'), 'error');
                 }
@@ -453,9 +413,7 @@
                 if (plResp.ok) {
                     const plData = await plResp.json();
                     const playlists = plData.playlists || [];
-                    // Populate the Watch Later Move Target dropdown
-                    const targetSelect = document.getElementById('watch-later-target');
-                    if (targetSelect) {
+                                                            if (targetSelect) {
                         const currentTargetVal = targetSelect.value;
                         targetSelect.innerHTML = '<option value="">-- Select a playlist --</option>';
                         if (!playlists.length) {
@@ -489,9 +447,7 @@
                 const response = await fetch('/api/settings');
                 if (!response.ok) return;
                 const data = await response.json();
-                const sourceInput = document.getElementById('watch-later-source-id');
-                if (sourceInput) sourceInput.value = data.watch_later_playlist_id || '';
-                if (data.youtube_api_key) {
+                                if (data.youtube_api_key) {
                     document.getElementById('yt-api-key').value = '';
                     document.getElementById('yt-api-key').placeholder = '•••••••• — previously saved';
                     const apiKeyStatus = document.getElementById('api-key-status');
@@ -526,15 +482,10 @@
                 document.getElementById('oauth-client-id').value = data.oauth_client_id || '';
                 document.getElementById('max-concurrent').value = data.max_concurrent || 3;
                 document.getElementById('auto-sort').checked = data.auto_sort !== false;
-                document.getElementById('sync-watch-later').checked = data.sync_watch_later !== false;
-                document.getElementById('notify-failures').checked = data.notify_failures === true;
+                                document.getElementById('notify-failures').checked = data.notify_failures === true;
                 document.getElementById('dark-mode').checked = data.dark_mode !== false;
                 document.getElementById('log-level').value = data.log_level || 'INFO';
 
-                if (data.watch_later_target_playlist_id) {
-                    const targetSelect = document.getElementById('watch-later-target');
-                    if (targetSelect) targetSelect.value = data.watch_later_target_playlist_id;
-                }
 
                 const aiProvider = document.getElementById('ai-provider');
                 if (aiProvider && data.ai_provider) aiProvider.value = data.ai_provider;
@@ -578,10 +529,7 @@
                 scan_interval: document.getElementById('scan-interval').value,
                 max_concurrent: parseInt(document.getElementById('max-concurrent').value),
                 auto_sort: document.getElementById('auto-sort').checked,
-                sync_watch_later: document.getElementById('sync-watch-later').checked,
-                watch_later_playlist_id: document.getElementById('watch-later-source-id').value || null,
-                watch_later_target_playlist_id: document.getElementById('watch-later-target').value || undefined,
-                notify_failures: document.getElementById('notify-failures').checked,
+                                notify_failures: document.getElementById('notify-failures').checked,
                 dark_mode: document.getElementById('dark-mode').checked,
                 log_level: document.getElementById('log-level').value,
                 ai_provider: document.getElementById('ai-provider').value || undefined,
@@ -689,29 +637,7 @@
             }
         }
 
-        async function detectWatchLater() {
-            const status = document.getElementById('wl-detect-status');
-            status.className = 'mt-1 text-[9px] text-gray-400';
-            status.textContent = 'Detecting...';
-            status.classList.remove('hidden');
-            try {
-                const resp = await fetch('/api/diagnostics/watch-later-id');
-                const data = await resp.json();
-                if (data.found && data.id) {
-                    document.getElementById('watch-later-source-id').value = data.id;
-                    status.textContent = `Found: ${data.id}. Note: Native Watch Later requires browser cookies (API is blocked).`;
-                    status.className = 'mt-1 text-[9px] text-yellow-300';
-                    // Save it automatically
-                    await fetch('/api/diagnostics/watch-later-id/save', {method: 'POST'});
-                } else {
-                    status.textContent = data.message || data.error || 'Could not detect Watch Later.';
-                    status.className = 'mt-1 text-[9px] text-red-400';
-                }
-            } catch (e) {
-                status.textContent = 'Detection failed: ' + e.message;
-                status.className = 'mt-1 text-[9px] text-red-400';
-            }
-        }
+        
 
         async function clearThumbnailCache() {
             try {
@@ -736,75 +662,13 @@
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
 
-        async function uploadCookies() {
-            const fileInput = document.getElementById('cookie-file');
-            const statusEl = document.getElementById('cookie-status');
-            if (!fileInput.files || !fileInput.files.length) {
-                toast('Select a cookies JSON file first', 'warning');
-                return;
-            }
-            const file = fileInput.files[0];
-            statusEl.textContent = 'Uploading...';
-            try {
-                const fileText = await file.text();
-                const cookies = JSON.parse(fileText);
-                if (!Array.isArray(cookies)) throw new Error('Invalid cookie format: expected array');
-
-                const resp = await fetch('/api/cookies/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cookies })
-                });
-                const respText = await resp.text();
-                let data;
-                try { data = JSON.parse(respText); } catch { data = { raw: respText }; }
-                if (resp.ok) {
-                    statusEl.textContent = 'Cookies uploaded successfully';
-                    statusEl.className = 'text-[9px] text-green-400 min-h-[14px]';
-                    toast('Cookies uploaded successfully', 'success');
-                    if (data?.path) console.info('[cookies] saved to', data.path);
-                } else {
-                    throw new Error((data && data.error) || respText || 'Upload failed');
-                }
-            } catch (e) {
-                statusEl.textContent = 'Error: ' + e.message;
-                statusEl.className = 'text-[9px] text-red-400 min-h-[14px]';
-                toast('Upload failed: ' + e.message, 'error');
-            }
-        }
+        
 
         async function viewSystemLogs() {
             window.open('/system/logs', '_blank');
         }
 
-        async function checkCookies() {
-            const statusEl = document.getElementById("cookie-status");
-            const locationEl = document.getElementById("cookie-location");
-            statusEl.textContent = "Checking...";
-            statusEl.className = "text-[9px] text-gray-500 min-h-[14px]";
-            locationEl.textContent = "";
-            try {
-                const resp = await fetch("/api/diagnostics/cookies");
-                if (!resp.ok) throw new Error("Server returned " + resp.status);
-                const data = await resp.json();
-                let msg;
-                if (data.has_cookies) {
-                    msg = data.cookie_count + " cookies found" +
-                          (data.has_sapisid ? ", SAPISID present \u2705" : ", SAPISID missing \u274c");
-                    locationEl.textContent = "Path: " + data.cookies_path;
-                    statusEl.className = "text-[9px] text-green-400 min-h-[14px]";
-                } else {
-                    msg = "No cookies saved \u274c";
-                    locationEl.textContent = "Expected path: " + data.cookies_path;
-                    statusEl.className = "text-[9px] text-red-400 min-h-[14px]";
-                }
-                if (data.error) msg += " (read error: " + data.error + ")";
-                statusEl.textContent = msg;
-            } catch (e) {
-                statusEl.textContent = "Diagnostics error: " + e.message;
-                statusEl.className = "text-[9px] text-red-400 min-h-[14px]";
-            }
-        }
+        
 
 
         function toggleCustomAiFields() {

@@ -701,10 +701,7 @@ function initSystemActivityController() {
         if (taskName.includes('Full Playlist') || taskName.includes('Sync')) {
             estSeconds = 45;
             ratePerSec = 2.2;
-        } else if (taskName.includes('Watch Later')) {
-            estSeconds = 15;
-            ratePerSec = 6.6;
-        } else if (taskName.includes('Scan') || taskName.includes('Duplicate') || taskName.includes('Misplaced')) {
+ else if (taskName.includes('Scan') || taskName.includes('Duplicate') || taskName.includes('Misplaced')) {
             estSeconds = 5;
             ratePerSec = 20;
         }

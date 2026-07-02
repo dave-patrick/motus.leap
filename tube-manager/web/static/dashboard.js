@@ -54,19 +54,12 @@ async function apiCall(url, options = {}) {
 
 async function loadStats() {
     try {
-        const [statsResp, wlResp] = await Promise.all([
-            apiCall('/api/stats').catch(() => null),
-            apiCall('/api/watch-later').catch(() => null)
-        ]);
+        const statsResp = await apiCall('/api/stats').catch(() => null);
         if (statsResp && statsResp.ok) {
             const s = await statsResp.json().catch(() => ({}));
             document.getElementById('stat-playlists').textContent = s.total_playlists ?? '--';
             document.getElementById('stat-videos').textContent = s.total_videos ?? '--';
             document.getElementById('stat-subscriptions').textContent = s.total_subscriptions ?? '--';
-        }
-        if (wlResp && wlResp.ok) {
-            const wlData = await wlResp.json().catch(() => ({}));
-            document.getElementById('stat-watch-later').textContent = (wlData.items || []).length;
         }
     } catch (e) {
         console.warn('Failed to load stats', e);
@@ -173,8 +166,6 @@ async function callAction(action, payload = null) {
 }
 
 document.getElementById('btn-fetch-all').addEventListener('click', () => callAction('sync_playlists'));
-document.getElementById('btn-watch-later').addEventListener('click', () => callAction('sync_watch_later', {force_refresh: true}));
-document.getElementById('btn-watch-later-move').addEventListener('click', () => callAction('watch_later_move'));
 // Maintenance action removed — use sync_playlists for data refresh.
 document.getElementById('btn-cancel').addEventListener('click', async () => {
     try {
