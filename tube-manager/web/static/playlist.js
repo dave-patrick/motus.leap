@@ -470,7 +470,10 @@ function filterScanResults() {
 }
 
 async function deleteDuplicateItems() {
-    if (!confirm(`Are you sure you want to delete ${currentScanResults.duplicates.length} duplicate videos from this playlist? This action cannot be undone.`)) return;
+    const btn = document.getElementById('delete-duplicates-btn');
+    console.debug('[DUP-DELETE] button:', btn, 'scanResults:', currentScanResults?.duplicates?.length);
+    if (!btn) { toast('Delete duplicates button not found', 'error'); return; }
+    if (!confirm(`Are you sure you want to delete ${currentScanResults?.duplicates?.length || 0} duplicate videos from this playlist? This action cannot be undone.`)) return;
     if (!currentScanResults.duplicates.length) return;
 
     toast(`Deleting ${currentScanResults.duplicates.length} duplicates...`, 'info');
