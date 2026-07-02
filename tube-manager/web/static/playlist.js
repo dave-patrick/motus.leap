@@ -136,33 +136,75 @@ function renderVideos() {
         return;
     }
     container.innerHTML = `
-        <div class="p-3 border-b border-[#2a2f3a] flex items-center justify-between">
-            <span class="text-[10px] text-gray-400">Select videos to move (click checkboxes)</span>
-            <select id="target-playlist" onchange="updateMoveButton()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none">
-                <option value="">Select target playlist...</option>
-            </select>
-        </div>
-        ${allVideos.map((v, i) => `
-            <div class="video-row flex items-center gap-3 py-1.5" data-video-id="${v.video_id}">
-                <input type="checkbox" class="video-checkbox w-5 h-5 rounded" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''}>
-                <img src="${v.thumbnail || 'https://picsum.photos/160/90'}" class="w-48 h-28 rounded object-cover flex-shrink-0">
-                <div class="flex-1 min-w-0">
-                    <div class="text-sm text-white truncate">${DOMPurify.sanitize(v.title || 'Unknown title')}</div>
-                    <div class="text-xs text-gray-400">${DOMPurify.sanitize(v.channel_title || 'Unknown channel')}</div>
+        <!-- Toolbar -->
+        <div class="p-3 border-b border-[#2a2f3a] flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+                <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap">${allVideos.length} videos</span>
+                <div class="relative flex-1 max-w-sm">
+                    <i class="fa-solid fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-500"></i>
+                    <input type="text" id="video-search" placeholder="Search videos..." oninput="filterVideoList()" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded pl-7 pr-2.5 py-1.5 outline-none focus:border-[#2f8fc9] transition-colors">
                 </div>
-                <span class="text-xs text-gray-300 font-mono bg-[#20242c] px-1.5 py-0.5 rounded">${formatDuration(v.duration)}</span>
-                <span class="text-xs text-gray-500 w-12 text-right">${i + 1}</span>
+                <label class="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer select-none">
+                    <input type="checkbox" id="select-all-videos" onchange="toggleSelectAll(this)" class="accent-[#2f8fc9]">
+                    Select all
+                </label>
             </div>
-        `).join('')}
+            <select id="target-playlist" onchange="updateMoveButton()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1.5 outline-none min-h-[28px]">
+                <option value="">Move to...</option>
+            </select>
+            <span id="selected-count" class="text-[10px] text-gray-500 whitespace-nowrap"></span>
+        </div>
+        <!-- Video grid -->
+        <div class="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="video-grid">
+            ${allVideos.map((v, i) => `
+            <div class="video-card group relative bg-[#16191f] border border-[#2a2f3a] hover:border-[#3a4a5a] rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-black/20" data-video-id="${v.video_id}" data-title="${DOMPurify.sanitize(v.title || '').toLowerCase()}" data-channel="${DOMPurify.sanitize(v.channel_title || '').toLowerCase()}">
+                <!-- Thumbnail with overlay -->
+                <div class="relative aspect-video bg-[#1a1d24] overflow-hidden">
+                    <img src="${v.thumbnail || '/static/logo_icon.png'}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onerror="this.src='/static/logo_icon.png'">
+                    <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium">${formatDuration(v.duration)}</span>
+                    <div class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <input type="checkbox" class="video-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''} onclick="event.stopPropagation()">
+                    </div>
+                    ${selectedVideos.has(v.video_id) ? '<div class="absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none"></div>' : ''}
+                </div>
+                <!-- Info -->
+                <div class="p-2.5">
+                    <div class="text-[12px] text-white font-medium leading-tight line-clamp-2 mb-1" title="${DOMPurify.sanitize(v.title || '')}">${DOMPurify.sanitize(v.title || 'Unknown title')}</div>
+                    <div class="text-[10px] text-gray-400 truncate">${DOMPurify.sanitize(v.channel_title || 'Unknown channel')}</div>
+                </div>
+            </div>
+            `).join('')}
+        </div>
     `;
     loadPlaylistsDropdown();
-    updateMoveButton(); // Ensure button state is correct after rendering
+    updateMoveButton();
+}
+
+function filterVideoList() {
+    const query = document.getElementById('video-search')?.value?.toLowerCase() || '';
+    document.querySelectorAll('.video-card').forEach(card => {
+        const title = card.dataset.title || '';
+        const channel = card.dataset.channel || '';
+        card.style.display = (!query || title.includes(query) || channel.includes(query)) ? '' : 'none';
+    });
+}
+
+function toggleSelectAll(checkbox) {
+    document.querySelectorAll('.video-checkbox').forEach(cb => {
+        cb.checked = checkbox.checked;
+        const videoId = cb.closest('.video-card')?.dataset?.videoId;
+        if (videoId) {
+            if (checkbox.checked) selectedVideos.add(videoId);
+            else selectedVideos.delete(videoId);
+        }
+    });
+    updateMoveButton();
 }
 
 function loadPlaylistsDropdown() {
     const select = document.getElementById('target-playlist');
     if (select) {
-        select.innerHTML = '<option value="">Select target playlist...</option>' + 
+        select.innerHTML = '<option value="">Move to...</option>' +
             allPlaylists.filter(p => p.id !== playlistId).map(p => `<option value="${p.id}">${DOMPurify.sanitize(p.title)}</option>`).join('');
     }
 }
@@ -173,11 +215,36 @@ function toggleVideo(videoId, checkbox) {
     } else {
         selectedVideos.delete(videoId);
     }
+    // Update visual selection border on card
+    document.querySelectorAll(`.video-card[data-video-id="${videoId}"]`).forEach(card => {
+        const border = card.querySelector('.selected-border');
+        if (checkbox.checked) {
+            if (!border) {
+                const el = document.createElement('div');
+                el.className = 'selected-border absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none';
+                card.querySelector('.relative.aspect-video').appendChild(el);
+            }
+        } else {
+            border?.remove();
+        }
+        const topCheckbox = card.querySelector('.video-checkbox');
+        if (topCheckbox) topCheckbox.checked = checkbox.checked;
+    });
+    // Sync the "Select all" checkbox
+    const selectAll = document.getElementById('select-all-videos');
+    if (selectAll) {
+        const allCbs = document.querySelectorAll('.video-checkbox');
+        selectAll.checked = allCbs.length > 0 && Array.from(allCbs).every(cb => cb.checked);
+    }
     updateMoveButton();
 }
 
 function updateMoveButton() {
     const moveBtn = document.getElementById('move-btn');
+    const countEl = document.getElementById('selected-count');
+    if (countEl) {
+        countEl.textContent = selectedVideos.size > 0 ? `${selectedVideos.size} selected` : '';
+    }
     if (moveBtn) {
         const targetPlaylistSelected = document.getElementById('target-playlist')?.value;
         moveBtn.classList.toggle('hidden', selectedVideos.size === 0 || !targetPlaylistSelected);
