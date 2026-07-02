@@ -474,36 +474,26 @@ async function deleteDuplicateItems() {
     if (!currentScanResults.duplicates.length) return;
 
     toast(`Deleting ${currentScanResults.duplicates.length} duplicates...`, 'info');
-    const playlistItemIds = currentScanResults.duplicates.map(item => item.playlist_item_id).filter(Boolean);
-    if (!playlistItemIds.length) {
-        toast('No valid duplicate items to delete', 'error');
+    const videoIds = currentScanResults.duplicates.map(item => item.video_id).filter(Boolean);
+    if (!videoIds.length) {
+        toast('No valid video ids to delete', 'error');
         return;
     }
 
     try {
-        const results = await Promise.allSettled(
-            playlistItemIds.map(playlistItemId =>
-                fetch('/api/youtube/playlistitems/delete', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({playlist_item_id: playlistItemId, playlist_id: playlistId})
-                })
-                .then(res => res.json().catch(() => ({})))
-                .then(data => ({ok: true, data}))
-            )
-        );
-
-        let succeeded = 0;
-        let failed = 0;
-        results.forEach((result) => {
-            if (result.status === 'fulfilled' && result.value && result.value.data && result.value.data.status === 'success') succeeded += 1;
-            else failed += 1;
+        const resp = await fetch('/api/bulk/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({playlist_id: playlistId, video_ids: videoIds})
         });
-
-        currentScanResults.duplicates = [];
-        if (failed > 0) toast(`Deleted ${succeeded} duplicates, failed ${failed}`, 'error');
-        else toast(`Deleted ${succeeded} duplicates`, 'success');
-        await loadPlaylist();
+        const result = await resp.json();
+        if (resp.ok) {
+            toast(`Deleted duplicates`, 'success');
+            currentScanResults.duplicates = [];
+            await loadPlaylist();
+        } else {
+            toast(`Failed to delete duplicates: ${DOMPurify.sanitize(result.error || resp.statusText || 'Unknown error')}`, 'error');
+        }
     } catch (e) {
         toast(`Network error: Failed to delete duplicates: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
         console.error('Delete duplicates error:', e);
