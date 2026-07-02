@@ -323,10 +323,10 @@ class TestBackgroundWorkerResilience:
             move_call_count += 1
             if video_id == "vid2":
                 raise ValueError("Playlist not found")
-            return True
+            return {"id": "new_item_id"}
 
         mock_client.move_video_to_playlist.side_effect = move_side_effect
-        mock_client.remove_video_from_playlist.return_value = True
+        mock_client.remove_video_from_playlist.return_value = {}
 
         # Run the sync
         await worker.watch_later_sync({"dry_run": False})
@@ -452,8 +452,8 @@ class TestBackgroundWorkerResilience:
             ]
         }
         mock_youtube_service.list_watch_later_items_cached = AsyncMock(return_value=watch_later_items)
-        mock_client.move_video_to_playlist.return_value = True
-        mock_client.remove_video_from_playlist.return_value = True
+        mock_client.move_video_to_playlist.return_value = {"id": "new_item_id"}
+        mock_client.remove_video_from_playlist.return_value = {}
 
         await worker.watch_later_move({})
 

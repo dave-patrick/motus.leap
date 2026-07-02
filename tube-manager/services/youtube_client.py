@@ -443,7 +443,7 @@ class YouTubeClient:
     def move_video_to_playlist(self, video_id: str, target_playlist_id: str) -> dict[str, Any]:
         client = self._get_client(require_oauth=True)
         if not client:
-            return {"error": "OAuth client not available"}
+            raise RuntimeError("OAuth client not available for move_video_to_playlist")
         add_body = {
             "snippet": {
                 "playlistId": target_playlist_id,
@@ -454,7 +454,10 @@ class YouTubeClient:
             }
         }
         with _client_lock:
-            return client.playlistItems().insert(part="snippet", body=add_body).execute()
+            result = client.playlistItems().insert(part="snippet", body=add_body).execute()
+        if not result or not result.get("id"):
+            raise RuntimeError(f"move_video_to_playlist returned unexpected response: {result}")
+        return result
 
     def create_playlist(self, title: str, description: str = "", privacy_status: str = "private") -> dict[str, Any]:
         client = self._get_client()
@@ -486,6 +489,9 @@ class YouTubeClient:
     def remove_video_from_playlist(self, playlist_item_id: str) -> dict[str, Any]:
         client = self._get_client(require_oauth=True)
         if not client:
-            return {"error": "OAuth client not available"}
+            raise RuntimeError("OAuth client not available for remove_video_from_playlist")
         with _client_lock:
-            return client.playlistItems().delete(id=playlist_item_id).execute()
+            result = client.playlistItems().delete(id=playlist_item_id).execute()
+        if result is None:
+            return {}
+        return result
