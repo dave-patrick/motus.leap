@@ -7,6 +7,7 @@ Fetches the native Watch Later playlist via YouTube's InnerTube API
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from pathlib import Path
@@ -16,12 +17,12 @@ import httpx
 
 log = logging.getLogger(__name__)
 
-COOKIES_DIR = Path(__file__).resolve().parent.parent / "data"
+_cookies_base = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "")) if os.getenv("TUBE_MANAGER_DATA_DIR") else Path(__file__).resolve().parent.parent / "data"
 
 
 def _cookies_path() -> Path:
-    COOKIES_DIR.mkdir(parents=True, exist_ok=True)
-    return COOKIES_DIR / "youtube_cookies.json"
+    _cookies_base.mkdir(parents=True, exist_ok=True)
+    return _cookies_base / "youtube_cookies.json"
 
 
 def has_cookies() -> bool:
