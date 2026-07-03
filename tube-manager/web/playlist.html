@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Playlist - motus.leap</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/auth-check.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
@@ -39,7 +40,37 @@
             window.location.href = '/playlists';
         }
         
-        async function loadPlaylist() {
+                function getAuthToken() {
+            // Try to get token from cookie first (more secure)
+            function getCookie(name) {
+                const value = \`; \${document.cookie}\`;
+                const parts = value.split(\`; \${name}=\`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }
+            
+            // Check localStorage first, then cookie
+            return localStorage.getItem('token') || getCookie('token');
+        }
+        
+        async function apiCall(url, options = {}) {
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+            };
+            
+            const token = getAuthToken();
+            if (token) {
+                headers['Authorization'] = \`Bearer \${token}\`;
+            }
+            
+            return fetch(url, {
+                ...options,
+                headers
+            });
+        }
+        
+async function loadPlaylist() {
             const container = document.getElementById('videos-container');
             if (!container) {
                 console.error('Videos container not found!');
@@ -48,11 +79,26 @@
             
             try {
                 console.log('Loading playlist...');
-                const response = await fetch('/api/playlists');
+                const response = await apiCall('/api/playlists');
                 console.log('Response status:', response.status);
                 
+                if (response.status === 401) {
+                    // Show login prompt if not authenticated
+                    container.innerHTML = \`
+                        <div class="text-center p-8">
+                            <i class="fas fa-lock text-6xl text-gray-500 mb-4"></i>
+                            <h2 class="text-2xl font-semibold text-white mb-2">Authentication Required</h2>
+                            <p class="text-gray-400 mb-6">Please sign in to view your playlists</p>
+                            <a href="/auth" class="bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-6 py-3 rounded-lg transition-all inline-block">
+                                Sign In
+                            </a>
+                        </div>
+                    \`;
+                    return;
+                }
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(\`HTTP error! status: \${response.status}\`);
                 }
                 
                 const data = await response.json();
@@ -60,42 +106,42 @@
                 
                 // Update UI
                 document.getElementById('playlist-title').textContent = data.title || 'Unknown Playlist';
-                document.getElementById('playlist-count').textContent = `${data.video_count || 0} videos`;
+                document.getElementById('playlist-count').textContent = \`\${data.video_count || 0} videos\`;
                 
                 // Replace skeleton with videos
-                container.innerHTML = data.videos.map(video => `
+                container.innerHTML = data.videos.map(video => \`
                     <div class="bg-[#16181c] rounded-lg p-4 hover:bg-[#1e222a] transition-all">
                         <div class="flex items-center space-x-4">
-                            <img src="${video.thumbnail || 'https://i.ytimg.com/vi/default/mqdefault.jpg'}" 
-                                 alt="${video.title}" class="w-20 h-12 object-cover rounded">
+                            <img src="\${video.thumbnail || 'https://i.ytimg.com/vi/default/mqdefault.jpg'}" 
+                                 alt="\${video.title}" class="w-20 h-12 object-cover rounded">
                             <div class="flex-1">
-                                <h3 class="text-white font-medium">${video.title || 'Unknown Title'}</h3>
-                                <p class="text-gray-400 text-sm">${video.channel || 'Unknown Channel'}</p>
+                                <h3 class="text-white font-medium">\${video.title || 'Unknown Title'}</h3>
+                                <p class="text-gray-400 text-sm">\${video.channel || 'Unknown Channel'}</p>
                             </div>
                             <div class="flex space-x-2">
-                                <button onclick="refreshVideo('${video.id}')" class="text-gray-400 hover:text-white">
+                                <button onclick="refreshVideo('\${video.id}')" class="text-gray-400 hover:text-white">
                                     <i class="fas fa-refresh"></i>
                                 </button>
-                                <button onclick="openVideo('${video.id}')" class="text-gray-400 hover:text-white">
+                                <button onclick="openVideo('\${video.id}')" class="text-gray-400 hover:text-white">
                                     <i class="fas fa-external-link-alt"></i>
                                 </button>
                             </div>
                         </div>
                     </div>
-                `).join('');
+                \`).join('');
                 
             } catch (error) {
                 console.error('Error loading playlist:', error);
-                container.innerHTML = `
+                container.innerHTML = \`
                     <div class="text-center p-8">
                         <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
                         <h2 class="text-xl font-semibold text-white mb-2">Failed to Load Playlist</h2>
-                        <p class="text-gray-400">${error.message}</p>
+                        <p class="text-gray-400">\${error.message}</p>
                         <button onclick="window.location.href='/auth'" class="bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-6 py-2 rounded mt-4">
                             Go to Login
                         </button>
                     </div>
-                `;
+                \`;
             }
         }
         

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Playlists - motus.leap</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/auth-check.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
@@ -33,6 +34,15 @@
         </div>
 
         <!-- Playlists grid -->
+                <!-- Auth status indicator -->
+        <div id="auth-status" class="mb-4">
+            <div class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                <i class="fas fa-circle-notch fa-spin mr-2"></i>
+                Checking authentication...
+            </div>
+        </div>
+        
+        
         <div id="playlists-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="animate-pulse">
                 <div class="bg-[#16181c] h-40 rounded-lg"></div>
@@ -43,55 +53,129 @@
             <div class="animate-pulse">
                 <div class="bg-[#16181c] h-40 rounded-lg"></div>
             </div>
+            <!-- Login prompt (initially hidden) -->
+        <div id="login-prompt" class="hidden text-center p-8">
+            <i class="fas fa-lock text-6xl text-gray-500 mb-4"></i>
+            <h2 class="text-2xl font-semibold text-white mb-2">Authentication Required</h2>
+            <p class="text-gray-400 mb-6">Please sign in to view your playlists</p>
+            <a href="/auth" class="bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-6 py-3 rounded-lg transition-all inline-block">
+                Sign In
+            </a>
         </div>
     </div>
 
     <script>
         console.log('Playlists page initialized');
         
-        async function loadPlaylists() {
+                function getAuthToken() {
+            // Try to get token from cookie first (more secure)
+            function getCookie(name) {
+                const value = \`; \${document.cookie}\`;
+                const parts = value.split(\`; \${name}=\`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }
+            
+            // Check localStorage first, then cookie
+            return localStorage.getItem('token') || getCookie('token');
+        }
+        
+        async function apiCall(url, options = {}) {
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+            };
+            
+            const token = getAuthToken();
+            if (token) {
+                headers['Authorization'] = \`Bearer \${token}\`;
+            }
+            
+            return fetch(url, {
+                ...options,
+                headers
+            });
+        }
+        
+async function loadPlaylists() {
+            const authStatus = document.getElementById('auth-status');
+            const loginPrompt = document.getElementById('login-prompt');
+            
             try {
                 console.log('Loading playlists...');
-                const response = await fetch('/api/playlists');
+                const response = await apiCall('/api/playlists');
                 console.log('Response status:', response.status);
                 
+                if (response.status === 401) {
+                    // Show login prompt if not authenticated
+                    authStatus.innerHTML = \`
+                        <div class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            Authentication required
+                        </div>
+                    \`;
+                    document.getElementById('playlists-grid').classList.add('hidden');
+                    loginPrompt.classList.remove('hidden');
+                    return;
+                }
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(\`HTTP error! status: \${response.status}\`);
                 }
                 
                 const data = await response.json();
                 console.log('Playlists data:', data);
                 
+                // Update auth status
+                authStatus.innerHTML = \`
+                    <div class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        Authenticated
+                    </div>
+                \`;
+                
                 // Replace skeleton with actual playlists
                 const grid = document.getElementById('playlists-grid');
                 if (grid) {
-                    grid.innerHTML = data.playlists.map(playlist => `
+                    grid.classList.remove('hidden');
+                    loginPrompt.classList.add('hidden');
+                    grid.innerHTML = data.playlists.map(playlist => \`
                         <div class="bg-[#16181c] rounded-lg overflow-hidden hover:bg-[#1e222a] transition-all">
                             <div class="aspect-video relative">
-                                <img src="${playlist.thumbnail || 'https://i.ytimg.com/vi/default/mqdefault.jpg'}" 
-                                     alt="${playlist.title}" class="w-full h-full object-cover">
+                                <img src="\${playlist.thumbnail || 'https://i.ytimg.com/vi/default/mqdefault.jpg'}" 
+                                     alt="\${playlist.title}" class="w-full h-full object-cover">
                             </div>
                             <div class="p-4">
-                                <h3 class="text-white font-semibold mb-1">${playlist.title}</h3>
-                                <p class="text-gray-400 text-sm">${playlist.video_count || 0} videos</p>
-                                <button onclick="openPlaylist('${playlist.id}')" 
+                                <h3 class="text-white font-semibold mb-1">\${playlist.title}</h3>
+                                <p class="text-gray-400 text-sm">\${playlist.video_count || 0} videos</p>
+                                <button onclick="openPlaylist('\${playlist.id}')" 
                                         class="mt-2 bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-3 py-1 rounded text-sm transition-all">
                                     View
                                 </button>
                             </div>
                         </div>
-                    `).join('');
+                    \`).join('');
                 }
             } catch (error) {
                 console.error('Error loading playlists:', error);
+                
+                // Update auth status on error
+                authStatus.innerHTML = \`
+                    <div class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        Error: \${error.message}
+                    </div>
+                \`;
+                
                 const grid = document.getElementById('playlists-grid');
                 if (grid) {
-                    grid.innerHTML = `
+                    grid.innerHTML = \`
                         <div class="text-center p-8 text-gray-400">
                             <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
                             <p>Failed to load playlists</p>
+                            <p class="text-sm mt-2">Please try refreshing the page or check your connection</p>
                         </div>
-                    `;
+                    \`;
                 }
             }
         }
