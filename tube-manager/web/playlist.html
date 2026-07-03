@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Playlist - motus.leap</title>
-    <meta name="deploy-time" content="1783114500">
+    <meta name="deploy-time" content="1783114620">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <style>
-        /* Custom scrollbar for the entire page */
+        /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -38,20 +38,6 @@
     </style>
 </head>
 <body class="dark min-h-screen">
-    <!-- Debug Console -->
-    <div class="fixed top-4 right-4 bg-gray-900 p-4 rounded-lg shadow-lg max-w-md max-h-64 overflow-y-auto z-50" id="debug-console">
-        <div class="flex justify-between items-center mb-2">
-            <h3 class="text-red-400 font-bold">Debug Console</h3>
-            <button onclick="clearDebug()" class="text-gray-400 hover:text-white">×</button>
-        </div>
-        <div id="debug-content"></div>
-    </div>
-
-    <!-- Debug Button -->
-    <button onclick="addDebugInfo()" class="fixed top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 z-50">
-        Debug Info
-    </button>
-
     <div class="container mx-auto px-4 py-8 max-w-7xl">
         <!-- Navigation -->
         <nav class="flex items-center justify-between mb-6">
@@ -91,18 +77,6 @@
                         <input type="text" id="title-filter" placeholder="Filter by title..." onkeyup="filterPlaylists('title')" 
                             class="w-full bg-[#2b2d31] border border-[#42464d] text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2f8fc9]">
                     </div>
-                    <div class="flex-1 min-w-64">
-                        <label class="text-gray-400 text-sm">Quick Actions</label>
-                        <select id="quick-actions" onchange="quickAction(this.value)" 
-                            class="w-full bg-[#2b2d31] border border-[#42464d] text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#2f8fc9]">
-                            <option value="">Quick Actions</option>
-                            <option value="today">Added Today</option>
-                            <option value="week">Added This Week</option>
-                            <option value="month">Added This Month</option>
-                            <option value="download">Download Playlist</option>
-                            <option value="export">Export Data</option>
-                        </select>
-                    </div>
                 </div>
                 <div class="flex space-x-2">
                     <button id="btn-scan-dup" onclick="scanForDuplicates()" class="bg-[#f87171] hover:bg-[#ef4444] text-white px-4 py-2 rounded-lg transition-all">
@@ -110,9 +84,6 @@
                     </button>
                     <button id="btn-scan-mis" onclick="scanForMisplaced()" class="bg-[#a78bfa] hover:bg-[#8b5cf6] text-white px-4 py-2 rounded-lg transition-all">
                         <i class="fas fa-random mr-2"></i> Find Misplaced
-                    </button>
-                    <button onclick="sortPlaylists()" class="bg-[#60a5fa] hover:bg-[#3b82f6] text-white px-4 py-2 rounded-lg transition-all">
-                        <i class="fas fa-sort mr-2"></i> Sort
                     </button>
                 </div>
             </div>
@@ -146,56 +117,17 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <script>
-        // Debug functions
-        function debug(message) {
-            console.log('[DEBUG] ' + message);
-            const debugContent = document.getElementById('debug-content');
-            const timestamp = new Date().toLocaleTimeString();
-            const entry = document.createElement('div');
-            entry.className = 'text-xs text-gray-300 mb-1';
-            entry.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> ${message}`;
-            debugContent.appendChild(entry);
-            debugContent.scrollTop = debugContent.scrollHeight;
-        }
-
-        function clearDebug() {
-            document.getElementById('debug-content').innerHTML = '';
-        }
-
-        function addDebugInfo() {
-            debug('=== PAGE DEBUG INFO ===');
-            debug('URL: ' + window.location.href);
-            debug('Playlist ID: ' + getPlaylistId());
-            debug('Videos container found: ' + !!document.getElementById('videos-container'));
-            debug('Videos skeleton found: ' + !!document.getElementById('videos-skeleton'));
-            debug('Videos list found: ' + !!document.getElementById('videos-list'));
-            debug('Document ready state: ' + document.readyState);
-            debug('Number of scripts loaded: ' + document.scripts.length);
-            
-            const scripts = Array.from(document.scripts);
-            scripts.forEach((script, index) => {
-                debug(`Script ${index + 1}: ${script.src || 'inline'}`);
-            });
-        }
-
-        // Initialize debug console
-        debug('Playlist page loaded');
-        debug('DOMContentLoaded fired');
-        
-        // Enhanced initialization
+        // Initialize playlist page
         async function initPlaylistPage() {
-            debug('Starting initPlaylistPage');
-            addDebugInfo();
+            console.log('Starting initPlaylistPage');
             
             const container = document.getElementById('videos-container');
             if (!container) {
-                debug('ERROR: Videos container not found!');
+                console.error('Videos container not found!');
                 return;
             }
-            debug('Videos container found successfully');
             
             await loadPlaylist();
-            debug('Playlist loading completed');
             
             // Add event listeners
             document.getElementById('rescan-playlist-btn')?.addEventListener('click', rescanPlaylist);
@@ -205,13 +137,13 @@
 
         // Load playlist data
         async function loadPlaylist() {
-            debug('Starting loadPlaylist');
+            console.log('Starting loadPlaylist');
             const container = document.getElementById('videos-container');
             const skeleton = document.getElementById('videos-skeleton');
             const videosList = document.getElementById('videos-list');
             
             if (!container) {
-                debug('ERROR: Container not found in loadPlaylist');
+                console.error('Container not found in loadPlaylist');
                 return;
             }
             
@@ -219,16 +151,30 @@
             if (videosList) videosList.classList.add('hidden');
             
             try {
-                debug('Fetching playlist data...');
+                console.log('Fetching playlist data...');
                 const response = await fetch('/api/playlists');
-                debug('Response status: ' + response.status);
+                console.log('Response status:', response.status);
                 
                 if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        // Authentication required
+                        container.innerHTML = `
+                            <div class="text-center p-8">
+                                <i class="fas fa-lock text-4xl text-gray-500 mb-4"></i>
+                                <h2 class="text-xl font-semibold text-white mb-2">Authentication Required</h2>
+                                <p class="text-gray-400 mb-4">Please log in to view playlist details.</p>
+                                <button onclick="window.location.href='/auth'" class="bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-6 py-2 rounded-lg transition-all">
+                                    Go to Login
+                                </button>
+                            </div>
+                        `;
+                        return;
+                    }
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const data = await response.json();
-                debug('Playlist data received');
+                console.log('Playlist data received:', data);
                 
                 // Update UI with playlist data
                 document.getElementById('playlist-title').textContent = data.title || 'Unknown Playlist';
@@ -236,20 +182,25 @@
                 
                 // Render videos
                 renderVideos(data.videos || []);
-                debug('Videos rendered successfully');
                 
             } catch (error) {
-                debug('Error in loadPlaylist: ' + error.message);
-                container.innerHTML = '<div class="text-center p-8 text-red-400">Failed to load playlist data: ' + error.message + '</div>';
+                console.error('Error in loadPlaylist:', error);
+                container.innerHTML = `
+                    <div class="text-center p-8">
+                        <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
+                        <h2 class="text-xl font-semibold text-white mb-2">Failed to Load Playlist</h2>
+                        <p class="text-gray-400">${error.message}</p>
+                    </div>
+                `;
             }
         }
 
         // Render videos
         function renderVideos(videos) {
-            debug('Rendering videos: ' + videos.length + ' videos');
+            console.log('Rendering videos:', videos.length, 'videos');
             const container = document.getElementById('videos-container');
             if (!container) {
-                debug('ERROR: Videos container not found in renderVideos');
+                console.error('Videos container not found in renderVideos');
                 return;
             }
             
@@ -289,18 +240,13 @@
             }).join('');
             
             videosList.innerHTML = html;
-            debug('Videos list populated successfully');
+            console.log('Videos list populated successfully');
         }
 
         // Navigation functions
         function backToPlaylists() {
-            debug('Navigating back to playlists');
+            console.log('Navigating back to playlists');
             window.location.href = '/playlists';
-        }
-
-        function getPlaylistId() {
-            const pathParts = window.location.pathname.split('/');
-            return pathParts[pathParts.length - 1];
         }
 
         // Initialize on page load
