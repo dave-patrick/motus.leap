@@ -1,35 +1,130 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Playlists - motus.leap</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: #0f0f0f;
+            color: #e2e8f0;
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-6">Playlists</h1>
-        <div id="playlists-container">
-            <div class="animate-pulse space-y-4">
-                <div class="h-20 bg-gray-800 rounded"></div>
-                <div class="h-20 bg-gray-800 rounded"></div>
-                <div class="h-20 bg-gray-800 rounded"></div>
+<body class="dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-white mb-6">Playlists</h1>
+            
+            <!-- Action buttons -->
+            <div class="flex flex-wrap gap-3 mb-6">
+                <button onclick="syncPlaylists()" class="bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-4 py-2 rounded-lg transition-all">
+                    <i class="fas fa-sync mr-2"></i> Sync from YouTube
+                </button>
+                <button onclick="scanForDuplicates()" class="bg-[#f87171] hover:bg-[#ef4444] text-white px-4 py-2 rounded-lg transition-all">
+                    <i class="fas fa-copy mr-2"></i> Find Duplicates
+                </button>
+                <button onclick="openCreatePlaylistModal()" class="bg-[#34d399] hover:bg-[#10b981] text-white px-4 py-2 rounded-lg transition-all">
+                    <i class="fas fa-plus mr-2"></i> Create Playlist
+                </button>
+            </div>
+        </div>
+
+        <!-- Playlists grid -->
+        <div id="playlists-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="animate-pulse">
+                <div class="bg-[#16181c] h-40 rounded-lg"></div>
+            </div>
+            <div class="animate-pulse">
+                <div class="bg-[#16181c] h-40 rounded-lg"></div>
+            </div>
+            <div class="animate-pulse">
+                <div class="bg-[#16181c] h-40 rounded-lg"></div>
             </div>
         </div>
     </div>
+
     <script>
-        console.log('Playlists page loaded');
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM content loaded');
-            // Basic initialization test
-            const container = document.getElementById('playlists-container');
-            if (container) {
-                console.log('Container found');
-            } else {
-                console.error('Container not found');
+        console.log('Playlists page initialized');
+        
+        async function loadPlaylists() {
+            try {
+                console.log('Loading playlists...');
+                const response = await fetch('/api/playlists');
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Playlists data:', data);
+                
+                // Replace skeleton with actual playlists
+                const grid = document.getElementById('playlists-grid');
+                if (grid) {
+                    grid.innerHTML = data.playlists.map(playlist => `
+                        <div class="bg-[#16181c] rounded-lg overflow-hidden hover:bg-[#1e222a] transition-all">
+                            <div class="aspect-video relative">
+                                <img src="${playlist.thumbnail || 'https://i.ytimg.com/vi/default/mqdefault.jpg'}" 
+                                     alt="${playlist.title}" class="w-full h-full object-cover">
+                            </div>
+                            <div class="p-4">
+                                <h3 class="text-white font-semibold mb-1">${playlist.title}</h3>
+                                <p class="text-gray-400 text-sm">${playlist.video_count || 0} videos</p>
+                                <button onclick="openPlaylist('${playlist.id}')" 
+                                        class="mt-2 bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-3 py-1 rounded text-sm transition-all">
+                                    View
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading playlists:', error);
+                const grid = document.getElementById('playlists-grid');
+                if (grid) {
+                    grid.innerHTML = `
+                        <div class="text-center p-8 text-gray-400">
+                            <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                            <p>Failed to load playlists</p>
+                        </div>
+                    `;
+                }
             }
-        });
+        }
+        
+        function openPlaylist(playlistId) {
+            console.log('Opening playlist:', playlistId);
+            window.location.href = `/playlist/${playlistId}`;
+        }
+        
+        function syncPlaylists() {
+            console.log('Syncing playlists...');
+            // Placeholder implementation
+            alert('Sync functionality not implemented yet');
+        }
+        
+        function scanForDuplicates() {
+            console.log('Scanning for duplicates...');
+            // Placeholder implementation
+            alert('Duplicate scan functionality not implemented yet');
+        }
+        
+        function openCreatePlaylistModal() {
+            console.log('Opening create playlist modal...');
+            // Placeholder implementation
+            alert('Create playlist functionality not implemented yet');
+        }
+        
+        // Initialize page
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadPlaylists);
+        } else {
+            loadPlaylists();
+        }
     </script>
 </body>
 </html>
