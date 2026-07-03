@@ -171,7 +171,8 @@ function renderVideos() {
                 <div class="p-2.5">
                     <div class="text-[12px] text-white font-medium leading-tight line-clamp-2 mb-1" title="${DOMPurify.sanitize(v.title || '')}">${DOMPurify.sanitize(v.title || 'Unknown title')}</div>
                     <div class="text-[10px] text-gray-400 truncate">${DOMPurify.sanitize(v.channel_title || 'Unknown channel')}</div>
-                </div>
+                <button onclick="openYouTubeModal('' + '{v.video_id}' + '')" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
+            </div>
             </div>
             `).join('')}
         </div>
@@ -453,7 +454,8 @@ function filterScanResults() {
                     <div class="text-[10px] text-gray-400 truncate">${item.channel ? DOMPurify.sanitize(item.channel) + ' • ' : ''}ID: ${item.video_id}</div>
                     <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-[#2f8fc9]' : 'bg-yellow-500'}"></span><span>Reason: ${DOMPurify.sanitize(item.reason)}</span></div>
                     ${additionalInfo}
-                </div>
+                <button onclick="openYouTubeModal('' + '{v.video_id}' + '')" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
+            </div>
             </div>
         `;
     }).join('');
@@ -598,4 +600,48 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', safeInitPlaylistPage);
 } else {
     safeInitPlaylistPage();
+}
+
+
+
+// YouTube modal functions
+let youtubeModal = null;
+
+function openYouTubeModal(videoId) {
+    if (youtubeModal) {
+        youtubeModal.remove();
+        youtubeModal = null;
+    }
+    
+    // Create modal overlay
+    youtubeModal = document.createElement('div');
+    youtubeModal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm';
+    youtubeModal.innerHTML = `
+        <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-xl w-full max-w-4xl mx-4 shadow-2xl overflow-hidden">
+            <div class="flex items-center justify-between p-4 border-b border-[#2a2f3a]">
+                <h3 class="text-white font-semibold">YouTube Video</h3>
+                <button onclick="this.closest('.fixed').remove(); youtubeModal = null" class="text-gray-400 hover:text-white p-2 transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="aspect-video bg-black">
+                <iframe 
+                    src="https://www.youtube.com/embed/${videoId}" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen
+                    class="w-full h-full">
+                </iframe>
+            </div>
+        </div>
+    `;
+    
+    youtubeModal.onclick = function(e) {
+        if (e.target === youtubeModal) {
+            youtubeModal.remove();
+            youtubeModal = null;
+        }
+    };
+    
+    document.body.appendChild(youtubeModal);
 }
