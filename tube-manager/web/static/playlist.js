@@ -131,6 +131,10 @@ async function loadPlaylist() {
 
 function renderVideos() {
     const container = document.getElementById('videos-container');
+    if (!container) {
+        console.error('Videos container not found');
+        return;
+    }
     if (!allVideos.length) {
         container.innerHTML = '<div class="text-center p-8 text-gray-400">No videos in this playlist</div>';
         return;
