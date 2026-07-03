@@ -474,34 +474,49 @@ function filterScanResults() {
 async function deleteDuplicateItems() {
     const btn = document.getElementById('delete-duplicates-btn');
     console.debug('[DUP-DELETE] button:', btn, 'scanResults:', currentScanResults?.duplicates?.length);
-    if (!btn) { toast('Delete duplicates button not found', 'error'); return; }
+    console.debug('[DUP-DELETE] duplicates array:', currentScanResults.duplicates);
+    console.debug('[DUP-DELETE] playlistId:', playlistId);
+    
+    if (!btn) { 
+        console.error('[DUP-DELETE] Delete button not found');
+        toast('Delete duplicates button not found', 'error'); 
+        return; 
+    }
     if (!confirm(`Are you sure you want to delete ${currentScanResults?.duplicates?.length || 0} duplicate videos from this playlist? This action cannot be undone.`)) return;
     if (!currentScanResults.duplicates.length) return;
 
     toast(`Deleting ${currentScanResults.duplicates.length} duplicates...`, 'info');
     const videoIds = currentScanResults.duplicates.map(item => item.video_id).filter(Boolean);
+    console.debug('[DUP-DELETE] extracted videoIds:', videoIds);
+    
     if (!videoIds.length) {
+        console.error('[DUP-DELETE] No valid video ids to delete');
         toast('No valid video ids to delete', 'error');
         return;
     }
 
     try {
+        console.debug('[DUP-DELETE] Making request to /api/bulk/delete with:', {playlist_id: playlistId, video_ids: videoIds});
         const resp = await fetch('/api/bulk/delete', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({playlist_id: playlistId, video_ids: videoIds})
         });
+        console.debug('[DUP-DELETE] Response status:', resp.status);
         const result = await resp.json();
+        console.debug('[DUP-DELETE] Response body:', result);
+        
         if (resp.ok) {
-            toast(`Deleted duplicates`, 'success');
+            toast(`Deleted duplicates successfully`, 'success');
             currentScanResults.duplicates = [];
             await loadPlaylist();
         } else {
+            console.error('[DUP-DELETE] API error:', result);
             toast(`Failed to delete duplicates: ${DOMPurify.sanitize(result.error || resp.statusText || 'Unknown error')}`, 'error');
         }
     } catch (e) {
+        console.error('[DUP-DELETE] Network error:', e);
         toast(`Network error: Failed to delete duplicates: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
-        console.error('Delete duplicates error:', e);
     } finally {
         showScanBox(document.getElementById('scan-filter').value);
     }
