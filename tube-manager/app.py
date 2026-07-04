@@ -374,6 +374,18 @@ if not any(getattr(route, "path", "") == "/static" for route in app.routes):
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
 
+
+
+# Favicon route — serve favicon.png for /favicon.ico requests
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve favicon to prevent 404."""
+    favicon_path = WEB_DIR / "static" / "favicon.png"
+    if favicon_path.exists():
+        return FileResponse(favicon_path, media_type="image/png")
+    # Fallback: blank 1x1 ICO
+    return Response(content=b"\x00\x00\x01\x00\x01\x00\x01\x01\x00\x00\x01\x00\x18\x00\x30\x00\x00\x00\x16\x00\x00\x00" + b"\x00" * 50, media_type="image/x-icon")
+
 # H6 FIX: Gzip compression middleware for JSON responses
 @app.middleware("http")
 async def add_compression(request: Request, call_next):
@@ -425,9 +437,9 @@ async def add_security_headers(request: Request, call_next):
         f"default-src 'self'; "
         f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; "
         f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
-        f"font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
+        f"font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         f"img-src 'self' data: https://i.ytimg.com https://yt3.ggpht.com; "
-        f"connect-src 'self' https://www.googleapis.com https://www.youtube.com wss://tubemanager.onrender.com ws: wss:; "
+        f"connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
         f"frame-ancestors 'none'; "
         f"frame-src 'none';"
     )
