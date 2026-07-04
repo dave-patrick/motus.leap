@@ -57,9 +57,12 @@ async function loadStats() {
         const statsResp = await apiCall('/api/stats').catch(() => null);
         if (statsResp && statsResp.ok) {
             const s = await statsResp.json().catch(() => ({}));
-            document.getElementById('stat-playlists').textContent = s.total_playlists ?? '--';
-            document.getElementById('stat-videos').textContent = s.total_videos ?? '--';
-            document.getElementById('stat-subscriptions').textContent = s.total_subscriptions ?? '--';
+            const elPlaylists = document.getElementById('stat-playlists');
+            const elVideos = document.getElementById('stat-videos');
+            const elSubs = document.getElementById('stat-subscriptions');
+            if (elPlaylists) elPlaylists.textContent = s.total_playlists ?? '--';
+            if (elVideos) elVideos.textContent = s.total_videos ?? '--';
+            if (elSubs) elSubs.textContent = s.total_subscriptions ?? '--';
         }
     } catch (e) {
         console.warn('Failed to load stats', e);
