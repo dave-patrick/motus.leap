@@ -1070,10 +1070,19 @@ function startAgentActivityTracker() {
                 }
             }
         };
+        let wsFailed = false;
         ws.onclose = () => {
-            setTimeout(connectWS, 5000);
+            if (!wsFailed) {
+                wsFailed = true;
+                console.warn('[AgentDrawer] WebSocket closed. Will not retry.');
+                if (logEl) logEl.textContent = 'Agent connection closed. Telemetry unavailable.';
+            }
         };
-        ws.onerror = () => {};
+        ws.onerror = () => {
+            wsFailed = true;
+            console.warn('[AgentDrawer] WebSocket error. Will not retry.');
+            if (logEl) logEl.textContent = 'Agent connection failed. Telemetry unavailable.';
+        };
     }
 
     async function pollStats() {

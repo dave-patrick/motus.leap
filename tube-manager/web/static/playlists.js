@@ -38,7 +38,7 @@ async function loadPlaylists() {
     }
 
     try {
-        const response = await fetch("/api/playlists");
+        const response = await authFetch("/api/playlists");
         const data = await response.json();
 
         if (!response.ok) {
@@ -96,7 +96,7 @@ async function rescanPlaylist(playlistId, event) {
     
     toast("Rescanning playlist videos...", "info");
     try {
-        const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
+        const resp = await authFetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
         const data = await resp.json();
 
         if (!resp.ok) {
@@ -135,7 +135,7 @@ function togglePlaylistMenu(playlistId) {
 async function deletePlaylistConfirmed(playlistId) {
     if (!confirm("Delete this playlist? This cannot be undone.")) return;
     try {
-        const resp = await fetch("/api/youtube/playlists/delete", {
+        const resp = await authFetch("/api/youtube/playlists/delete", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({playlist_id: playlistId})
@@ -185,7 +185,7 @@ async function actionRenamePlaylist(playlistId, currentTitle) {
     
     toast("Renaming playlist...", "info");
     try {
-        const resp = await fetch("/api/youtube/playlists/rename", {
+        const resp = await authFetch("/api/youtube/playlists/rename", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({ playlist_id: playlistId, new_title: newTitle })
@@ -210,7 +210,7 @@ async function actionDuplicatePlaylist(playlistId, currentTitle) {
     
     toast("Initiating playlist duplication...", "info");
     try {
-        const resp = await fetch("/api/youtube/playlists/duplicate", {
+        const resp = await authFetch("/api/youtube/playlists/duplicate", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({ playlist_id: playlistId, new_title: newTitle })
@@ -232,7 +232,7 @@ async function actionDuplicatePlaylist(playlistId, currentTitle) {
 async function actionCreatePlaylist() {
     const title = prompt("Playlist title:");
     if (!title) return;
-    const resp = await fetch("/api/youtube/playlists/create", {
+    const resp = await authFetch("/api/youtube/playlists/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title })
@@ -246,7 +246,7 @@ async function actionDeletePlaylist(playlistId, title) {
     
     toast("Deleting playlist...", "info");
     try {
-        const resp = await fetch("/api/youtube/playlists/delete", {
+        const resp = await authFetch("/api/youtube/playlists/delete", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({ playlist_id: playlistId })
@@ -286,7 +286,7 @@ async function syncPlaylists(e) {
     btn.innerHTML = "<i class=\"fa-solid fa-spinner fa-spin\"></i> Syncing...";
     toast("Initiating playlist sync...", "info");
     try {
-        const resp = await fetch("/api/action", {
+        const resp = await authFetch("/api/action", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({action: "sync_playlists"})
