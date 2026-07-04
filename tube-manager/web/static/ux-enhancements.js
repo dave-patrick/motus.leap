@@ -837,23 +837,25 @@ async function navigateSPA(url) {
         const doc = parser.parseFromString(html, 'text/html');
 
         const currentAside = document.querySelector('aside');
+        const currentHeader = document.querySelector('header');
         const newAside = doc.querySelector('aside');
+        const newHeader = doc.querySelector('header');
 
         // Update body class if different
         document.body.className = doc.body.className;
 
-        // 1. Keep current aside and global agent drawer, remove all other body children
+        // 1. Keep current aside, header, and global agent drawer; remove all other body children
         const globalDrawer = document.getElementById('global-agent-drawer');
         Array.from(document.body.children).forEach(child => {
-            if (child !== currentAside && child !== globalDrawer && child.tagName !== 'SCRIPT') {
+            if (child !== currentAside && child !== currentHeader && child !== globalDrawer && child.tagName !== 'SCRIPT') {
                 document.body.removeChild(child);
             }
         });
 
-        // 2. Add all new body children except its ASIDE and global drawer
+        // 2. Add all new body children except its ASIDE, HEADER, and global drawer
         const scriptsToRun = [];
         Array.from(doc.body.children).forEach(child => {
-            if (child.tagName !== 'ASIDE' && child.id !== 'global-agent-drawer') {
+            if (child.tagName !== 'ASIDE' && child.tagName !== 'HEADER' && child.id !== 'global-agent-drawer') {
                 // Find scripts inside the child
                 child.querySelectorAll('script').forEach(s => {
                     scriptsToRun.push(s);
@@ -863,7 +865,18 @@ async function navigateSPA(url) {
             }
         });
 
-        // 3. Update the active sidebar link highlighting
+        // 3. Re-insert preserved aside into the new flex wrapper (where new aside would have been)
+        if (currentAside) {
+            const flexWrapper = document.querySelector('.flex.flex-1');
+            const mainEl = document.querySelector('main');
+            if (flexWrapper && mainEl) {
+                flexWrapper.insertBefore(currentAside, mainEl);
+            } else {
+                document.body.appendChild(currentAside);
+            }
+        }
+
+        // 4. Update the active sidebar link highlighting
         if (currentAside) {
             currentAside.querySelectorAll('nav a').forEach(a => {
                 const path = a.getAttribute('href');
@@ -875,7 +888,7 @@ async function navigateSPA(url) {
             });
         }
 
-        // 4. Run scripts in order
+        // 5. Run scripts in order
         scriptsToRun.forEach(oldScript => {
             const newScript = document.createElement('script');
             Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
@@ -885,7 +898,7 @@ async function navigateSPA(url) {
             document.body.appendChild(newScript);
         });
 
-        // 5. Fire DOMContentLoaded to trigger page initializations
+        // 6. Fire DOMContentLoaded to trigger page initializations
         setTimeout(() => {
             document.dispatchEvent(new Event('DOMContentLoaded'));
         }, 50);
