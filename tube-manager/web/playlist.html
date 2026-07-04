@@ -1,167 +1,158 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
     <title>Playlist - motus.leap</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=1781919149">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; frame-src https://www.youtube.com;">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/static/auth-check.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        body {
-            background: #0f0f0f;
-            color: #e2e8f0;
+        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        .video-row { border-top: 1px solid #2a2f3a; padding: 8px 12px; transition: background-color 0.2s; }
+        .video-row:hover { background-color: #20242c; }
+        .video-row.selected { background-color: rgba(47, 143, 201, 0.2); }
+        
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateX(100%); }
+            to { opacity: 1; transform: translateX(0); }
         }
-    </style>
+        @keyframes slide-out {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100%); }
+        }
+        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        .animate-slide-out { animation: slide-out 0.3s ease-in; }
+    
+        @font-face {
+            font-family: 'Deltha';
+            src: url('/static/Deltha.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        .site-title { font-family: 'Deltha', serif; font-weight: normal !important; }
+        .nav-item.active { background-color: #2f8fc9; color: #ffffff; }
+        .nav-item:not(.active):hover { background-color: rgba(255, 255, 255, 0.1); }
+</style>
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=1781919149">
+    <script src="/static/ux-enhancements.js?v=1781919149"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/global_scripts.js?v=1781919149"></script>
+    <script src="/static/auth-check.js?v=1781919149"></script>
 </head>
-<body class="dark min-h-screen">
-    <div class="container mx-auto px-4 py-8 max-w-7xl">
-        <nav class="flex items-center justify-between mb-6">
-            <button onclick="backToPlaylists()" class="bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-4 py-2 rounded-lg">
-                <i class="fas fa-arrow-left mr-2"></i> Back to Playlists
-            </button>
-            <div>
-                <h1 class="text-3xl font-bold text-white">Playlist: <span id="playlist-title">Loading...</span></h1>
-                <p class="text-gray-400 text-sm mt-1"><span id="playlist-count">0 videos</span></p>
-            </div>
-        </nav>
-
-        <div id="videos-container">
-            <div class="animate-pulse space-y-4">
-                <div class="bg-[#16181c] h-20 rounded-lg"></div>
-                <div class="bg-[#16181c] h-20 rounded-lg"></div>
-                <div class="bg-[#16181c] h-20 rounded-lg"></div>
-            </div>
+<body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
+<div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
+<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+    <header class="bg-[#1a1d24] px-4 md:px-8 py-3 md:py-6 flex items-center justify-between">
+        <div class="flex items-center gap-3 md:gap-4 pl-12 md:pl-0">
+            <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height: 60px; width: auto; object-fit: contain;">
+            <h1 class="text-3xl md:text-[3.375rem] font-bold tracking-tight mb-1 flex items-baseline leading-none site-title">
+                    <span class="text-white">m</span>
+                    <span class="text-white">o</span>
+                    <span class="text-white">t</span>
+                    <span class="text-[#2f8fc9]">u</span>
+                    <span class="text-white">s</span>
+                    <span class="text-gray-500">.</span>
+                    <span class="text-white">l</span>
+                    <span class="text-white">e</span>
+                    <span class="text-white">a</span>
+                    <span class="text-white">p</span>
+                </h1>
         </div>
+        <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
+    </header>
+    <!-- Playlist context bar (below header) -->
+    <div class="px-6 py-2 bg-[#16191f] border-b border-[#2a2f3a] flex items-center gap-3">
+        <button onclick="window.location.href='/playlists'" class="text-gray-400 hover:text-white text-xs flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Back to Playlists</button>
+        <span class="text-gray-600">|</span>
+        <span class="text-xs text-gray-300" id="playlist-title">Loading...</span>
+        <span class="text-[10px] text-gray-500" id="playlist-meta">-- videos</span>
+        <button id="move-btn" onclick="moveSelectedVideos()" class="ml-auto bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 hidden"><i class="fa-solid fa-up-right-and-down-left-from-center"></i> Move Selected</button>
     </div>
+    <div class="flex flex-1 overflow-hidden">
+                <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+                <a href="/playlists" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+            </nav>
+            <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+                <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+            </div>
+        </aside>
+        <main class="flex-1 overflow-y-auto p-4 bg-[#121419]">
+            <div class="flex flex-col gap-3  max-w-[1600px] mx-auto w-full">
+                
+                <!-- Operations Panel (Scan Buttons and Results Box) -->
+                <div class="bento-card p-4 flex flex-col gap-3 shrink-0">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xs font-semibold text-white">Playlist Operations</h3>
+                            <p class="text-[10px] text-gray-400">Rescan videos, scan for duplicate entries, or detect misplaced videos based on your rules.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="rescan-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-arrows-rotate text-[#2f8fc9]"></i> Rescan Playlist</button>
+                            <button id="btn-scan-dup" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-copy text-[#2f8fc9]"></i> Scan for Duplicates</button>
+                            <button id="btn-scan-mis" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-triangle-exclamation text-yellow-500"></i> Scan for Misplaced</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Scan Results Box (hidden initially) -->
+                    <div id="scan-results-box" class="hidden border border-[#2a2f3a] bg-[#16191f] rounded-lg p-3">
+                        <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-[#2a2f3a]">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-[#2f8fc9]"></i> Scan Results</span>
+                                <span id="scan-results-summary" class="text-[9px] text-gray-400 px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button id="delete-duplicates-btn" class="hidden bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
+                                    <i class="fa-solid fa-trash-can"></i> Delete Duplicates
+                                </button>
+                                <button id="move-misplaced-btn" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
+                                    <i class="fa-solid fa-share-from-square"></i> Move Misplaced
+                                </button>
+                                <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>
+                                <select id="scan-filter" onchange="filterScanResults()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2.5 py-1 outline-none font-semibold cursor-pointer">
+                                    <option value="all">All Issues</option>
+                                    <option value="duplicates">Duplicates only</option>
+                                    <option value="misplaced">Misplaced only</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="scan-results-list" class="space-y-1.5 max-h-48 overflow-y-auto font-mono text-[11px] text-gray-300">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
 
-    <script>
-        function backToPlaylists() {
-            window.location.href = '/playlists';
-        }
-        
-                function getAuthToken() {
-            // Try to get token from cookie first (more secure)
-            function getCookie(name) {
-                const value = \`; \${document.cookie}\`;
-                const parts = value.split(\`; \${name}=\`);
-                if (parts.length === 2) return parts.pop().split(';').shift();
-                return null;
-            }
-            
-            // Check localStorage first, then cookie
-            return localStorage.getItem('token') || getCookie('token');
-        }
-        
-        async function apiCall(url, options = {}) {
-            const headers = {
-                'Content-Type': 'application/json',
-                ...(options.headers || {})
-            };
-            
-            const token = getAuthToken();
-            if (token) {
-                headers['Authorization'] = \`Bearer \${token}\`;
-            }
-            
-            return fetch(url, {
-                ...options,
-                headers
-            });
-        }
-        
-async function loadPlaylist() {
-            const container = document.getElementById('videos-container');
-            if (!container) {
-                console.error('Videos container not found!');
-                return;
-            }
-            
-            try {
-                console.log('Loading playlist...');
-                const response = await apiCall('/api/playlists');
-                console.log('Response status:', response.status);
-                
-                if (response.status === 401) {
-                    // Show login prompt if not authenticated
-                    container.innerHTML = \`
-                        <div class="text-center p-8">
-                            <i class="fas fa-lock text-6xl text-gray-500 mb-4"></i>
-                            <h2 class="text-2xl font-semibold text-white mb-2">Authentication Required</h2>
-                            <p class="text-gray-400 mb-6">Please sign in to view your playlists</p>
-                            <a href="/auth" class="bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-6 py-3 rounded-lg transition-all inline-block">
-                                Sign In
-                            </a>
+                <!-- Videos List Container -->
+                <div class="bento-card p-0 max-w-4xl mx-auto" id="videos-container">
+                    <div class="p-4 space-y-3" id="videos-skeleton">
+                        <div class="animate-pulse space-y-3">
+                            <div class="h-20 rounded bg-[#1e222a]"></div>
+                            <div class="h-3 rounded bg-[#1e222a] w-3/4"></div>
+                            <div class="h-3 rounded bg-[#1e222a] w-1/2"></div>
                         </div>
-                    \`;
-                    return;
-                }
-                
-                if (!response.ok) {
-                    throw new Error(\`HTTP error! status: \${response.status}\`);
-                }
-                
-                const data = await response.json();
-                console.log('Playlist data:', data);
-                
-                // Update UI
-                document.getElementById('playlist-title').textContent = data.title || 'Unknown Playlist';
-                document.getElementById('playlist-count').textContent = \`\${data.video_count || 0} videos\`;
-                
-                // Replace skeleton with videos
-                container.innerHTML = data.videos.map(video => \`
-                    <div class="bg-[#16181c] rounded-lg p-4 hover:bg-[#1e222a] transition-all">
-                        <div class="flex items-center space-x-4">
-                            <img src="\${video.thumbnail || 'https://i.ytimg.com/vi/default/mqdefault.jpg'}" 
-                                 alt="\${video.title}" class="w-20 h-12 object-cover rounded">
-                            <div class="flex-1">
-                                <h3 class="text-white font-medium">\${video.title || 'Unknown Title'}</h3>
-                                <p class="text-gray-400 text-sm">\${video.channel || 'Unknown Channel'}</p>
-                            </div>
-                            <div class="flex space-x-2">
-                                <button onclick="refreshVideo('\${video.id}')" class="text-gray-400 hover:text-white">
-                                    <i class="fas fa-refresh"></i>
-                                </button>
-                                <button onclick="openVideo('\${video.id}')" class="text-gray-400 hover:text-white">
-                                    <i class="fas fa-external-link-alt"></i>
-                                </button>
-                            </div>
+                        <div class="animate-pulse space-y-3">
+                            <div class="h-20 rounded bg-[#1e222a]"></div>
+                            <div class="h-3 rounded bg-[#1e222a] w-2/3"></div>
+                            <div class="h-3 rounded bg-[#1e222a] w-1/3"></div>
                         </div>
                     </div>
-                \`).join('');
-                
-            } catch (error) {
-                console.error('Error loading playlist:', error);
-                container.innerHTML = \`
-                    <div class="text-center p-8">
-                        <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
-                        <h2 class="text-xl font-semibold text-white mb-2">Failed to Load Playlist</h2>
-                        <p class="text-gray-400">\${error.message}</p>
-                        <button onclick="window.location.href='/auth'" class="bg-[#2f8fc9] hover:bg-[#2a7bb9] text-white px-6 py-2 rounded mt-4">
-                            Go to Login
-                        </button>
-                    </div>
-                \`;
-            }
-        }
-        
-        function refreshVideo(videoId) {
-            console.log('Refreshing video:', videoId);
-            // Placeholder implementation
-            alert('Refresh functionality not implemented yet');
-        }
-        
-        function openVideo(videoId) {
-            console.log('Opening video:', videoId);
-            window.open(`https://youtube.com/watch?v=${videoId}`, '_blank');
-        }
-        
-        // Initialize page
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', loadPlaylist);
-        } else {
-            loadPlaylist();
-        }
-    </script>
+                    <div class="hidden p-4" id="videos-list"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="/static/playlist.js?v=1781919149"></script>
+    <script src="/static/mobile-nav.js"></script>
 </body>
 </html>
