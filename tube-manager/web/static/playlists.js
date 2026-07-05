@@ -70,7 +70,7 @@ function renderPlaylistsGrid(playlists) {
         const safeTitle = p.title.replace(/'/g, "\\'");
         return `
         <a href="/playlist/${p.id}" class="bento-card p-3 md:p-4 w-full flex flex-row gap-3 cursor-pointer hover:border-[#2a7db8]/50 transition-colors items-center relative block min-h-[80px] md:min-h-[96px]">
- <div class="w-24 md:w-28 flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover" style="aspect-ratio: 16/9;" onerror="this.onerror=null; this.src='https://picsum.photos/160/90'"></div>
+ <div class="w-24 md:w-28 flex-shrink-0"><img src="${p.thumbnail || 'https://picsum.photos/160/90'}" class="w-full h-full object-cover rounded-lg" style="aspect-ratio: 16/9;" onerror="this.onerror=null; this.src='https://picsum.photos/160/90'"></div>
           <div class="flex-1 min-w-0 flex flex-col gap-1 truncate">
             <h3 class="text-sm md:text-base font-semibold text-white break-words">${p.title}</h3>
             <p class="text-xs text-gray-400">${p.video_count} videos</p>
