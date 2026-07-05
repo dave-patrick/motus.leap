@@ -865,7 +865,11 @@ async function navigateSPA(url) {
             }
         });
 
-        // 3. Re-insert preserved aside into the new flex wrapper (where new aside would have been)
+        // 3. Re-insert preserved header at the top of body (where new header would have been)
+        if (currentHeader) {
+            document.body.insertBefore(currentHeader, document.body.firstChild);
+        }
+
         if (currentAside) {
             const flexWrapper = document.querySelector('.flex.flex-1');
             const mainEl = document.querySelector('main');

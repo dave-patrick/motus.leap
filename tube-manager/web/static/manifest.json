@@ -1,16 +1,21 @@
 {
-  "name": "motus.leap - YouTube Playlist Manager",
-  "short_name": "motus.leap",
-  "description": "Automated YouTube Playlist Maintainer",
-  "start_url": "/dashboard",
+  "name": "motus.leap Tube Manager",
+  "short_name": "Tube Manager",
+  "description": "YouTube playlist management tool",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0f1115",
   "theme_color": "#1a1a2e",
-  "orientation": "any",
   "icons": [
     {
-      "src": "/static/logo_icon.png",
+      "src": "/static/icon-192.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
