@@ -1042,7 +1042,13 @@ function startAgentActivityTracker() {
     let ws = null;
     function connectWS() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
+ try {
+   ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
+ } catch (e) {
+   console.warn('[AgentDrawer] WebSocket connection failed:', e.message);
+   if (logEl) logEl.textContent = 'WebSocket not available. Using polling.';
+   return;
+ }
         ws.onopen = () => {
             if (logEl) logEl.textContent = 'Agent connected. Streaming telemetry...';
         };

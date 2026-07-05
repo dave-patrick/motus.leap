@@ -523,6 +523,7 @@ async function deleteDuplicateItems() {
         toast(`Network error: Failed to delete duplicates: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
     } finally {
         showScanBox(document.getElementById('scan-filter').value);
+ await loadPlaylist();
     }
 }
 
