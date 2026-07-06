@@ -172,11 +172,11 @@ function renderVideos() {
                     ${selectedVideos.has(v.video_id) ? '<div class="absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none"></div>' : ''}
                 </div>
                 <!-- Info -->
-                <div class="p-2.5">
-                    <div class="text-[12px] text-white font-medium leading-tight line-clamp-2 mb-1" title="${DOMPurify.sanitize(v.title || '')}">${DOMPurify.sanitize(v.title || 'Unknown title')}</div>
-                    <div class="text-[10px] text-gray-400 truncate">${DOMPurify.sanitize(v.channel_title || 'Unknown channel')}</div>
-                <button onclick="openYouTubeModal(`${v.video_id}`)" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
-            </div>
+                <div class="p-2.5 relative">
+                    <div class="text-[12px] text-white font-medium leading-tight line-clamp-2 mb-1 pr-16" title="${DOMPurify.sanitize(v.title || '')}">${DOMPurify.sanitize(v.title || 'Unknown title')}</div>
+                    <div class="text-[10px] text-gray-400 truncate pr-16">${DOMPurify.sanitize(v.channel_title || 'Unknown channel')}</div>
+                    <button onclick="openYouTubeModal('${v.video_id}')" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
+                </div>
             </div>
             `).join('')}
         </div>
