@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>Maintenance Queue - motus.leap</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=1783211869">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=1783211869">
+    <link rel="manifest" href="/static/manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=1781919149">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        @keyframes slide-in { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slide-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100%); } }
+        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        .animate-slide-out { animation: slide-out 0.3s ease-in; }
+        .nav-item.active { background-color: #2f8fc9; color: #ffffff; }
+        .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
+    
+        @font-face {
+            font-family: 'Deltha';
+            src: url('/static/Deltha.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        .site-title { font-family: 'Deltha', serif; font-weight: normal !important; }
+</style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/auth-check.js?v=1781919149"></script>
+    <script src="/static/ux-enhancements.js?v=1781919149"></script>
+</head>
+<div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
+<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+<body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
+    <header class="bg-[#1a1d24] px-4 md:px-8 py-3 md:py-6 flex items-center justify-between">
+        <div class="flex items-center gap-3 md:gap-4 pl-12 md:pl-0">
+            <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height: 60px; width: auto; object-fit: contain;">
+            <h1 class="text-3xl md:text-[3rem] font-bold tracking-tight mb-1 flex items-baseline leading-none site-title">
+                    <span class="text-white">m</span>
+                    <span class="text-white">o</span>
+                    <span class="text-white">t</span>
+                    <span class="text-[#2f8fc9]">u</span>
+                    <span class="text-white">s</span>
+                    <span class="text-gray-500">.</span>
+                    <span class="text-white">l</span>
+                    <span class="text-white">e</span>
+                    <span class="text-white">a</span>
+                    <span class="text-white">p</span>
+                </h1>
+        </div>
+        <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
+    </header>
+    <div class="flex flex-1 overflow-hidden">
+                <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+                <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+            </nav>
+            <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+                <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+            </div>
+        </aside>
+        <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
+            <div class="flex flex-col gap-4  max-w-[1600px] mx-auto w-full">
+                <h2 class="text-xl font-bold text-white">Maintenance Queue</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="bento-card flex flex-col overflow-hidden">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
+                            <h3 class="text-xs font-semibold text-gray-300">Move from X to Y</h3>
+                            <button onclick="applyMaintenance('move')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1 px-2 rounded">Apply All</button>
+                        </div>
+                        <div class="p-3 overflow-y-auto flex-1" id="move-queue">Loading...</div>
+                    </div>
+                    <div class="bento-card flex flex-col overflow-hidden">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
+                            <h3 class="text-xs font-semibold text-gray-300">Duplicated Videos</h3>
+                            <button onclick="applyMaintenance('dup')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1 px-2 rounded">Resolve All</button>
+                        </div>
+                        <div class="p-3 overflow-y-auto flex-1" id="dup-queue">Loading...</div>
+                    </div>
+                    <div class="bento-card flex flex-col overflow-hidden">
+                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
+                            <h3 class="text-xs font-semibold text-gray-300">Misplaced Videos</h3>
+                            <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1 px-2 rounded">Fix All</button>
+                        </div>
+                        <div class="p-3 overflow-y-auto flex-1" id="misplaced-queue">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script>
+        // Toast notification system
+        function toast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toast-container') || createToastContainer();
+            const toast = document.createElement('div');
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-times-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+            const colors = {
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                warning: 'bg-yellow-600',
+                info: 'bg-[#2f8fc9]'
+            };
+            toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('animate-slide-out');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        function createToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
+            document.body.appendChild(container);
+            return container;
+        }
+        var maintenanceData = {};
+        
+        async function loadMaintenance() {
+            try {
+                const response = await fetch('/api/maintenance');
+                if (!response.ok) throw new Error('Failed to load');
+                maintenanceData = await response.json();
+                renderQueue('move-queue', maintenanceData.move_from_x_to_y || [], 'move');
+                renderQueue('dup-queue', maintenanceData.duplicated_videos || [], 'dup');
+                renderQueue('misplaced-queue', maintenanceData.misplaced_videos || [], 'misplaced');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        
+        function renderQueue(elId, items, type) {
+            const el = document.getElementById(elId);
+            if (!items.length) { 
+                el.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-4">No items</div>'; 
+                return; 
+            }
+            el.innerHTML = items.map(item => {
+                const _thumb = DOMPurify.sanitize(item.thumbnail || 'https://picsum.photos/32/24');
+                const _title = DOMPurify.sanitize(item.title || '');
+                const _from = DOMPurify.sanitize(item.from_playlist || item.current_playlist || item.playlist_a || '');
+                const _to = DOMPurify.sanitize(item.to_playlist || item.suggested || item.playlist_b || '?');
+                const _suggested = DOMPurify.sanitize(item.suggested || '');
+                return `
+                <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a] mb-2">
+                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${_thumb}" class="w-full h-full object-cover"></div>
+                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${_title}</div><div class="text-[9px] text-gray-400">${_from} → ${_to}</div></div>
+                    ${type === 'move' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>${_suggested || 'Move from X to Y'}</option></select>` : ''}
+                    ${type === 'dup' ? `<div class="flex gap-1"><button class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Keep</button><button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>` : ''}
+                    ${type === 'misplaced' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>Move to ${_suggested || 'Correct Playlist'}</option></select>` : ''}
+                </div>
+                `;
+            }).join('');
+        }
+        
+        async function applyMaintenance(type) {
+            toast(`${type} maintenance is currently disabled`, 'warning');
+        }
+        
+        
+        // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+function initMaintenancePage() {
+            loadMaintenance();
+        }
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMaintenancePage);
+} else {
+    initMaintenancePage();
+};
+    </script>
+    <script src="/static/mobile-nav.js"></script>
+</body>
+</html>
