@@ -458,8 +458,7 @@ function filterScanResults() {
                     <div class="text-[10px] text-gray-400 truncate">${item.channel ? DOMPurify.sanitize(item.channel) + ' • ' : ''}ID: ${item.video_id}</div>
                     <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-[#2f8fc9]' : 'bg-yellow-500'}"></span><span>Reason: ${DOMPurify.sanitize(item.reason)}</span></div>
                     ${additionalInfo}
-                <button onclick="openYouTubeModal(`${v.video_id}`)" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
-            </div>
+                <button onclick="openYouTubeModal(`${item.video_id}`)" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
             </div>
         `;
     }).join('');
