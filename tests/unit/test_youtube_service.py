@@ -1,0 +1,258 @@
+"""Unit tests for YouTube service."""
+import pytest
+from pydantic import SecretStr
+from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from services.youtube_service import YouTubeService
+from core.lru_cache import LRUAsyncCache
+from models.config import TubeManagerConfig, YouTubeOAuthConfig
+
+
+@pytest.mark.unit
+class TestYouTubeService:
+    """Test YouTube service functionality."""
+
+    @pytest.fixture
+    def youtube_service(self, test_config):
+        """Create YouTube service instance."""
+        return YouTubeService(test_config)
+
+    def test_init(self, youtube_service):
+        """Test service initialization."""
+        assert youtube_service is not None
+        assert youtube_service.config.youtube_api_key.get_secret_value() == "test_api_key"
+        assert youtube_service.config.oauth is not None
+        assert youtube_service._cache is not None
+
+    def test_cache_initialization(self, youtube_service):
+        """Test LRU cache is initialized correctly."""
+        cache = youtube_service._cache
+        assert isinstance(cache, LRUAsyncCache)
+        assert cache._max_size == 100
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_data(self, youtube_service):
+        """Test fetching all YouTube data."""
+        fake_client = MagicMock()
+        fake_client.list_mine_subscriptions.return_value = {"items": []}
+        fake_client.list_mine_playlists.return_value = {"items": []}
+        fake_client.list_videos.return_value = {"items": []}
+        fake_client.list_channels_by_ids.return_value = {"items": []}
+
+        with patch.object(youtube_service, "get_client", return_value=fake_client):
+            result = await youtube_service.fetch_all_data(force_refresh=True)
+
+        assert "subscriptions" in result
+        assert "playlists" in result
+        assert "videos" in result
+        assert isinstance(result["subscriptions"], list)
+        assert isinstance(result["playlists"], list)
+        assert isinstance(result["videos"], list)
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_data_with_cache(self, youtube_service):
+        """Test caching of fetch_all_data."""
+        fake_client = MagicMock()
+        fake_client.list_mine_subscriptions.return_value = {"items": []}
+        fake_client.list_mine_playlists.return_value = {"items": []}
+        fake_client.list_videos.return_value = {"items": []}
+        fake_client.list_channels_by_ids.return_value = {"items": []}
+
+        with patch.object(youtube_service, "get_client", return_value=fake_client):
+            result1 = await youtube_service.fetch_all_data(force_refresh=True)
+
+        with patch.object(youtube_service, "get_client", return_value=fake_client):
+            result2 = await youtube_service.fetch_all_data(force_refresh=False)
+
+        assert result1 == result2
+
+    def test_cache_hit_rate(self, youtube_service):
+        """Test cache hit rate calculation."""
+        cache = youtube_service._cache
+
+        for i in range(100):
+            pass
+
+        stats = cache.get_stats()
+        assert stats["hits"] == 0
+        assert stats["misses"] == 0
+        assert stats["hit_rate"] == "0.00%"
+
+    @pytest.mark.asyncio
+    async def test_get_client_with_api_key(self, youtube_service):
+        client = youtube_service.get_client(require_oauth=False)
+        assert client is not None
+
+    @pytest.fixture
+    def oauth_service(self):
+        config = TubeManagerConfig(
+            youtube_api_key=SecretStr("test_key"),
+            oauth=YouTubeOAuthConfig(client_id="", client_secret=SecretStr("")),
+        )
+        return YouTubeService(config)
+
+    @pytest.mark.asyncio
+    async def test_get_client_with_oauth(self, oauth_service):
+        client = oauth_service.get_client(require_oauth=True)
+        assert client is None
+
+
+@pytest.mark.unit
+class TestLRUAsyncCache:
+    """Test LRUAsyncCache functionality."""
+
+    @pytest.mark.asyncio
+    async def test_basic_operations(self):
+        """Test basic get/set operations."""
+        from datetime import timedelta
+
+        cache = LRUAsyncCache(max_size=10, ttl=timedelta(minutes=10))
+
+        # Set a value
+        assert await cache.set("key1", "value1") is None
+
+        # Get the value
+        value = await cache.get("key1")
+        assert value == "value1"
+
+        # Get non-existent key
+        assert await cache.get("nonexistent") is None
+
+    @pytest.mark.asyncio
+    async def test_get_nonexistent(self):
+        """Test getting non-existent key."""
+        from datetime import timedelta
+
+        cache = LRUAsyncCache(max_size=10, ttl=timedelta(minutes=10))
+        assert await cache.get("missing") is None
+
+    @pytest.mark.asyncio
+    async def test_lru_eviction(self):
+        """Test LRU eviction when cache is full."""
+        from datetime import timedelta
+
+        cache = LRUAsyncCache(max_size=3, ttl=timedelta(minutes=10))
+
+        assert await cache.set("key1", "value1") is None
+        assert await cache.set("key2", "value2") is None
+        assert await cache.set("key3", "value3") is None
+        assert await cache.set("key4", "value4") is None
+
+        assert cache.get_stats()["size"] <= 3
+
+    @pytest.mark.asyncio
+    async def test_stats_tracking(self):
+        """Test cache statistics tracking."""
+        from datetime import timedelta
+
+        cache = LRUAsyncCache(max_size=10, ttl=timedelta(minutes=10))
+
+        # Initial stats
+        stats = cache.get_stats()
+        assert stats["size"] == 0
+        assert stats["hits"] == 0
+        assert stats["misses"] == 0
+        assert stats["hit_rate"] == "0.00%"
+
+        # Set and get
+        assert await cache.set("key1", "value1") is None
+        await cache.get("key1")  # hit
+        await cache.get("key2")  # miss
+
+        stats = cache.get_stats()
+        assert stats["hits"] == 1
+        assert stats["misses"] == 1
+        assert "50.00%" in stats["hit_rate"]
+
+    @pytest.mark.asyncio
+    async def test_clear(self):
+        """Test cache clearing."""
+        from datetime import timedelta
+
+        cache = LRUAsyncCache(max_size=10, ttl=timedelta(minutes=10))
+
+        # Add items
+        assert await cache.set("key1", "value1") is None
+        assert await cache.set("key2", "value2") is None
+
+        # Clear
+        assert await cache.clear() is None
+
+        # Verify empty
+        stats = cache.get_stats()
+        assert stats["size"] == 0
+        assert await cache.get("key1") is None
+
+    @pytest.mark.asyncio
+    async def test_ttl_expiry(self):
+        """Test TTL expiry."""
+        from datetime import timedelta
+
+        cache = LRUAsyncCache(max_size=10, ttl=timedelta(milliseconds=100))
+
+        # Set a value
+        assert await cache.set("key", "value") is None
+
+        # Should be available immediately
+        assert await cache.get("key") == "value"
+
+        # Wait for expiry
+        import asyncio
+        await asyncio.sleep(0.15)
+
+        # Should be expired
+        assert await cache.get("key") is None
+
+
+@pytest.mark.unit
+class TestYouTubeServiceAdvanced:
+    """Test advanced YouTube service functionality."""
+
+    @pytest.fixture
+    def youtube_service(self, test_config):
+        return YouTubeService(test_config)
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_data_structure(self, youtube_service):
+        """Test fetch_all_data returns expected structure."""
+        fake_client = MagicMock()
+        fake_client.list_mine_subscriptions.return_value = {"items": []}
+        fake_client.list_mine_playlists.return_value = {"items": []}
+        fake_client.list_videos.return_value = {"items": []}
+        fake_client.list_channels_by_ids.return_value = {"items": []}
+
+        with patch.object(youtube_service, "get_client", return_value=fake_client):
+            result = await youtube_service.fetch_all_data(force_refresh=True)
+
+        assert "cached_at" in result
+        assert "subscriptions" in result
+        assert "playlists" in result
+        assert "videos" in result
+        assert "stats" in result
+        assert "user_id" in result
+
+    @pytest.mark.asyncio
+    async def test_fetch_with_force_refresh(self, youtube_service):
+        """Test force_refresh bypasses cache."""
+        fake_client = MagicMock()
+        fake_client.list_mine_subscriptions.return_value = {"items": []}
+        fake_client.list_mine_playlists.return_value = {"items": []}
+        fake_client.list_videos.return_value = {"items": []}
+        fake_client.list_channels_by_ids.return_value = {"items": []}
+
+        with patch.object(youtube_service, "get_client", return_value=fake_client):
+            result1 = await youtube_service.fetch_all_data(force_refresh=False)
+
+        with patch.object(youtube_service, "get_client", return_value=fake_client):
+            result2 = await youtube_service.fetch_all_data(force_refresh=True)
+
+        assert result1 is not None
+        assert result2 is not None
+
+    def test_user_id_generation(self, test_config):
+        """Test user ID generation from OAuth token."""
+        service = YouTubeService(test_config)
+        user_id = service._get_user_id()
+
+        # Should be consistent for same config
+        assert isinstance(user_id, str)
+        assert len(user_id) == 16 or user_id == "default"

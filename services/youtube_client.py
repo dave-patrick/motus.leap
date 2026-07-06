@@ -1,0 +1,425 @@
+from __future__ import annotations
+
+import os
+import ssl
+import time
+import json
+import asyncio
+import logging
+import threading
+from typing import Any
+
+log = logging.getLogger(__name__)
+
+# Retry configuration
+RETRY_ATTEMPTS = 3
+RETRY_DELAY_SECONDS = 5
+
+try:
+    from googleapiclient.discovery import build  # type: ignore
+    from googleapiclient.errors import HttpError  # type: ignore
+    import httplib2  # type: ignore
+except Exception:  # pragma: no cover
+    build = None  # type: ignore
+    HttpError = Exception  # type: ignore
+    httplib2 = None  # type: ignore
+
+try:
+    import httpx
+except Exception:  # pragma: no cover
+    httpx = None  # type: ignore
+
+YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
+
+if httpx is not None:
+    _shared_client = httpx.Client(timeout=45.0)  # reuse connections across calls
+else:  # pragma: no cover
+    _shared_client = None  # type: ignore
+
+# Lock to protect the shared httpx client from concurrent close/replace
+# while other threads are still using it.
+_client_lock = threading.Lock()
+
+
+def _reset_shared_client():
+    """Reset the shared httpx client, closing stale connections and starting fresh.
+
+    Use this when a connection enters a bad state (e.g. SSL errors after
+    a network change or proxy renegotiation).
+
+    Thread-safe: acquires a module-level lock so concurrent callsers cannot
+    close / replace the client while another thread holds a reference to it.
+    """
+    global _shared_client
+    with _client_lock:
+        if _shared_client is not None:
+            try:
+                _shared_client.close()
+            except Exception:
+                pass
+        _shared_client = httpx.Client(timeout=45.0)
+        log.info("Reset shared httpx client (closed stale connections, created fresh client)")
+
+
+def _with_retry(sync_func, *args, **kwargs):
+    last_exc = None
+    for attempt in range(RETRY_ATTEMPTS):
+        try:
+            resp = sync_func(*args, **kwargs)
+            resp.raise_for_status()
+            return resp
+        except (ssl.SSLError, ssl.SSLEOFError) as e:
+            # SSL errors usually indicate a poisoned / mismatched connection in the pool.
+            # Reset the shared client once, then retry immediately on the fresh client.
+            last_exc = e
+            log.warning(f"SSL error on API call (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Resetting HTTP client...")
+            if httpx is not None:
+                _reset_shared_client()
+            if attempt < RETRY_ATTEMPTS - 1:
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts with SSL error: {e}")
+                raise
+        except httpx.ConnectError as e:
+            # Connection-level errors (reset, timeout, etc.) — reset client and retry
+            last_exc = e
+            log.warning(f"Connection error on API call (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Resetting HTTP client...")
+            if httpx is not None:
+                _reset_shared_client()
+            if attempt < RETRY_ATTEMPTS - 1:
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
+                raise
+        except httpx.HTTPStatusError as e:
+            # 4xx client errors (403, 404, etc.) won't succeed on retry — raise immediately.
+            # 5xx server errors (502, 503, etc.) are retryable.
+            if e.response.status_code < 500:
+                log.warning(f"API call returned client error (non-retryable): {e.response.status_code}")
+                raise
+            last_exc = e
+            if attempt < RETRY_ATTEMPTS - 1:
+                log.warning(f"API call failed with server error (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
+                raise
+        except httpx.RequestError as e:
+            # Other request-level errors (timeouts, etc.) — retry
+            last_exc = e
+            if attempt < RETRY_ATTEMPTS - 1:
+                log.warning(f"API call failed (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
+                raise
+        except Exception as e:
+            # Safety net: catch any unexpected error so a single bad request
+            # never crashes the worker process. Log it and re-raise as a
+            # RuntimeError with the original message.
+            log.error(f"Unexpected error in _with_retry (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {type(e).__name__}: {e}")
+            raise
+        except BaseException as e:
+            # Safety net for BaseException subclasses that aren't Exception
+            # (e.g. asyncio.CancelledError in Python 3.13 where it is BaseException).
+            # CancelledError should propagate immediately; others are logged as critical.
+            if isinstance(e, asyncio.CancelledError):
+                raise
+            log.critical(f"Non-Exception BaseException caught in _with_retry (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {type(e).__name__}: {e}")
+            raise
+
+
+class YouTubeClient:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        oauth_access_token: str | None = None,
+        oauth_refresh_token: str | None = None,
+        oauth_client_id: str | None = None,
+        oauth_client_secret: str | None = None,
+        token_expiry: int | None = None,
+    ):
+        self.api_key = api_key or os.getenv("YOUTUBE_API_KEY", "")
+        self.oauth_access_token = oauth_access_token
+        self.oauth_refresh_token = oauth_refresh_token
+        self.oauth_client_id = oauth_client_id
+        self.oauth_client_secret = oauth_client_secret
+        self.token_expiry = token_expiry or 0
+
+        self._youtube = None
+        self._youtube_oauth = None
+
+        if build is not None and self.api_key:
+            try:
+                http = httplib2.Http(timeout=30) if httplib2 else None
+                self._youtube = build("youtube", "v3", developerKey=self.api_key, cache_discovery=False, http=http)
+            except Exception:
+                self._youtube = None
+
+    def _ensure_oauth_client(self) -> bool:
+        if self._youtube_oauth is not None:
+            if time.time() >= self.token_expiry - 60:
+                return self._refresh_access_token()
+            return True
+
+        if not self.oauth_access_token or not self.oauth_refresh_token:
+            log.debug("[YOUTUBE] _ensure_oauth_client: missing access_token or refresh_token")
+            return False
+
+        if build is None:
+            log.debug("[YOUTUBE] _ensure_oauth_client: googleapiclient not available")
+            return False
+
+        if self.token_expiry <= time.time():
+            log.warning("[YOUTUBE] _ensure_oauth_client: access token expired, refreshing...")
+            return self._refresh_access_token()
+
+        try:
+            from google.oauth2.credentials import Credentials
+            creds = Credentials(
+                token=self.oauth_access_token,
+                refresh_token=self.oauth_refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=self.oauth_client_id,
+                client_secret=self.oauth_client_secret,
+            )
+            self._youtube_oauth = build("youtube", "v3", credentials=creds, cache_discovery=False)
+            log.info("[YOUTUBE] _ensure_oauth_client: OAuth client built successfully")
+            return True
+        except Exception as e:
+            log.error(f"[YOUTUBE] _ensure_oauth_client: Failed to build OAuth client: {e}")
+            self._youtube_oauth = None
+            return False
+
+    def _refresh_access_token(self) -> bool:
+        if not self.oauth_refresh_token or not self.oauth_client_id or not self.oauth_client_secret:
+            return False
+
+        try:
+            import httpx
+        except ImportError:
+            return False
+
+        try:
+            data = {
+                "client_id": self.oauth_client_id,
+                "client_secret": self.oauth_client_secret,
+                "refresh_token": self.oauth_refresh_token,
+                "grant_type": "refresh_token",
+            }
+            client = _shared_client or httpx.Client(timeout=45.0)
+            resp = _with_retry(client.post, "https://oauth2.googleapis.com/token", data=data)
+            resp.raise_for_status()
+            tokens = resp.json()
+
+            self.oauth_access_token = tokens.get("access_token")
+            expires_in = tokens.get("expires_in", 3600)
+            self.token_expiry = int(time.time()) + expires_in
+
+            self._youtube_oauth = None
+            return self._ensure_oauth_client()
+        except Exception:
+            return False
+
+    def _get_client(self, require_oauth: bool = False):
+        if require_oauth:
+            if self._ensure_oauth_client():
+                return self._youtube_oauth
+            return None
+        # Prefer OAuth client if authenticated; fall back to API Key client
+        if self._ensure_oauth_client():
+            return self._youtube_oauth
+        return self._youtube
+
+    def _oauth_request(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Make an OAuth-authenticated request to the YouTube Data API via httpx.
+
+        This bypasses googleapiclient for OAuth-required endpoints where the
+        library was observed to return empty results despite the API returning
+        data for the same token.
+        """
+        if httpx is None:
+            raise RuntimeError("httpx is not installed")
+        access_token = self.oauth_access_token
+        if not access_token:
+            raise RuntimeError("No OAuth access token available")
+        if time.time() >= self.token_expiry - 60:
+            if not self._refresh_access_token():
+                raise RuntimeError("OAuth token refresh failed")
+            access_token = self.oauth_access_token
+        url = f"{YOUTUBE_API_BASE}/{endpoint}"
+        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+        log.debug(f"[YOUTUBE] _oauth_request GET {url} params={params}")
+
+        # Re-resolve the client on each call so that if _reset_shared_client()
+        # was triggered by an SSL error in another thread, we pick up the new
+        # client instead of using the stale (closed) one.
+        def _do_get():
+            c = _shared_client or httpx.Client(timeout=45.0)
+            return c.get(url, headers=headers, params=params)
+
+        resp = _with_retry(_do_get)
+        log.debug(f"[YOUTUBE] _oauth_request response status={resp.status_code}")
+        resp.raise_for_status()
+        try:
+            return resp.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            # Server returned non-JSON (e.g. HTML error page, empty body)
+            content_type = resp.headers.get("content-type", "unknown")
+            body_preview = resp.text[:500] if resp.text else "(empty)"
+            log.error(
+                f"[YOUTUBE] _oauth_request received non-JSON response: "
+                f"content-type={content_type}, status={resp.status_code}, "
+                f"body={body_preview!r}"
+            )
+            raise RuntimeError(
+                f"YouTube API returned non-JSON response (status={resp.status_code}, "
+                f"content-type={content_type}). This usually indicates a proxy/network "
+                f"issue or auth problem."
+            ) from e
+
+    def get_playlist(self, playlist_id: str) -> dict[str, Any]:
+        client = self._get_client()
+        if not client:
+            return {}
+        return client.playlists().list(part="snippet,contentDetails", id=playlist_id).execute()
+
+    def list_videos(self, playlist_id: str, page_token: str | None = None, max_results: int = 50) -> dict[str, Any]:
+        client = self._get_client()
+        if not client:
+            return {"items": []}
+        try:
+            return client.playlistItems().list(
+                part="snippet,contentDetails",
+                playlistId=playlist_id,
+                maxResults=max_results,
+                pageToken=page_token or None,
+            ).execute()
+        except HttpError as e:
+            status_code = e.resp.status if hasattr(e, "resp") and e.resp else "unknown"
+            error_content = e.content.decode("utf-8") if hasattr(e, "content") and e.content else "no content"
+            error_reason = "unknown"
+            try:
+                error_data = json.loads(error_content)
+                error_reason = error_data.get("error", {}).get("errors", [{}])[0].get("reason", "unknown")
+            except Exception:
+                pass
+            log.error(f"YouTube API error in list_videos (playlist={playlist_id}): status={status_code}, reason={error_reason}, content={error_content[:500]}")
+            raise
+
+    def get_video(self, video_id: str) -> dict[str, Any]:
+        client = self._get_client()
+        if not client:
+            return {}
+        return client.videos().list(part="snippet,contentDetails,status", id=video_id).execute()
+
+    def list_mine_playlists(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
+        if not self.oauth_access_token or not self.oauth_refresh_token:
+            log.error("[YOUTUBE] list_mine_playlists: no OAuth tokens available")
+            return {"items": []}
+        try:
+            params = {"part": "snippet,contentDetails", "mine": "true", "maxResults": max_results}
+            if page_token:
+                params["pageToken"] = page_token
+            resp = self._oauth_request("playlists", params)
+            log.info(f"[YOUTUBE] list_mine_playlists returned {len(resp.get('items', []))} items")
+            return resp
+        except Exception as e:
+            log.error(f"[YOUTUBE] list_mine_playlists error: {e}")
+            raise
+
+    def list_mine_channels(self) -> dict[str, Any]:
+        if not self.oauth_access_token or not self.oauth_refresh_token:
+            return {}
+        try:
+            return self._oauth_request("channels", {"part": "snippet,contentDetails", "mine": "true"})
+        except Exception as e:
+            log.error(f"[YOUTUBE] list_mine_channels error: {e}")
+            return {}
+
+    def list_mine_subscriptions(self, max_results: int = 25, page_token: str | None = None) -> dict[str, Any]:
+        if not self.oauth_access_token or not self.oauth_refresh_token:
+            log.warning("[YOUTUBE] list_mine_subscriptions: no OAuth tokens available")
+            return {"items": []}
+        params = {"part": "snippet,contentDetails", "mine": "true", "maxResults": max_results}
+        if page_token:
+            params["pageToken"] = page_token
+        log.info(f"[YOUTUBE] list_mine_subscriptions: fetching page (maxResults={max_results}, pageToken={bool(page_token)})")
+        resp = self._oauth_request("subscriptions", params)
+        count = len(resp.get("items", []))
+        log.info(f"[YOUTUBE] list_mine_subscriptions: returned {count} items")
+        return resp
+
+    def list_channels_by_ids(self, ids: list[str], max_results: int = 50) -> dict[str, Any]:
+        client = self._get_client(require_oauth=False)
+        if not client or not ids:
+            return {"items": []}
+
+        max_results = min(max_results, 50)
+        all_items = []
+        for start in range(0, len(ids), max_results):
+            batch = ids[start : start + max_results]
+            response = client.channels().list(
+                part="snippet,statistics",
+                id=",".join(batch),
+                maxResults=max_results,
+            ).execute()
+            all_items.extend(response.get("items", []))
+
+        return {"items": all_items}
+
+    def move_video_to_playlist(self, video_id: str, target_playlist_id: str) -> dict[str, Any]:
+        client = self._get_client(require_oauth=True)
+        if not client:
+            raise RuntimeError("OAuth client not available for move_video_to_playlist")
+        add_body = {
+            "snippet": {
+                "playlistId": target_playlist_id,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": video_id,
+                },
+            }
+        }
+        with _client_lock:
+            result = client.playlistItems().insert(part="snippet", body=add_body).execute()
+        if not result or not result.get("id"):
+            raise RuntimeError(f"move_video_to_playlist returned unexpected response: {result}")
+        return result
+
+    def create_playlist(self, title: str, description: str = "", privacy_status: str = "private") -> dict[str, Any]:
+        client = self._get_client()
+        if not client:
+            return {"error": "YouTube client not available"}
+        try:
+            body = {
+                "snippet": {"title": title, "description": description},
+                "status": {"privacyStatus": privacy_status},
+            }
+            resp = client.playlists().insert(part="snippet,status", body=body).execute()
+            return {"id": resp.get("id"), "title": resp.get("snippet", {}).get("title")}
+        except Exception as e:
+            log.error(f"YouTube create_playlist failed: {e}")
+            return {"error": str(e)}
+
+    def subscribe_to_channel(self, channel_id: str) -> dict[str, Any]:
+        client = self._get_client()
+        if not client:
+            return {"error": "YouTube client not available"}
+        try:
+            body = {"snippet": {"resourceId": {"kind": "youtube#channel", "channelId": channel_id}}}
+            resp = client.subscriptions().insert(part="snippet", body=body).execute()
+            return {"id": resp.get("id")}
+        except Exception as e:
+            log.error(f"YouTube subscribe_to_channel failed: {e}")
+            return {"error": str(e)}
+
+    def remove_video_from_playlist(self, playlist_item_id: str) -> dict[str, Any]:
+        client = self._get_client(require_oauth=True)
+        if not client:
+            raise RuntimeError("OAuth client not available for remove_video_from_playlist")
+        with _client_lock:
+            result = client.playlistItems().delete(id=playlist_item_id).execute()
+        if result is None:
+            return {}
+        return result

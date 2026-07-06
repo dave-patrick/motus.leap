@@ -1,0 +1,10 @@
+{
+  "youtube_api_key": "PLACEHOLDER_API_KEY",
+  "oauth": {
+    "client_id": "PLACEHOLDER_CLIENT_ID",
+    "client_secret": "PLACEHOLDER_CLIENT_SECRET",
+    "access_token": "PLACEHOLDER_ACCESS_TOKEN",
+    "refresh_token": "PLACEHOLDER_REFRESH_TOKEN",
+    "token_expiry": 1735689600
+  }
+}
