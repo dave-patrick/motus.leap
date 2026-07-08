@@ -70,16 +70,16 @@ function renderPlaylistsGrid(playlists) {
         const safeTitle = (p.title || '').replace(/'/g, "\\'");
         const thumb = p.thumbnail || 'https://picsum.photos/160/90';
         return `
-        <a href="/playlist/${p.id}" class="bento-card p-3 w-full flex flex-row gap-4 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-colors relative block min-h-[88px]">
-          <div class="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-[#0f1115]">
+        <a href="/playlist/${p.id}" class="bento-card p-2.5 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-colors relative block min-h-[76px]">
+          <div class="flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden bg-[#0f1115]">
             <img src="${thumb}" class="w-full h-full object-cover" loading="lazy" onerror="this.onerror=null; this.src='https://picsum.photos/160/90'">
           </div>
-          <div class="flex-1 min-w-0 flex flex-col gap-1">
-            <h3 class="text-sm md:text-base font-semibold text-white truncate">${p.title}</h3>
+          <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+            <h3 class="text-sm font-semibold text-white truncate">${p.title}</h3>
             <p class="text-xs text-gray-400">${p.video_count} videos</p>
-            <div class="flex items-center gap-2 mt-1" onclick="event.stopPropagation()">
-              <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-xs py-1.5 px-2 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[10px]"></i></button>
-              <button onclick="event.preventDefault(); event.stopPropagation(); openPlaylist('${p.id}', event)" class="text-xs p-1.5 rounded bg-[#20242c] text-gray-400 hover:text-white hover:bg-[#2a2f3a] transition-colors flex-shrink-0" title="Open on YouTube"><i class="fa-solid fa-external-link text-[10px]"></i></button>
+            <div class="flex items-center gap-2 mt-0.5" onclick="event.stopPropagation()">
+              <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[11px] py-1 px-1.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
+              <button onclick="event.preventDefault(); event.stopPropagation(); openPlaylist('${p.id}', event)" class="text-[11px] p-1 rounded bg-[#20242c] text-gray-400 hover:text-white hover:bg-[#2a2f3a] transition-colors flex-shrink-0" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
             </div>
           </div>
         </a>
