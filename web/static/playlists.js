@@ -32,8 +32,8 @@ async function loadPlaylists() {
     const skeleton = document.getElementById("playlists-skeleton");
     const playlistsList = document.getElementById("playlists-list");
 
-    // Only force skeleton if list isn't already showing cached content
-    if (skeleton && playlistsList && playlistsList.classList.contains("hidden")) {
+    // Only show skeleton when we have no cached content to paint
+    if (skeleton && playlistsList && playlistsList.classList.contains("hidden") && !playlistsList.children.length) {
         skeleton.classList.remove("hidden");
         playlistsList.classList.add("hidden");
     }

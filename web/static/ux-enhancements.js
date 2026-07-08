@@ -914,33 +914,28 @@ async function navigateSPA(url) {
 }
 
 // Intercept clicks on links or button navigation
-document.addEventListener('click', (e) => {
-    // H1 FIX: Don't intercept clicks on buttons or elements with their own handlers
-    // that are not navigation links. Only intercept sidebar nav links.
-    const closestButton = e.target.closest('button');
-    const closestLink = e.target.closest('a');
-    
-    // Only intercept actual navigation links in the sidebar nav
-    if (closestLink && closestLink.getAttribute('href')) {
-        const href = closestLink.getAttribute('href');
-        // Only intercept sidebar nav links (not buttons, not links with their own JS handlers)
-        const isNavLink = closestLink.classList.contains('nav-item') || 
-                          closestLink.closest('nav') ||
-                          closestLink.closest('aside');
-        
-        if (isNavLink && href.startsWith('/') && !href.startsWith('/auth') && !href.startsWith('/oauth') && !href.startsWith('/api')) {
-            e.preventDefault();
-            window.history.pushState(null, '', href);
-            navigateSPA(href);
-            return;
-        }
-    }
-}, true); // Capture phase to run before inline handlers
-
-// Handle browser back/forward buttons
-window.addEventListener('popstate', () => {
-    navigateSPA(window.location.pathname);
-});
+// DISABLED: SPA body-rebuild caused duplicate <aside> navs and skeleton-stuck
+// races on cold load. Full-page navigation is reliable (verified on reload).
+// document.addEventListener('click', (e) => {
+//     const closestButton = e.target.closest('button');
+//     const closestLink = e.target.closest('a');
+//     if (closestLink && closestLink.getAttribute('href')) {
+//         const href = closestLink.getAttribute('href');
+//         const isNavLink = closestLink.classList.contains('nav-item') ||
+//                           closestLink.closest('nav') ||
+//                           closestLink.closest('aside');
+//         if (isNavLink && href.startsWith('/') && !href.startsWith('/auth') && !href.startsWith('/oauth') && !href.startsWith('/api')) {
+//             e.preventDefault();
+//             window.history.pushState(null, '', href);
+//             navigateSPA(href);
+//             return;
+//         }
+//     }
+// }, true); // Capture phase to run before inline handlers
+//
+// window.addEventListener('popstate', () => {
+//     navigateSPA(window.location.pathname);
+// });
 
 
 // ============================================
