@@ -256,11 +256,16 @@ async def verify_origin(request: Request):
         # Check exact match first
         if origin in ALLOWED_ORIGINS:
             return
-        # Allow any onrender.com subdomain (Render deploys)
-        if ".onrender.com" in origin:
+        # Allow Render subdomains without enumerating every deploy host.
+        if origin.endswith(".onrender.com"):
             return
-        # Allow any localhost
-        if "localhost" in origin or "127.0.0.1" in origin:
+        # Allow known local development origins.
+        if origin in (
+            "http://localhost:8000",
+            "http://localhost:3000",
+            "http://127.0.0.1:8000",
+            "http://127.0.0.1:3000",
+        ):
             return
         log.warning(f"verify_origin: BLOCKED origin={origin}")
         raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
@@ -614,7 +619,14 @@ async def login(user_data: UserLogin, request: Request, response: Response, user
     }
     await _save_sessions(user_sessions)
 
-    # Set the token in a secure, http-only cookie
+    # Replace token cookie using matching attributes.
+    response.delete_cookie(
+        key="token",
+        path="/",
+        httponly=True,
+        samesite="Lax",
+        secure=_cookie_secure(),
+    )
     response.set_cookie(
         key="token",
         value=access_token,
@@ -623,7 +635,7 @@ async def login(user_data: UserLogin, request: Request, response: Response, user
         path="/",
         httponly=True,
         samesite="Lax",
-        secure=_cookie_secure() # Use secure in production (Render/HTTPS)
+        secure=_cookie_secure(),
     )
 
     return TokenResponse(
@@ -707,7 +719,13 @@ async def logout(
         await _save_sessions(user_sessions)
     
     # Clear the cookie on logout
-    response.delete_cookie(key="token", path="/")
+    response.delete_cookie(
+        key="token",
+        path="/",
+        httponly=True,
+        samesite="Lax",
+        secure=_cookie_secure(),
+    )
 
     log.info("User '%s' logged out, token invalidated", current_user["username"])
     return {"message": "Successfully logged out"}

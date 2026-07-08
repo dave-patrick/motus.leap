@@ -43,13 +43,9 @@ class TubeManagerConfig(BaseModel):
         data = self.model_dump(exclude_none=True)
         data['oauth'] = {
             'client_id': self.oauth.client_id,
-            'client_secret': _secret(self.oauth.client_secret),
-            'access_token': self.oauth.access_token,
-            'refresh_token': self.oauth.refresh_token,
-            'token_expiry': self.oauth.token_expiry,
         }
-        data['youtube_api_key'] = _secret(self.youtube_api_key)
-        data['ai_api_key'] = _secret(self.ai_api_key)
+        data['youtube_api_key'] = ""
+        data['ai_api_key'] = ""
         return data
 
     @classmethod

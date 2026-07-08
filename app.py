@@ -1,37 +1,1794 @@
-"""Render entrypoint — re-exports the real motus.leap app.
+"""motus.leap Main Application."""
+# Deploy v2.2
 
-Render's Dashboard RootDir is set to the repo root, so uvicorn loads THIS file.
-It loads the maintained application from tube-manager/app.py via importlib
-(to avoid a circular import since this file is also named app.py).
-"""
+import os
+from dotenv import load_dotenv
 
-from __future__ import annotations
+try:
+    load_dotenv() # Load environment variables from .env
+except Exception as e:
+    import sys
+    print(f"[WARN] load_dotenv failed: {e}", file=sys.stderr)
+import logging
+from core.logger import setup_logging
+log = logging.getLogger(__name__)
 
-import importlib.util
-import sys
+import asyncio
+from datetime import datetime, timezone
+import json
+import hashlib
+import re
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any, Optional
+from urllib.parse import urlencode
 
-# Locate the maintained app module
-_APP_DIR = Path(__file__).resolve().parent / "tube-manager"
-_APP_FILE = _APP_DIR / "app.py"
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+from starlette.responses import Response
+from starlette.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, field_validator
+import aiofiles
 
-if not _APP_FILE.is_file():
-    raise FileNotFoundError(f"Maintained app not found at {_APP_FILE}")
+# Video ID validation
+YOUTUBE_VIDEO_ID_RE = re.compile(r'^[a-zA-Z0-9_-]{11}$')
 
-# Inject the app directory so internal relative imports resolve
-if str(_APP_DIR) not in sys.path:
-    sys.path.insert(0, str(_APP_DIR))
+def validate_video_id(vid: str) -> bool:
+    """Validate that a string matches YouTube's video ID format (11 chars, alphanumeric + _-)."""
+    return bool(YOUTUBE_VIDEO_ID_RE.match(vid))
 
-# Load the module under a unique name to avoid shadowing this file
-_spec = importlib.util.spec_from_file_location("_tube_manager_app", _APP_FILE)
-if _spec is None or _spec.loader is None:
-    raise RuntimeError(f"Cannot load module from {_APP_FILE}")
+# Auth dependency for page routes (raises 401 if not authenticated)
+from api.auth import get_current_user, verify_origin, create_default_admin, check_role, RoleEnum
 
-_mod = importlib.util.module_from_spec(_spec)
-sys.modules["_tube_manager_app"] = _mod
-_spec.loader.exec_module(_mod)
+# Rate limiting
 
-# Expose the FastAPI instance
-app = _mod.app
 
-__all__ = ["app"]
+# Import external limiter
+from core.limiter import limiter
+from slowapi.errors import RateLimitExceeded # Add RateLimitExceeded import
+
+# Import routers
+from api.bulk_operations import router as bulk_router
+from api.auth import router as auth_router
+
+
+
+# Core imports
+from core.http_client import shutdown_http_client
+from core.config_manager import ConfigManager
+from models.config import TubeManagerConfig
+from models.task import Task, TaskStatus, TaskPriority
+
+# Service imports
+from services.youtube_service import YouTubeService
+# Setup logging
+
+# Paths
+WEB_DIR = Path(__file__).resolve().parent / "web"
+CONFIG_DIR = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) if Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")).exists() else Path(__file__).resolve().parent
+
+# Initialize managers
+config_manager = ConfigManager(CONFIG_DIR / "config.json")
+youtube_service: Optional[YouTubeService] = None
+background_worker: Optional["BackgroundWorker"] = None
+worker = None  # backward compat alias
+
+
+def _secret_val(val):
+    """Safely extract the raw value from a SecretStr or return the string."""
+    if hasattr(val, 'get_secret_value'):
+        return val.get_secret_value()
+    return str(val) if val else ""
+
+
+def _redact_secrets(obj):
+    """Recursively redact token/secret fields from a dict or list."""
+    sensitive_keys = {"access_token", "refresh_token", "token", "secret", "client_secret", "api_key", "key", "authorization", "bearer"}
+    if isinstance(obj, dict):
+        return {
+            k: "***REDACTED***" if k.lower() in sensitive_keys else _redact_secrets(v)
+            for k, v in obj.items()
+        }
+    elif isinstance(obj, list):
+        return [_redact_secrets(item) for item in obj]
+    return obj
+
+
+# =============================================================================
+# Application lifespan
+# =============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    global youtube_service, worker
+
+    # Set up file logging
+    log_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "tube_manager.log"
+    setup_logging(log_file=log_file)
+
+    config = await config_manager.load()
+    youtube_service = YouTubeService(config)
+    await create_default_admin()
+
+    # Clean up stale disk cache files on startup
+    try:
+        removed = await youtube_service.disk_cache_cleanup(max_age_days=7)
+        if removed:
+            log.info(f"Startup cache cleanup: removed {removed} stale files")
+    except Exception as e:
+        log.warning(f"Startup disk cache cleanup failed (non-fatal): {e}")
+
+    # Clean up stale LRU cache entries on startup (H11)
+    try:
+        if hasattr(youtube_service, '_cache'):
+            stale_removed = await youtube_service._cache.cleanup_stale()
+            if stale_removed:
+                log.info(f"Startup LRU cleanup: removed {stale_removed} stale entries")
+    except Exception as e:
+        log.warning(f"Startup LRU cleanup failed (non-fatal): {e}")
+
+    # Clean up idle sessions on startup
+    try:
+        from api.auth import cleanup_idle_sessions
+        await cleanup_idle_sessions()
+    except Exception as e:
+        log.warning(f"Idle session cleanup failed (non-fatal): {e}")
+
+    # Store in app state for routers
+    app.state.config = config_manager.config
+    app.state.config_manager = config_manager
+
+    # Start background task processor
+    from services.background_worker import BackgroundWorker
+    worker = BackgroundWorker(youtube_service, manager, config_manager, task_queue)
+    global background_worker
+    background_worker = worker
+    asyncio.create_task(worker.process_background_tasks())
+
+    # Start nightly auto-apply mappings job if enabled
+    async def nightly_auto_apply_mappings():
+        """Nightly job to auto-apply AI mapping suggestions."""
+        while True:
+            try:
+                await asyncio.sleep(86400)  # 24 hours
+                config = config_manager.config
+                if getattr(config, "ai_auto_apply_mappings", False):
+                    log.info("[NIGHTLY] Running auto-apply mappings job...")
+                    from services.ai_classifier import get_channel_mapping_suggestions
+                    suggestions = await get_channel_mapping_suggestions()
+                    for s in suggestions:
+                        if s["move_count"] >= 3:
+                            config.channel_mappings[s["channel_id"]] = s["playlist_id"]
+                            log.info(f"[NIGHTLY] Auto-applied mapping: {s['channel_title']} -> {s['playlist_name']}")
+                    await config_manager.save(config)
+                    log.info("[NIGHTLY] Auto-apply mappings complete")
+            except Exception as e:
+                log.error(f"[NIGHTLY] Auto-apply mappings failed: {e}")
+
+    asyncio.create_task(nightly_auto_apply_mappings())
+
+    # Load persisted bulk operations
+    try:
+        from api.bulk_operations import operations_storage
+        await operations_storage.load()
+        log.info("Bulk operations loaded from disk")
+    except Exception as e:
+        log.warning(f"Failed to load bulk operations (non-fatal): {e}")
+
+    # Log registered routes for diagnostics
+    # Use getattr to handle both Route and APIRouter/IncludedRouter objects
+    log.info("[DIAG] Registered bulk routes: %s", [getattr(r, 'path', None) for r in bulk_router.routes])
+    log.info("[DIAG] Registered auth routes: %s", [getattr(r, 'path', None) for r in auth_router.routes])
+    log.info("[DIAG] Total app routes: %s", [getattr(r, 'path', None) for r in app.routes])
+
+    log.info("motus.leap started successfully")
+
+    yield
+
+    # Shutdown
+    log.info("motus.leap shutting down")
+    await shutdown_http_client()
+
+
+# =============================================================================
+# Rate limit handler
+# =============================================================================
+
+async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
+    """Handle rate limit exceeded errors."""
+    return PlainTextResponse(f"Rate limit exceeded: {exc.detail}", status_code=429)
+
+
+# =============================================================================
+# Create FastAPI app (single instance)
+# =============================================================================
+
+app = FastAPI(
+    title="motus.leap",
+    description="YouTube Playlist Management System",
+    version="2.0.0",
+    lifespan=lifespan,
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add CORS middleware
+# Get allowed origins from environment or use defaults
+_render_url = os.environ.get("RENDER_EXTERNAL_URL", "https://tubemanager.onrender.com")
+_extra_origins = os.environ.get("EXTRA_ALLOWED_ORIGINS", "").split(",") if os.environ.get("EXTRA_ALLOWED_ORIGINS") else []
+
+# Generic error handler to avoid leaking internal paths/stack traces in production responses
+@app.middleware("http")
+async def generic_error_handler(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        log.exception("Unhandled exception")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        _render_url,
+        "https://motus-leap.onrender.com",
+        'http://localhost:8000',
+        'http://localhost:3000',
+        'http://127.0.0.1:8000',
+        'http://127.0.0.1:3000',
+    ] + [o.strip() for o in _extra_origins if o.strip()],
+    allow_credentials=True,
+    allow_methods=['GET','POST','PUT','DELETE','PATCH'],
+    allow_headers=['Authorization','Content-Type','X-CSRF-Token'],
+)
+
+# Register routers
+app.include_router(bulk_router, tags=["bulk"])
+app.include_router(auth_router)
+
+
+async def no_cache_file_response(file_path: Path) -> Response:
+    """Return HTML response with strong no-cache headers to prevent CDN/browser caching."""
+    try:
+        async with aiofiles.open(file_path, mode='r', encoding="utf-8") as f:
+            content = await f.read()
+
+        # Hard-bust cache by inserting a fresh deploy query on all static assets
+        deploy_tag = str(int(__import__('time').time()))
+        content = content.replace(
+            '<title>motus.leap</title>',
+            f'<title>motus.leap</title>\n    <meta name="deploy-time" content="{deploy_tag}">'
+        )
+        import re
+        content = re.sub(r"\?v=\d+", f'?v={deploy_tag}', content)
+        return Response(
+            content=content,
+            media_type="text/html; charset=utf-8",
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+                "Surrogate-Control": "no-store",
+            }
+        )
+    except Exception as e:
+        log.error(f"Failed to read file {file_path}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load page: {str(e)}")
+
+
+# WebSocket connection manager
+class ConnectionManager:
+    """Manages WebSocket connections with user scoping."""
+
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+        self._user_connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, user_id: str = None):
+        """Accept a new WebSocket connection."""
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        if user_id:
+            self._user_connections.setdefault(user_id, []).append(websocket)
+
+    def disconnect(self, websocket: WebSocket, user_id: str = None):
+        """Remove a WebSocket connection."""
+        try:
+            self.active_connections.remove(websocket)
+        except ValueError:
+            pass
+        if user_id and user_id in self._user_connections:
+            try:
+                self._user_connections[user_id].remove(websocket)
+            except ValueError:
+                pass
+            if not self._user_connections[user_id]:
+                self._user_connections.pop(user_id, None)
+
+    async def send_to_user(self, user_id: str, message: str):
+        """Send message to all connections for a specific user."""
+        connections = self._user_connections.get(user_id, [])
+        for connection in connections:
+            try:
+                await connection.send_text(message)
+            except Exception:
+                pass
+
+    async def broadcast(self, message: str, user_id: str = None):
+        """Broadcast a message, optionally only to a specific user."""
+        if user_id:
+            await self.send_to_user(user_id, message)
+        else:
+            failed = []
+            for connection in self.active_connections:
+                try:
+                    await connection.send_text(message)
+                except Exception:
+                    failed.append(connection)
+            for connection in failed:
+                self.disconnect(connection)
+
+
+manager = ConnectionManager()
+
+
+# Background task queue
+task_queue: asyncio.Queue = asyncio.Queue()
+background_tasks_running = False
+current_task_name: Optional[str] = None
+worker: Optional[Any] = None
+
+
+def _sync_worker_youtube_service() -> None:
+    """Point the running background worker at the current youtube_service.
+
+    After endpoints (disconnect / save_settings / reset) replace the module
+    global ``youtube_service`` with a fresh instance, the worker would
+    otherwise keep a stale client reference (and a stale playlist cache built
+    from the old account). The worker's ``youtube_service`` property reads
+    ``app.youtube_service`` dynamically, but its fallback ``_youtube_service``
+    and ``_playlist_cache`` must be refreshed explicitly so in-flight and
+    future tasks use the new credentials.
+    """
+    if background_worker is not None and youtube_service is not None:
+        background_worker._youtube_service = youtube_service
+        # Drop any playlist cache derived from the old account.
+        background_worker._playlist_cache = None
+        background_worker._playlist_cache_time = 0
+
+
+
+
+
+
+
+
+# Mount static files
+if not any(getattr(route, "path", "") == "/static" for route in app.routes):
+    app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
+
+
+
+
+# Favicon route — serve favicon.png for /favicon.ico requests
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve favicon to prevent 404."""
+    favicon_path = WEB_DIR / "static" / "favicon.png"
+    if favicon_path.exists():
+        return FileResponse(favicon_path, media_type="image/png")
+    # Fallback: blank 1x1 ICO
+    return Response(content=b"\x00\x00\x01\x00\x01\x00\x01\x01\x00\x00\x01\x00\x18\x00\x30\x00\x00\x00\x16\x00\x00\x00" + b"\x00" * 50, media_type="image/x-icon")
+
+# H6 FIX: Gzip compression middleware for JSON responses
+@app.middleware("http")
+async def add_compression(request: Request, call_next):
+    """Add gzip compression for JSON responses to reduce bandwidth."""
+    response = await call_next(request)
+    
+    # Only compress JSON responses over 500 bytes
+    accept_encoding = request.headers.get("accept-encoding", "")
+    if "gzip" in accept_encoding and response.headers.get("content-type", "").startswith("application/json"):
+        body = getattr(response, 'body', None)
+        if body and len(body) > 500:
+            import gzip
+            compressed = gzip.compress(body)
+            if len(compressed) < len(body):
+                from starlette.responses import Response
+                response = Response(
+                    content=compressed,
+                    status_code=response.status_code,
+                    headers=dict(response.headers)
+                )
+                response.headers["Content-Encoding"] = "gzip"
+                response.headers["Content-Length"] = str(len(compressed))
+    
+    # H9/H17 FIX: Add ETag and Cache-Control headers for static assets
+    path = request.url.path
+    if path.startswith("/static/"):
+        # H10 FIX: Versioned assets get long cache, non-versioned get stale-while-revalidate
+        if "?v=" in path or any(ext in path for ext in [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff2"]):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
+        # H9 FIX: Add ETag for conditional requests
+        if response.status_code == 200 and hasattr(response, 'body'):
+            import hashlib
+            etag = hashlib.md5(response.body).hexdigest()
+            response.headers["ETag"] = f'"{etag}"'
+    
+    return response
+
+
+# Security middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers including strict CSP."""
+    response = await call_next(request)
+
+    # Strict Content Security Policy — explicitly list all allowed script sources
+    response.headers["Content-Security-Policy"] = (
+        f"default-src 'self'; "
+        f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; "
+        f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
+        f"font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
+        f"img-src 'self' data: https://i.ytimg.com https://yt3.ggpht.com; "
+        f"connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
+        f"frame-ancestors 'none'; "
+        f"frame-src 'none';"
+    )
+
+    # Additional security headers
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    return response
+
+
+
+# Background task runners have been moved to services/background_worker.py
+
+
+# API Models
+class ActionIn(BaseModel):
+    """Action request model."""
+    action: str
+    payload: dict[str, Any] | None = None
+
+
+class MappingIn(BaseModel):
+    """Channel mapping model."""
+    channel: str
+    playlist: str
+
+
+class MappingsIn(BaseModel):
+    """Bulk mappings model."""
+    mappings: list[MappingIn] | dict[str, str] = []
+
+
+class ConfigUpdateIn(BaseModel):
+    """Config update model."""
+    youtube_api_key: str | None = None
+    oauth_client_id: str | None = None
+    oauth_client_secret: str | None = None
+    rules: str | None = None
+
+
+# =============================================================================
+# Page routes
+# =============================================================================
+
+
+@app.get("/")
+async def index():
+    """Serve root page - redirects to /auth if not authenticated."""
+    return await no_cache_file_response(WEB_DIR / "dashboard.html")
+
+@app.get("/dashboard")
+async def dashboard():
+    """Dashboard page - available without auth (frontend handles auth check)."""
+    return await no_cache_file_response(WEB_DIR / "dashboard.html")
+
+
+@app.get("/auth")
+async def auth():
+    """Auth page."""
+    return await no_cache_file_response(WEB_DIR / "auth.html")
+
+
+
+@app.get("/playlists")
+async def playlists():
+    """Playlists page."""
+    return await no_cache_file_response(WEB_DIR / "playlists.html")
+
+
+@app.get("/subscriptions")
+async def subscriptions():
+    """Subscriptions page."""
+    return await no_cache_file_response(WEB_DIR / "subscriptions.html")
+
+
+@app.get("/maintenance")
+async def maintenance():
+    """Maintenance page."""
+    return await no_cache_file_response(WEB_DIR / "maintenance.html")
+
+
+@app.get("/rules")
+async def rules():
+    """Rules & Mappings page."""
+    return await no_cache_file_response(WEB_DIR / "settings.html")
+
+
+@app.get("/ai")
+async def ai():
+    """AI Integration page."""
+    return await no_cache_file_response(WEB_DIR / "settings.html")
+
+
+@app.get("/bulk")
+async def bulk():
+    """Bulk operations page."""
+    return await no_cache_file_response(WEB_DIR / "bulk.html")
+
+
+@app.get("/settings")
+async def settings():
+    """Settings page."""
+    return await no_cache_file_response(WEB_DIR / "settings.html")
+
+
+@app.get("/roadmap")
+async def roadmap_page() -> Response:
+    return await no_cache_file_response(WEB_DIR / "roadmap.html")
+
+
+@app.get("/test")
+async def test_page():
+    """Test page."""
+    return await no_cache_file_response(WEB_DIR / "test.html")
+# Health check
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Health check endpoint."""
+    return {"status": "ok"}
+
+
+# Single-request endpoint - QUOTA OPTIMIZED
+@app.get("/api/youtube/fetch-all", dependencies=[Depends(get_current_user)])
+@limiter.limit("10/minute")  # Rate limit: 10 requests per minute
+async def fetch_all_youtube_data(request: Request, force_refresh: bool = False):
+    """Fetch ALL YouTube data in one optimized request (subscriptions, playlists, videos with duration).
+
+    This is the QUOTA-OPTIMIZED endpoint. Use this to get everything in one call.
+    Data is cached for 10 minutes to minimize API quota usage.
+
+    Query params:
+        force_refresh: If True, bypass cache and fetch fresh data
+    """
+    if not youtube_service:
+        return {"error": "YouTube service not initialized"}
+    
+    result = await youtube_service.fetch_all_data(force_refresh=force_refresh)
+    return result
+
+
+@app.get("/api/playlists/names", dependencies=[Depends(get_current_user)])
+async def api_playlist_names():
+    """Return lightweight playlist ID+name pairs for dropdowns (fast, cached)."""
+    if not youtube_service:
+        return {"playlists": []}
+    try:
+        data = await youtube_service.list_playlists()
+        playlists = data.get("playlists", [])
+        return {"playlists": [{"id": p["id"], "title": p["title"], "video_count": p.get("video_count", 0)} for p in playlists]}
+    except Exception as e:
+        log.warning(f"Failed to load playlist names: {e}")
+        return {"playlists": []}
+
+
+@app.get("/api/youtube/videos", dependencies=[Depends(get_current_user)])
+async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: bool = False):
+    """Get videos with duration (cached).
+
+    Query params:
+        playlist_id: If provided, filter by specific playlist
+        force_refresh: If True, bypass cache
+    """
+    if not youtube_service:
+        return {"videos": [], "error": "YouTube service not initialized"}
+    
+    result = await youtube_service.get_videos(playlist_id=playlist_id, force_refresh=force_refresh)
+    return result
+
+
+@app.get("/api/youtube/duplicates", dependencies=[Depends(get_current_user)])
+async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
+    """Scan for duplicate videos in a playlist or all playlists.
+    
+    Reads from maintenance.json (populated by background worker) when
+    available, falling back to live scan otherwise.
+    """
+    if not youtube_service:
+        return {"duplicates": 0, "error": "YouTube service not initialized"}
+    
+    # Try reading from worker's maintenance.json first
+    _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    maintenance_file = _data_dir / "maintenance.json"
+    try:
+        if maintenance_file.exists():
+            maintenance = json.loads(await asyncio.to_thread(maintenance_file.read_text))
+            dup_videos = maintenance.get("duplicated_videos", [])
+            return {"duplicates": len(dup_videos), "total_videos": len(dup_videos), "playlist_id": playlist_id, "items": dup_videos}
+    except Exception:
+        pass
+    
+    videos = await youtube_service.get_videos(playlist_id=playlist_id)
+    video_ids = [v.get("video_id") for v in videos.get("videos", [])]
+    duplicates = len(video_ids) - len(set(video_ids))
+    
+    # Record scan time
+    config = config_manager.config
+    config.last_scan_time = datetime.now(timezone.utc).isoformat()
+    await config_manager.save(config)
+    
+    return {"duplicates": duplicates, "total_videos": len(video_ids), "playlist_id": playlist_id}
+
+
+@app.get("/api/youtube/misplaced", dependencies=[Depends(get_current_user)])
+async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
+    """Scan for misplaced videos based on channel mappings.
+    
+    Reads from maintenance.json (populated by background worker) when
+    available, falling back to live scan otherwise.
+    """
+    if not youtube_service:
+        return {"misplaced": [], "error": "YouTube service not initialized"}
+    
+    # Try reading from worker's maintenance.json first
+    _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    maintenance_file = _data_dir / "maintenance.json"
+    try:
+        if maintenance_file.exists():
+            maintenance = json.loads(await asyncio.to_thread(maintenance_file.read_text))
+            mis_videos = maintenance.get("misplaced_videos", [])
+            return {"misplaced": mis_videos, "count": len(mis_videos)}
+    except Exception:
+        pass
+    
+    config = config_manager.config
+    mappings = config.channel_mappings if hasattr(config, 'channel_mappings') else {}
+    
+    videos = await youtube_service.get_videos(playlist_id=playlist_id)
+    misplaced = []
+    for v in videos.get("videos", []):
+        video_channel_id = v.get("channel_id") or v.get("videoOwnerChannelId", "")
+        video_playlist_id = v.get("playlist_id")
+        if not video_channel_id or not video_playlist_id:
+            continue
+        if video_channel_id in mappings:
+            mapped_playlist_id = mappings[video_channel_id]
+            if mapped_playlist_id and mapped_playlist_id != video_playlist_id:
+                misplaced.append({
+                    "video_id": v.get("video_id"),
+                    "title": v.get("title"),
+                    "video_title": v.get("title"),
+                    "channel_id": video_channel_id,
+                    "current_playlist_id": video_playlist_id,
+                    "mapped_playlist_id": mapped_playlist_id,
+                    "reason": f"Channel {video_channel_id} mapped to playlist {mapped_playlist_id}, but video is in {video_playlist_id}",
+                })
+    
+    return {"misplaced": misplaced, "count": len(misplaced)}
+
+
+# Stats endpoint
+@app.get("/api/stats", dependencies=[Depends(get_current_user)])
+@limiter.limit("30/minute")
+async def stats(request: Request) -> dict[str, Any]:
+    """Dashboard statistics endpoint."""
+    if youtube_service:
+        yt_stats = await youtube_service.get_basic_stats()
+    else:
+        yt_stats = {"total_playlists": 0, "total_videos": 0}
+
+    total_playlists = yt_stats.get("total_playlists", 0)
+    total_videos = yt_stats.get("total_videos", 0)
+
+    config = config_manager.config
+    # Calculate real stats from config
+    ai_learning_active = getattr(config, 'ai_learning_enabled', False)
+    channel_mappings_count = len(config.channel_mappings) if hasattr(config, 'channel_mappings') else 0
+    total_subscriptions = yt_stats.get("total_subscriptions", 0)
+
+    # Get real cache stats
+    cache_hit_rate = "N/A"
+    if youtube_service and hasattr(youtube_service, '_cache'):
+        cache_stats = youtube_service._cache.get_stats()
+        cache_hit_rate = cache_stats['hit_rate']
+
+    return {
+        **yt_stats,
+        "total_playlists": total_playlists,
+        "total_videos": total_videos,
+        "playlists_count": total_playlists,
+        "tracked_videos": total_videos,
+        "items_data": 0,
+        "still_items": 0,
+        "pending_actions": task_queue.qsize(),
+        "running_tasks": 1 if worker and worker.current_task_name else 0,
+        "current_task": worker.current_task_name if worker else None,
+        "ai_learning": ai_learning_active,
+        "learning_rate": f"{(channel_mappings_count / max(total_subscriptions, 1) * 100):.1f}%" if total_subscriptions > 0 else "0%",
+        "learning_rates": str(channel_mappings_count),
+        "cache_hit_rate": cache_hit_rate,
+        "last_scan": config.last_scan_time or "Never",
+    }
+
+
+# Playlists endpoint
+@app.get("/api/playlists", dependencies=[Depends(get_current_user)])
+@limiter.limit("30/minute")
+async def api_playlists(request: Request) -> dict[str, Any]:
+    """Get playlists data."""
+    if youtube_service:
+        return await youtube_service.list_playlists()
+    return {"playlists": [], "error": "YouTube service not available"}
+
+
+@app.post("/api/youtube/playlists/rename", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def rename_playlist_endpoint(payload: dict):
+    playlist_id = payload.get("playlist_id")
+    new_title = payload.get("new_title")
+    if not playlist_id or not new_title:
+        raise HTTPException(status_code=400, detail="Missing playlist_id or new_title")
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    try:
+        google_client = yt_client._get_client(require_oauth=True)
+        if google_client is None:
+            raise HTTPException(status_code=500, detail="OAuth client not available")
+        google_client.playlists().update(
+            part="snippet",
+            body={
+                "id": playlist_id,
+                "snippet": {
+                    "title": new_title
+                }
+            }
+        ).execute()
+        # In-place cache update: update the renamed playlist in caches
+        config = config_manager.config
+        user_id = hashlib.sha256((config.oauth.access_token or "").encode()).hexdigest()[:16]
+        all_key = f"all_data_{user_id}"
+        if youtube_service._cache:
+            cached_all = await youtube_service._cache.get(all_key)
+            if cached_all and "playlists" in cached_all:
+                for p in cached_all["playlists"]:
+                    if p.get("id") == playlist_id:
+                        p["title"] = new_title
+                        break
+                await youtube_service._cache.set(all_key, cached_all)
+            cached_pl = await youtube_service._cache.get("playlists")
+            if cached_pl and "playlists" in cached_pl:
+                for p in cached_pl["playlists"]:
+                    if p.get("id") == playlist_id:
+                        p["title"] = new_title
+                        break
+                cached_pl["playlists"].sort(key=lambda x: x["title"].lower())
+                await youtube_service._cache.set("playlists", cached_pl)
+        return {"status": "success", "message": f"Playlist renamed to {new_title}"}
+    except Exception as e:
+        log.error(f"Error renaming playlist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/youtube/playlists/delete", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def delete_playlist_endpoint(payload: dict):
+    playlist_id = payload.get("playlist_id")
+    if not playlist_id:
+        raise HTTPException(status_code=400, detail="Missing playlist_id")
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    try:
+        google_client = yt_client._get_client(require_oauth=True)
+        if google_client is None:
+            raise HTTPException(status_code=500, detail="OAuth client not available")
+        google_client.playlists().delete(id=playlist_id).execute()
+        
+        # In-place cache update: remove the deleted playlist from caches
+        config = config_manager.config
+        user_id = hashlib.sha256((config.oauth.access_token or "").encode()).hexdigest()[:16]
+        all_key = f"all_data_{user_id}"
+        # Remove from memory cache
+        if youtube_service._cache:
+            cached_all = await youtube_service._cache.get(all_key)
+            if cached_all and "playlists" in cached_all:
+                cached_all["playlists"] = [p for p in cached_all["playlists"] if p.get("id") != playlist_id]
+                cached_all["stats"]["total_playlists"] = len(cached_all["playlists"])
+                await youtube_service._cache.set(all_key, cached_all)
+            # Also update playlists cache
+            cached_pl = await youtube_service._cache.get("playlists")
+            if cached_pl and "playlists" in cached_pl:
+                cached_pl["playlists"] = [p for p in cached_pl["playlists"] if p.get("id") != playlist_id]
+                cached_pl["stats"]["total_playlists"] = len(cached_pl["playlists"])
+                await youtube_service._cache.set("playlists", cached_pl)
+        
+        return {"status": "success", "message": "Playlist deleted successfully"}
+    except Exception as e:
+        log.error(f"Error deleting playlist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.post("/api/youtube/playlists/create", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def create_playlist_endpoint(body: dict):
+    """Create a new YouTube playlist."""
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    title = body.get("title", "New Playlist")
+    description = body.get("description", "")
+    privacy = body.get("privacy", "private")
+    result = await asyncio.to_thread(yt_client.create_playlist, title=title, description=description, privacy_status=privacy)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.post("/api/subscriptions/subscribe", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def subscribe_channel(body: dict):
+    """Subscribe to a YouTube channel (accepts channel ID, @handle, or user URL)."""
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    query = (body.get("channel_id") or "").strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="channel_id is required")
+    # Accept bare ID, channel/ID, @handle, user/URL, or youtu.be URL
+    m = re.search(r"channel\/([A-Za-z0-9_-]+)", query)
+    if not m:
+        m = re.search(r"@([A-Za-z0-9._-]+)", query)
+    if not m:
+        m = re.search(r"user\/([A-Za-z0-9._-]+)", query)
+    if not m:
+        m = re.search(r"^([A-Za-z0-9_-]{20,})$", query)
+    target = m.group(1) if m else query
+    # Let YouTubeClient.subscribe_to_channel handle it; on 400/not found, surface error
+    result = await asyncio.to_thread(yt_client.subscribe_to_channel, target)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    await youtube_service._cache.delete(f"subscriptions_{youtube_service._get_user_id()}")
+    return result
+
+
+@app.post("/api/subscriptions/unsubscribe", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def unsubscribe_channel(body: dict):
+    """Unsubscribe from a YouTube channel."""
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    subscription_id = body.get("subscription_id")
+    if not subscription_id:
+        raise HTTPException(status_code=400, detail="subscription_id is required")
+    try:
+        await asyncio.to_thread(lambda: yt_client._get_client(require_oauth=True).subscriptions().delete(id=subscription_id).execute())
+        await youtube_service._cache.delete(f"subscriptions_{youtube_service._get_user_id()}")
+        return {"status": "success"}
+    except Exception as e:
+        log.error(f"Unsubscribe failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/youtube/playlists/duplicate", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def duplicate_playlist_endpoint(payload: dict):
+    playlist_id = payload.get("playlist_id")
+    new_title = payload.get("new_title")
+    if not playlist_id or not new_title:
+        raise HTTPException(status_code=400, detail="Missing playlist_id or new_title")
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    try:
+        google_client = yt_client._get_client(require_oauth=True)
+        if google_client is None:
+            raise HTTPException(status_code=500, detail="OAuth client not available")
+        
+        # 1. Create a new playlist
+        new_pl = google_client.playlists().insert(
+            part="snippet,status",
+            body={
+                "snippet": {
+                    "title": new_title,
+                    "description": "Duplicated from original"
+                },
+                "status": {
+                    "privacyStatus": "private"
+                }
+            }
+        ).execute()
+        new_playlist_id = new_pl["id"]
+        
+        # 2. Get videos from original playlist and copy them (in background task)
+        async def copy_videos_task():
+            try:
+                # Retrieve all videos of original playlist
+                orig_videos = await youtube_service.get_videos(playlist_id=playlist_id)
+                videos_list = orig_videos.get("videos", [])
+                
+                # Insert each video into the new playlist
+                for v in videos_list:
+                    try:
+                        google_client.playlistItems().insert(
+                            part="snippet",
+                            body={
+                                "snippet": {
+                                    "playlistId": new_playlist_id,
+                                    "resourceId": {
+                                        "kind": "youtube#video",
+                                        "videoId": v.get("video_id")
+                                    }
+                                }
+                            }
+                        ).execute()
+                    except Exception as ve:
+                        log.error(f"Error copying video {v.get('video_id')}: {ve}")
+                
+                # Force refresh cache
+                await youtube_service.fetch_all_data(force_refresh=True)
+            except Exception as te:
+                log.error(f"Error in background copy task: {te}")
+                
+        # Run copy task in background
+        asyncio.create_task(copy_videos_task())
+        
+        return {"status": "success", "message": f"Duplication started. Playlist '{new_title}' is being populated."}
+    except Exception as e:
+        log.error(f"Error duplicating playlist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/youtube/playlistitems/delete", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def delete_playlist_item_endpoint(payload: dict):
+    playlist_item_id = payload.get("playlist_item_id")
+    playlist_id = payload.get("playlist_id")
+    if not playlist_item_id:
+        raise HTTPException(status_code=400, detail="Missing playlist_item_id")
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    try:
+        yt_client.remove_video_from_playlist(playlist_item_id)
+        if playlist_id:
+            # Invalidate the specific playlist's cache key so the change is shown immediately
+            await youtube_service._cache.set(f"playlist_videos_{playlist_id}", None)
+            
+        return {"status": "success", "message": "Video removed from playlist"}
+    except Exception as e:
+        log.error(f"Error removing video from playlist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Subscriptions endpoint
+@app.get("/api/subscriptions", dependencies=[Depends(get_current_user)])
+async def api_subscriptions() -> dict[str, Any]:
+    """Get subscriptions data."""
+    if youtube_service:
+        result = await youtube_service.list_subscriptions()
+        # The list_subscriptions method returns {"channels": [], "total_subscriptions": N}
+        # Ensure we return only the "channels" list or an empty list if an error occurred
+        return {"channels": result.get("channels", []), "error": result.get("error")}
+    return {"channels": [], "error": "YouTube service not available"}
+
+
+# Maintenance endpoint
+@app.get("/api/maintenance", dependencies=[Depends(get_current_user)])
+async def api_maintenance() -> dict[str, Any]:
+    """Get maintenance data."""
+    maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
+    if maintenance_file.exists():
+        try:
+            return json.loads(maintenance_file.read_text())
+        except Exception:
+            pass
+    return {
+        "move_from_x_to_y": [],
+        "duplicated_videos": [],
+        "misplaced_videos": [],
+        "info": "Maintenance analysis requires full video scan. Run Full Playlist Sync first."
+    }
+
+
+# Mappings endpoints
+def _normalize_mappings(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize mappings to standard format."""
+    seen: dict[str, dict[str, Any]] = {}
+    for item in items or []:
+        channel_id = (item.get("channel_id") or item.get("channel") or "").strip()
+        playlist_id = (item.get("playlist") or item.get("playlist_id") or "").strip()
+        if not channel_id:
+            continue
+        seen[channel_id] = {
+            "channel": channel_id,
+            "channel_id": channel_id,
+            "playlist": playlist_id,
+        }
+    return list(seen.values())
+
+
+def _serialize_mappings(items: list[dict[str, Any]]) -> dict[str, str]:
+    """Serialize mappings to dictionary."""
+    result: dict[str, str] = {}
+    for item in items or []:
+        channel_id = (item.get("channel_id") or item.get("channel") or "").strip()
+        playlist_id = (item.get("playlist") or item.get("playlist_id") or "").strip()
+        if channel_id:
+            result[channel_id] = playlist_id
+    return result
+
+
+def _extract_mapping_items(body: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract mappings from request body."""
+    mappings = body.get("mappings", {})
+    if isinstance(mappings, list):
+        return mappings
+    if isinstance(mappings, dict):
+        return [
+            {"channel_id": channel_id, "playlist": playlist_id}
+            for channel_id, playlist_id in mappings.items()
+        ]
+    return []
+
+
+@app.get("/api/mappings", dependencies=[Depends(get_current_user)])
+async def api_mappings() -> dict[str, Any]:
+    """Get channel mappings."""
+    config = config_manager.config
+    raw = config.channel_mappings
+    formatted: list[dict[str, Any]] = []
+    
+    if isinstance(raw, dict):
+        formatted.extend(
+            {
+                "channel": channel_id,
+                "channel_id": channel_id,
+                "playlist": playlist_id,
+            }
+            for channel_id, playlist_id in raw.items()
+        )
+    elif isinstance(raw, list):
+        formatted.extend(
+            {
+                "channel": item.get("channel_id") or item.get("channel") or "",
+                "channel_id": item.get("channel_id") or item.get("channel") or "",
+                "playlist": item.get("playlist") or item.get("playlist_id") or "",
+            }
+            for item in raw
+        )
+    
+    return {"mappings": _normalize_mappings(formatted)}
+
+
+@app.post("/api/mappings", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@limiter.limit("30/minute")  # Rate limit: 30 save operations per minute
+async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+    """Save channel mappings."""
+    mappings = _normalize_mappings(_extract_mapping_items(body))
+    config = config_manager.config
+    config.channel_mappings = _serialize_mappings(mappings)
+    await config_manager.save(config)
+    return {"message": "Mappings saved", "mappings": mappings}
+
+# Playlist detail page
+@app.get("/playlist/{playlist_id}")
+async def playlist_detail(playlist_id: str):
+    """Serve playlist detail page."""
+    return await no_cache_file_response(WEB_DIR / "playlist.html")
+
+
+@app.get("/api/actions/status", dependencies=[Depends(get_current_user)])
+async def action_status():
+    """Get action status."""
+    return {"queue_size": task_queue.qsize(), "running": worker.background_tasks_running if worker else False}
+
+
+# YouTube OAuth
+from secrets import token_urlsafe
+
+# In-memory state store (in production, use Redis or similar)
+_oauth_states = {}
+
+def _generate_state() -> str:
+    return token_urlsafe(32)
+
+def _store_state(state: str, data: dict = None):
+    _oauth_states[state] = {"data": data or {}, "created": time.time()}
+
+def _validate_and_consume_state(state: str) -> dict:
+    """Validate and remove state. Returns stored data or empty dict if invalid."""
+    if state not in _oauth_states:
+        return {}
+    stored = _oauth_states.pop(state)
+    # Check if state is older than 10 minutes
+    if time.time() - stored["created"] > 600:
+        return {}
+    return stored["data"]
+
+
+
+@app.get("/api/youtube/status", dependencies=[Depends(get_current_user)])
+async def youtube_status():
+    """Check YouTube OAuth connection status."""
+    config = config_manager.config
+    return {
+        "connected": bool(config.oauth.access_token and config.oauth.refresh_token),
+        "has_refresh": bool(config.oauth.refresh_token),
+        "api_key_configured": bool(config.youtube_api_key),
+    }
+
+
+@app.post("/api/youtube/disconnect", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def youtube_disconnect():
+    """Clear stored YouTube OAuth tokens."""
+    global youtube_service
+    config = config_manager.config
+    config.oauth.access_token = ""
+    config.oauth.refresh_token = ""
+    config.oauth.token_expiry = 0
+    await config_manager.save(config)
+    # Recreate YouTubeService without OAuth tokens
+    youtube_service = YouTubeService(config)
+    _sync_worker_youtube_service()
+    return {"message": "YouTube OAuth disconnected. Re-authorize in Settings to reconnect."}
+
+
+class SettingsIn(BaseModel):
+    """Settings input model."""
+    youtube_api_key: str | None = None
+    oauth_client_id: str | None = None
+    oauth_client_secret: str | None = None
+    default_privacy: str | None = None
+    scan_interval: str | None = None
+    max_concurrent: int | None = None
+    auto_sort: bool | None = None
+    notify_failures: bool | None = None
+    dark_mode: bool | None = None
+    log_level: str | None = None
+    ai_provider: str | None = None
+    ai_api_key: str | None = None
+    ai_mode: str | None = None
+    ai_classification_prompt: str | None = None
+    ai_custom_endpoint: str | None = None
+    ai_custom_model: str | None = None
+    ai_auto_apply_mappings: bool | None = None
+
+
+@app.get("/api/settings", dependencies=[Depends(get_current_user)])
+async def get_settings():
+    """Get current settings."""
+    config = config_manager.config
+    return {
+        "youtube_api_key": (_secret_val(config.youtube_api_key) or "")[:4] + "••••" if _secret_val(config.youtube_api_key) else "",
+        "oauth_client_id": config.oauth.client_id,
+        "oauth_client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
+        "default_privacy": config.default_privacy,
+        "scan_interval": config.scan_interval,
+        "max_concurrent": config.max_concurrent,
+        "auto_sort": config.auto_sort,
+        "notify_failures": config.notify_failures,
+        "dark_mode": config.dark_mode,
+        "log_level": config.log_level,
+        "ai_provider": config.ai_provider,
+        "ai_api_key": "••••••••" if _secret_val(config.ai_api_key) else "",
+        "ai_mode": config.ai_mode,
+        "ai_classification_prompt": config.ai_classification_prompt,
+        "ai_custom_endpoint": config.ai_custom_endpoint,
+        "ai_custom_model": config.ai_custom_model,
+        "ai_auto_apply_mappings": config.ai_auto_apply_mappings,
+    }
+
+
+@app.post("/api/settings", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def save_settings(body: SettingsIn):
+    """Save settings."""
+    config = config_manager.config
+    
+    for key, value in body.model_dump(exclude_none=True).items():
+        if hasattr(config, key):
+            setattr(config, key, value)
+        elif key == "oauth_client_id":
+            config.oauth.client_id = value
+        elif key == "oauth_client_secret":
+            config.oauth.client_secret = value
+    
+    await config_manager.save(config)
+    
+    # Update YouTube service if credentials changed
+    global youtube_service
+    youtube_service = YouTubeService(config)
+    _sync_worker_youtube_service()
+
+    return {
+        "status": "saved",
+        "youtube_api_key": (_secret_val(config.youtube_api_key) or "")[:4] + "••••" if _secret_val(config.youtube_api_key) else "",
+        "oauth_client_id": config.oauth.client_id,
+        "oauth_client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
+    }
+
+
+class AIClassifyIn(BaseModel):
+    video_ids: list[str]
+    playlist_names: list[dict] | None = None  # optional override
+    metadata: list[dict] | None = None  # [{video_id, title, channel, description}]
+
+
+@app.post("/api/ai/classify", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_classify_videos(body: AIClassifyIn):
+    """Classify videos using the configured AI provider.
+    
+    Accepts optional metadata to avoid extra YouTube API calls.
+    If metadata is provided, it is used directly instead of fetching from YouTube.
+    """
+    config = config_manager.config
+    provider = config.ai_provider
+    api_key = _secret_val(config.ai_api_key)
+    prompt = config.ai_classification_prompt
+    custom_endpoint = config.ai_custom_endpoint
+    custom_model = config.ai_custom_model
+    
+    if not provider or not api_key:
+        return {"error": "AI provider not configured"}
+    
+    # Get playlists for classification targets
+    playlists = []
+    if body.playlist_names:
+        playlists = body.playlist_names
+    else:
+        from services.youtube_service import YouTubeService
+        ys = YouTubeService(config)
+        pl_data = await ys.list_playlists()
+        playlists = [{"id": p["id"], "title": p["title"]} for p in pl_data.get("playlists", [])]
+    
+    if not playlists:
+        return {"error": "No playlists available"}
+    
+    from services.ai_classifier import classify_video
+    
+    results = []
+    for i, vid in enumerate(body.video_ids):
+        try:
+            # Use provided metadata if available (avoids YouTube API call)
+            if body.metadata and i < len(body.metadata):
+                meta = body.metadata[i]
+                title = meta.get("title", "")
+                channel = meta.get("channel", "")
+                description = meta.get("description", "")
+            else:
+                title = ""
+                channel = ""
+                description = ""
+            
+            matched_playlist, error = await classify_video(
+                title=title, channel=channel, description=description,
+                playlists=playlists, provider=provider, api_key=api_key,
+                prompt_template=prompt,
+                custom_endpoint=custom_endpoint, custom_model=custom_model,
+            )
+            
+            result = {
+                "video_id": vid,
+                "title": title,
+                "channel": channel,
+                "matched_playlist": matched_playlist,
+            }
+            if error:
+                result["error"] = error
+            results.append(result)
+        except Exception as e:
+            results.append({"video_id": vid, "error": str(e)})
+    
+    return {"results": results}
+
+
+class RecordMoveIn(BaseModel):
+    video_id: str
+    title: str = ""
+    channel_id: str = ""
+    channel_title: str = ""
+    from_playlist_name: str = ""
+    from_playlist_id: str = ""
+    to_playlist_name: str = ""
+    to_playlist_id: str = ""
+    source: str = "manual"
+
+
+@app.post("/api/ai/record-move", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_record_move(body: RecordMoveIn):
+    """Record a video move for AI training memory."""
+    from services.ai_classifier import record_move
+    await record_move(
+        video_id=body.video_id,
+        title=body.title,
+        channel_id=body.channel_id,
+        channel_title=body.channel_title,
+        from_playlist_name=body.from_playlist_name,
+        from_playlist_id=body.from_playlist_id,
+        to_playlist_name=body.to_playlist_name,
+        to_playlist_id=body.to_playlist_id,
+        source=body.source,
+    )
+    return {"status": "recorded"}
+
+
+@app.get("/api/ai/suggestions", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_get_suggestions():
+    """Get channel mapping suggestions from training memory."""
+    from services.ai_classifier import get_channel_mapping_suggestions
+    suggestions = await get_channel_mapping_suggestions()
+    return {"suggestions": suggestions}
+
+
+@app.get("/api/ai/memory", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_get_memory():
+    """Get raw training memory entries."""
+    from services.ai_classifier import _load_memory
+    memory = await _load_memory()
+    return {"moves": memory[-100:]}
+
+
+# Reset settings
+@app.post("/api/settings/reset", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def reset_settings():
+    """Reset all settings to defaults."""
+    config = TubeManagerConfig()
+    await config_manager.save(config)
+    
+    global youtube_service
+    youtube_service = YouTubeService(config)
+    _sync_worker_youtube_service()
+
+    return {"message": "Settings reset to defaults"}
+
+
+# Action dispatch endpoint for dashboard buttons
+@app.post("/api/action", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def dispatch_action(body: dict):
+    """Dispatch a dashboard action (sync_playlists, sync_watch_later)."""
+    action = body.get("action", "")
+    payload = body.get("payload", None)
+
+    if not action:
+        return {"status": "error", "error": "No action specified"}
+
+    actions = {
+        "sync_playlists": "Full Playlist Sync",
+        "scan_duplicates": "Scan Duplicates",
+        "scan_misplaced": "Scan Misplaced",
+    }
+
+    name = actions.get(action, action)
+    log.info(f"Action dispatched: {name}")
+
+    # Process based on action type
+    try:
+        if not background_worker:
+            return {"status": "error", "error": "Background worker not initialized"}
+
+        known_actions = {
+            "sync_playlists",
+            "scan_duplicates",
+            "scan_misplaced",
+            "full_cluster_scan",
+            "diagnose_failures",
+            "apply_rules",
+        }
+        if action not in known_actions:
+            return {"status": "error", "error": f"Unknown action: {action}"}
+
+        # Enqueue onto the task queue. The single background consumer
+        # (process_background_tasks) serializes actions and dispatches them,
+        # so cancel_current_task() can drain pending work and hard-cancel the
+        # in-flight task. Launching via asyncio.create_task here would bypass
+        # the queue, making cancellation and queue stats ineffective.
+        await task_queue.put({"action": action, "payload": payload or {}})
+    except Exception as e:
+        log.error(f"Action {action} failed: {e}")
+        return {"status": "error", "error": str(e)}
+
+    return {"status": "started", "action": action}
+
+
+@app.post("/api/action/cancel", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def cancel_action():
+    """Cancel the currently running background task."""
+    global background_worker
+    if background_worker:
+        background_worker.cancel_current_task()
+    await manager.broadcast(json.dumps({"type": "log", "message": "[AGENT] Action cancelled by user"}))
+    return {"status": "cancelled"}
+
+
+# Diagnostic endpoints
+@app.get("/api/diagnostics/youtube", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN]))])
+async def diagnostics_youtube() -> dict[str, Any]:
+    """Check YouTube OAuth status and test API connectivity."""
+    if not youtube_service:
+        return {"status": "error", "message": "YouTube service not initialized"}
+    
+    config = config_manager.config
+    result = {
+        "status": "ok",
+        "oauth_configured": bool(config.oauth.access_token and config.oauth.refresh_token),
+        "client_id_configured": bool(config.oauth.client_id),
+        "client_secret_configured": bool(config.oauth.client_secret),
+        "token_expiry": config.oauth.token_expiry,
+        "playlist_count": 0,
+        "error": None,
+    }
+    
+    client = youtube_service.get_client(require_oauth=True)
+    if not client:
+        result["status"] = "error"
+        result["error"] = "OAuth client could not be built (missing/invalid credentials)"
+        return result
+    
+    try:
+        resp = client.list_mine_playlists(max_results=10)
+        result["playlist_count"] = len(resp.get("items", []))
+        result["googleapi_items"] = len(resp.get("items", []))
+        if resp.get("items"):
+            first = resp["items"][0]
+            result["googleapi_first_item_id"] = first.get("id")
+            result["googleapi_first_item_title"] = first.get("snippet", {}).get("title")
+        result["raw_response_keys"] = list(resp.keys())
+        
+        # Also fetch channel info to verify which account is connected
+        channel_resp = client.list_mine_channels()
+        channel_items = channel_resp.get("items", [])
+        if channel_items:
+            snippet = channel_items[0].get("snippet", {})
+            result["channel_title"] = snippet.get("title", "Unknown")
+            result["channel_id"] = channel_items[0].get("id", "")
+
+        # Raw HTTP check bypassing googleapiclient to confirm API response
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            raw_playlists = await http_client.get(
+                "https://www.googleapis.com/youtube/v3/playlists",
+                headers={"Authorization": f"Bearer {config.oauth.access_token}"},
+                params={"part": "snippet,contentDetails", "mine": "true", "maxResults": 10},
+            )
+            result["raw_api_status"] = raw_playlists.status_code
+            try:
+                raw_resp = raw_playlists.json()
+                # Redact any token/secret fields from the response
+                raw_resp = _redact_secrets(raw_resp)
+                result["raw_api_response"] = raw_resp
+            except Exception:
+                result["raw_api_body"] = raw_playlists.text[:500]
+    except Exception as e:
+        result["status"] = "error"
+        result["error"] = f"{type(e).__name__}: {str(e)}"
+    
+    return result
+
+
+@app.get("/api/diagnostics/oauth-user", dependencies=[Depends(get_current_user)])
+async def diagnostics_oauth_user() -> dict[str, Any]:
+    """Return the Google account and YouTube channel linked to the stored OAuth token."""
+    config = config_manager.config
+    result: dict[str, Any] = {
+        "oauth_configured": bool(config.oauth.access_token and config.oauth.refresh_token),
+        "token_expiry": config.oauth.token_expiry,
+    }
+    if not config.oauth.access_token:
+        result["error"] = "No OAuth access token stored"
+        return result
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            userinfo_resp = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {config.oauth.access_token}"},
+            )
+            result["userinfo_status"] = userinfo_resp.status_code
+            if userinfo_resp.status_code == 200:
+                userinfo = userinfo_resp.json()
+                result["google_email"] = userinfo.get("email")
+                result["google_name"] = userinfo.get("name")
+                result["google_id"] = userinfo.get("id")
+            else:
+                # YouTube-only tokens don't have userinfo scope; this is normal.
+                result["userinfo_note"] = "Token lacks OpenID/email scope (expected for YouTube-only OAuth)"
+
+        yt_client = youtube_service.get_client(require_oauth=True) if youtube_service else None
+        if yt_client:
+            channel_resp = yt_client.list_mine_channels()
+            channel_items = channel_resp.get("items", [])
+            result["youtube_channel_count"] = len(channel_items)
+            if channel_items:
+                snippet = channel_items[0].get("snippet", {})
+                result["youtube_channel_title"] = snippet.get("title")
+                result["youtube_channel_id"] = channel_items[0].get("id")
+        else:
+            result["youtube_client_error"] = "Could not build YouTube OAuth client"
+    except Exception as e:
+        result["error"] = f"{type(e).__name__}: {str(e)}"
+    return result
+
+    
+
+
+
+
+
+
+
+
+
+
+
+@app.get("/api/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN]))])
+async def get_system_logs():
+    """Get recent system logs from the log file."""
+    log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
+    if not log_file.exists():
+        return {
+            "logs": [],
+            "info": "No log file found. Logs are written to stdout by default.",
+            "total": 0,
+        }
+    try:
+        lines = await asyncio.to_thread(log_file.read_text)
+        lines = lines.strip().split("\n")
+        last_200 = lines[-200:] if len(lines) > 200 else lines
+        return {
+            "logs": last_200,
+            "total": len(lines),
+            "returned": len(last_200),
+        }
+    except Exception as e:
+        return {
+            "logs": [],
+            "info": f"Failed to read logs: {str(e)}",
+            "total": 0,
+        }
+
+
+@app.get("/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN]))])
+async def system_logs_page():
+    """System logs viewer page."""
+    log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
+    logs_html = ""
+    if log_file.exists():
+        try:
+            content = await asyncio.to_thread(log_file.read_text)
+            lines = content.strip().split("\n")
+            last_200 = lines[-200:] if len(lines) > 200 else lines
+            for line in last_200:
+                escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                if "ERROR" in line or "CRITICAL" in line:
+                    logs_html += f'<div style="color:#ff6b6b">{escaped}</div>'
+                elif "WARNING" in line:
+                    logs_html += f'<div style="color:#ffa94d">{escaped}</div>'
+                elif "INFO" in line:
+                    logs_html += f'<div style="color:#69db7c">{escaped}</div>'
+                elif "DEBUG" in line:
+                    logs_html += f'<div style="color:#74c0fc">{escaped}</div>'
+                else:
+                    logs_html += f'<div>{escaped}</div>'
+        except Exception as e:
+            logs_html = f'<div style="color:#ff6b6b">Error reading logs: {e}</div>'
+    else:
+        logs_html = '<div style="color:#868e96">No log file found. Logs are written to stdout only. Set a log file path in config to enable file logging.</div>'
+
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Logs - motus.leap</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+        body {{ font-family: 'JetBrains Mono', monospace; background: #0a0c10; color: #e5e5e5; margin: 0; padding: 0; }}
+        .header {{ background: #16191f; border-bottom: 1px solid #2a2f3a; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }}
+        .header h1 {{ font-size: 14px; margin: 0; color: #e5e5e5; }}
+        .header a {{ color: #60a5fa; text-decoration: none; font-size: 12px; }}
+        .header a:hover {{ text-decoration: underline; }}
+        .log-container {{ padding: 16px 20px; font-size: 11px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; }}
+        .log-container div {{ border-bottom: 1px solid #1a1d24; padding: 2px 0; }}
+        .controls {{ padding: 8px 20px; background: #16191f; border-bottom: 1px solid #2a2f3a; display: flex; gap: 8px; }}
+        .controls button {{ background: #20242c; border: 1px solid #2a2f3a; color: #9ca3af; font-size: 10px; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; }}
+        .controls button:hover {{ background: #2a2f3a; color: #e5e5e5; }}
+        .filter-active {{ background: #3b82f6 !important; color: white !important; border-color: #3b82f6 !important; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 System Logs — motus.leap</h1>
+        <a href="/settings">← Back to Settings</a>
+    </div>
+    <div class="controls">
+        <button onclick="location.reload()">🔄 Refresh</button>
+        <button onclick="document.getElementById('log-container').scrollTop = document.getElementById('log-container').scrollHeight">⬇ Bottom</button>
+        <button onclick="document.getElementById('log-container').scrollTop = 0">⬆ Top</button>
+    </div>
+    <div class="log-container" id="log-container">{logs_html}</div>
+    <script>document.getElementById('log-container').scrollTop = document.getElementById('log-container').scrollHeight;</script>
+</body>
+</html>""")
+
+
+# Storage endpoints
+@app.post("/api/storage/clear-thumbnails", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def clear_thumbnails():
+    """Clear thumbnail cache."""
+    import shutil
+    try:
+        thumb_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "thumbnails"
+        if thumb_dir.exists():
+            shutil.rmtree(thumb_dir)
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        return {"message": "Thumbnail cache cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/storage/export", dependencies=[Depends(get_current_user)])
+async def export_data():
+    """Export all data as JSON."""
+    from datetime import datetime
+    config = config_manager.config
+    
+    export_data = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "config": config.model_dump(exclude={'oauth': {'client_secret', 'access_token', 'refresh_token'}}),
+        "stats": await stats(),
+    }
+    return export_data
+
+
+# Webhook endpoints
+@app.post("/api/webhook/test", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def test_webhook(body: dict):
+    """Test webhook URL."""
+    import httpx
+    url = body.get("url")
+    if not url:
+        raise HTTPException(status_code=400, detail="URL required")
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, json={"test": True, "source": "motus.leap"})
+        return {"message": f"Webhook test sent. Status: {resp.status_code}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Webhook test failed: {str(e)}")
+
+
+# WebSocket terminal
+@app.websocket("/ws/terminal")
+async def websocket_terminal(websocket: WebSocket):
+    """WebSocket endpoint for terminal interaction."""
+    # Validate token from query param before accepting connection
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing authentication token")
+        return
+
+    from api.auth import decode_access_token, is_token_revoked, get_users_db
+    try:
+        payload = decode_access_token(token)
+        if is_token_revoked(token):
+            await websocket.close(code=4001, reason="Token has been revoked")
+            return
+        username = payload.get("sub")
+        if not username:
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+        users_db = await get_users_db()
+        user = users_db.get(username)
+        if not user:
+            await websocket.close(code=4001, reason="User not found")
+            return
+    except Exception:
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+
+    await manager.connect(websocket)
+    ping_interval = 30
+    max_ping_failures = 3
+    ping_failures = 0
+    last_pong = time.monotonic()
+
+    try:
+        await websocket.send_text(json.dumps({"type": "log", "message": "[WS] Connected to agent terminal"}))
+
+        # ping_loop only SENDS pings and checks staleness of last_pong.
+        # It must never call receive_text() — the main loop below is the
+        # single reader that owns the WebSocket. Concurrent reads on a
+        # Starlette WebSocket are unsafe and silently steal each other's
+        # messages.
+        async def ping_loop():
+            nonlocal ping_failures, last_pong
+            while True:
+                await asyncio.sleep(ping_interval)
+                try:
+                    await websocket.send_text(json.dumps({"type": "ping"}))
+                    # If we haven't seen a pong since the last ping, count a failure.
+                    if time.monotonic() - last_pong > ping_interval + 5:
+                        ping_failures += 1
+                    if ping_failures >= max_ping_failures:
+                        await manager.broadcast(json.dumps({"type": "log", "message": "[WS] Connection lost - max ping failures reached"}))
+                        break
+                except Exception as e:
+                    log.debug(f"WebSocket handler terminated: {e}")
+                    break
+
+        ping_task = asyncio.create_task(ping_loop())
+
+        # Single reader — owns all incoming messages and dispatches them.
+        while True:
+            data = await websocket.receive_text()
+            msg = json.loads(data)
+            mtype = msg.get("type")
+            if mtype == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+            elif mtype == "pong":
+                ping_failures = 0
+                last_pong = time.monotonic()
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        log.error(f"Broad WebSocket error: {e}")
+        # Send the error only to the affected connection, not broadcast to all clients.
+        try:
+            await websocket.send_text(json.dumps({"type": "log", "message": "[WS ERROR] connection error"}))
+        except Exception:
+            pass
+        # Log error but don't break - let the connection be handled normally
+    finally:
+        ping_task.cancel()
+        manager.disconnect(websocket)
+
+
+# Entry point
+if __name__ == "__main__":
+    import uvicorn
+    setup_logging()
+    uvicorn.run("app:app", host=os.getenv("HOST", "0.0.0.0"), port=int(os.getenv("PORT", "8000")), reload=True)

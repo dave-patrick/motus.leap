@@ -134,7 +134,7 @@ class BackgroundWorker:
             return
         
         try:
-            pl_data = client.list_mine_playlists(max_results=50)
+            pl_data = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
             self._playlist_cache = []
             for pl in pl_data.get("items", []):
                 pid = pl.get("id", "")

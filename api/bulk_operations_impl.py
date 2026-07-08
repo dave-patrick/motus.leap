@@ -5,6 +5,7 @@ import base64
 import csv
 import json
 import io
+import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
@@ -60,7 +61,7 @@ class BulkOperationsService:
         items: List[Dict[str, Any]] = []
         page_token = None
         while len(items) < max_items:
-            response = fetch_fn(max_results=max_results, page_token=page_token)
+            response = await asyncio.to_thread(fetch_fn, max_results, page_token)
             page_items = response.get("items", [])
             items.extend(page_items)
             page_token = response.get("nextPageToken")
@@ -98,7 +99,7 @@ class BulkOperationsService:
 
             # Add video to target playlist.
             try:
-                youtube.playlistItems().insert(
+                add_resp = await asyncio.to_thread(lambda: youtube.playlistItems().insert(
                     part="snippet",
                     body={
                         "snippet": {
@@ -109,7 +110,7 @@ class BulkOperationsService:
                             }
                         }
                     }
-                ).execute()
+                ).execute())
                 log.info(f"Added video {video_id} to playlist {target_playlist_id}")
             except Exception as e:
                 log.error(f"Failed to add video {video_id} to playlist {target_playlist_id}: {e}")
@@ -119,11 +120,11 @@ class BulkOperationsService:
             if source_playlist_id and source_playlist_id != target_playlist_id:
                 try:
                     # Find the playlist item ID for this video in the source playlist
-                    playlist_items = youtube.playlistItems().list(
+                    playlist_items = await asyncio.to_thread(lambda: youtube.playlistItems().list(
                         part="id",
                         playlistId=source_playlist_id,
                         videoId=video_id
-                    ).execute()
+                    ).execute())
 
                     for item in playlist_items.get("items", []):
                         # Delete the playlist item
