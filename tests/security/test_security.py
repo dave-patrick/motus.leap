@@ -79,7 +79,17 @@ class TestCSPHeaders:
         response = test_client.get("/dashboard")
         csp = response.headers.get("Content-Security-Policy", "")
 
-        assert "data:" not in csp.split("img-src")[0] if "img-src" in csp else True
+        # Find the img-src directive specifically
+        img_src_directive = ""
+        for part in csp.split(";"):
+            part = part.strip()
+            if part.startswith("img-src"):
+                img_src_directive = part
+                break
+        
+        assert img_src_directive != "", "img-src directive not found in CSP"
+        # img-src should NOT contain data:
+        assert "data:" not in img_src_directive, f"img-src should not contain data:, got: {img_src_directive}"
 
 
 @pytest.mark.security
