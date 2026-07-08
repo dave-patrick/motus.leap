@@ -75,7 +75,7 @@ function renderPlaylistsGrid(playlists) {
             <img src="${thumb}" class="w-full h-full object-cover" loading="lazy" onerror="this.onerror=null; this.src='https://picsum.photos/160/90'">
           </div>
           <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-            <h3 class="text-sm font-semibold text-white truncate">${p.title}</h3>
+            <h3 class="text-base md:text-lg font-semibold text-[#2f8fc9] truncate">${p.title}</h3>
             <p class="text-xs text-gray-400">${p.video_count} videos</p>
             <div class="flex items-center gap-2 mt-0.5" onclick="event.stopPropagation()">
               <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[11px] py-1 px-1.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
