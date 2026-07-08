@@ -437,7 +437,7 @@ async def add_security_headers(request: Request, call_next):
         f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; "
         f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
         f"font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
-        f"img-src 'self' https://i.ytimg.com https://yt3.ggpht.com; "
+        f"img-src 'self' https://i.ytimg.com https://yt3.ggpht.com https://picsum.photos; "
         f"connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
         f"frame-ancestors 'none'; "
         f"frame-src 'none';"
