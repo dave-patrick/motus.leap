@@ -62,6 +62,21 @@ async function loadPlaylists() {
     }
 }
 
+function thumbMarkup(p) {
+    // Default graphic for empty playlists (inline SVG: no network, no CSP issues)
+    if (!p.video_count) {
+        return `
+        <svg viewBox="0 0 160 90" class="w-full h-full" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-label="No videos yet">
+            <rect width="160" height="90" fill="#0f1115"/>
+            <circle cx="80" cy="38" r="21" fill="none" stroke="#2f8fc9" stroke-width="2" opacity="0.6"/>
+            <path d="M73 29 L92 38 L73 47 Z" fill="#2f8fc9" opacity="0.85"/>
+            <text x="80" y="74" text-anchor="middle" fill="#5b6573" font-size="10" font-family="sans-serif" letter-spacing="0.5">No videos yet</text>
+        </svg>`;
+    }
+    const thumb = p.thumbnail || 'https://picsum.photos/160/90';
+    return `<img src="${thumb}" class="w-full h-full object-cover" loading="lazy" onerror="this.onerror=null; this.src='https://picsum.photos/160/90'">`;
+}
+
 function renderPlaylistsGrid(playlists) {
     const playlistsList = document.getElementById("playlists-list");
     if (!playlistsList) return;
@@ -72,11 +87,10 @@ function renderPlaylistsGrid(playlists) {
     }
     playlistsList.innerHTML = playlists.map(p => {
         const safeTitle = (p.title || '').replace(/'/g, "\\'");
-        const thumb = p.thumbnail || 'https://picsum.photos/160/90';
         return `
         <a href="/playlist/${p.id}" class="bento-card p-2.5 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-colors relative block min-h-[76px]">
           <div class="flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden bg-[#0f1115]">
-            <img src="${thumb}" class="w-full h-full object-cover" loading="lazy" onerror="this.onerror=null; this.src='https://picsum.photos/160/90'">
+            ${thumbMarkup(p)}
           </div>
           <div class="flex-1 min-w-0 flex flex-col gap-0.5">
             <h3 class="text-base md:text-lg font-semibold text-[#2f8fc9] truncate">${p.title}</h3>
