@@ -32,7 +32,8 @@ async function loadPlaylists() {
     const skeleton = document.getElementById("playlists-skeleton");
     const playlistsList = document.getElementById("playlists-list");
 
-    if (skeleton && !playlistsList.classList.contains("hidden")) {
+    // Only force skeleton if list isn't already showing cached content
+    if (skeleton && playlistsList && playlistsList.classList.contains("hidden")) {
         skeleton.classList.remove("hidden");
         playlistsList.classList.add("hidden");
     }
@@ -48,13 +49,16 @@ async function loadPlaylists() {
         allPlaylists = data.playlists || [];
         localStorage.setItem("cached_playlists", JSON.stringify(allPlaylists));
         renderPlaylistsGrid(allPlaylists);
-        if (skeleton) skeleton.classList.add("hidden");
-        if (playlistsList) playlistsList.classList.remove("hidden");
     } catch (e) {
+        // If we already painted a cached grid, keep it instead of erroring over it
+        const hasContent = playlistsList && playlistsList.children.length > 0;
+        if (!hasContent) {
+            playlistsList.innerHTML = `<div class="col-span-full bento-card p-8 text-center text-red-400">Error: ${DOMPurify.sanitize(e.message || "Failed to load playlists due to a network error.")}</div>`;
+            toast(`Error: ${e.message}`, "error");
+        }
+    } finally {
         if (skeleton) skeleton.classList.add("hidden");
         if (playlistsList) playlistsList.classList.remove("hidden");
-        playlistsList.innerHTML = `<div class="col-span-full bento-card p-8 text-center text-red-400">Error: ${DOMPurify.sanitize(e.message || "Failed to load playlists due to a network error.")}</div>`;
-        toast(`Error: ${e.message}`, "error");
     }
 }
 
@@ -269,7 +273,7 @@ async function actionDeletePlaylist(playlistId, title) {
     }
 }
 
-// SPA-safe init: retry if script hasn\'t loaded yet
+// SPA-safe init: render cache instantly, then refresh from API
 function safeLoadPlaylists() {
     if (typeof loadPlaylists === "function") {
         loadPlaylists();
@@ -278,8 +282,12 @@ function safeLoadPlaylists() {
     }
 }
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", safeLoadPlaylists);
+    document.addEventListener("DOMContentLoaded", () => {
+        renderCachedPlaylists(); // paint instantly from cache
+        safeLoadPlaylists();     // then fetch fresh
+    });
 } else {
+    renderCachedPlaylists();
     safeLoadPlaylists();
 }
 
