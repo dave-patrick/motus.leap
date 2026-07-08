@@ -1,5 +1,5 @@
 // Service Worker for motus.leap - Basic offline caching
-const CACHE_NAME = 'motus-leap-v1';
+const CACHE_NAME = 'motus-leap-v3';  // bump to invalidate all previously cached shells
 const STATIC_ASSETS = [
   '/static/logo_icon.png',
   '/static/favicon.png'
@@ -29,34 +29,42 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: network-first strategy for API, cache-first for static
+// Fetch strategy:
+//  - API/WS: always network (never cache)
+//  - HTML navigations: NETWORK-FIRST so a fresh deploy is never served stale
+//  - other static assets: cache-first
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  
-  // API requests: always go to network
+
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws/')) {
+    return; // network only
+  }
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok && event.request.method === 'GET') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((c) => c || caches.match('/dashboard')))
+    );
     return;
   }
-  
+
   // Static assets: cache-first
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
-        // Cache successful GET requests
         if (response.ok && event.request.method === 'GET') {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clone);
-          });
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => {
-        // Fallback for navigation requests when offline
-        if (event.request.mode === 'navigate') {
-          return caches.match('/dashboard');
-        }
-        return new Response('Offline', { status: 503 });
-      });
+      }).catch(() => new Response('Offline', { status: 503 }));
     })
   );
 });
