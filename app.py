@@ -1442,6 +1442,16 @@ async def map_from_playlists(request: Request, body: dict[str, Any] | None = Non
                     applied += 1
                 merged[cid] = pid
         config.channel_mappings = merged
+        # Persist the free channel titles we already harvested from
+        # playlistItems.list (videoOwnerChannelTitle) — no extra quota. This
+        # is how non-subscribed channels get real names without channels.list.
+        titles = result.get("channel_titles") or {}
+        if titles:
+            md = dict(config.channel_metadata or {})
+            for cid, t in titles.items():
+                if t and t != cid and not md.get(cid, {}).get("title"):
+                    md[cid] = {"title": t, "thumbnail": md.get(cid, {}).get("thumbnail", "")}
+            config.channel_metadata = md
         await config_manager.save(config)
 
     return {
@@ -1452,6 +1462,40 @@ async def map_from_playlists(request: Request, body: dict[str, Any] | None = Non
         "videos_scanned": result["videos_scanned"],
         "channels_found": len(derived),
         "total_mappings": len(config.channel_mappings or {}),
+    }
+
+
+@app.post("/api/channels/backfill-names", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@limiter.limit("3/minute")
+async def backfill_channel_names(request: Request) -> dict[str, Any]:
+    """Harvest real channel names from already-cached playlist contents.
+
+    Reuses map_channels_from_playlist_contents(), which reads video snippets
+    (videoOwnerChannelTitle) from playlistItems.list — the SAME quota the
+    auto-map already spends. So naming 2595 mapped channels costs ~0 extra
+    quota, unlike channels.list. Persists into channel_metadata; returns the
+    count of names newly resolved.
+    """
+    if not youtube_service:
+        raise HTTPException(status_code=503, detail="YouTube service unavailable")
+    result = await youtube_service.map_channels_from_playlist_contents()
+    if result.get("error"):
+        raise HTTPException(status_code=503, detail=result["error"])
+    titles = result.get("channel_titles") or {}
+    config = config_manager.config
+    md = dict(config.channel_metadata or {})
+    added = 0
+    for cid, t in titles.items():
+        if t and t != cid and not md.get(cid, {}).get("title"):
+            md[cid] = {"title": t, "thumbnail": md.get(cid, {}).get("thumbnail", "")}
+            added += 1
+    config.channel_metadata = md
+    await config_manager.save(config)
+    return {
+        "names_added": added,
+        "total_named": len(md),
+        "playlists_scanned": result.get("playlists_scanned", 0),
+        "videos_scanned": result.get("videos_scanned", 0),
     }
 
 

@@ -214,6 +214,7 @@ window.open('/system/logs', '_blank');
                                         <input id="mapping-search" type="text" placeholder="Filter channels..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]" oninput="renderMappingsList()">
                                         <button onclick="loadChannelMappings()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Load Subs</button>
                                         <button onclick="autoMapFromPlaylists()" title="Scan videos already in your playlists and map each channel to the playlist it appears in most" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded whitespace-nowrap">Auto-map</button>
+                                        <button onclick="backfillNames()" title="Harvest real channel names from your playlists' videos (no extra API quota)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded whitespace-nowrap">Resolve names</button>
                                     </div>
                                     <div class="flex gap-2">
                                         <input id="new-channel-id" type="text" placeholder="Channel ID (e.g. UC...)" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]">
@@ -814,6 +815,30 @@ window.open('/system/logs', '_blank');
                 console.warn('Channel name enrichment skipped:', e.message);
             } finally {
                 _enriching = false;
+            }
+        }
+
+        // Free-quota name harvest: re-scan the playlists' videos (the same
+        // playlistItems.list quota auto-map already uses) to resolve channel
+        // names. Unlike channels.list, this doesn't burn the daily quota, so
+        // it works even when the enrichment endpoint is quota-blocked.
+        async function backfillNames() {
+            try {
+                const resp = await fetch('/api/channels/backfill-names', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const r = await resp.json();
+                // Merge returned names into _channels and re-render.
+                const meta = await fetch('/api/channels/metadata').then(x => x.json()).catch(() => ({metadata: {}}));
+                Object.entries(meta.metadata || {}).forEach(([cid, info]) => {
+                    if (info && info.title && !_channels[cid]) {
+                        _channels[cid] = {id: cid, title: info.title, thumbnail: info.thumbnail || ''};
+                    }
+                });
+                renderMappingsList();
+                toast(`${r.names_added} channel name(s) resolved (${r.total_named} total)`, 'success');
+            } catch (e) {
+                console.warn('Backfill names failed:', e.message);
+                toast('Could not resolve names: ' + e.message, 'error');
             }
         }
 
