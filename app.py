@@ -669,7 +669,12 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
     
     config = config_manager.config
     mappings = config.channel_mappings if hasattr(config, 'channel_mappings') else {}
-    
+
+    metadata = config.channel_metadata or {}
+    def _title(cid: str) -> str:
+        info = metadata.get(cid)
+        return (info or {}).get("title", "") if info else ""
+
     videos = await youtube_service.get_videos(playlist_id=playlist_id)
     misplaced = []
     for v in videos.get("videos", []):
@@ -679,17 +684,19 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             continue
         if video_channel_id in mappings:
             mapped_playlist_id = mappings[video_channel_id]
+            title = _title(video_channel_id)
             if mapped_playlist_id and mapped_playlist_id != video_playlist_id:
                 misplaced.append({
                     "video_id": v.get("video_id"),
                     "title": v.get("title"),
                     "video_title": v.get("title"),
                     "channel_id": video_channel_id,
+                    "channel_title": title,
                     "current_playlist_id": video_playlist_id,
                     "mapped_playlist_id": mapped_playlist_id,
-                    "reason": f"Channel {video_channel_id} mapped to playlist {mapped_playlist_id}, but video is in {video_playlist_id}",
+                    "reason": f"Channel {title or video_channel_id} mapped to playlist {mapped_playlist_id}, but video is in {video_playlist_id}",
                 })
-    
+
     return {"misplaced": misplaced, "count": len(misplaced)}
 
 
@@ -1229,6 +1236,18 @@ async def save_channel_metadata(request: Request, body: dict[str, Any]) -> dict[
     config.channel_metadata = merged
     await config_manager.save(config)
     return {"status": "success", "count": len(merged)}
+
+
+@app.get("/api/channels/metadata", dependencies=[Depends(get_current_user)])
+@limiter.limit("30/minute")
+async def get_channel_metadata(request: Request) -> dict[str, Any]:
+    """Read-only: return persisted channel metadata (name/avatar) keyed by ID.
+
+    Clients use this to render real channel names everywhere (dashboard,
+    maintenance queue, bulk) without re-hitting the YouTube API — purely a
+    disk read of config.channel_metadata.
+    """
+    return {"metadata": config_manager.config.channel_metadata or {}}
 
 
 @app.post("/api/mappings/import", dependencies=[Depends(get_current_user), Depends(verify_origin)])
