@@ -1,5 +1,12 @@
 // playlist.js - Playlist specific scripts
 
+// Upgrade a low-res YouTube thumbnail URL to a higher-res variant (no API cost).
+function upgradeThumb(url) {
+    if (!url) return url;
+    return url.replace(/\/vi\/([^/]+)\/default\.jpg/, '/vi/$1/hqdefault.jpg')
+              .replace(/=s\d+(-c)?$/, '=s480');
+}
+
 var allVideos = [];
 var selectedVideos = new Set();
 var playlistId = window.location.pathname.split('/').pop();
@@ -164,7 +171,7 @@ function renderVideos() {
             <div class="video-card group relative bg-[#16191f] border border-[#2a2f3a] hover:border-[#3a4a5a] rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-black/20" data-video-id="${v.video_id}" data-title="${DOMPurify.sanitize(v.title || '').toLowerCase()}" data-channel="${DOMPurify.sanitize(v.channel_title || '').toLowerCase()}">
                 <!-- Thumbnail with overlay -->
                 <div class="relative aspect-video bg-[#1a1d24] overflow-hidden">
-                    <img src="${v.thumbnail || '/static/logo_icon.png'}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onerror="this.src='/static/logo_icon.png'">
+                    <img src="${upgradeThumb(v.thumbnail) || '/static/logo_icon.png'}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onerror="this.src='/static/logo_icon.png'">
                     <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium">${formatDuration(v.duration)}</span>
                     <div class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <input type="checkbox" class="video-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''} onclick="event.stopPropagation()">

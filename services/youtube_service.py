@@ -22,6 +22,21 @@ from core.lru_cache import LRUAsyncCache
 
 log = logging.getLogger(__name__)
 
+def _best_thumbnail(thumbs: Optional[dict]) -> str:
+    """Prefer the highest-resolution YouTube thumbnail available.
+
+    YouTube returns keys default(120x90), medium(320x180), high(480x360),
+    standard(640x480), maxres(1280x720). 'default' is blurry, so pick the best
+    present and fall back to it only if nothing better exists.
+    """
+    if not thumbs:
+        return ""
+    for key in ("maxres", "standard", "high", "medium", "default"):
+        url = (thumbs.get(key) or {}).get("url")
+        if url:
+            return url
+    return ""
+
 def cache_result(key_prefix: str, ttl: Optional[timedelta] = None):
     def decorator(func):
         @wraps(func)
@@ -198,7 +213,7 @@ class YouTubeService:
             "video_count": int(content.get("itemCount", 0) or 0),
             "channel": snippet.get("channelTitle", "Unknown"),
             "privacy": snippet.get("privacyStatus", "private"),
-            "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
+            "thumbnail": _best_thumbnail(snippet.get("thumbnails")),
             "description": snippet.get("description", ""),
         }
 
@@ -252,7 +267,7 @@ class YouTubeService:
             "playlist_title": playlist_title,
             "duration_seconds": duration_seconds,
             "duration_formatted": self._format_duration(duration_seconds),
-            "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
+            "thumbnail": _best_thumbnail(snippet.get("thumbnails")),
         }
 
     @cache_result("basic_stats", ttl=timedelta(minutes=10))
@@ -453,7 +468,7 @@ class YouTubeService:
                 subscriptions.append({
                     "id": cid,
                     "title": snippet.get("title", "Unknown"),
-                    "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
+                    "thumbnail": _best_thumbnail(snippet.get("thumbnails")),
                     "description": snippet.get("description", ""),
                     "subscribers": statistics.get("subscriberCount", "0"),
                     "video_count": int(statistics.get("videoCount", "0") or "0"),
@@ -641,7 +656,7 @@ class YouTubeService:
                     subscriptions.append({
                         "id": cid,
                         "title": snippet.get("title", "Unknown"),
-                        "thumbnail": (snippet.get("thumbnails", {}) or {}).get("default", {}).get("url", ""),
+                        "thumbnail": _best_thumbnail(snippet.get("thumbnails")),
                         "description": snippet.get("description", ""),
                         "subscribers": statistics.get("subscriberCount", "0"),
                         "video_count": int(statistics.get("videoCount", "0") or "0"),

@@ -740,10 +740,10 @@ async def stats(request: Request) -> dict[str, Any]:
 # Playlists endpoint
 @app.get("/api/playlists", dependencies=[Depends(get_current_user)])
 @limiter.limit("30/minute")
-async def api_playlists(request: Request) -> dict[str, Any]:
+async def api_playlists(request: Request, force_refresh: bool = False) -> dict[str, Any]:
     """Get playlists data."""
     if youtube_service:
-        return await youtube_service.list_playlists()
+        return await youtube_service.list_playlists(force_refresh=force_refresh)
     return {"playlists": [], "error": "YouTube service not available"}
 
 

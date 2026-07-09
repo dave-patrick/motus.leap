@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from services.youtube_client import YouTubeClient
+from services.youtube_service import _best_thumbnail
 from models.config import TubeManagerConfig
 from core.config_manager import ConfigManager
 
@@ -415,7 +416,7 @@ class BulkOperationsService:
                     "id": resource.get("channelId", ""),
                     "title": snippet.get("title", "Unknown"),
                     "description": snippet.get("description", ""),
-                    "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
+                    "thumbnail": _best_thumbnail(snippet.get("thumbnails")),
                     "subscribed_at": snippet.get("publishedAt")
                 })
 

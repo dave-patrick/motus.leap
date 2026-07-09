@@ -3,6 +3,14 @@
 // Store all playlists for manage function
 var allPlaylists = [];
 
+// Upgrade a low-res YouTube thumbnail URL to a higher-res variant (no API cost).
+// default.jpg is 120x90; hqdefault.jpg is 480x360; maxresdefault.jpg is 1280x720.
+function upgradeThumb(url) {
+    if (!url) return url;
+    return url.replace(/\/vi\/([^/]+)\/default\.jpg/, '/vi/$1/hqdefault.jpg')
+              .replace(/=s\d+(-c)?$/, '=s480');
+}
+
 function renderCachedPlaylists() {
     const skeleton = document.getElementById("playlists-skeleton");
     const playlistsList = document.getElementById("playlists-list");
@@ -73,7 +81,7 @@ function thumbMarkup(p) {
             <text x="80" y="74" text-anchor="middle" fill="#5b6573" font-size="10" font-family="sans-serif" letter-spacing="0.5">No videos yet</text>
         </svg>`;
     }
-    const thumb = p.thumbnail || 'https://picsum.photos/160/90';
+    const thumb = upgradeThumb(p.thumbnail || 'https://picsum.photos/160/90');
     return `<img src="${thumb}" class="w-full h-full object-cover" loading="lazy" onerror="this.onerror=null; this.src='https://picsum.photos/160/90'">`;
 }
 
