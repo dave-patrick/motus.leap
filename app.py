@@ -1128,9 +1128,23 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
         raise HTTPException(status_code=503, detail="YouTube service unavailable")
 
     # Build name->ID lookups from the authenticated account.
+    # Playlists: title -> id (from list_playlists).
+    # Channels: title -> id. subscriptions.list snippet carries BOTH the
+    # channel title and channelId directly, so read it straight from the raw
+    # items (the enriched list_subscriptions() can drop titles if the
+    # secondary channels.list call fails).
     try:
         pl_data = await youtube_service.list_playlists(force_refresh=True)
-        sub_data = await youtube_service.list_subscriptions(force_refresh=True)
+        client = youtube_service.get_client(require_oauth=True)
+        if not client:
+            raise HTTPException(status_code=503, detail="YouTube not connected. OAuth required.")
+        raw_subs = await youtube_service._fetch_all_paginated(
+            lambda mr, pt: client.list_mine_subscriptions(max_results=mr, page_token=pt),
+            max_results=50,
+            max_items=2000,
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to read account data: {e}")
 
@@ -1139,12 +1153,14 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
         for p in (pl_data.get("playlists") or [])
         if p.get("id")
     }
-    # channel title -> id (subscriptions carry title)
-    channel_by_name = {
-        (c.get("title") or "").strip().lower(): c.get("id")
-        for c in (sub_data.get("channels") or [])
-        if c.get("id")
-    }
+    channel_by_name: dict[str, str] = {}
+    for sub in raw_subs:
+        snip = (sub.get("snippet") or {})
+        res = snip.get("resourceId") or {}
+        cid = res.get("channelId") or ""
+        title = (snip.get("title") or "").strip()
+        if cid and title:
+            channel_by_name.setdefault(title.lower(), cid)
 
     resolved: dict[str, str] = {}
     unmatched_channels: list[str] = []
