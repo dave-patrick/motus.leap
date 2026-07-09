@@ -134,6 +134,12 @@
         }
         var maintenanceData = {};
         
+        // Build a thumbnail URL straight from a YouTube video_id (no extra API cost).
+        function maintenanceThumb(videoId) {
+            if (!videoId) return 'https://picsum.photos/32/24';
+            return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        }
+        
         async function loadMaintenance() {
             try {
                 const response = await fetch('/api/maintenance');
@@ -154,18 +160,21 @@
                 return; 
             }
             el.innerHTML = items.map(item => {
-                const _thumb = DOMPurify.sanitize(item.thumbnail || 'https://picsum.photos/32/24');
-                const _title = DOMPurify.sanitize(item.title || '');
-                const _from = DOMPurify.sanitize(item.from_playlist || item.current_playlist || item.playlist_a || '');
-                const _to = DOMPurify.sanitize(item.to_playlist || item.suggested || item.playlist_b || '?');
-                const _suggested = DOMPurify.sanitize(item.suggested || '');
+                const _vid = DOMPurify.sanitize(item.video_id || '');
+                const _thumb = DOMPurify.sanitize(maintenanceThumb(_vid));
+                const _title = DOMPurify.sanitize(item.video_title || item.title || '');
+                const _from = DOMPurify.sanitize(item.current_playlist_title || item.source_playlist_title || item.from_playlist || item.playlist_a || '');
+                const _to = DOMPurify.sanitize(item.mapped_playlist_title || item.target_playlist_title || item.to_playlist || item.suggested || item.playlist_b || '?');
+                const _playlists = Array.isArray(item.playlists) ? item.playlists : [];
+                const _plText = _playlists.map(p => DOMPurify.sanitize(p.title || p.id || '')).join(', ');
+                const _fromTo = (_from && _to && _to !== '?') ? `${_from} → ${_to}` : (_plText || '?');
                 return `
                 <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a] mb-2">
-                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${_thumb}" class="w-full h-full object-cover"></div>
-                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${_title}</div><div class="text-[9px] text-gray-400">${_from} → ${_to}</div></div>
-                    ${type === 'move' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>${_suggested || 'Move from X to Y'}</option></select>` : ''}
+                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${_thumb}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://picsum.photos/32/24'"></div>
+                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${_title}</div><div class="text-[9px] text-gray-400 truncate">${_fromTo}</div></div>
+                    ${type === 'move' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>${_to || 'Move from X to Y'}</option></select>` : ''}
                     ${type === 'dup' ? `<div class="flex gap-1"><button class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Keep</button><button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>` : ''}
-                    ${type === 'misplaced' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>Move to ${_suggested || 'Correct Playlist'}</option></select>` : ''}
+                    ${type === 'misplaced' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>Move to ${_to || 'Correct Playlist'}</option></select>` : ''}
                 </div>
                 `;
             }).join('');
