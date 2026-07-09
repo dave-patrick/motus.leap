@@ -488,9 +488,14 @@ class YouTubeService:
         """Derive channel->playlist mappings from videos already IN each
         playlist. For every playlist, read its items and tally each video's
         owner channel. A channel is mapped to the playlist where it appears
-        most often (majority vote). Cheap: playlistItems.list is ~1 quota
-        unit/page, no search API needed — so this resolves non-subscribed
-        channels from ground-truth data.
+        most often (majority vote).
+
+        CRITICAL: reads from the DISK-CACHED video data whenever possible
+        (get_videos uses playlist_videos_<pid>.json). The earlier auto-map
+        / background sync already populated that cache with real
+        videoOwnerChannelTitle/Id values — so naming + mapping works at ZERO
+        YouTube API quota, even when channels.list is quota-exhausted. A live
+        fetch is only used as a fallback when a playlist has no cache yet.
 
         Returns {"votes": {channel_id: {playlist_id: count}},
                  "mapping": {channel_id: playlist_id},
@@ -501,8 +506,14 @@ class YouTubeService:
         if not client:
             return {"error": "YouTube not connected. OAuth required."}
 
-        pl_data = await self.list_playlists(force_refresh=True)
+        # Use the cached playlist list (no force_refresh — we must NOT burn
+        # quota re-fetching playlists just to name channels). If there's no
+        # cached list at all, fall back to a live fetch.
+        pl_data = await self.list_playlists(force_refresh=False)
         playlists = pl_data.get("playlists") or []
+        if not playlists:
+            pl_data = await self.list_playlists(force_refresh=True)
+            playlists = pl_data.get("playlists") or []
 
         votes: Dict[str, Dict[str, int]] = {}
         titles: Dict[str, str] = {}
@@ -512,23 +523,40 @@ class YouTubeService:
             pid = pl.get("id")
             if not pid:
                 continue
+            # Prefer the disk-cached videos (carries videoOwnerChannelTitle).
+            # get_videos() returns {"videos": [...]} where each video dict has
+            # channel_id + channel_title (see _video_item_to_dict).
             try:
-                items = await self._fetch_all_paginated(
-                    lambda mr, pt, _pid=pid: client.list_videos(_pid, page_token=pt, max_results=mr),
-                    max_results=50,
-                    max_items=max_items_per_playlist,
-                )
+                vdata = await self.get_videos(pid, force_refresh=False)
             except Exception as e:  # noqa: BLE001
-                log.warning(f"[map_from_playlists] {pid}: {e}")
-                continue
+                log.warning(f"[map_from_playlists] cache read {pid}: {e}")
+                vdata = {"videos": []}
+            items = vdata.get("videos") or []
+            if not items and client:
+                # Fallback: live fetch only if cache was empty (new playlist).
+                try:
+                    items = await self._fetch_all_paginated(
+                        lambda mr, pt, _pid=pid: client.list_videos(_pid, page_token=pt, max_results=mr),
+                        max_results=50,
+                        max_items=max_items_per_playlist,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    log.warning(f"[map_from_playlists] live {pid}: {e}")
+                    continue
             for it in items:
-                snip = it.get("snippet") or {}
-                cid = snip.get("videoOwnerChannelId") or snip.get("channelId")
+                # Cached video dict form (from _video_item_to_dict)
+                cid = it.get("channel_id")
+                title = it.get("channel_title")
+                if not cid:
+                    # Raw playlistItems snippet form (live fetch fallback)
+                    snip = it.get("snippet") or {}
+                    cid = snip.get("videoOwnerChannelId") or snip.get("channelId")
+                    title = snip.get("videoOwnerChannelTitle") or snip.get("channelTitle")
                 if not cid:
                     continue
                 pl_counts = votes.setdefault(cid, {})
                 pl_counts[pid] = pl_counts.get(pid, 0) + 1
-                titles.setdefault(cid, snip.get("videoOwnerChannelTitle") or snip.get("channelTitle") or cid)
+                titles.setdefault(cid, title or cid)
                 videos_scanned += 1
 
         mapping = {
