@@ -1277,6 +1277,13 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
         "unmatched_channels": unmatched_channels,
         "unmatched_playlists": unmatched_playlists,
         "total_mappings": len(merged),
+        "debug": {
+            "subs_fetched": len(raw_subs),
+            "channels_indexed": len(channel_by_name),
+            "playlists_fetched": len(playlist_by_name),
+            "sample_sub_titles": sorted(channel_by_name.keys())[:15],
+            "sample_playlist_titles": sorted(playlist_by_name.keys())[:15],
+        },
     }
 
 
