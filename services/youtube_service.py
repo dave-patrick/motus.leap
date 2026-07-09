@@ -482,6 +482,67 @@ class YouTubeService:
             log.warning(f"Failed to list subscriptions: {e}")
             return {"channels": [], "error": str(e)}
 
+    async def map_channels_from_playlist_contents(
+        self, max_items_per_playlist: int = 500
+    ) -> Dict[str, Any]:
+        """Derive channel->playlist mappings from videos already IN each
+        playlist. For every playlist, read its items and tally each video's
+        owner channel. A channel is mapped to the playlist where it appears
+        most often (majority vote). Cheap: playlistItems.list is ~1 quota
+        unit/page, no search API needed — so this resolves non-subscribed
+        channels from ground-truth data.
+
+        Returns {"votes": {channel_id: {playlist_id: count}},
+                 "mapping": {channel_id: playlist_id},
+                 "channel_titles": {channel_id: title},
+                 "playlists_scanned": int, "videos_scanned": int}.
+        """
+        client = self.get_client(require_oauth=True)
+        if not client:
+            return {"error": "YouTube not connected. OAuth required."}
+
+        pl_data = await self.list_playlists(force_refresh=True)
+        playlists = pl_data.get("playlists") or []
+
+        votes: Dict[str, Dict[str, int]] = {}
+        titles: Dict[str, str] = {}
+        videos_scanned = 0
+
+        for pl in playlists:
+            pid = pl.get("id")
+            if not pid:
+                continue
+            try:
+                items = await self._fetch_all_paginated(
+                    lambda mr, pt, _pid=pid: client.list_videos(_pid, page_token=pt, max_results=mr),
+                    max_results=50,
+                    max_items=max_items_per_playlist,
+                )
+            except Exception as e:  # noqa: BLE001
+                log.warning(f"[map_from_playlists] {pid}: {e}")
+                continue
+            for it in items:
+                snip = it.get("snippet") or {}
+                cid = snip.get("videoOwnerChannelId") or snip.get("channelId")
+                if not cid:
+                    continue
+                pl_counts = votes.setdefault(cid, {})
+                pl_counts[pid] = pl_counts.get(pid, 0) + 1
+                titles.setdefault(cid, snip.get("videoOwnerChannelTitle") or snip.get("channelTitle") or cid)
+                videos_scanned += 1
+
+        mapping = {
+            cid: max(pl_counts.items(), key=lambda kv: kv[1])[0]
+            for cid, pl_counts in votes.items()
+        }
+        return {
+            "votes": votes,
+            "mapping": mapping,
+            "channel_titles": titles,
+            "playlists_scanned": len(playlists),
+            "videos_scanned": videos_scanned,
+        }
+
     async def resolve_channel_handles(self, handles: List[str]) -> Dict[str, str]:
         """Resolve YouTube handles to channel IDs via the API-key client
         (channels.list forHandle, ~1 quota unit each, no OAuth needed).

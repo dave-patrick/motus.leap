@@ -282,6 +282,7 @@ window.open('/system/logs', '_blank');
                                     <div class="flex gap-2">
                                         <input id="mapping-search" type="text" placeholder="Filter channels..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]" oninput="renderMappingsList()">
                                         <button onclick="loadChannelMappings()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Load Subs</button>
+                                        <button onclick="autoMapFromPlaylists()" title="Scan videos already in your playlists and map each channel to the playlist it appears in most" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded whitespace-nowrap">Auto-map</button>
                                     </div>
                                     <div class="flex gap-2">
                                         <input id="new-channel-id" type="text" placeholder="Channel ID (e.g. UC...)" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]">
@@ -943,6 +944,33 @@ window.open('/system/logs', '_blank');
             } catch (e) {
                 report.textContent = 'Error: ' + (e.message || 'Network error');
                 toast('Import failed: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        async function autoMapFromPlaylists() {
+            // Preview first, then confirm before applying. Maps each channel to
+            // the playlist its videos most often already live in.
+            toast('Scanning playlist contents...', 'info');
+            try {
+                const prev = await (await fetch('/api/mappings/from-playlists', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({apply: false})
+                })).json();
+                if (prev.detail) throw new Error(prev.detail);
+                const msg = `Scanned ${prev.playlists_scanned} playlists / ${prev.videos_scanned} videos.\n`
+                    + `Found ${prev.channels_found} channels; ${prev.would_add} new mapping(s) to add`
+                    + (prev.conflicts.length ? `, ${prev.conflicts.length} conflict(s) (kept existing).` : '.')
+                    + `\n\nApply the ${prev.would_add} new mapping(s)?`;
+                if (!confirm(msg)) { toast('Cancelled', 'info'); return; }
+                const r = await (await fetch('/api/mappings/from-playlists', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({apply: true})
+                })).json();
+                if (r.detail) throw new Error(r.detail);
+                toast(`Added ${r.applied} mapping(s) · ${r.total_mappings} total`, 'success');
+                initMappings();
+            } catch (e) {
+                toast('Auto-map failed: ' + (e.message || 'Network error'), 'error');
             }
         }
 

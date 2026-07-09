@@ -1287,6 +1287,62 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
     }
 
 
+@app.post("/api/mappings/from-playlists", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@limiter.limit("5/minute")
+async def map_from_playlists(request: Request, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Derive channel->playlist mappings from the videos already in each
+    playlist (majority vote per channel). Resolves non-subscribed channels
+    from ground-truth data — no search-API quota needed.
+
+    body: {"apply": bool}. apply=false (default) previews; apply=true merges
+    the derived mappings into config (existing entries win on conflict unless
+    "overwrite": true).
+    """
+    if not youtube_service:
+        raise HTTPException(status_code=503, detail="YouTube service unavailable")
+    body = body or {}
+    apply = bool(body.get("apply"))
+    overwrite = bool(body.get("overwrite"))
+
+    result = await youtube_service.map_channels_from_playlist_contents()
+    if result.get("error"):
+        raise HTTPException(status_code=503, detail=result["error"])
+
+    derived: dict[str, str] = result["mapping"]
+    config = config_manager.config
+    existing = config.channel_mappings or {}
+    if isinstance(existing, list):
+        existing = _serialize_mappings(_normalize_mappings(existing))
+
+    new_count = sum(1 for cid in derived if cid not in existing)
+    conflicts = [
+        {"channel_id": cid, "existing": existing[cid], "derived": derived[cid], "channel": result["channel_titles"].get(cid, cid)}
+        for cid in derived
+        if cid in existing and existing[cid] != derived[cid]
+    ]
+
+    applied = 0
+    if apply:
+        merged = dict(existing)
+        for cid, pid in derived.items():
+            if overwrite or cid not in merged:
+                if merged.get(cid) != pid:
+                    applied += 1
+                merged[cid] = pid
+        config.channel_mappings = merged
+        await config_manager.save(config)
+
+    return {
+        "applied": applied,
+        "would_add": new_count,
+        "conflicts": conflicts,
+        "playlists_scanned": result["playlists_scanned"],
+        "videos_scanned": result["videos_scanned"],
+        "channels_found": len(derived),
+        "total_mappings": len(config.channel_mappings or {}),
+    }
+
+
 # Playlist detail page
 @app.get("/playlist/{playlist_id}")
 async def playlist_detail(playlist_id: str):
