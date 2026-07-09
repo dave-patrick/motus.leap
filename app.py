@@ -1470,18 +1470,63 @@ async def map_from_playlists(request: Request, body: dict[str, Any] | None = Non
 async def backfill_channel_names(request: Request) -> dict[str, Any]:
     """Harvest real channel names from already-cached playlist contents.
 
-    Reuses map_channels_from_playlist_contents(), which reads video snippets
-    (videoOwnerChannelTitle) from playlistItems.list — the SAME quota the
-    auto-map already spends. So naming 2595 mapped channels costs ~0 extra
-    quota, unlike channels.list. Persists into channel_metadata; returns the
-    count of names newly resolved.
+    Reads video snippets (videoOwnerChannelTitle) from the disk-cached
+    all_data.json. To survive OAuth token rotation (which changes the cache
+    dir hash), this also scans sibling user dirs for an all_data.json that
+    actually contains videos. Returns diagnostics so the live box reports
+    ground truth instead of a silent 0.
     """
     if not youtube_service:
         raise HTTPException(status_code=503, detail="YouTube service unavailable")
+
+    # ---- DIAGNOSTIC: what is actually on disk? ----
+    import glob, os
+    diag: dict[str, Any] = {}
+    try:
+        base = youtube_service._user_data_dir
+        diag["user_id"] = youtube_service._get_user_id()
+        diag["cache_dir"] = str(base)
+        diag["cache_dir_exists"] = await asyncio.to_thread(base.exists)
+        # Scan ALL sibling user dirs for any all_data.json with videos.
+        parent = base.parent
+        candidates = []
+        if await asyncio.to_thread(parent.exists):
+            for d in await asyncio.to_thread(lambda: list(parent.iterdir())):
+                ad = d / "all_data.json"
+                if await asyncio.to_thread(ad.exists):
+                    try:
+                        data = json.loads(await asyncio.to_thread(ad.read_text))
+                        n_vids = len(data.get("videos", []) or [])
+                        candidates.append({"dir": str(d), "videos": n_vids})
+                    except Exception:
+                        candidates.append({"dir": str(d), "videos": -1})
+        diag["all_data_candidates"] = candidates
+    except Exception as e:  # noqa: BLE001
+        diag["error"] = str(e)
+
     result = await youtube_service.map_channels_from_playlist_contents()
     if result.get("error"):
         raise HTTPException(status_code=503, detail=result["error"])
     titles = result.get("channel_titles") or {}
+
+    # If the primary path found nothing but a sibling cache has videos,
+    # harvest names directly from that orphaned cache (token-rotation fix).
+    if not titles:
+        for cand in diag.get("all_data_candidates", []):
+            if cand.get("videos", 0) > 0:
+                try:
+                    orphan = json.loads(await asyncio.to_thread((Path(cand["dir"]) / "all_data.json").read_text))
+                    for v in orphan.get("videos", []) or []:
+                        cid = v.get("channel_id") or (v.get("snippet", {}) or {}).get("videoOwnerChannelId") or (v.get("snippet", {}) or {}).get("channelId")
+                        if not cid:
+                            continue
+                        t = v.get("channel_title") or (v.get("snippet", {}) or {}).get("videoOwnerChannelTitle") or (v.get("snippet", {}) or {}).get("channelTitle")
+                        titles.setdefault(cid, t or cid)
+                except Exception as e:  # noqa: BLE001
+                    log.warning(f"[backfill] orphan scan {cand['dir']}: {e}")
+                if titles:
+                    break
+
     config = config_manager.config
     md = dict(config.channel_metadata or {})
     added = 0
@@ -1494,7 +1539,8 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
     log.info(
         f"[backfill-names] playlists_scanned={result.get('playlists_scanned')} "
         f"videos_scanned={result.get('videos_scanned')} "
-        f"titles_found={len(titles)} names_added={added} total_named={len(md)}"
+        f"titles_found={len(titles)} names_added={added} total_named={len(md)} "
+        f"diag={diag}"
     )
     return {
         "names_added": added,
@@ -1503,6 +1549,7 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
         "videos_scanned": result.get("videos_scanned", 0),
         "all_data_scanned": result.get("all_data_scanned", 0),
         "titles_found": len(titles),
+        "diagnostics": diag,
     }
 
 
