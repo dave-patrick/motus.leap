@@ -58,11 +58,43 @@ class ConfigManager:
         return self._config
 
     async def save(self, config: TubeManagerConfig) -> None:
-        """Save configuration to file."""
+        """Save configuration to file.
+
+        Defensive: merges credential/mapping fields that already exist on disk
+        but are empty in the incoming config, so a save can never silently
+        clobber OAuth tokens, API/AI keys, or channel mappings (which would
+        otherwise wipe YouTube auth or the user's data on any unrelated save).
+        """
         async with self._save_lock:
             try:
                 await asyncio.to_thread(self.config_path.parent.mkdir, parents=True, exist_ok=True)
-                data = config.to_dict_for_storage()
+                # Merge with any existing on-disk config so fields the caller
+                # didn't set (e.g. oauth tokens populated by a parallel flow,
+                # or channel_mappings managed elsewhere) are preserved.
+                if await asyncio.to_thread(self.config_path.exists):
+                    try:
+                        existing = json.loads(await asyncio.to_thread(self.config_path.read_text))
+                    except Exception:
+                        existing = {}
+                    if isinstance(existing, dict):
+                        incoming = config.to_dict_for_storage()
+                        disk_oauth = existing.get("oauth", {}) or {}
+                        inc_oauth = incoming.get("oauth", {}) or {}
+                        for k in ("access_token", "refresh_token", "client_secret", "client_id", "token_expiry"):
+                            if not inc_oauth.get(k) and disk_oauth.get(k) is not None:
+                                inc_oauth[k] = disk_oauth[k]
+                        incoming["oauth"] = inc_oauth
+                        if not incoming.get("youtube_api_key") and existing.get("youtube_api_key"):
+                            incoming["youtube_api_key"] = existing["youtube_api_key"]
+                        if not incoming.get("ai_api_key") and existing.get("ai_api_key"):
+                            incoming["ai_api_key"] = existing["ai_api_key"]
+                        if not incoming.get("channel_mappings") and existing.get("channel_mappings"):
+                            incoming["channel_mappings"] = existing["channel_mappings"]
+                        data = incoming
+                    else:
+                        data = config.to_dict_for_storage()
+                else:
+                    data = config.to_dict_for_storage()
                 async with aiofiles.open(self.config_path, mode='w', encoding='utf-8') as f:
                     await f.write(await asyncio.to_thread(json.dumps, data, indent=2))
                 self._config = config

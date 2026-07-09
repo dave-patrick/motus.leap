@@ -795,7 +795,14 @@ window.open('/system/logs', '_blank');
                 const subs = await subsResp.json();
                 const plist = await plistResp.json();
 
-                _maps = maps.mappings || {};
+                // GET /api/mappings returns {mappings: [{channel_id, playlist}, ...]}
+                // Normalize into a dict channelId -> playlistId for the editor.
+                _maps = {};
+                (maps.mappings || []).forEach(m => {
+                    const cid = m.channel_id || m.channel || m.id;
+                    const pid = m.playlist || m.playlist_id || '';
+                    if (cid) _maps[cid] = pid;
+                });
                 (subs.channels || []).forEach(c => { _channels[c.id] = c; });
                 _playlists = plist.playlists || [];
 
