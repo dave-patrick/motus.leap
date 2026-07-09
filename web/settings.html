@@ -293,6 +293,15 @@ window.open('/system/logs', '_blank');
                                 <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
                                     <div class="text-[10px] text-gray-400">Mappings override the JSON rules above. Channel ID → Playlist ID.</div>
                                     <button id="save-mappings-btn" onclick="saveMappings()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1.5 rounded">Save All Mappings</button>
+                                    <details class="group">
+                                        <summary class="cursor-pointer text-[11px] text-gray-400 hover:text-gray-200 select-none">Bulk import by name ▾</summary>
+                                        <div class="mt-2 flex flex-col gap-2">
+                                            <p class="text-[10px] text-gray-500">Paste <code>Channel Name : Playlist Name</code> lines (one per row). Names resolve against your connected YouTube account. Reports unmatched rows.</p>
+                                            <textarea id="bulk-import-text" rows="5" placeholder="3D Musketeers : 3D Printing Watch&#10;12 News : Arizona" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded px-2 py-1.5 outline-none font-mono resize-y"></textarea>
+                                            <button onclick="importBulkMappings()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs py-1.5 rounded">Import &amp; Resolve</button>
+                                            <div id="bulk-import-report" class="text-[10px] text-gray-400 whitespace-pre-wrap"></div>
+                                        </div>
+                                    </details>
                                 </div>
                             </div>
                         </div>
@@ -902,6 +911,31 @@ window.open('/system/logs', '_blank');
                 if (!silent) toast('Mappings saved', 'success');
             } catch (e) {
                 toast('Failed to save mappings: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        async function importBulkMappings() {
+            const text = document.getElementById('bulk-import-text').value.trim();
+            const report = document.getElementById('bulk-import-report');
+            if (!text) { toast('Paste mapping lines first', 'error'); return; }
+            report.textContent = 'Resolving against your YouTube account...';
+            try {
+                const resp = await fetch('/api/mappings/import', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text})
+                });
+                const r = await resp.json();
+                if (!resp.ok) throw new Error(r.detail || r.error || ('HTTP ' + resp.status));
+                let out = `✔ ${r.imported} imported · ${r.skipped} skipped · ${r.total_mappings} total`;
+                if (r.unmatched_channels.length) out += `\n✖ ${r.unmatched_channels.length} channel(s) not found:\n  - ${r.unmatched_channels.slice(0,30).join('\n  - ')}`;
+                if (r.unmatched_playlists.length) out += `\n✖ ${r.unmatched_playlists.length} playlist(s) not found:\n  - ${r.unmatched_playlists.slice(0,30).join('\n  - ')}`;
+                report.textContent = out;
+                toast(r.message, 'success');
+                initMappings(); // refresh the list view
+            } catch (e) {
+                report.textContent = 'Error: ' + (e.message || 'Network error');
+                toast('Import failed: ' + (e.message || 'Network error'), 'error');
             }
         }
 

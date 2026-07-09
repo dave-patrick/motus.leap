@@ -1113,6 +1113,95 @@ async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any
     await config_manager.save(config)
     return {"message": "Mappings saved", "mappings": mappings}
 
+
+@app.post("/api/mappings/import", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@limiter.limit("10/minute")
+async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+    """Import channel->playlist mappings by NAME, resolving against the
+    user's live YouTube playlists + subscriptions (name->ID) using the
+    app's authenticated client. No raw credentials leave the browser."""
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="No mapping text provided")
+
+    if not youtube_service:
+        raise HTTPException(status_code=503, detail="YouTube service unavailable")
+
+    # Build name->ID lookups from the authenticated account.
+    try:
+        pl_data = await youtube_service.list_playlists(force_refresh=True)
+        sub_data = await youtube_service.list_subscriptions(force_refresh=True)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to read account data: {e}")
+
+    playlist_by_name = {
+        (p.get("title") or "").strip().lower(): p.get("id")
+        for p in (pl_data.get("playlists") or [])
+        if p.get("id")
+    }
+    # channel title -> id (subscriptions carry title)
+    channel_by_name = {
+        (c.get("title") or "").strip().lower(): c.get("id")
+        for c in (sub_data.get("channels") or [])
+        if c.get("id")
+    }
+
+    resolved: dict[str, str] = {}
+    unmatched_channels: list[str] = []
+    unmatched_playlists: list[str] = []
+    skipped: int = 0
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Accept "channel : playlist" or "channel - playlist"
+        if " : " in line:
+            ch_name, pl_name = line.split(" : ", 1)
+        elif ":" in line:
+            ch_name, pl_name = line.split(":", 1)
+        elif "-" in line:
+            ch_name, pl_name = line.split("-", 1)
+        else:
+            skipped += 1
+            continue
+        ch_name = ch_name.strip()
+        pl_name = pl_name.strip()
+        if not ch_name or not pl_name:
+            skipped += 1
+            continue
+        ch_key = ch_name.lower()
+        pl_key = pl_name.lower()
+        cid = channel_by_name.get(ch_key)
+        pid = playlist_by_name.get(pl_key)
+        if not cid:
+            unmatched_channels.append(ch_name)
+            continue
+        if not pid:
+            unmatched_playlists.append(pl_name)
+            continue
+        resolved[cid] = pid
+
+    # Merge into existing mappings (keep prior entries not in this import).
+    config = config_manager.config
+    existing = config.channel_mappings or {}
+    if isinstance(existing, list):
+        existing = _serialize_mappings(_normalize_mappings(existing))
+    merged = dict(existing)
+    merged.update(resolved)
+    config.channel_mappings = merged
+    await config_manager.save(config)
+
+    return {
+        "message": f"Imported {len(resolved)} mappings",
+        "imported": len(resolved),
+        "skipped": skipped,
+        "unmatched_channels": unmatched_channels,
+        "unmatched_playlists": unmatched_playlists,
+        "total_mappings": len(merged),
+    }
+
+
 # Playlist detail page
 @app.get("/playlist/{playlist_id}")
 async def playlist_detail(playlist_id: str):
