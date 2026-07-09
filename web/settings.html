@@ -864,7 +864,7 @@ window.open('/system/logs', '_blank');
                 const d = r.diagnostics || {};
                 const cands = (d.all_data_candidates || []).map(c => `${c.videos}v@${String(c.dir).split('/').pop()}`).join(',');
                 const detail = `resolved ${r.names_added} new (${r.total_named} total)` +
-                    ` · metadata: ${r.thumbs_applied ?? 0} thumbs applied` +
+                    ` · thumbs: ${r.thumbs_applied ?? 0} applied` +
                     ` · ${r.all_data_scanned} vids scanned` +
                     ` · found ${r.titles_found} titles` +
                     (cands ? ` · caches:[${cands}]` : '');

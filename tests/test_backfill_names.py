@@ -42,6 +42,7 @@ def test_backfill_persists_titles():
         assert disk["channel_metadata"]["UCa"]["title"] == "Maker Channel"
         assert disk["channel_metadata"]["UCb"]["title"] == "Tech Channel"
         assert r["names_added"] == 2
+        assert "thumbs_found" in r
     asyncio.run(main())
 
 

@@ -63,7 +63,7 @@ from models.config import TubeManagerConfig
 from models.task import Task, TaskStatus, TaskPriority
 
 # Service imports
-from services.youtube_service import YouTubeService
+from services.youtube_service import YouTubeService, _best_thumbnail
 # Setup logging
 
 # Paths
@@ -1527,20 +1527,31 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
             nm = v.get("channel_title") or snip.get("videoOwnerChannelTitle") or snip.get("channelTitle")
             if nm:
                 t.setdefault(cid, nm)
-            thb = v.get("thumbnail")
+            thb = v.get("thumbnail") or _best_thumbnail(snip.get("thumbnails"))
             if thb:
                 th.setdefault(cid, thb)
+            else:
+                vid = (
+                    v.get("video_id")
+                    or (v.get("contentDetails", {}) or {}).get("videoId")
+                    or next((val for key, val in v.items() if isinstance(val, str) and YOUTUBE_VIDEO_ID_RE.match(val)), "")
+                )
+                if vid:
+                    th.setdefault(cid, f"https://i.ytimg.com/vi/{vid}/mqdefault.jpg")
         return t, th
 
     # Primary cache (same dir map_channels reads from).
+    primary_path = base / "all_data.json"
     try:
-        ad = json.loads(await asyncio.to_thread((base / "all_data.json").read_text))
+        ad = json.loads(await asyncio.to_thread(primary_path.read_text))
         pt, pth = _harvest(ad)
         for k, v in pt.items():
             titles.setdefault(k, v)
         for k, v in pth.items():
             thumbs.setdefault(k, v)
-    except Exception:
+        diag["primary_cache_read"] = "ok"
+    except Exception as e:  # noqa: BLE001
+        diag["primary_cache_read"] = f"error: {e}"
         pass
 
     # Merge orphan siblings AFTER primary so setdefault wins.
@@ -1612,6 +1623,7 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
         "all_data_scanned": all_data_scanned,
         "titles_found": len(titles),
         "thumbs_applied": thumbs_applied,
+        "thumbs_found": len(thumbs),
         "diagnostics": diag,
     }
 
