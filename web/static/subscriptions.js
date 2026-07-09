@@ -20,51 +20,24 @@ async function loadSubscriptions() {
     const list = document.getElementById('subscriptions-list');
     list.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Loading subscriptions...</div>';
     try {
-        // Fetch subscriptions and channel->playlist mappings in parallel so the
-        // playlist ID fields are pre-populated from the server (source of truth),
-        // not just localStorage which may be stale/empty on a fresh session.
-        const [subResp, mapResp] = await Promise.all([
-            fetch('/api/subscriptions'),
-            fetch('/api/mappings').catch(() => null)
-        ]);
+        const subResp = await fetch('/api/subscriptions');
         const data = await subResp.json();
         if (!subResp.ok) throw new Error(data.error || 'Failed to load subscriptions');
         localStorage.setItem('cached_subscriptions', JSON.stringify(data));
-
-        // Build a channelId -> playlistId lookup from /api/mappings.
-        // The API returns {mappings: {channelId: playlistId, ...}} or
-        // {mappings: [{channel_id, playlist}, ...]} depending on backend.
-        let apiMappings = {};
-        if (mapResp && mapResp.ok) {
-            const mapData = await mapResp.json();
-            const raw = mapData.mappings || {};
-            if (Array.isArray(raw)) {
-                raw.forEach(m => {
-                    const cid = m.channel_id || m.channel || '';
-                    const pid = m.playlist || m.playlist_id || '';
-                    if (cid) apiMappings[cid] = pid;
-                });
-            } else if (raw && typeof raw === 'object') {
-                apiMappings = raw;
-            }
-        }
-
-        renderSubscriptionsList(data.channels || [], apiMappings);
+        renderSubscriptionsList(data.channels || []);
     } catch (e) {
         list.innerHTML = `<div class="text-center text-red-400 py-8">Error: ${DOMPurify.sanitize(e.message || 'Failed to load subscriptions due to a network error.')}</div>`;
         toast(`Error: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
     }
 }
 
-function renderSubscriptionsList(channels, apiMappings) {
-    apiMappings = apiMappings || {};
+function renderSubscriptionsList(channels) {
     const list = document.getElementById('subscriptions-list');
     if (!channels || !channels.length) {
         list.innerHTML = '<div class="text-center text-gray-400 py-8">No subscriptions found. Connect YouTube in Settings.</div>';
         return;
     }
     list.innerHTML = channels.map((c) => {
-        const saved = apiMappings[c.id] || localStorage.getItem('sub-channel-' + c.id) || '';
         return `<div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors">
             <div class="flex items-center gap-3">
                 <img src="${c.thumbnail || 'https://picsum.photos/32'}" class="w-8 h-8 rounded-full object-cover">
@@ -78,26 +51,10 @@ function renderSubscriptionsList(channels, apiMappings) {
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <input type="text" id="map-${c.id}" value="${saved}" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1 outline-none w-full max-w-xs min-h-[44px]" placeholder="Playlist ID" onchange="saveMapping('${c.id}', this.value)">
-                <button onclick="saveMapping('${c.id}', document.getElementById('map-${c.id}').value)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-3 py-1.5 rounded">Map</button>
                 <button onclick="actionUnsubscribe('${c.id}')" class="bg-[#20242c] hover:bg-red-600/20 border border-[#2a2f3a] hover:border-red-500/30 text-gray-300 hover:text-red-400 text-xs px-3 py-1.5 rounded transition-colors">Unsubscribe</button>
             </div>
         </div>`;
     }).join('');
-}
-
-async function saveMapping(channelId, playlistId) {
-    try {
-        const maps = await fetch('/api/mappings').then(r => r.json()).catch(() => ({ mappings: {} }));
-        const payload = { mappings: { ...(maps.mappings || {}), [channelId]: playlistId } };
-        const resp = await fetch('/api/mappings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        const result = await resp.json();
-        if (!resp.ok) throw new Error(result.error || 'Failed to save mapping');
-        localStorage.setItem('sub-channel-' + channelId, playlistId || '');
-        toast(`Mapping saved for ${DOMPurify.sanitize(channelId)}`, 'success');
-    } catch (e) {
-        toast(`Failed to save mapping: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
-    }
 }
 
 async function refreshSubscriptions() {
