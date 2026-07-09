@@ -482,6 +482,37 @@ class YouTubeService:
             log.warning(f"Failed to list subscriptions: {e}")
             return {"channels": [], "error": str(e)}
 
+    async def resolve_channel_handles(self, handles: List[str]) -> Dict[str, str]:
+        """Resolve YouTube handles to channel IDs via the API-key client
+        (channels.list forHandle, ~1 quota unit each, no OAuth needed).
+        Handles may or may not include a leading '@'.
+        Returns {handle_lower: channel_id} for those that resolved."""
+        if not handles:
+            return {}
+        client = self.get_client(require_oauth=False)
+        if not client:
+            return {}
+
+        def _lookup() -> Dict[str, str]:
+            out: Dict[str, str] = {}
+            for h in handles:
+                handle = (h or "").strip().lstrip("@")
+                if not handle:
+                    continue
+                try:
+                    resp = client.channels().list(part="id,snippet", forHandle=handle).execute()
+                    items = resp.get("items") or []
+                    if items:
+                        cid = items[0].get("id")
+                        if cid:
+                            out[handle.lower()] = cid
+                except Exception as e:  # noqa: BLE001
+                    log.warning(f"[resolve_channel_handles] {handle}: {e}")
+            return out
+
+        return await asyncio.to_thread(_lookup)
+
+
     async def _fetch_all_paginated(self, fetch_fn, max_results: int = 50, max_items: int = 500) -> List[Any]:
         """Fetch paginated results with caps and early exit."""
         all_items = []

@@ -1162,6 +1162,29 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
         if cid and title:
             channel_by_name.setdefault(title.lower(), cid)
 
+    # Second pass: many channel names are actually YouTube HANDLES (single
+    # tokens like "0musa07", "2CELLOS") that aren't in the user's
+    # subscriptions. Resolve those cheaply via channels.list?forHandle
+    # (API-key client, ~1 quota unit, no OAuth). Only resolve names not
+    # already found via subscriptions to conserve quota.
+    try:
+        candidate_names = [
+            ln.strip().split(" : ")[0].split(":")[0].split("-")[0].strip()
+            for ln in text.splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        handle_candidates = [
+            n for n in candidate_names
+            if n and " " not in n and n.lower() not in channel_by_name
+        ]
+        if handle_candidates:
+            resolved_handles = await youtube_service.resolve_channel_handles(handle_candidates)
+            for h, cid in resolved_handles.items():
+                channel_by_name.setdefault(h, cid)  # match by exact handle text
+                channel_by_name.setdefault("@" + h, cid)  # and with leading @
+    except Exception as e:
+        log.warning(f"[import_mappings] handle fallback skipped: {e}")
+
     resolved: dict[str, str] = {}
     unmatched_channels: list[str] = []
     unmatched_playlists: list[str] = []
