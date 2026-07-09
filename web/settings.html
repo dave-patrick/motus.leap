@@ -862,8 +862,12 @@ window.open('/system/logs', '_blank');
                 });
                 renderMappingsList();
                 const d = r.diagnostics || {};
-                const cands = (d.all_data_candidates || []).map(c => `${c.videos}v@${c.dir.split('/').lastIndexOf('/') >= 0 ? c.dir.split('/').pop() : c.dir}`).join(',');
-                const detail = `resolved ${r.names_added} new (${r.total_named} total) · all_data ${r.all_data_scanned} vids · found ${r.titles_found} titles` + (r.playlists_scanned ? `` : ` · (playlists EMPTY)`) + (cands ? ` · caches:[${cands}]` : ``);
+                const cands = (d.all_data_candidates || []).map(c => `${c.videos}v@${String(c.dir).split('/').pop()}`).join(',');
+                const detail = `resolved ${r.names_added} new (${r.total_named} total)` +
+                    ` · metadata: ${r.thumbs_applied ?? 0} thumbs applied` +
+                    ` · ${r.all_data_scanned} vids scanned` +
+                    ` · found ${r.titles_found} titles` +
+                    (cands ? ` · caches:[${cands}]` : '');
                 toast(detail, r.names_added > 0 || r.total_named > 0 ? 'success' : 'error');
                 // Backfill may have seeded names (but no thumbnails) -> let
                 // channels.list upgrade monogram avatars to real photos.

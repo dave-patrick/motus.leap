@@ -1543,19 +1543,39 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
     except Exception:
         pass
 
+    # Merge orphan siblings AFTER primary so setdefault wins.
+    def _count_and_harvest_files(paths):
+        t = {}
+        th = {}
+        total = 0
+        for p in paths:
+            try:
+                data = json.loads(Path(p).read_text())
+                total += len(data.get("videos", []) or [])
+                ft, fth = _harvest(data)
+                for k, v in ft.items():
+                    t.setdefault(k, v)
+                for k, v in fth.items():
+                    th.setdefault(k, v)
+            except Exception:
+                pass
+        return t, th, total
+
+    primary_path = str(base / "all_data.json")
+    pt2, pth2, primary_total = await asyncio.to_thread(_count_and_harvest_files, [primary_path])
+    titles.update(pt2)
+    thumbs.update(pth2)
+
     # Orphaned sibling caches (token-rotation recovery) — merge ALL of them.
+    orphan_paths = []
     for cand in diag.get("all_data_candidates", []):
         if cand.get("videos", 0) > 0:
-            try:
-                orphan = json.loads(await asyncio.to_thread((Path(cand["dir"]) / "all_data.json").read_text))
-                ot, oth = _harvest(orphan)
-                for k, v in ot.items():
-                    titles.setdefault(k, v)
-                for k, v in oth.items():
-                    thumbs.setdefault(k, v)
-            except Exception as e:  # noqa: BLE001
-                log.warning(f"[backfill] orphan scan {cand['dir']}: {e}")
+            orphan_paths.append(str(Path(cand["dir"]) / "all_data.json"))
+    ot2, oth2, orphan_total = await asyncio.to_thread(_count_and_harvest_files, orphan_paths)
+    titles.update(ot2)
+    thumbs.update(oth2)
 
+    thumbs_applied = 0
     config = config_manager.config
     md = dict(config.channel_metadata or {})
     added = 0
@@ -1572,21 +1592,26 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
             }
             if new_title:
                 added += 1
+            if new_thumb:
+                thumbs_applied += 1
     config.channel_metadata = md
     await config_manager.save(config)
+    all_data_scanned = primary_total + orphan_total
     log.info(
         f"[backfill-names] playlists_scanned={result.get('playlists_scanned')} "
         f"videos_scanned={result.get('videos_scanned')} "
-        f"titles_found={len(titles)} names_added={added} total_named={len(md)} "
-        f"diag={diag}"
+        f"all_data_scanned={all_data_scanned} "
+        f"titles_found={len(titles)} names_added={added} thumbs_applied={thumbs_applied} "
+        f"total_named={len(md)} diag={diag}"
     )
     return {
         "names_added": added,
         "total_named": len(md),
         "playlists_scanned": result.get("playlists_scanned", 0),
         "videos_scanned": result.get("videos_scanned", 0),
-        "all_data_scanned": result.get("all_data_scanned", 0),
+        "all_data_scanned": all_data_scanned,
         "titles_found": len(titles),
+        "thumbs_applied": thumbs_applied,
         "diagnostics": diag,
     }
 
