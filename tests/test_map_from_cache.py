@@ -73,8 +73,9 @@ def test_resolves_names_from_all_data_cache_no_live_api():
         assert r["channel_titles"].get("UCa") == "Maker Channel"
         assert r["channel_titles"].get("UCb") == "Code Channel"
         assert r["channel_titles"].get("UCc") == "Song Channel"
-        assert r["videos_scanned"] == 5
+        assert r["videos_scanned"] == 0
         assert svc.get_videos.await_count == 0
+        assert r["all_data_scanned"] == 5
     asyncio.run(main())
 
 

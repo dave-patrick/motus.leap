@@ -1501,6 +1501,7 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
         "total_named": len(md),
         "playlists_scanned": result.get("playlists_scanned", 0),
         "videos_scanned": result.get("videos_scanned", 0),
+        "all_data_scanned": result.get("all_data_scanned", 0),
         "titles_found": len(titles),
     }
 

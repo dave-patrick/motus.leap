@@ -490,68 +490,78 @@ class YouTubeService:
         owner channel. A channel is mapped to the playlist where it appears
         most often (majority vote).
 
-        CRITICAL: reads from the DISK-CACHED video data whenever possible
-        (get_videos uses playlist_videos_<pid>.json). The earlier auto-map
-        / background sync already populated that cache with real
-        videoOwnerChannelTitle/Id values — so naming + mapping works at ZERO
-        YouTube API quota, even when channels.list is quota-exhausted. A live
-        fetch is only used as a fallback when a playlist has no cache yet.
+        NAME RESOLUTION (channel_titles) is the priority and runs at ZERO
+        YouTube API quota: it reads the DISK-CACHED combined all_data.json
+        (videos carry channel_id + channel_title), which the earlier auto-map
+        / background sync populated. We do NOT depend on list_playlists() for
+        naming — list_playlists returns empty on Render under quota, so any
+        dependency there would silently yield 0 names. A live fetch is only a
+        fallback when all_data is missing.
 
         Returns {"votes": {channel_id: {playlist_id: count}},
                  "mapping": {channel_id: playlist_id},
                  "channel_titles": {channel_id: title},
-                 "playlists_scanned": int, "videos_scanned": int}.
+                 "playlists_scanned": int, "videos_scanned": int,
+                 "all_data_scanned": int}.
         """
         client = self.get_client(require_oauth=True)
         if not client:
             return {"error": "YouTube not connected. OAuth required."}
 
-        # Prefer the DISK-CACHED combined data (all_data.json), which the
-        # earlier auto-map / background sync already populated with full video
-        # lists carrying channel_id + channel_title. This resolves names at
-        # ZERO YouTube API quota, even when channels.list / playlistItems are
-        # quota-exhausted. Fall back to per-playlist cache + live fetch only
-        # when all_data is missing.
+        # ---- NAME RESOLUTION: primary path is the disk cache (zero quota) ----
         all_data = None
         try:
             all_data = await self._load_from_disk("all_data")
         except Exception as e:  # noqa: BLE001
             log.warning(f"[map_from_playlists] all_data read failed: {e}")
-        cached_videos_by_pid: Dict[str, list] = {}
+
+        votes: Dict[str, Dict[str, int]] = {}
+        titles: Dict[str, str] = {}
+        all_data_scanned = 0
+        videos_scanned = 0
+
+        # Primary: harvest names + votes from the cached all_data videos.
         if all_data and all_data.get("videos"):
             for v in all_data["videos"]:
+                cid = v.get("channel_id")
+                title = v.get("channel_title")
+                if not cid:
+                    snip = v.get("snippet") or {}
+                    cid = snip.get("videoOwnerChannelId") or snip.get("channelId")
+                    title = snip.get("videoOwnerChannelTitle") or snip.get("channelTitle")
+                if not cid:
+                    continue
                 pid = v.get("playlist_id")
                 if pid:
-                    cached_videos_by_pid.setdefault(pid, []).append(v)
+                    pl_votes = votes.setdefault(cid, {})
+                    pl_votes[pid] = pl_votes.get(pid, 0) + 1
+                titles.setdefault(cid, title or cid)
+                all_data_scanned += 1
 
-        # Use the cached playlist list (no force_refresh — must NOT burn quota
-        # re-fetching playlists just to name channels). Fall back to a live
-        # fetch only if no cache exists.
+        # ---- PLAYLIST ENUMERATION (best-effort; do NOT gate naming on it) ----
         pl_data = await self.list_playlists(force_refresh=False)
         playlists = pl_data.get("playlists") or []
         if not playlists:
             pl_data = await self.list_playlists(force_refresh=True)
             playlists = pl_data.get("playlists") or []
 
-        votes: Dict[str, Dict[str, int]] = {}
-        titles: Dict[str, str] = {}
-        videos_scanned = 0
-
+        # Per-playlist cache / live fallback to flesh out any playlists whose
+        # videos were NOT in all_data (e.g. playlists fetched after the last
+        # all_data build). Skipped entirely if list_playlists is empty.
         for pl in playlists:
             pid = pl.get("id")
             if not pid:
                 continue
-            # 1) Combined all_data cache (primary, zero quota)
-            items = cached_videos_by_pid.get(pid, [])
-            # 2) Per-playlist disk cache (get_videos / playlist_videos_<pid>.json)
-            if not items:
-                try:
-                    vdata = await self.get_videos(pid, force_refresh=False)
-                    items = vdata.get("videos") or []
-                except Exception as e:  # noqa: BLE001
-                    log.warning(f"[map_from_playlists] cache read {pid}: {e}")
-                    items = []
-            # 3) Live fetch only if no cache exists at all (new playlist)
+            # If all_data already contributed votes for this pid, skip re-scan.
+            if any(pid in v_counts for v_counts in votes.values()):
+                continue
+            items = []
+            try:
+                vdata = await self.get_videos(pid, force_refresh=False)
+                items = vdata.get("videos") or []
+            except Exception as e:  # noqa: BLE001
+                log.warning(f"[map_from_playlists] cache read {pid}: {e}")
+                items = []
             if not items and client:
                 try:
                     items = await self._fetch_all_paginated(
@@ -563,18 +573,16 @@ class YouTubeService:
                     log.warning(f"[map_from_playlists] live {pid}: {e}")
                     continue
             for it in items:
-                # Cached video dict form (from _video_item_to_dict)
                 cid = it.get("channel_id")
                 title = it.get("channel_title")
                 if not cid:
-                    # Raw playlistItems snippet form (live fetch fallback)
                     snip = it.get("snippet") or {}
                     cid = snip.get("videoOwnerChannelId") or snip.get("channelId")
                     title = snip.get("videoOwnerChannelTitle") or snip.get("channelTitle")
                 if not cid:
                     continue
-                pl_counts = votes.setdefault(cid, {})
-                pl_counts[pid] = pl_counts.get(pid, 0) + 1
+                pl_votes = votes.setdefault(cid, {})
+                pl_votes[pid] = pl_votes.get(pid, 0) + 1
                 titles.setdefault(cid, title or cid)
                 videos_scanned += 1
 
@@ -588,6 +596,7 @@ class YouTubeService:
             "channel_titles": titles,
             "playlists_scanned": len(playlists),
             "videos_scanned": videos_scanned,
+            "all_data_scanned": all_data_scanned,
         }
 
     async def resolve_channel_handles(self, handles: List[str]) -> Dict[str, str]:

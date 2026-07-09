@@ -844,7 +844,7 @@ window.open('/system/logs', '_blank');
                     }
                 });
                 renderMappingsList();
-                const detail = `resolved ${r.names_added} new (${r.total_named} total) · scanned ${r.videos_scanned} videos / ${r.playlists_scanned} playlists · found ${r.titles_found} titles`;
+                const detail = `resolved ${r.names_added} new (${r.total_named} total) · all_data ${r.all_data_scanned} vids · found ${r.titles_found} titles` + (r.playlists_scanned ? `` : ` · (playlists list EMPTY on Render)`);
                 toast(detail, r.names_added > 0 || r.total_named > 0 ? 'success' : 'error');
             } catch (e) {
                 console.warn('Backfill names failed:', e.message);
