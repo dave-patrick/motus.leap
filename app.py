@@ -1034,6 +1034,30 @@ async def api_maintenance() -> dict[str, Any]:
 
 
 # Mappings endpoints
+def _norm_name(s: str) -> str:
+    """Aggressively normalize a channel/playlist display name for matching.
+
+    Exported subscription names frequently differ from the live API title by
+    casing, unicode form, emoji, punctuation, or collapsed whitespace. We
+    normalize to a canonical key so near-identical names still match:
+      - NFKC unicode normalization (full-width -> ascii, etc.)
+      - lowercase
+      - strip emoji / symbols / punctuation
+      - collapse all whitespace runs to a single space, then remove spaces
+    """
+    import unicodedata as _ud
+    if not s:
+        return ""
+    s = _ud.normalize("NFKC", s).lower().strip()
+    out = []
+    for ch in s:
+        cat = _ud.category(ch)
+        # keep letters (L*) and numbers (N*); drop marks, punctuation, symbols
+        if cat[0] in ("L", "N"):
+            out.append(ch)
+    return "".join(out)
+
+
 def _normalize_mappings(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Normalize mappings to standard format."""
     seen: dict[str, dict[str, Any]] = {}
@@ -1141,7 +1165,7 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
         raw_subs = await youtube_service._fetch_all_paginated(
             lambda mr, pt: client.list_mine_subscriptions(max_results=mr, page_token=pt),
             max_results=50,
-            max_items=2000,
+            max_items=10000,
         )
     except HTTPException:
         raise
@@ -1153,7 +1177,14 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
         for p in (pl_data.get("playlists") or [])
         if p.get("id")
     }
+    # Fuzzy (normalized) fallback index: canonical-name -> id.
+    playlist_by_norm: dict[str, str] = {}
+    for p in (pl_data.get("playlists") or []):
+        if p.get("id"):
+            playlist_by_norm.setdefault(_norm_name(p.get("title") or ""), p["id"])
+
     channel_by_name: dict[str, str] = {}
+    channel_by_norm: dict[str, str] = {}
     for sub in raw_subs:
         snip = (sub.get("snippet") or {})
         res = snip.get("resourceId") or {}
@@ -1161,6 +1192,7 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
         title = (snip.get("title") or "").strip()
         if cid and title:
             channel_by_name.setdefault(title.lower(), cid)
+            channel_by_norm.setdefault(_norm_name(title), cid)
 
     # Second pass: many channel names are actually YouTube HANDLES (single
     # tokens like "0musa07", "2CELLOS") that aren't in the user's
@@ -1211,8 +1243,15 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
             continue
         ch_key = ch_name.lower()
         pl_key = pl_name.lower()
-        cid = channel_by_name.get(ch_key)
-        pid = playlist_by_name.get(pl_key)
+        # Channel: exact (lower) -> handle text -> fuzzy normalized.
+        cid = (
+            channel_by_name.get(ch_key)
+            or channel_by_name.get(ch_key.lstrip("@"))
+            or channel_by_name.get("@" + ch_key.lstrip("@"))
+            or channel_by_norm.get(_norm_name(ch_name))
+        )
+        # Playlist: exact (lower) -> fuzzy normalized.
+        pid = playlist_by_name.get(pl_key) or playlist_by_norm.get(_norm_name(pl_name))
         if not cid:
             unmatched_channels.append(ch_name)
             continue
