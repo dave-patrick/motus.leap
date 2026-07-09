@@ -460,16 +460,27 @@ class YouTubeService:
                         log.warning(f"Channel enrichment failed: {e}")
             
             subscriptions = []
-            for cid in channel_ids:
+            for sub in all_subs:
+                snippet = sub.get("snippet", {}) or {}
+                resource = snippet.get("resourceId", {}) or {}
+                cid = resource.get("channelId", "")
+                if not cid:
+                    continue
+                # PRIMARY (zero quota): title + avatar come straight from the
+                # subscriptions.list snippet, which always carries them. Do NOT
+                # depend on channels.list (quota-blocked on Render) for the
+                # basics — that was why names/avatars came back empty.
+                sub_snip = snippet
                 stats = channel_stats.get(cid, {})
-                snippet = stats.get("snippet", {}) or {}
+                st_snip = stats.get("snippet", {}) or {}
                 statistics = stats.get("statistics", {}) or {}
-                
+                title = (sub_snip.get("title") or st_snip.get("title") or "Unknown").strip()
+                thumb = _best_thumbnail(sub_snip.get("thumbnails")) or _best_thumbnail(st_snip.get("thumbnails"))
                 subscriptions.append({
                     "id": cid,
-                    "title": snippet.get("title", "Unknown"),
-                    "thumbnail": _best_thumbnail(snippet.get("thumbnails")),
-                    "description": snippet.get("description", ""),
+                    "title": title,
+                    "thumbnail": thumb,
+                    "description": (st_snip.get("description") or sub_snip.get("description", "")),
                     "subscribers": statistics.get("subscriberCount", "0"),
                     "video_count": int(statistics.get("videoCount", "0") or "0"),
                     "view_count": statistics.get("viewCount", "0"),
@@ -796,21 +807,31 @@ class YouTubeService:
                         except Exception as e:
                             log.warning(f"Channel enrichment failed: {e}")
 
-                for cid in channel_ids:
-                    stats = channel_stats.get(cid, {})
-                    snippet = stats.get("snippet", {}) or {}
-                    statistics = stats.get("statistics", {}) or {}
+                # PRIMARY (zero quota): title + avatar from the subscriptions.list
+                # snippet, NOT channels.list (quota-blocked on Render).
+                sub_snip = None
+                for _sub in all_subs:
+                    _r = (_sub.get("snippet", {}) or {}).get("resourceId", {}) or {}
+                    if _r.get("channelId") == cid:
+                        sub_snip = _sub.get("snippet", {}) or {}
+                        break
+                if sub_snip is None:
+                    sub_snip = {}
+                st_snip = stats.get("snippet", {}) or {}
+                statistics = stats.get("statistics", {}) or {}
+                title = (sub_snip.get("title") or st_snip.get("title") or "Unknown").strip()
+                thumb = _best_thumbnail(sub_snip.get("thumbnails")) or _best_thumbnail(st_snip.get("thumbnails"))
 
-                    subscriptions.append({
-                        "id": cid,
-                        "title": snippet.get("title", "Unknown"),
-                        "thumbnail": _best_thumbnail(snippet.get("thumbnails")),
-                        "description": snippet.get("description", ""),
-                        "subscribers": statistics.get("subscriberCount", "0"),
-                        "video_count": int(statistics.get("videoCount", "0") or "0"),
-                        "view_count": statistics.get("viewCount", "0"),
-                        "channel_url": f"https://www.youtube.com/channel/{cid}",
-                    })
+                subscriptions.append({
+                    "id": cid,
+                    "title": title,
+                    "thumbnail": thumb,
+                    "description": (st_snip.get("description") or sub_snip.get("description", "")),
+                    "subscribers": statistics.get("subscriberCount", "0"),
+                    "video_count": int(statistics.get("videoCount", "0") or "0"),
+                    "view_count": statistics.get("viewCount", "0"),
+                    "channel_url": f"https://www.youtube.com/channel/{cid}",
+                })
 
                 subscriptions.sort(key=lambda x: x["title"].lower())
             except Exception as e:
