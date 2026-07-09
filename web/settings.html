@@ -830,6 +830,35 @@ window.open('/system/logs', '_blank');
 
         const _selected = new Set();
 
+        // Deterministic hue from a string so each channel gets a stable color.
+        function _hashHue(s) {
+            let h = 0;
+            for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+            return h % 360;
+        }
+        // Initial for the monogram: channel name's first letter, else a letter
+        // derived from the UC id (so unmapped IDs still get a readable glyph).
+        function _initial(id, ch) {
+            if (ch && ch.title && ch.title.trim()) return ch.title.trim()[0].toUpperCase();
+            const m = id.replace(/^UC/i, '').match(/[a-z0-9]/i);
+            return (m ? m[0] : '?').toUpperCase();
+        }
+        // Avatar: real thumbnail when available (overlaid on the monogram; on
+        // load error the img is removed, revealing the monogram). Otherwise a
+        // colored monogram circle. Never a blank/white box.
+        function channelAvatar(id) {
+            const ch = _channels[id];
+            const hue = _hashHue(id);
+            const initial = _initial(id, ch);
+            if (ch && ch.thumbnail) {
+                return `<span class="relative w-7 h-7 rounded-full overflow-hidden shrink-0" style="background:hsl(${hue} 55% 40%)">
+                    <img src="${ch.thumbnail}" class="absolute inset-0 w-full h-full object-cover" onerror="this.remove()">
+                    <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">${initial}</span>
+                </span>`;
+            }
+            return `<span class="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white" style="background:hsl(${hue} 55% 40%)">${initial}</span>`;
+        }
+
         function renderMappingsList() {
             const list = document.getElementById('mappings-list');
             const q = (document.getElementById('mapping-search')?.value || '').toLowerCase().trim();
@@ -852,15 +881,17 @@ window.open('/system/logs', '_blank');
 
             list.innerHTML = ids.map(id => {
                 const ch = _channels[id];
-                const avatar = ch && ch.thumbnail ? ch.thumbnail : 'https://picsum.photos/32';
-                const name = ch ? ch.title : id;
+                const avatar = channelAvatar(id);
+                const name = ch ? ch.title : '';
+                const sub = name ? id : '';   // show raw ID only as a dim fallback when no name
                 const checked = _selected.has(id) ? 'checked' : '';
                 return `
                     <div class="flex items-center gap-2 p-2 rounded bg-[#20242c]/40 hover:bg-[#20242c] border border-[#2a2f3a]/50 ${_selected.has(id) ? 'ring-1 ring-[#2f8fc9]' : ''}">
                         <input type="checkbox" class="sel-cb shrink-0 accent-[#2f8fc9]" data-channel="${id}" ${checked} onchange="onSelect('${id}', this.checked)">
-                        <img src="${avatar}" class="w-7 h-7 rounded-full object-cover shrink-0">
+                        ${avatar}
                         <div class="min-w-0 flex-1">
-                            <div class="text-[11px] font-semibold text-white truncate">${name}</div>
+                            <div class="text-[11px] font-semibold text-white truncate">${name || id}</div>
+                            ${sub ? `<div class="text-[9px] text-gray-500 truncate">${sub}</div>` : ''}
                             <select data-channel="${id}" onchange="onMappingChange('${id}', this.value)" class="mt-1 w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-1 py-1 outline-none">
                                 ${playlistOptions(_maps[id])}
                             </select>
