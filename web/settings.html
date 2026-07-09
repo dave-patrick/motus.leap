@@ -845,8 +845,16 @@ window.open('/system/logs', '_blank');
                 // Merge returned names into _channels and re-render.
                 const meta = await fetch('/api/channels/metadata').then(x => x.json()).catch(() => ({metadata: {}}));
                 Object.entries(meta.metadata || {}).forEach(([cid, info]) => {
-                    if (info && info.title && !_channels[cid]) {
-                        _channels[cid] = {id: cid, title: info.title, thumbnail: info.thumbnail || ''};
+                    if (!info) return;
+                    const existing = _channels[cid] || {};
+                    // Merge name AND thumbnail (backfill now harvests both).
+                    // Apply even if the channel already had a name but no logo.
+                    if (info.title || info.thumbnail) {
+                        _channels[cid] = {
+                            id: cid,
+                            title: info.title || existing.title || cid,
+                            thumbnail: info.thumbnail || existing.thumbnail || '',
+                        };
                     }
                 });
                 renderMappingsList();

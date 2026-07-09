@@ -1507,32 +1507,71 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
     result = await youtube_service.map_channels_from_playlist_contents()
     if result.get("error"):
         raise HTTPException(status_code=503, detail=result["error"])
-    titles = result.get("channel_titles") or {}
+    titles = dict(result.get("channel_titles") or {})
+    thumbs = {}
 
-    # If the primary path found nothing but a sibling cache has videos,
-    # harvest names directly from that orphaned cache (token-rotation fix).
-    if not titles:
-        for cand in diag.get("all_data_candidates", []):
-            if cand.get("videos", 0) > 0:
-                try:
-                    orphan = json.loads(await asyncio.to_thread((Path(cand["dir"]) / "all_data.json").read_text))
-                    for v in orphan.get("videos", []) or []:
-                        cid = v.get("channel_id") or (v.get("snippet", {}) or {}).get("videoOwnerChannelId") or (v.get("snippet", {}) or {}).get("channelId")
-                        if not cid:
-                            continue
-                        t = v.get("channel_title") or (v.get("snippet", {}) or {}).get("videoOwnerChannelTitle") or (v.get("snippet", {}) or {}).get("channelTitle")
-                        titles.setdefault(cid, t or cid)
-                except Exception as e:  # noqa: BLE001
-                    log.warning(f"[backfill] orphan scan {cand['dir']}: {e}")
-                # Merge every sibling cache (not just the first) for max coverage.
+    # Zero-quota avatar fallback: harvest a representative VIDEO thumbnail
+    # per channel from the cached playlist data (all_data.json). This is the
+    # only free image available for non-subscribed mapped channels; combined
+    # with the real channel logo from subscriptions.list (free, subscribers
+    # only) it replaces every monogram circle with a real picture. A video
+    # poster is not the channel logo, but it is a real image and beats a
+    # letter — and channels.list (the only true-logo source) is quota-blocked.
+    def _harvest(data):
+        t, th = {}, {}
+        for v in data.get("videos", []) or []:
+            snip = v.get("snippet", {}) or {}
+            cid = v.get("channel_id") or snip.get("videoOwnerChannelId") or snip.get("channelId")
+            if not cid:
+                continue
+            nm = v.get("channel_title") or snip.get("videoOwnerChannelTitle") or snip.get("channelTitle")
+            if nm:
+                t.setdefault(cid, nm)
+            thb = v.get("thumbnail")
+            if thb:
+                th.setdefault(cid, thb)
+        return t, th
+
+    # Primary cache (same dir map_channels reads from).
+    try:
+        ad = json.loads(await asyncio.to_thread((base / "all_data.json").read_text))
+        pt, pth = _harvest(ad)
+        for k, v in pt.items():
+            titles.setdefault(k, v)
+        for k, v in pth.items():
+            thumbs.setdefault(k, v)
+    except Exception:
+        pass
+
+    # Orphaned sibling caches (token-rotation recovery) — merge ALL of them.
+    for cand in diag.get("all_data_candidates", []):
+        if cand.get("videos", 0) > 0:
+            try:
+                orphan = json.loads(await asyncio.to_thread((Path(cand["dir"]) / "all_data.json").read_text))
+                ot, oth = _harvest(orphan)
+                for k, v in ot.items():
+                    titles.setdefault(k, v)
+                for k, v in oth.items():
+                    thumbs.setdefault(k, v)
+            except Exception as e:  # noqa: BLE001
+                log.warning(f"[backfill] orphan scan {cand['dir']}: {e}")
 
     config = config_manager.config
     md = dict(config.channel_metadata or {})
     added = 0
     for cid, t in titles.items():
-        if t and t != cid and not md.get(cid, {}).get("title"):
-            md[cid] = {"title": t, "thumbnail": md.get(cid, {}).get("thumbnail", "")}
-            added += 1
+        if not t or t == cid:
+            continue
+        existing = md.get(cid, {}) or {}
+        new_title = not existing.get("title")
+        new_thumb = not existing.get("thumbnail") and thumbs.get(cid)
+        if new_title or new_thumb:
+            md[cid] = {
+                "title": t,
+                "thumbnail": existing.get("thumbnail") or thumbs.get(cid, ""),
+            }
+            if new_title:
+                added += 1
     config.channel_metadata = md
     await config_manager.save(config)
     log.info(
