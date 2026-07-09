@@ -506,9 +506,27 @@ class YouTubeService:
         if not client:
             return {"error": "YouTube not connected. OAuth required."}
 
-        # Use the cached playlist list (no force_refresh — we must NOT burn
-        # quota re-fetching playlists just to name channels). If there's no
-        # cached list at all, fall back to a live fetch.
+        # Prefer the DISK-CACHED combined data (all_data.json), which the
+        # earlier auto-map / background sync already populated with full video
+        # lists carrying channel_id + channel_title. This resolves names at
+        # ZERO YouTube API quota, even when channels.list / playlistItems are
+        # quota-exhausted. Fall back to per-playlist cache + live fetch only
+        # when all_data is missing.
+        all_data = None
+        try:
+            all_data = await self._load_from_disk("all_data")
+        except Exception as e:  # noqa: BLE001
+            log.warning(f"[map_from_playlists] all_data read failed: {e}")
+        cached_videos_by_pid: Dict[str, list] = {}
+        if all_data and all_data.get("videos"):
+            for v in all_data["videos"]:
+                pid = v.get("playlist_id")
+                if pid:
+                    cached_videos_by_pid.setdefault(pid, []).append(v)
+
+        # Use the cached playlist list (no force_refresh — must NOT burn quota
+        # re-fetching playlists just to name channels). Fall back to a live
+        # fetch only if no cache exists.
         pl_data = await self.list_playlists(force_refresh=False)
         playlists = pl_data.get("playlists") or []
         if not playlists:
@@ -523,17 +541,18 @@ class YouTubeService:
             pid = pl.get("id")
             if not pid:
                 continue
-            # Prefer the disk-cached videos (carries videoOwnerChannelTitle).
-            # get_videos() returns {"videos": [...]} where each video dict has
-            # channel_id + channel_title (see _video_item_to_dict).
-            try:
-                vdata = await self.get_videos(pid, force_refresh=False)
-            except Exception as e:  # noqa: BLE001
-                log.warning(f"[map_from_playlists] cache read {pid}: {e}")
-                vdata = {"videos": []}
-            items = vdata.get("videos") or []
+            # 1) Combined all_data cache (primary, zero quota)
+            items = cached_videos_by_pid.get(pid, [])
+            # 2) Per-playlist disk cache (get_videos / playlist_videos_<pid>.json)
+            if not items:
+                try:
+                    vdata = await self.get_videos(pid, force_refresh=False)
+                    items = vdata.get("videos") or []
+                except Exception as e:  # noqa: BLE001
+                    log.warning(f"[map_from_playlists] cache read {pid}: {e}")
+                    items = []
+            # 3) Live fetch only if no cache exists at all (new playlist)
             if not items and client:
-                # Fallback: live fetch only if cache was empty (new playlist).
                 try:
                     items = await self._fetch_all_paginated(
                         lambda mr, pt, _pid=pid: client.list_videos(_pid, page_token=pt, max_results=mr),

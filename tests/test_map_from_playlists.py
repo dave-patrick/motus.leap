@@ -16,6 +16,7 @@ def _fake_ys(playlists, items_by_pl):
     ys = MagicMock()
     ys.get_client = MagicMock(return_value=client)
     ys.list_playlists = AsyncMock(return_value={"playlists": playlists})
+    ys._load_from_disk = AsyncMock(return_value=None)  # no all_data cache in unit tests
     # real _fetch_all_paginated behavior: single page from the fake client
     async def fetch(fn, max_results=50, max_items=500):
         return fn(max_results, None)["items"]

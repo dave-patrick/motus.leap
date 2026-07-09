@@ -844,7 +844,8 @@ window.open('/system/logs', '_blank');
                     }
                 });
                 renderMappingsList();
-                toast(`${r.names_added} channel name(s) resolved (${r.total_named} total)`, 'success');
+                const detail = `resolved ${r.names_added} new (${r.total_named} total) · scanned ${r.videos_scanned} videos / ${r.playlists_scanned} playlists · found ${r.titles_found} titles`;
+                toast(detail, r.names_added > 0 || r.total_named > 0 ? 'success' : 'error');
             } catch (e) {
                 console.warn('Backfill names failed:', e.message);
                 toast('Could not resolve names: ' + e.message, 'error');

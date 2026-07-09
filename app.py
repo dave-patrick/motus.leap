@@ -1491,11 +1491,17 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
             added += 1
     config.channel_metadata = md
     await config_manager.save(config)
+    log.info(
+        f"[backfill-names] playlists_scanned={result.get('playlists_scanned')} "
+        f"videos_scanned={result.get('videos_scanned')} "
+        f"titles_found={len(titles)} names_added={added} total_named={len(md)}"
+    )
     return {
         "names_added": added,
         "total_named": len(md),
         "playlists_scanned": result.get("playlists_scanned", 0),
         "videos_scanned": result.get("videos_scanned", 0),
+        "titles_found": len(titles),
     }
 
 
