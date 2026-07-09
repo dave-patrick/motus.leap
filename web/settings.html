@@ -80,7 +80,7 @@ window.open('/system/logs', '_blank');
                 <div class="flex items-center justify-between border-b border-[#2a2f3a] pb-2 shrink-0">
                     <div class="flex gap-4">
                         <button id="tab-btn-general" class="text-sm font-bold tracking-wide text-white border-b-2 border-[#2f8fc9] pb-2 px-1 focus:outline-none transition-colors">General & API</button>
-                        <button id="tab-btn-rules" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">Rules & Mappings</button>
+                        <button id="tab-btn-rules" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">Channel Mappings</button>
                         <button id="tab-btn-ai" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">AI Integration</button>
                     </div>
                 </div>
@@ -203,79 +203,10 @@ window.open('/system/logs', '_blank');
 
                     <!-- TAB 2: RULES & MAPPINGS -->
                     <div id="tab-content-rules" class="tab-pane hidden space-y-4">
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div class="bento-card flex flex-col overflow-hidden h-[550px]">
+                        <div>
+                            <div class="bento-card flex flex-col overflow-hidden h-[70vh]">
                                 <div class="px-4 py-3 border-b border-[#2a2f3a] flex items-center justify-between">
-                                    <h3 class="text-xs font-semibold text-gray-300">JSON Editor</h3>
-                                    <button id="beautify-json-btn" onclick="beautifyJson()" class="text-[10px] px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-[#2f8fc9] hover:text-white hover:border-[#374151] transition-colors"><i class="fa-solid fa-code text-[9px] mr-1"></i>Beautify</button>
-                                </div>
-                                <textarea id="rules-editor" class="flex-1 p-3 bg-[#0a0c10] font-mono text-[10px] text-gray-300 border-none outline-none resize-none" style="min-height: 400px;" spellcheck="false">{
-  "category": {
-    "regex": "\\w+"
-  },
-  "channel": {
-    "UC_x5XG1OV2P6uZZ5FSM9Ttw": {
-      "playlist": "PL_tech"
-    },
-    "UC_latest": {
-      "playlist": "PL_learning"
-    }
-  },
-  "title_patterns": [
-    { "regex": "(?i)\\b(Music Video|Official Video|Official Music Video|lyric video)\\b", "playlist": "PL7y0zeb_CORJPWvCa3H1PgYo6weywtEYO" },
-    { "regex": "(?i)\\b(AI|Artificial Intelligence|Machine Learning|LLM|GPT|Claude|OpenAI|DeepMind|AI tool|AI news|Large Language Model)\\b", "playlist": "PL7y0zeb_CORL1pSvjlwSusYNmG6KoRJup" },
-    { "regex": "(?i)\\b(Mobile|Smartphone|iPhone|Android|iOS|Samsung Galaxy|Galaxy Watch|Galaxy Buds|phone review|phone comparison)\\b", "playlist": "PL7y0zeb_CORIpkrNA-VHc-QwaSjPAgCgj" },
-    { "regex": "(?i)\\b(Star Wars|Sith|Jedi|Mandalorian|Clone Wars|Lightsaber|Star Wars game|Star Wars lore)\\b", "playlist": "PL7y0zeb_CORJfHQ5pA5vzS3qgqTPHxGWV" },
-    { "regex": "(?i)\\b(Bigfoot|Sasquatch|cryptid|sighting|evidence)\\b", "playlist": "PL7y0zeb_CORK5-7EsxSKzWhfHLvUbcdwP" },
-    { "regex": "(?i)\\b(Concert|Live Performance|Live at|Tour|Setlist)\\b", "playlist": "PL7y0zeb_CORKC5X2X44vqUaNRNFrGsiT1" },
-    { "regex": "(?i)\\b(Auto|Car|Engine|Automotive|Car Review|Vehicle)\\b", "playlist": "PL7y0zeb_CORLCAcUEZvAwuuU6blZ58vH7" },
-    { "regex": "(?i)\\b(Tutorial|How.to|Guide|Science|History|Educational|Lecture|Explainer)\\b", "playlist": "PL7y0zeb_CORLXj5a_QPWbHvJqgemcaXlr" },
-    { "regex": "(?i)\\b(Aviation|Plane|Jet|Dogfight|Aviation History|Airport|Airbus|Boeing)\\b", "playlist": "PL7y0zeb_CORLXLj16aOlXZRNAKcNJhLoy" },
-    { "regex": "(?i)\\b(Football|NFL|49ers|Game Highlights|Football Game)\\b", "playlist": "PL7y0zeb_CORKoxZUO3457C3b6WrIefFk8" },
-    { "regex": "(?i)\\b(Music|Analysis|Song|Album|Artist|Band)\\b", "playlist": "PL7y0zeb_CORJpW-fQMHT1R9r60JkY3PTS" },
-    { "regex": "(?i)\\b(Drone|FPV|UAV|Quadcopter)\\b", "playlist": "PL7y0zeb_CORIwTikMFo1ebprLKAz5j_Pc" },
-    { "regex": "(?i)\\b(Blacksmith|Forging|Metalworking|Anvil|Hammer)\\b", "playlist": "PL7y0zeb_CORIvSnQBPcX6xkqoB9mTgJqM" },
-    { "regex": "(?i)\\b(Short Film|Short|Indie Film|Student Film)\\b", "playlist": "PL7y0zeb_CORIyz05Jb4KPpec2K65Zfm07" },
-    { "regex": "(?i)\\b(Truck|Toyota Tacoma|Tacoma|Tundra|F-150|Silverado|Ram|Cybertruck)\\b", "playlist": "PL7y0zeb_CORJ7sbSZjPao9RNbbHHCy1-a" },
-    { "regex": "(?i)\\b(Camping|Tent|Campfire|Outdoor|Hiking|Backpacking)\\b", "playlist": "PL7y0zeb_CORJOl3fCuY7YmuqQWoBPTeJ_" },
-    { "regex": "(?i)\\b(Raspberry Pi|Pi|Arduino|ESP32|Microcontroller|Soldering|Electronics Project)\\b", "playlist": "PL7y0zeb_CORIU5WgWv3hEuk2Yy8DpRDrM" },
-    { "regex": "(?i)\\b(Workout|Fitness|Gym|Exercise Routine|Bodybuilding|Strength Training)\\b", "playlist": "PL7y0zeb_CORInIcNSp0aAl2yL5rTHkreV" },
-    { "regex": "(?i)\\b(GX7|Lumix GX7|Panasonic GX7|Micro Four Thirds)\\b", "playlist": "PL7y0zeb_CORLbijxL9CPao7hWBdiXFlQI" },
-    { "regex": "(?i)\\b(Exercise|Workout|Fitness|Calisthenics|Yoga|Pilates)\\b", "playlist": "PL7y0zeb_CORI-OPTi75AfsqjFzt64oiN7" },
-    { "regex": "(?i)\\b(Laser|Engraving|Cutting|CNC Laser|Diode Laser|CO2 Laser)\\b", "playlist": "PL7y0zeb_CORIlvnYNGTTbWChapJ8OGrD5" },
-    { "regex": "(?i)\\b(Manifestation|Law of Attraction|Affirmations|Meditation|Spirituality)\\b", "playlist": "PL7y0zeb_CORItnOrKBTFNaQIw0qhcCtXH" },
-    { "regex": "(?i)\\b(Photo Tutorial|Photography Tutorial|Camera Tutorial|Lightroom|Photoshop)\\b", "playlist": "PL7y0zeb_CORIL3EdriFAO6CNpz-DRQFVs" },
-    { "regex": "(?i)\\b(Kira|Kira Kira|Kira Video)\\b", "playlist": "PL7y0zeb_CORIfrJi2yt158QliAPNCFcCF" },
-    { "regex": "(?i)\\b(Overland|Off-Road|Offroad|Rock Crawling|Expedition|Vehicle Camping)\\b", "playlist": "PL7y0zeb_CORL676RR_pq_GLzP733705GD" },
-    { "regex": "(?i)\\b(Tech|Gadget|Hardware Review|PC Build|CPU|GPU|Motherboard|RAM|SSD|Keyboard|Mouse|Monitor)\\b", "playlist": "PL7y0zeb_CORJUcSZBAb4vVhOxKE9ZBSGB" },
-    { "regex": "(?i)\\b(Maker|DIY|Crafts|Woodworking|3D Print|CNC|Welding|Soldering|Electronics)\\b", "playlist": "PL7y0zeb_CORJHIOjTtI7SPtjqSwQRr8Dv" },
-    { "regex": "(?i)\\b(3D Printing|Slicer|CAD|STL|FDM|Resin|Filament|Printer|Ender|Prusa|Bambu)\\b", "playlist": "PL7y0zeb_CORLpATW8g5_9pvhqyOk7HlkB" },
-    { "regex": "(?i)\\b(Home Improvement|Remodeling|Home Repair|Renovation|Plumbing|Electrical|Drywall|Flooring)\\b", "playlist": "PL7y0zeb_CORKaNonAmTculyIhdrgCiLsJ" },
-    { "regex": "(?i)\\b(Productivity|Workflow|Note Taking|Obsidian|Notion|Roam|Logseq|Todoist|Time Management)\\b", "playlist": "PL7y0zeb_CORLiQSf5expC4gxWvXuHQX6V" },
-    { "regex": "(?i)\\b(Cosplay|Costume|Prop Making|Armor|Sewing|Foam Smithing)\\b", "playlist": "PL7y0zeb_CORKA_K267f-P7KAsxKlyG97M" },
-    { "regex": "(?i)\\b(Blackstone|Griddle|Seasoning|Outdoor Cooking|Flat Top)\\b", "playlist": "PL7y0zeb_CORI80nlSgSzoumw-KoFx0LZ-" },
-    { "regex": "(?i)\\b(Food|Cooking|Recipe|Food Review|Baking|Restaurant|Meal Prep)\\b", "playlist": "PL7y0zeb_CORIJAzUcZAeuyMuPmg2MI360" },
-    { "regex": "(?i)\\b(Arizona|Phoenix|Tucson|Sedona|Grand Canyon|Arizona Travel)\\b", "playlist": "PL7y0zeb_CORJ5hv1dfAjmAMVNDP_iUwlw" },
-    { "regex": "(?i)\\b(Smart Home|Automation|IoT|Home Assistant|HomeKit|Zigbee|Z-Wave|Matter|Smart Light|Smart Lock|Smart Thermostat)\\b", "playlist": "PL7y0zeb_CORKDinVAv761LrHyJkKjJqsW" },
-    { "regex": "(?i)\\b(Photo|Photography|Camera|Lens|Lightroom|Photoshop|Composition|Portrait|Landscape)\\b", "playlist": "PL7y0zeb_CORL8WT86VDIVcrwxu1yBHSf1" },
-    { "regex": "(?i)\\b(Entertainment|Movie|TV Show|Series|Review|Trailer|Netflix|Disney|HBO|Amazon Prime)\\b", "playlist": "PL7y0zeb_CORLzH9tFD4_zEAH9GVAznjAI" },
-    { "regex": "(?i)\\b(Woodworking|Woodwork|Carpentry|Joinery|Furniture Making|Lathe|Router|Table Saw|Band Saw|Planer)\\b", "playlist": "PL7y0zeb_CORItyD4kCnlQrVcE-tzgQhup" },
-    { "regex": "(?i)\\b(Health|Medical|Fitness|Nutrition|Diet|Supplements|Wellness|Mental Health|Doctor)\\b", "playlist": "PL7y0zeb_CORLDzpejAmTKZ_-tRPhJpCVI" },
-    { "regex": "(?i)\\b(Tana|Tana Workflow|Tana Command|Tana Node|Supertag|Tana Inc)\\b", "playlist": "PL7y0zeb_CORK47v9jis0X0xKF1rP6u" }
-  ],
-  "duration_rules": {
-    "short": { "max_seconds": 300, "playlist": "PL_shorts" },
-    "long": { "min_seconds": 3600, "playlist": "PL_deep_dive" }
-  }
-}</textarea>
-                                <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex gap-2">
-                                    <button id="apply-rules-btn" onclick="applyRules()" class="flex-1 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1.5 rounded">Apply Rules</button>
-                                    <button id="validate-json-btn" onclick="validateRules()" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-1.5 rounded">Validate JSON</button>
-                                </div>
-                            </div>
-                            <div class="bento-card flex flex-col overflow-hidden h-[550px]">
-                                <div class="px-4 py-3 border-b border-[#2a2f3a] flex items-center justify-between">
-                                    <h3 class="text-xs font-semibold text-gray-300">Channel → Playlist Mappings</h3>
+                                    <h3 class="text-xs font-semibold text-gray-300">Channel Mappings</h3>
                                     <span id="mappings-count" class="text-[10px] text-gray-500">0 mapped</span>
                                 </div>
                                 <div class="p-3 border-b border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
@@ -292,7 +223,7 @@ window.open('/system/logs', '_blank');
                                 </div>
                                 <div class="p-3 overflow-y-auto flex-1" id="mappings-list"><div class="text-center text-gray-400 py-8">Loading...</div></div>
                                 <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
-                                    <div class="text-[10px] text-gray-400">Mappings override the JSON rules above. Channel ID → Playlist ID.</div>
+                                    <div class="text-[10px] text-gray-400">Channel ID → Playlist ID. Changes save automatically.</div>
                                     <button id="save-mappings-btn" onclick="saveMappings()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1.5 rounded">Save All Mappings</button>
                                     <details class="group">
                                         <summary class="cursor-pointer text-[11px] text-gray-400 hover:text-gray-200 select-none">Bulk import by name ▾</summary>
@@ -971,36 +902,6 @@ window.open('/system/logs', '_blank');
                 initMappings();
             } catch (e) {
                 toast('Auto-map failed: ' + (e.message || 'Network error'), 'error');
-            }
-        }
-
-        function applyRules() {
-            const rules = document.getElementById('rules-editor').value;
-            toast('Applying rules...', 'info');
-            fetch('/api/action', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: 'apply_rules', payload: {rules}})
-            }).then(() => toast('Rules applied successfully', 'success')).catch(() => toast('Failed to apply rules', 'error'));
-        }
-
-        function validateRules() {
-            const rules = document.getElementById('rules-editor').value;
-            try {
-                JSON.parse(rules);
-                toast('Valid JSON format', 'success');
-            } catch (e) {
-                toast('Invalid JSON: ' + e.message, 'error');
-            }
-        }
-
-        function beautifyJson() {
-            try {
-                const editor = document.getElementById('rules-editor');
-                editor.value = JSON.stringify(JSON.parse(editor.value), null, 2);
-                toast('JSON beautified', 'success');
-            } catch (e) {
-                toast('Cannot beautify: invalid JSON', 'error');
             }
         }
 
