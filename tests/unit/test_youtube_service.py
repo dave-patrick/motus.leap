@@ -256,3 +256,66 @@ class TestYouTubeServiceAdvanced:
         # Should be consistent for same config
         assert isinstance(user_id, str)
         assert len(user_id) == 16 or user_id == "default"
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_data_multiple_subscriptions(self, youtube_service):
+        """Regression test for BUG C3 (undefined `stats`) and C4 (only one
+        subscription recorded). With 3+ distinct channels the function must
+        return one entry per subscription, never crash, and never silently
+        drop entries."""
+        channel_ids = ["UCaaa111", "UCbbb222", "UCccc333"]
+        subs = []
+        for cid in channel_ids:
+            subs.append({
+                "snippet": {
+                    "title": f"Channel {cid}",
+                    "description": f"Desc {cid}",
+                    "resourceId": {"channelId": cid},
+                    "thumbnails": {"default": {"url": f"https://img/{cid}.jpg"}},
+                }
+            })
+
+        def fake_list_channels_by_ids(ids, max_results=50):
+            items = []
+            for cid in ids:
+                items.append({
+                    "id": cid,
+                    "snippet": {
+                        "description": f"Rich desc {cid}",
+                        "thumbnails": {"default": {"url": f"https://rich/{cid}.jpg"}},
+                    },
+                    "statistics": {
+                        "subscriberCount": "1000",
+                        "videoCount": "50",
+                        "viewCount": "20000",
+                    },
+                })
+            return {"items": items}
+
+        fake_client = MagicMock()
+        fake_client.list_mine_subscriptions.return_value = {"items": subs}
+        fake_client.list_channels_by_ids.side_effect = fake_list_channels_by_ids
+        fake_client.list_mine_playlists.return_value = {"items": []}
+        fake_client.list_videos.return_value = {"items": []}
+
+        with patch.object(youtube_service, "get_client", return_value=fake_client):
+            result = await youtube_service.fetch_all_data(force_refresh=True)
+
+        subscriptions = result["subscriptions"]
+        assert isinstance(subscriptions, list)
+        assert len(subscriptions) == len(channel_ids), (
+            f"Expected {len(channel_ids)} subscriptions, got {len(subscriptions)} "
+            "(BUG C4: only one subscription was recorded)"
+        )
+        returned_ids = {s["id"] for s in subscriptions}
+        assert returned_ids == set(channel_ids)
+
+        for s in subscriptions:
+            assert s["title"], "Subscription title must not be empty"
+            assert s["channel_url"].startswith("https://www.youtube.com/channel/")
+            assert s["video_count"] == 50
+            assert s["subscribers"] == "1000"
+            assert s["view_count"] == "20000"
+
+        # No NameError surfaced as a swallowed error (BUG C3).
+        assert "subscriptions_error" not in result or result.get("subscriptions_error") is None
