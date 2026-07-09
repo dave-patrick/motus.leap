@@ -88,8 +88,23 @@ class ConfigManager:
                             incoming["youtube_api_key"] = existing["youtube_api_key"]
                         if not incoming.get("ai_api_key") and existing.get("ai_api_key"):
                             incoming["ai_api_key"] = existing["ai_api_key"]
-                        if not incoming.get("channel_mappings") and existing.get("channel_mappings"):
-                            incoming["channel_mappings"] = existing["channel_mappings"]
+                        # LOSSLESS mappings: any channel mapping already on disk
+                        # but absent from the incoming set is preserved. This
+                        # prevents a stale concurrent save (e.g. a background
+                        # scan that captured the config object before an
+                        # auto-map/bulk-import merged new entries) from
+                        # clobbering mappings it never knew about.
+                        disk_maps = existing.get("channel_mappings") or {}
+                        if isinstance(disk_maps, list):
+                            from app import _serialize_mappings
+                            disk_maps = _serialize_mappings(disk_maps)
+                        inc_maps = incoming.get("channel_mappings") or {}
+                        if isinstance(inc_maps, list):
+                            from app import _serialize_mappings
+                            inc_maps = _serialize_mappings(inc_maps)
+                        merged_maps = dict(disk_maps)
+                        merged_maps.update(inc_maps)
+                        incoming["channel_mappings"] = merged_maps
                         data = incoming
                     else:
                         data = config.to_dict_for_storage()
