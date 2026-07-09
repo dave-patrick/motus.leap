@@ -221,10 +221,25 @@ window.open('/system/logs', '_blank');
                                         <button onclick="addMappingRow()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-3 py-1.5 rounded whitespace-nowrap">+ Add</button>
                                     </div>
                                 </div>
-                                <div class="p-3 overflow-y-auto flex-1" id="mappings-list"><div class="text-center text-gray-400 py-8">Loading...</div></div>
+                                <div id="selection-bar" class="hidden items-center gap-2 px-3 py-2 bg-[#2f8fc9]/10 border-b border-[#2f8fc9]/30 text-xs shrink-0">
+                                    <span id="sel-count" class="text-[#7fc4ee] font-semibold">0 selected</span>
+                                    <div class="flex-1"></div>
+                                    <select id="sel-playlist" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none max-w-[180px]"></select>
+                                    <button onclick="applyToSelected()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white px-2 py-1 rounded whitespace-nowrap">Set playlist</button>
+                                    <button onclick="removeSelected()" class="text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-400/40 whitespace-nowrap">Remove</button>
+                                    <button onclick="clearSelection()" class="text-gray-400 hover:text-white px-2 py-1 whitespace-nowrap">Clear</button>
+                                </div>
+                                <div class="p-3 overflow-y-auto flex-1">
+                                    <div id="mappings-list" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2"></div>
+                                </div>
                                 <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
-                                    <div class="text-[10px] text-gray-400">Channel ID → Playlist ID. Changes save automatically.</div>
-                                    <button id="save-mappings-btn" onclick="saveMappings()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1.5 rounded">Save All Mappings</button>
+                                    <div class="flex items-center justify-between">
+                                        <label class="flex items-center gap-2 text-[10px] text-gray-400 cursor-pointer select-none">
+                                            <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)" class="accent-[#2f8fc9]"> Select all (filtered)
+                                        </label>
+                                        <span class="text-[10px] text-gray-400">Changes save automatically</span>
+                                    </div>
+                                    <button onclick="saveMappings()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs py-1.5 rounded">Save All Mappings</button>
                                     <details class="group">
                                         <summary class="cursor-pointer text-[11px] text-gray-400 hover:text-gray-200 select-none">Bulk import by name ▾</summary>
                                         <div class="mt-2 flex flex-col gap-2">
@@ -761,6 +776,8 @@ window.open('/system/logs', '_blank');
                 _playlists.map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${p.title}</option>`).join('');
         }
 
+        const _selected = new Set();
+
         function renderMappingsList() {
             const list = document.getElementById('mappings-list');
             const q = (document.getElementById('mapping-search')?.value || '').toLowerCase().trim();
@@ -772,9 +789,12 @@ window.open('/system/logs', '_blank');
             });
 
             document.getElementById('mappings-count').textContent = `${Object.keys(_maps).length} mapped`;
+            // Drop selections no longer visible (filter changed).
+            [..._selected].forEach(id => { if (!ids.includes(id)) _selected.delete(id); });
+            updateSelectionBar();
 
             if (!ids.length) {
-                list.innerHTML = '<div class="text-center text-gray-400 py-8">No mappings yet. Load your subs or paste a Channel ID above.</div>';
+                list.innerHTML = '<div class="col-span-full text-center text-gray-400 py-8">No mappings yet. Load your subs or paste a Channel ID above.</div>';
                 return;
             }
 
@@ -782,32 +802,78 @@ window.open('/system/logs', '_blank');
                 const ch = _channels[id];
                 const avatar = ch && ch.thumbnail ? ch.thumbnail : 'https://picsum.photos/32';
                 const name = ch ? ch.title : id;
+                const checked = _selected.has(id) ? 'checked' : '';
                 return `
-                    <div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors border-b border-[#2a2f3a]/30">
-                        <div class="flex items-center gap-3 min-w-0">
-                            <img src="${avatar}" class="w-8 h-8 rounded-full object-cover shrink-0">
-                            <div class="min-w-0">
-                                <div class="text-xs font-semibold text-white truncate">${name}</div>
-                                <div class="text-[10px] text-gray-400 truncate">${id}</div>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-2 shrink-0">
-                            <select data-channel="${id}" onchange="onMappingChange('${id}', this.value)" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none w-48">
+                    <div class="flex items-center gap-2 p-2 rounded bg-[#20242c]/40 hover:bg-[#20242c] border border-[#2a2f3a]/50 ${_selected.has(id) ? 'ring-1 ring-[#2f8fc9]' : ''}">
+                        <input type="checkbox" class="sel-cb shrink-0 accent-[#2f8fc9]" data-channel="${id}" ${checked} onchange="onSelect('${id}', this.checked)">
+                        <img src="${avatar}" class="w-7 h-7 rounded-full object-cover shrink-0">
+                        <div class="min-w-0 flex-1">
+                            <div class="text-[11px] font-semibold text-white truncate">${name}</div>
+                            <select data-channel="${id}" onchange="onMappingChange('${id}', this.value)" class="mt-1 w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-1 py-1 outline-none">
                                 ${playlistOptions(_maps[id])}
                             </select>
-                            <button onclick="removeMapping('${id}')" class="text-gray-500 hover:text-red-400 text-sm px-1" title="Remove">&times;</button>
                         </div>
+                        <button onclick="removeMapping('${id}')" class="text-gray-500 hover:text-red-400 text-sm px-1 shrink-0 self-start" title="Remove">&times;</button>
                     </div>`;
             }).join('');
         }
 
-        function onMappingChange(channelId, playlistId) {
-            if (playlistId) _maps[channelId] = playlistId;
-            else delete _maps[channelId];
-            document.getElementById('mappings-count').textContent = `${Object.keys(_maps).length} mapped`;
+        function onSelect(channelId, checked) {
+            if (checked) _selected.add(channelId); else _selected.delete(channelId);
+            updateSelectionBar();
+            const cb = document.querySelector(`.sel-cb[data-channel="${channelId}"]`);
+            if (cb) cb.closest('div').classList.toggle('ring-1', checked), cb.closest('div').classList.toggle('ring-[#2f8fc9]', checked);
+        }
+
+        function toggleSelectAll(checked) {
+            Object.keys(_maps).forEach(id => {
+                if (checked) _selected.add(id); else _selected.delete(id);
+            });
+            document.querySelectorAll('.sel-cb').forEach(cb => cb.checked = checked);
+            updateSelectionBar();
+            renderMappingsList();
+        }
+
+        function updateSelectionBar() {
+            const bar = document.getElementById('selection-bar');
+            const n = _selected.size;
+            document.getElementById('sel-count').textContent = `${n} selected`;
+            bar.classList.toggle('hidden', n === 0);
+            bar.classList.toggle('flex', n > 0);
+            // Keep the bulk-playlist dropdown in sync with available playlists.
+            const sel = document.getElementById('sel-playlist');
+            if (sel && !sel.dataset.populated) {
+                sel.innerHTML = '<option value="">-- playlist --</option>' +
+                    _playlists.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
+                sel.dataset.populated = '1';
+            }
+        }
+
+        function clearSelection() {
+            _selected.clear();
+            document.querySelectorAll('.sel-cb').forEach(cb => cb.checked = false);
+            updateSelectionBar();
+            renderMappingsList();
+        }
+
+        function applyToSelected() {
+            const pid = document.getElementById('sel-playlist').value;
+            if (!pid) { toast('Pick a playlist first', 'error'); return; }
+            _selected.forEach(cid => { _maps[cid] = pid; });
+            toast(`Set playlist for ${_selected.size} channel(s)`, 'success');
+            renderMappingsList();
             scheduleSaveMappings();
         }
 
+        function removeSelected() {
+            if (!_selected.size) return;
+            const n = _selected.size;
+            _selected.forEach(cid => delete _maps[cid]);
+            _selected.clear();
+            renderMappingsList();
+            scheduleSaveMappings();
+            toast(`Removed ${n} mapping(s)`, 'success');
+        }
         function addMappingRow() {
             const idEl = document.getElementById('new-channel-id');
             const plEl = document.getElementById('new-playlist-id');
@@ -824,6 +890,7 @@ window.open('/system/logs', '_blank');
 
         function removeMapping(channelId) {
             delete _maps[channelId];
+            _selected.delete(channelId);
             renderMappingsList();
             scheduleSaveMappings();
         }
