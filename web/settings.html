@@ -753,6 +753,16 @@ window.open('/system/logs', '_blank');
                 (subs.channels || []).forEach(c => { _channels[c.id] = c; });
                 _playlists = plist.playlists || [];
 
+                // Seed channel names from persisted metadata (survives reload
+                // without re-hitting the YouTube API).
+                if (maps.metadata) {
+                    Object.entries(maps.metadata).forEach(([cid, info]) => {
+                        if (info && info.title && !_channels[cid]) {
+                            _channels[cid] = {id: cid, title: info.title, thumbnail: info.thumbnail || ''};
+                        }
+                    });
+                }
+
                 // Seed dropdown of playlists for the "Add" row.
                 const sel = document.getElementById('new-playlist-id');
                 sel.innerHTML = '<option value="">-- playlist --</option>' +
@@ -783,13 +793,23 @@ window.open('/system/logs', '_blank');
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const r = await resp.json();
                 let changed = false;
+                const toPersist = {};
                 Object.entries(r.titles || {}).forEach(([cid, info]) => {
                     if (info && info.title) {
                         _channels[cid] = {id: cid, title: info.title, thumbnail: info.thumbnail || ''};
+                        toPersist[cid] = {title: info.title, thumbnail: info.thumbnail || ''};
                         changed = true;
                     }
                 });
-                if (changed) renderMappingsList();
+                if (changed) {
+                    renderMappingsList();
+                    // Persist so names survive reload without re-fetching.
+                    fetch('/api/channels/metadata', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({metadata: toPersist})
+                    }).catch(() => {});
+                }
             } catch (e) {
                 console.warn('Channel name enrichment skipped:', e.message);
             } finally {

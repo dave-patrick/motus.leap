@@ -1124,7 +1124,7 @@ async def api_mappings() -> dict[str, Any]:
             for item in raw
         )
     
-    return {"mappings": _normalize_mappings(formatted)}
+    return {"mappings": _normalize_mappings(formatted), "metadata": config.channel_metadata or {}}
 
 
 @app.post("/api/channels/titles", dependencies=[Depends(get_current_user)])
@@ -1193,6 +1193,42 @@ async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any
     config.channel_mappings = _serialize_mappings(mappings)
     await config_manager.save(config)
     return {"message": "Mappings saved", "mappings": mappings}
+
+
+@app.post("/api/channels/metadata", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@limiter.limit("10/minute")
+async def save_channel_metadata(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+    """Persist resolved channel metadata (name/avatar) keyed by channel ID.
+
+    Merged losslessly into existing config.channel_metadata (never clobbers
+    other keys; save() also preserves mappings + credentials). Keeps channel
+    names on disk so the UI can render them immediately after a reload without
+    re-hitting the YouTube API.
+    """
+    incoming = body.get("metadata") or {}
+    if not isinstance(incoming, dict):
+        raise HTTPException(status_code=422, detail="metadata must be an object")
+
+    # Keep only well-formed entries.
+    clean = {}
+    for cid, info in incoming.items():
+        if not isinstance(cid, str) or not cid.startswith("UC"):
+            continue
+        if isinstance(info, dict) and info.get("title"):
+            clean[cid] = {
+                "title": str(info.get("title"))[:200],
+                "thumbnail": str(info.get("thumbnail", ""))[:500],
+            }
+    if len(clean) > 2000:
+        # Cap to bound disk growth; keep the first N.
+        clean = dict(list(clean.items())[:2000])
+
+    config = config_manager.config
+    merged = dict(config.channel_metadata or {})
+    merged.update(clean)
+    config.channel_metadata = merged
+    await config_manager.save(config)
+    return {"status": "success", "count": len(merged)}
 
 
 @app.post("/api/mappings/import", dependencies=[Depends(get_current_user), Depends(verify_origin)])

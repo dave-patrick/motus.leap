@@ -32,6 +32,10 @@ class TubeManagerConfig(BaseModel):
     ai_custom_model: str = Field(default="")
     ai_auto_apply_mappings: bool = Field(default=False)
     last_scan_time: Optional[str] = Field(default=None)
+    # Resolved channel metadata (name/avatar) keyed by channel ID. Populated by
+    # the mappings UI's name-enrichment pass and persisted so names survive a
+    # reload without re-hitting the YouTube API every time.
+    channel_metadata: Dict[str, Dict[str, str]] = Field(default_factory=dict)
 
     def to_dict_for_storage(self) -> Dict[str, Any]:
         """Convert to dictionary for storage.
