@@ -773,6 +773,15 @@ window.open('/system/logs', '_blank');
                 // Resolve real names for mapped channels that aren't in subs
                 // (e.g. Auto-mapped channels you watch but didn't subscribe to).
                 enrichChannelNames();
+                // Self-heal names on load using the FREE playlist-contents scan
+                // (no channels.list quota). If there are still mapped channels
+                // without a known name after seeding metadata, kick off a
+                // backfill so the grid fills in on a hard refresh without the
+                // user having to click "Resolve names" manually.
+                const needNames = Object.keys(_maps).filter(id => !_channels[id] || !_channels[id].title);
+                if (needNames.length) {
+                    backfillNames();
+                }
             } catch (e) {
                 console.error(e);
                 list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load mappings</div>';
