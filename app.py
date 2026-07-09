@@ -1524,8 +1524,7 @@ async def backfill_channel_names(request: Request) -> dict[str, Any]:
                         titles.setdefault(cid, t or cid)
                 except Exception as e:  # noqa: BLE001
                     log.warning(f"[backfill] orphan scan {cand['dir']}: {e}")
-                if titles:
-                    break
+                # Merge every sibling cache (not just the first) for max coverage.
 
     config = config_manager.config
     md = dict(config.channel_metadata or {})

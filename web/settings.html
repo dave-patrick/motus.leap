@@ -791,7 +791,13 @@ window.open('/system/logs', '_blank');
         let _enriching = false;
         async function enrichChannelNames() {
             if (_enriching) return;
-            const missing = Object.keys(_maps).filter(id => !_channels[id]);
+            // Target channels with NO name OR NO thumbnail: channels.list
+            // returns both, so this upgrades monogram avatars -> real photos
+            // for already-named channels that were seeded without a thumbnail.
+            const missing = Object.keys(_maps).filter(id => {
+                const c = _channels[id];
+                return !c || !c.title || !c.thumbnail;
+            });
             if (!missing.length) return;
             _enriching = true;
             try {
@@ -845,9 +851,12 @@ window.open('/system/logs', '_blank');
                 });
                 renderMappingsList();
                 const d = r.diagnostics || {};
-                const cands = (d.all_data_candidates || []).map(c => `${c.videos}v@${c.dir.split('/').pop()}`).join(',');
+                const cands = (d.all_data_candidates || []).map(c => `${c.videos}v@${c.dir.split('/').lastIndexOf('/') >= 0 ? c.dir.split('/').pop() : c.dir}`).join(',');
                 const detail = `resolved ${r.names_added} new (${r.total_named} total) · all_data ${r.all_data_scanned} vids · found ${r.titles_found} titles` + (r.playlists_scanned ? `` : ` · (playlists EMPTY)`) + (cands ? ` · caches:[${cands}]` : ``);
                 toast(detail, r.names_added > 0 || r.total_named > 0 ? 'success' : 'error');
+                // Backfill may have seeded names (but no thumbnails) -> let
+                // channels.list upgrade monogram avatars to real photos.
+                enrichChannelNames();
             } catch (e) {
                 console.warn('Backfill names failed:', e.message);
                 toast('Could not resolve names: ' + e.message, 'error');
