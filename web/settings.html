@@ -1004,27 +1004,6 @@ window.open('/system/logs', '_blank');
             }
         }
 
-        async function saveMappings() {
-            toast('Saving all mappings...', 'info');
-            const mappings = {};
-            document.querySelectorAll('#mappings-list select').forEach(sel => {
-                const ch = sel.dataset.channel;
-                if (ch && sel.value) {
-                    mappings[ch] = sel.value;
-                }
-            });
-            try {
-                await fetch('/api/mappings', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({mappings})
-                });
-                toast('Mappings saved successfully', 'success');
-            } catch (e) {
-                toast('Failed to save mappings', 'error');
-            }
-        }
-
         function retrainModel(btn) {
             btn.disabled = true;
             const origText = btn.textContent;
