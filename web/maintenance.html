@@ -168,10 +168,16 @@
                 const _playlists = Array.isArray(item.playlists) ? item.playlists : [];
                 const _plText = _playlists.map(p => DOMPurify.sanitize(p.title || p.id || '')).join(', ');
                 const _fromTo = (_from && _to && _to !== '?') ? `${_from} → ${_to}` : (_plText || '?');
+                // Duplicate-specific extras (re-upload / multi-playlist aware)
+                const _copies = item.copy_count ? Number(item.copy_count) : 0;
+                const _exact = item.exact_duplicate;
+                const _dupMeta = type === 'dup' && _copies
+                    ? `<span class="text-[9px] ${_exact ? 'text-yellow-400' : 'text-orange-400'}">${_copies} copies${_exact ? ' (same ID)' : ' (re-upload)'}</span>`
+                    : '';
                 return `
                 <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a] mb-2">
                     <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${_thumb}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://picsum.photos/32/24'"></div>
-                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${_title}</div><div class="text-[9px] text-gray-400 truncate">${_fromTo}</div></div>
+                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${_title}</div><div class="text-[9px] text-gray-400 truncate">${_fromTo}</div>${_dupMeta}</div>
                     ${type === 'move' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>${_to || 'Move from X to Y'}</option></select>` : ''}
                     ${type === 'dup' ? `<div class="flex gap-1"><button class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Keep</button><button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>` : ''}
                     ${type === 'misplaced' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>Move to ${_to || 'Correct Playlist'}</option></select>` : ''}

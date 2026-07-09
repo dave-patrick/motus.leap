@@ -15,6 +15,20 @@ from core.config_manager import ConfigManager
 log = logging.getLogger(__name__)
 
 
+def _best_thumbnail_local(thumbs: Optional[dict]) -> str:
+    """Prefer the highest-resolution YouTube thumbnail available (no API cost).
+
+    Local copy of youtube_service._best_thumbnail so the worker need not import
+    the service module at module load time.
+    """
+    if not thumbs:
+        return ""
+    for key in ("maxres", "standard", "high", "medium", "default"):
+        url = (thumbs or {}).get(key, {}).get("url") if isinstance(thumbs, dict) else None
+        if url:
+            return url
+    return ""
+
 def _is_retryable_error(exc: Exception) -> bool:
     """Check if an exception is retryable (429 rate limit or 5xx server errors)."""
     # Check for HTTP status codes in common exception patterns
@@ -278,6 +292,7 @@ class BackgroundWorker:
             # Real duplicate and misplaced detection
             video_to_playlists = {} # video_id -> list of (playlist_id, playlist_title)
             video_titles = {} # video_id -> video_title
+            all_video_records = [] # full per-copy records for fingerprint dedup
             misplaced_videos = []
             
             # Load mappings from config
@@ -330,6 +345,19 @@ class BackgroundWorker:
                     if video_id:
                         video_titles[video_id] = video_title
                         video_to_playlists.setdefault(video_id, []).append((pl_id, pl_title))
+                        # Keep a full per-copy record for fingerprint dedup so
+                        # re-uploads (fresh IDs) are caught, not just same-ID
+                        # copies. thumbnail is free (no extra API cost).
+                        snip = item.get("snippet", {}) or {}
+                        all_video_records.append({
+                            "video_id": video_id,
+                            "title": video_title,
+                            "channel_id": snip.get("videoOwnerChannelId") or snip.get("channelId", ""),
+                            "channel_title": snip.get("videoOwnerChannelTitle") or snip.get("channelTitle", ""),
+                            "playlist_id": pl_id,
+                            "playlist_title": pl_title,
+                            "thumbnail": _best_thumbnail_local(snip.get("thumbnails")),
+                        })
                         
                         # Misplaced video check
                         owner_channel_id = item.get("snippet", {}).get("videoOwnerChannelId")
@@ -352,15 +380,23 @@ class BackgroundWorker:
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."}))
             # await asyncio.sleep(1) # Removed
             
-            # Filter duplicates
+            # Filter duplicates — fingerprint-based so re-uploads (fresh video
+            # IDs) and multi-playlist copies all collapse into one group,
+            # regardless of how many playlists a clip spans.
+            from services.duplicate_detector import compute_duplicate_groups
+            duplicate_groups = compute_duplicate_groups(all_video_records)
             duplicated_videos = []
-            for video_id, pls in video_to_playlists.items():
-                if len(pls) > 1:
-                    duplicated_videos.append({
-                        "video_id": video_id,
-                        "video_title": video_titles[video_id],
-                        "playlists": [{"id": p[0], "title": p[1]} for p in pls]
-                    })
+            for g in duplicate_groups:
+                duplicated_videos.append({
+                    "video_id": g["canonical_video_id"],
+                    "video_title": g["video_title"],
+                    "channel_title": g["channel_title"],
+                    "thumbnail": next((c["thumbnail"] for c in g["copies"] if c["thumbnail"]), ""),
+                    "variant_ids": g["variant_ids"],
+                    "exact_duplicate": g["exact_duplicate"],
+                    "copy_count": g["copy_count"],
+                    "playlists": g["playlists"],
+                })
                     
             # Build move suggestions
             move_suggestions = []
@@ -545,10 +581,11 @@ class BackgroundWorker:
         if self.youtube_service:
             videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
             videos = videos_data.get("videos", [])
-            video_ids = [v.get("video_id") for v in videos if v.get("video_id")]
-            duplicates = len(video_ids) - len(set(video_ids))
-        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate videos"}))
-        return {"duplicates": duplicates}
+            from services.duplicate_detector import compute_duplicate_groups
+            groups = compute_duplicate_groups(videos)
+            duplicates = sum(g["copy_count"] - 1 for g in groups)
+            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate video copies across {len(groups)} groups"}))
+            return {"duplicates": duplicates, "groups": groups}
 
     async def scan_misplaced(self, payload):
         """Scan playlist for misplaced videos based on rules."""
