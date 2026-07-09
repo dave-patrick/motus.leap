@@ -759,9 +759,41 @@ window.open('/system/logs', '_blank');
                     _playlists.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
 
                 renderMappingsList();
+                // Resolve real names for mapped channels that aren't in subs
+                // (e.g. Auto-mapped channels you watch but didn't subscribe to).
+                enrichChannelNames();
             } catch (e) {
                 console.error(e);
                 list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load mappings</div>';
+            }
+        }
+
+        let _enriching = false;
+        async function enrichChannelNames() {
+            if (_enriching) return;
+            const missing = Object.keys(_maps).filter(id => !_channels[id]);
+            if (!missing.length) return;
+            _enriching = true;
+            try {
+                const resp = await fetch('/api/channels/titles', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({channel_ids: missing})
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const r = await resp.json();
+                let changed = false;
+                Object.entries(r.titles || {}).forEach(([cid, info]) => {
+                    if (info && info.title) {
+                        _channels[cid] = {id: cid, title: info.title, thumbnail: info.thumbnail || ''};
+                        changed = true;
+                    }
+                });
+                if (changed) renderMappingsList();
+            } catch (e) {
+                console.warn('Channel name enrichment skipped:', e.message);
+            } finally {
+                _enriching = false;
             }
         }
 

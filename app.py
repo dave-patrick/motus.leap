@@ -1127,6 +1127,63 @@ async def api_mappings() -> dict[str, Any]:
     return {"mappings": _normalize_mappings(formatted)}
 
 
+@app.post("/api/channels/titles", dependencies=[Depends(get_current_user)])
+@limiter.limit("20/minute")
+async def api_channel_titles(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+    """Batch-resolve channel IDs -> {title, thumbnail} via channels.list.
+
+    Used by the mappings UI to show real channel names for Auto-mapped
+    channels that aren't in the user's subscriptions (so they can be
+    reviewed/corrected instead of showing raw UC... IDs).
+    """
+    channel_ids = body.get("channel_ids") or []
+    if not isinstance(channel_ids, list):
+        channel_ids = [channel_ids]
+    # De-dupe, keep valid-looking UC IDs, cap to avoid abuse.
+    seen = set()
+    cleaned = []
+    for cid in channel_ids:
+        cid = (cid or "").strip()
+        if cid and cid not in seen and cid.startswith("UC") and len(cid) > 10:
+            seen.add(cid)
+            cleaned.append(cid)
+    cleaned = cleaned[:1000]
+
+    result: dict[str, Any] = {}
+    if not cleaned:
+        return {"titles": result}
+
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    try:
+        google_client = yt_client._get_client(require_oauth=True)
+        if google_client is None:
+            raise HTTPException(status_code=401, detail="OAuth client not available")
+    except Exception as e:
+        log.error(f"Error getting YouTube client for channel titles: {e}")
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+
+    # channels.list accepts up to 50 ids per call.
+    for i in range(0, len(cleaned), 50):
+        batch = cleaned[i:i + 50]
+        try:
+            resp = google_client.channels().list(
+                part="snippet", id=",".join(batch), maxResults=50
+            ).execute()
+            for item in resp.get("items", []):
+                cid = item["id"]
+                sn = item.get("snippet", {})
+                thumbs = sn.get("thumbnails", {})
+                thumb = (thumbs.get("default") or thumbs.get("medium") or {}).get("url", "")
+                result[cid] = {"title": sn.get("title", ""), "thumbnail": thumb}
+        except Exception as e:
+            log.error(f"Error resolving channel titles batch {i}: {e}")
+            # Leave unresolved IDs out; frontend keeps the raw ID fallback.
+
+    return {"titles": result}
+
+
 @app.post("/api/mappings", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 @limiter.limit("30/minute")  # Rate limit: 30 save operations per minute
 async def save_mappings(request: Request, body: dict[str, Any]) -> dict[str, Any]:
