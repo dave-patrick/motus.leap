@@ -778,7 +778,10 @@ window.open('/system/logs', '_blank');
                 // without a known name after seeding metadata, kick off a
                 // backfill so the grid fills in on a hard refresh without the
                 // user having to click "Resolve names" manually.
-                const needNames = Object.keys(_maps).filter(id => !_channels[id] || !_channels[id].title);
+                const needNames = Object.keys(_maps).filter(id => {
+                    const c = _channels[id];
+                    return !c || !c.title || !c.thumbnail;
+                });
                 if (needNames.length) {
                     backfillNames();
                 }
