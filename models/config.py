@@ -34,20 +34,33 @@ class TubeManagerConfig(BaseModel):
     last_scan_time: Optional[str] = Field(default=None)
 
     def to_dict_for_storage(self) -> Dict[str, Any]:
-        """Convert to dictionary for safe storage, excluding secrets."""
+        """Convert to dictionary for storage.
+
+        NOTE: OAuth tokens ARE persisted here (the on-disk config at
+        /app/data/config.json is the app's private credential store and the
+        live app needs them to stay authenticated across reloads/saves).
+        They are NOT exposed via any API response — endpoints redact them
+        before sending to the client — so persisting them is safe and
+        required to prevent every config save from silently disconnecting
+        YouTube.
+        """
         def _secret(val):
             """Safely extract secret value from SecretStr or plain string."""
             if hasattr(val, 'get_secret_value'):
                 return val.get_secret_value()
             return str(val) if val else ""
+
         data = self.model_dump(exclude_none=True)
         data['oauth'] = {
             'client_id': self.oauth.client_id,
+            'client_secret': _secret(self.oauth.client_secret) if self.oauth.client_secret else '',
+            'access_token': _secret(self.oauth.access_token) if self.oauth.access_token else None,
+            'refresh_token': _secret(self.oauth.refresh_token) if self.oauth.refresh_token else None,
+            'token_expiry': self.oauth.token_expiry,
         }
-        data['youtube_api_key'] = ""
-        data['ai_api_key'] = ""
+        data['youtube_api_key'] = _secret(self.youtube_api_key) if self.youtube_api_key else ''
+        data['ai_api_key'] = _secret(self.ai_api_key) if self.ai_api_key else ''
         return data
-
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TubeManagerConfig':
         """Create from dictionary, handling nested structures."""
