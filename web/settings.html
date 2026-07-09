@@ -274,12 +274,25 @@ window.open('/system/logs', '_blank');
                                 </div>
                             </div>
                             <div class="bento-card flex flex-col overflow-hidden h-[550px]">
-                                <div class="px-4 py-3 border-b border-[#2a2f3a]"><h3 class="text-xs font-semibold text-gray-300">Channel → Playlist Mappings</h3></div>
-                                <div class="p-3 overflow-y-auto flex-1" id="mappings-list">Loading...</div>
+                                <div class="px-4 py-3 border-b border-[#2a2f3a] flex items-center justify-between">
+                                    <h3 class="text-xs font-semibold text-gray-300">Channel → Playlist Mappings</h3>
+                                    <span id="mappings-count" class="text-[10px] text-gray-500">0 mapped</span>
+                                </div>
+                                <div class="p-3 border-b border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
+                                    <div class="flex gap-2">
+                                        <input id="mapping-search" type="text" placeholder="Filter channels..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]" oninput="renderMappingsList()">
+                                        <button onclick="loadChannelMappings()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Load Subs</button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <input id="new-channel-id" type="text" placeholder="Channel ID (e.g. UC...)" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]">
+                                        <select id="new-playlist-id" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]"></select>
+                                        <button onclick="addMappingRow()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-3 py-1.5 rounded whitespace-nowrap">+ Add</button>
+                                    </div>
+                                </div>
+                                <div class="p-3 overflow-y-auto flex-1" id="mappings-list"><div class="text-center text-gray-400 py-8">Loading...</div></div>
                                 <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
-                                    <div class="text-[10px] text-gray-400">These mappings override the JSON rules above. Channel ID → Playlist ID</div>
-                                    <button id="load-channel-mappings-btn" onclick="loadChannelMappings()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1.5 rounded">Load from Channel Map</button>
-                                    <button id="save-mappings-btn" onclick="saveMappings()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1.5 rounded">Save Mappings</button>
+                                    <div class="text-[10px] text-gray-400">Mappings override the JSON rules above. Channel ID → Playlist ID.</div>
+                                    <button id="save-mappings-btn" onclick="saveMappings()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1.5 rounded">Save All Mappings</button>
                                 </div>
                             </div>
                         </div>
@@ -368,6 +381,8 @@ window.open('/system/logs', '_blank');
 
             const activePane = document.getElementById(`tab-content-${tabId}`);
             if (activePane) activePane.classList.remove('hidden');
+
+            if (tabId === 'rules') initMappings();
 
             const activeBtn = document.getElementById(`tab-btn-${tabId}`);
             if (activeBtn) {
@@ -739,75 +754,154 @@ window.open('/system/logs', '_blank');
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
 
+        // --- Channel -> Playlist mappings editor (client-side working set) ---
+        let _maps = {};        // channelId -> playlistId
+        let _channels = {};     // channelId -> {title, thumbnail}
+        let _playlists = [];    // [{id, title}]
+
+        async function refreshMappingsData() {
+            // Pull channels + playlists once so dropdowns/avatars are available.
+            try {
+                const [subsResp, plistResp] = await Promise.all([
+                    fetch('/api/subscriptions'),
+                    fetch('/api/playlists')
+                ]);
+                const subs = await subsResp.json();
+                const plist = await plistResp.json();
+                (subs.channels || []).forEach(c => { _channels[c.id] = c; });
+                _playlists = plist.playlists || [];
+            } catch (e) { /* non-fatal: mappings still editable by ID */ }
+        }
+
         async function loadChannelMappings() {
             const list = document.getElementById('mappings-list');
+            list.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Loading...</div>';
             try {
                 const [mapsResp, subsResp, plistResp] = await Promise.all([
                     fetch('/api/mappings'),
                     fetch('/api/subscriptions'),
                     fetch('/api/playlists')
                 ]);
-
                 const maps = await mapsResp.json();
                 const subs = await subsResp.json();
                 const plist = await plistResp.json();
 
-                const mappings = maps.mappings || {};
-                const channels = subs.channels || [];
-                const playlists = plist.playlists || [];
+                _maps = maps.mappings || {};
+                (subs.channels || []).forEach(c => { _channels[c.id] = c; });
+                _playlists = plist.playlists || [];
 
-                if (!channels.length) {
-                    list.innerHTML = '<div class="text-center text-gray-400 py-8">No channels mapped. Click "Load from Channel Map" to start.</div>';
-                    return;
-                }
+                // Seed dropdown of playlists for the "Add" row.
+                const sel = document.getElementById('new-playlist-id');
+                sel.innerHTML = '<option value="">-- playlist --</option>' +
+                    _playlists.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
 
-                list.innerHTML = channels.map(c => {
-                    const currentMap = mappings[c.id] || '';
-                    const options = playlists.map(p => `<option value="${p.id}" ${p.id === currentMap ? 'selected' : ''}>${p.title}</option>`).join('');
-                    return `
-                        <div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors border-b border-[#2a2f3a]/30">
-                            <div class="flex items-center gap-3">
-                                <img src="${c.thumbnail || 'https://picsum.photos/32'}" class="w-8 h-8 rounded-full object-cover">
-                                <div>
-                                    <div class="text-xs font-semibold text-white">${c.title}</div>
-                                    <div class="text-[10px] text-gray-400">Channel ID: ${c.id}</div>
-                                </div>
-                            </div>
-                            <div>
-                                <select data-channel="${c.id}" onchange="updateSingleMapping('${c.id}', this.value)" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none w-48">
-                                    <option value="">-- No mapping --</option>
-                                    ${options}
-                                </select>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+                renderMappingsList();
             } catch (e) {
                 console.error(e);
                 list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load mappings</div>';
             }
         }
 
-        async function updateSingleMapping(channelId, playlistId) {
+        async function initMappings() {
+            // Auto-load when the mappings tab is shown (or on first paint if hash=settings/mappings).
+            await refreshMappingsData();
+            await loadChannelMappings();
+        }
+
+        function playlistOptions(selected) {
+            return '<option value="">-- No mapping --</option>' +
+                _playlists.map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${p.title}</option>`).join('');
+        }
+
+        function renderMappingsList() {
+            const list = document.getElementById('mappings-list');
+            const q = (document.getElementById('mapping-search')?.value || '').toLowerCase().trim();
+            const ids = Object.keys(_maps).filter(id => {
+                if (!q) return true;
+                const ch = _channels[id];
+                const title = ch ? (ch.title || '').toLowerCase() : '';
+                return id.toLowerCase().includes(q) || title.includes(q);
+            });
+
+            document.getElementById('mappings-count').textContent = `${Object.keys(_maps).length} mapped`;
+
+            if (!ids.length) {
+                list.innerHTML = '<div class="text-center text-gray-400 py-8">No mappings yet. Load your subs or paste a Channel ID above.</div>';
+                return;
+            }
+
+            list.innerHTML = ids.map(id => {
+                const ch = _channels[id];
+                const avatar = ch && ch.thumbnail ? ch.thumbnail : 'https://picsum.photos/32';
+                const name = ch ? ch.title : id;
+                return `
+                    <div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors border-b border-[#2a2f3a]/30">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <img src="${avatar}" class="w-8 h-8 rounded-full object-cover shrink-0">
+                            <div class="min-w-0">
+                                <div class="text-xs font-semibold text-white truncate">${name}</div>
+                                <div class="text-[10px] text-gray-400 truncate">${id}</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <select data-channel="${id}" onchange="onMappingChange('${id}', this.value)" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none w-48">
+                                ${playlistOptions(_maps[id])}
+                            </select>
+                            <button onclick="removeMapping('${id}')" class="text-gray-500 hover:text-red-400 text-sm px-1" title="Remove">&times;</button>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function onMappingChange(channelId, playlistId) {
+            if (playlistId) _maps[channelId] = playlistId;
+            else delete _maps[channelId];
+            document.getElementById('mappings-count').textContent = `${Object.keys(_maps).length} mapped`;
+            scheduleSaveMappings();
+        }
+
+        function addMappingRow() {
+            const idEl = document.getElementById('new-channel-id');
+            const plEl = document.getElementById('new-playlist-id');
+            const cid = (idEl.value || '').trim();
+            const pid = plEl.value || '';
+            if (!cid) { toast('Enter a Channel ID', 'error'); return; }
+            if (!pid) { toast('Pick a playlist', 'error'); return; }
+            _maps[cid] = pid;
+            idEl.value = '';
+            plEl.value = '';
+            renderMappingsList();
+            scheduleSaveMappings();
+        }
+
+        function removeMapping(channelId) {
+            delete _maps[channelId];
+            renderMappingsList();
+            scheduleSaveMappings();
+        }
+
+        let _saveTimer = null;
+        function scheduleSaveMappings() {
+            clearTimeout(_saveTimer);
+            _saveTimer = setTimeout(() => saveMappings(true), 600);
+        }
+
+        async function saveMappings(silent = false) {
+            if (!silent) toast('Saving all mappings...', 'info');
+            const mappings = {};
+            Object.keys(_maps).forEach(k => { if (_maps[k]) mappings[k] = _maps[k]; });
             try {
-                const mapsResp = await fetch('/api/mappings');
-                const maps = await mapsResp.json();
-                const mappings = maps.mappings || {};
-
-                if (playlistId) {
-                    mappings[channelId] = playlistId;
-                } else {
-                    delete mappings[channelId];
-                }
-
-                await fetch('/api/mappings', {
+                const resp = await fetch('/api/mappings', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({mappings})
                 });
-                toast('Mapping updated', 'success');
+                const result = await resp.json();
+                if (!resp.ok) throw new Error(result.error || ('HTTP ' + resp.status));
+                document.getElementById('mappings-count').textContent = `${Object.keys(mappings).length} mapped`;
+                if (!silent) toast('Mappings saved', 'success');
             } catch (e) {
-                toast('Failed to update mapping', 'error');
+                toast('Failed to save mappings: ' + (e.message || 'Network error'), 'error');
             }
         }
 
@@ -977,7 +1071,7 @@ window.open('/system/logs', '_blank');
 function initSettingsPage() {
             loadDashboardStats();
             loadSettings();
-            loadChannelMappings();
+            initMappings();
 
             // Highlight active sidebar link based on current path
             const activeMap = {'/settings': 'Settings', '/rules': 'Settings', '/ai': 'Settings'};
