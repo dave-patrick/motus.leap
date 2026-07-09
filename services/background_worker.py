@@ -270,11 +270,11 @@ class BackgroundWorker:
             # Fetch user's playlists
             await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Fetching playlist data from YouTube API..."}))
             playlists = []
-            page_token = None
+            playlist_page_token = None
             while True:
                 try:
                     playlists_resp = await _retry_with_backoff(
-                        lambda pt=page_token: asyncio.to_thread(client.list_mine_playlists, max_results=50, page_token=pt),
+                        lambda pt=playlist_page_token: asyncio.to_thread(client.list_mine_playlists, max_results=50, page_token=pt),
                         max_retries=3,
                         base_delay=1.0,
                         label="list_mine_playlists",
@@ -284,8 +284,8 @@ class BackgroundWorker:
                     break
                 items = playlists_resp.get("items", [])
                 playlists.extend(items)
-                page_token = playlists_resp.get("nextPageToken")
-                if not page_token:
+                playlist_page_token = playlists_resp.get("nextPageToken")
+                if not playlist_page_token:
                     break
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"}))
             
@@ -311,11 +311,11 @@ class BackgroundWorker:
                 try:
                     # Paginate past YouTube's 50-per-page cap so long playlists
                     # are fully collected rather than silently truncated.
-                    page_token = None
+                    video_page_token = None
                     all_items = []
                     while True:
                         page_resp = await _retry_with_backoff(
-                            lambda pt=page_token: asyncio.to_thread(
+                            lambda pt=video_page_token: asyncio.to_thread(
                                 client.list_videos, pl_id, max_results=50, page_token=pt
                             ),
                             max_retries=3,
@@ -326,7 +326,7 @@ class BackgroundWorker:
                         next_token = page_resp.get("nextPageToken")
                         if not next_token:
                             break
-                        page_token = next_token
+                        video_page_token = next_token
                     items_resp = {"items": all_items}
                 except Exception as video_err:
                     log.warning(f"[WORKER] Failed to fetch videos for playlist {pl_id}: {video_err}")

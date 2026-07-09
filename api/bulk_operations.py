@@ -15,13 +15,18 @@ import base64
 import asyncio
 import threading
 
+from api.auth import get_current_user, verify_origin
 from api.bulk_operations_impl import BulkOperationsService
 from core.config_manager import ConfigManager
 from models.config import TubeManagerConfig
 
 log = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/bulk", tags=["bulk"])
+router = APIRouter(
+    prefix="/api/bulk",
+    tags=["bulk"],
+    dependencies=[Depends(get_current_user), Depends(verify_origin)],
+)
 
 # ============================================================================
 # Dependency Functions
