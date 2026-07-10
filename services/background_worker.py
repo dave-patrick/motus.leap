@@ -556,10 +556,19 @@ class BackgroundWorker:
                     await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Playlists: {pl_error}"}))
                 if sub_error:
                     await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Subscriptions: {sub_error}"}))
-                # Both failing with 403 likely means OAuth token issue
+                # 403 => token expired / missing scope. But a 200 with 0 items
+                # (no error) is the subtler failure: the OAuth token is valid but
+                # the authorized account currently exposes no playlists/
+                # subscriptions — almost always (a) re-authorized against a
+                # DIFFERENT Google account, or (b) the app lacks the YouTube
+                # scope. Surface that clearly so the operator isn't left with a
+                # cryptic empty result.
                 if ("403" in (sub_error or "") or "403" in (pl_error or "")):
                     await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] YouTube returned 403 — your OAuth token may be expired or missing the YouTube scope."}))
                     await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] Go to Settings → scroll to YouTube section → click 'Re-authorize YouTube' to get a fresh token."}))
+                elif ("0 playlists" in (pl_error or "") or "0 subscriptions" in (sub_error or "")):
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] YouTube returned 0 playlists/subscriptions with NO error (HTTP 200). This usually means the OAuth token is valid but authorized for a DIFFERENT Google account than the one holding your playlists, or the app is missing the YouTube read scope."}))
+                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] In Settings → YouTube, click 'Re-authorize YouTube' and sign in with the SAME account that owns your playlists, granting the YouTube scope. Then run Sync again."}))
                 msg = f"[SYNC] Sync failed — YouTube API returned errors"
             else:
                 msg = f"[SYNC] Successfully synchronized {total_playlists} playlists, {total_videos} videos, {total_subs} subscriptions. Cache updated."
