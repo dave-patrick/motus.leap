@@ -112,9 +112,6 @@ class BackgroundWorker:
         self._current_task: Optional[asyncio.Task] = None
         self._cancel_requested = False
         # Playlist cache for AI mode
-        self._playlist_cache = None
-        self._playlist_cache_time = 0
-        self._playlist_cache_ttl = 3600  # 1 hour TTL
 
     def cancel_current_task(self):
         """Request cancellation of the currently running task.
@@ -139,28 +136,6 @@ class BackgroundWorker:
         if self._current_task is not None and not self._current_task.done():
             self._current_task.cancel()
         log.info("[WORKER] Cancel requested — current task will stop, queue drained")
-
-    async def _ensure_playlist_cache(self, client):
-        """Ensure playlist cache is populated and valid (1 hour TTL)."""
-        import time
-        now = time.time()
-        if self._playlist_cache and (now - self._playlist_cache_time) < self._playlist_cache_ttl:
-            return
-        
-        try:
-            pl_data = await asyncio.to_thread(client.list_mine_playlists, max_results=50)
-            self._playlist_cache = []
-            for pl in pl_data.get("items", []):
-                pid = pl.get("id", "")
-                pt = pl.get("snippet", {}).get("title", "")
-                if pid and pt:
-                    self._playlist_cache.append((pid, pt))
-            self._playlist_cache_time = now
-            log.info(f"[WORKER] Refreshed playlist cache: {len(self._playlist_cache)} playlists")
-        except Exception as e:
-            log.warning(f"Failed to refresh playlist cache: {e}")
-            if not self._playlist_cache:
-                self._playlist_cache = []
 
     @property
     def youtube_service(self):

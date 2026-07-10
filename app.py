@@ -358,17 +358,12 @@ def _sync_worker_youtube_service() -> None:
 
     After endpoints (disconnect / save_settings / reset) replace the module
     global ``youtube_service`` with a fresh instance, the worker would
-    otherwise keep a stale client reference (and a stale playlist cache built
-    from the old account). The worker's ``youtube_service`` property reads
-    ``app.youtube_service`` dynamically, but its fallback ``_youtube_service``
-    and ``_playlist_cache`` must be refreshed explicitly so in-flight and
+    otherwise keep a stale client reference. The worker's ``youtube_service``
+    property reads ``app.youtube_service`` dynamically, so in-flight and
     future tasks use the new credentials.
     """
     if background_worker is not None and youtube_service is not None:
         background_worker._youtube_service = youtube_service
-        # Drop any playlist cache derived from the old account.
-        background_worker._playlist_cache = None
-        background_worker._playlist_cache_time = 0
 
 
 
