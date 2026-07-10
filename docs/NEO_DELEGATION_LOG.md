@@ -72,6 +72,14 @@ George (the butler agent) delegates **ALL** coding to the subagent **Neo** (skil
 - **Root cause + resolution:** user RE-AUTHORIZED YouTube in Settings. Code resets cached client on re-auth (`api/auth.py:1132 app_youtube_service._client = None`), so new token took effect. Re-run sync → **"Successfully synchronized 61 playlists, 9287 videos, 465 subscriptions."** ✅ RESOLVED.
 - **Lesson (honesty):** a 200-with-0-`mine` result after deploy is almost always a stale/invalid OAuth token, NOT a regression. The scan's "479 forever" was misleading cached data — never trust a cached count as proof the live API works.
 
+## [INVESTIGATION] 2026-07-10 — why the card said "479" but live scan said "24 duplicates / 10 groups"
+- **Surface:** after re-auth, `scan_duplicates` (agent command) reported 24 extra copies / 10 groups; the Scan Details card (pre-fix) showed 479 from stale maintenance.json. Fixed card-staleness in `8597fb1` (persist live scan → maintenance.json, MERGE not clobber, full-scan only).
+- **Deeper cause found (REAL BUG, distinct from staleness):** `fetch_all_data` TRUNCATES the synced video set — youtube_service.py:944-945 `max_playlists = 50 if force_refresh else 10`, `max_total_videos = 2000 if force_refresh else 500`; and youtube_service.py:980 `playlists[:max_playlists]` + :991 `if len(videos) >= max_total_videos: break`.
+  - Library = **61 playlists, 9,287 videos**. A sync fetches only the first 10 (or 50) playlists and stops at 500 (or 2000) videos. `get_videos(playlist_id=None)` → `fetch_all_data()` therefore returns a PARTIAL library; the live `scan_duplicates` fingerprint-matches only that partial set → undercounts (24 vs the cluster scan's 479 on the FULL library).
+  - The background **cluster scan** (`full_cluster_scan`, background_worker.py:316-329) paginates EVERY playlist fully with NO cap → it sees all 9,287 videos → 479 duplicates is the CORRECT count; 24 was an undercount caused by the sync cap.
+- **Consequence:** the dashboard duplicate scan (and anything reading the synced "all_data" video cache) only examines a fraction of the library. Masked earlier by the token outage; now exposed.
+- **Fix not yet applied (needs user sign-off):** raise/remove the caps to cover the full library SAFELY — keep the existing Semaphore(1) sequential fetch (heap-safe on Render), set e.g. `max_playlists = 200` and `max_total_videos = 12000`. Do NOT silently remove quota guards. This changes sync runtime/quota, so George will get explicit approval before shipping (candidate for MoA break-glass if it regresses on Render).
+
 ## [JNU-001] 2026-07-09 — First archival audit (Duty 1)
 - **Brief sent to Jnu:** inventory tree; backfill missing commit/deploy records (esp. predates-ledger commits like `4c6fb0d`); refresh memory mirror; check ledger completeness; scan sessions for gold.
 - **Status:** ✅ COMPLETE (verified by George).
