@@ -161,33 +161,97 @@
             }
             el.innerHTML = items.map(item => {
                 const _vid = DOMPurify.sanitize(item.video_id || '');
-                const _thumb = DOMPurify.sanitize(maintenanceThumb(_vid));
+                const _thumb = DOMPurify.sanitize(maintenanceThumb(item.video_id || ''));
                 const _title = DOMPurify.sanitize(item.video_title || item.title || '');
-                const _from = DOMPurify.sanitize(item.current_playlist_title || item.source_playlist_title || item.from_playlist || item.playlist_a || '');
-                const _to = DOMPurify.sanitize(item.mapped_playlist_title || item.target_playlist_title || item.to_playlist || item.suggested || item.playlist_b || '?');
-                const _playlists = Array.isArray(item.playlists) ? item.playlists : [];
-                const _plText = _playlists.map(p => DOMPurify.sanitize(p.title || p.id || '')).join(', ');
-                const _fromTo = (_from && _to && _to !== '?') ? `${_from} → ${_to}` : (_plText || '?');
+                // Resolve real playlist NAMES (fall back to the raw ID only as last resort).
+                let _from = '', _fromId = '', _to = '', _toId = '', _plText = '';
+                if (type === 'misplaced') {
+                    _from = item.current_playlist_title || item.current_playlist_id || '';
+                    _fromId = item.current_playlist_id || '';
+                    _to = item.mapped_playlist_title || item.mapped_playlist_id || '';
+                    _toId = item.mapped_playlist_id || '';
+                } else if (type === 'move') {
+                    _from = item.source_playlist_title || item.source_playlist_id || '';
+                    _fromId = item.source_playlist_id || '';
+                    _to = item.target_playlist_title || item.target_playlist_id || '';
+                    _toId = item.target_playlist_id || '';
+                } else if (type === 'dup') {
+                    const _pls = Array.isArray(item.playlists) ? item.playlists : [];
+                    _plText = _pls.map(p => DOMPurify.sanitize(p.title || p.id || '')).join(', ');
+                }
+                const _fromTo = (_from && _to) ? `${_from} → ${_to}` : (_plText || '?');
+                const _selId = `sel-${elId}-${item.video_id || 'x'}`;
                 // Duplicate-specific extras (re-upload / multi-playlist aware)
                 const _copies = item.copy_count ? Number(item.copy_count) : 0;
                 const _exact = item.exact_duplicate;
                 const _dupMeta = type === 'dup' && _copies
                     ? `<span class="text-[9px] ${_exact ? 'text-yellow-400' : 'text-orange-400'}">${_copies} copies${_exact ? ' (same ID)' : ' (re-upload)'}</span>`
                     : '';
+                // For a duplicate, remove the second (non-primary) copy by default.
+                const _pls = Array.isArray(item.playlists) ? item.playlists : [];
+                const _removePlId = (_pls[1] || _pls[0] || {}).id || '';
+                let _controls = '';
+                if (type === 'move') {
+                    _controls = `<select id="${_selId}" class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option value="${DOMPurify.sanitize(_toId)}">${_to || 'Move from X to Y'}</option></select>` +
+                        `<button onclick="maintMove('${item.video_id}', '${item.source_playlist_id}', 'move', '${_selId}', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Move</button>`;
+                } else if (type === 'dup') {
+                    _controls = `<div class="flex gap-1"><button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Keep</button><button onclick="maintRemove('${item.video_id}', '${_removePlId}', 'dup', this)" class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>`;
+                } else if (type === 'misplaced') {
+                    _controls = `<select id="${_selId}" class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option value="${DOMPurify.sanitize(_toId)}">Move to ${_to || 'Correct Playlist'}</option></select>` +
+                        `<button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Move</button>`;
+                }
                 return `
                 <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a] mb-2">
                     <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${_thumb}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://picsum.photos/32/24'"></div>
                     <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${_title}</div><div class="text-[9px] text-gray-400 truncate">${_fromTo}</div>${_dupMeta}</div>
-                    ${type === 'move' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>${_to || 'Move from X to Y'}</option></select>` : ''}
-                    ${type === 'dup' ? `<div class="flex gap-1"><button class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Keep</button><button class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>` : ''}
-                    ${type === 'misplaced' ? `<select class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option>Move to ${_to || 'Correct Playlist'}</option></select>` : ''}
+                    ${_controls}
                 </div>
                 `;
             }).join('');
         }
-        
+
+        // POST a maintenance action to /api/maintenance/action (contract per Neo).
+        // Adds Bearer auth from localStorage, matching dashboard.js apiCall pattern.
+        async function maintPost(body, btn) {
+            if (btn) btn.disabled = true;
+            const token = localStorage.getItem('token') || '';
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            try {
+                const resp = await fetch('/api/maintenance/action', { method: 'POST', headers, body: JSON.stringify(body) });
+                const data = await resp.json().catch(() => ({}));
+                if (data.status === 'error') {
+                    toast(data.error || 'Action failed', 'error');
+                } else if (body.action === 'fix_all') {
+                    const _done = data.succeeded != null ? data.succeeded : (data.processed != null ? data.processed : 'all');
+                    toast(`Fixed ${_done} item(s)` + (data.failed ? ` (${data.failed} failed)` : ''), 'success');
+                    await loadMaintenance();
+                } else {
+                    toast('Action succeeded', 'success');
+                    await loadMaintenance();
+                }
+                return data;
+            } catch (e) {
+                toast('Request failed: ' + e.message, 'error');
+            } finally {
+                if (btn && document.body.contains(btn)) btn.disabled = false;
+            }
+        }
+
+        function maintKeep(vid, type, btn) {
+            maintPost({ action: 'keep', type: type, video_id: vid }, btn);
+        }
+        function maintRemove(vid, plId, type, btn) {
+            maintPost({ action: 'remove', type: type, video_id: vid, playlist_id: plId }, btn);
+        }
+        function maintMove(vid, curId, type, selId, btn) {
+            const sel = document.getElementById(selId);
+            const target = sel ? sel.value : null;
+            maintPost({ action: 'move', type: type, video_id: vid, playlist_id: curId, target_playlist_id: target }, btn);
+        }
+        // Fix All / Resolve All / Apply All buttons: fix_all with the section's type.
         async function applyMaintenance(type) {
-            toast(`${type} maintenance is currently disabled`, 'warning');
+            await maintPost({ action: 'fix_all', type: type });
         }
         
         

@@ -429,3 +429,70 @@ class YouTubeClient:
         if result is None:
             return {}
         return result
+
+    # --- Explicitly-named wrappers for the Maintenance Queue actions --------
+    # (add_video_to_playlist / remove_video_from_playlist_item). They reuse the
+    # exact same google_client.youtube.playlistItems().insert()/.delete()
+    # patterns as move_video_to_playlist / remove_video_from_playlist above.
+
+    def add_video_to_playlist(self, playlist_id: str, video_id: str) -> dict[str, Any]:
+        """Insert a video into a playlist (playlistItems.insert, part=snippet).
+
+        Returns the inserted playlistItem resource (incl. its ``id``).
+        """
+        client = self._get_client(require_oauth=True)
+        if not client:
+            raise RuntimeError("OAuth client not available for add_video_to_playlist")
+        add_body = {
+            "snippet": {
+                "playlistId": playlist_id,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": video_id,
+                },
+            }
+        }
+        with _client_lock:
+            result = client.playlistItems().insert(part="snippet", body=add_body).execute()
+        if not result or not result.get("id"):
+            raise RuntimeError(f"add_video_to_playlist returned unexpected response: {result}")
+        return result
+
+    def remove_video_from_playlist_item(self, playlist_item_id: str) -> dict[str, Any]:
+        """Delete a playlistItem by its playlistItem ID (playlistItems.delete)."""
+        client = self._get_client(require_oauth=True)
+        if not client:
+            raise RuntimeError("OAuth client not available for remove_video_from_playlist_item")
+        with _client_lock:
+            result = client.playlistItems().delete(id=playlist_item_id).execute()
+        if result is None:
+            return {}
+        return result
+
+    def find_playlist_item_id(self, playlist_id: str, video_id: str) -> str | None:
+        """Look up the playlistItem ID for a given video within a playlist.
+
+        Used by the Maintenance Queue because maintenance.json records do NOT
+        store the playlistItem ID — we must resolve it before deleting.
+        Returns the playlistItem ID, or None if the video is not in the playlist.
+        """
+        client = self._get_client(require_oauth=True)
+        if not client:
+            raise RuntimeError("OAuth client not available for find_playlist_item_id")
+        page_token = None
+        while True:
+            resp = client.playlistItems().list(
+                part="snippet,contentDetails",
+                playlistId=playlist_id,
+                maxResults=50,
+                pageToken=page_token,
+            ).execute()
+            for item in resp.get("items", []):
+                snip = item.get("snippet", {}) or {}
+                rid = snip.get("resourceId", {}) or {}
+                if rid.get("videoId") == video_id:
+                    return item.get("id")
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                break
+        return None

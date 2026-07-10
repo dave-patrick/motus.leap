@@ -40,6 +40,15 @@ def validate_video_id(vid: str) -> bool:
     """Validate that a string matches YouTube's video ID format (11 chars, alphanumeric + _-)."""
     return bool(YOUTUBE_VIDEO_ID_RE.match(vid))
 
+
+# YouTube playlist IDs: 13+ chars, alphanumeric + _-
+YOUTUBE_PLAYLIST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{13,}$")
+
+
+def validate_playlist_id(pid: str) -> bool:
+    """Validate that a string matches YouTube's playlist ID format."""
+    return bool(YOUTUBE_PLAYLIST_ID_RE.match(pid))
+
 # Auth dependency for page routes (raises 401 if not authenticated)
 from api.auth import get_current_user, verify_origin, create_default_admin, check_role, RoleEnum
 
@@ -463,6 +472,25 @@ class ActionIn(BaseModel):
     """Action request model."""
     action: str
     payload: dict[str, Any] | None = None
+
+
+class MaintenanceActionIn(BaseModel):
+    """Maintenance Queue action request model.
+
+    Contract (Arwin's frontend calls this):
+      action: "keep" | "remove" | "move" | "fix_all"
+      type:   "dup" | "misplaced" | "move"
+      video_id: str
+      playlist_id: str                      (source playlist for remove/move)
+      target_playlist_id: str | None        (target for move)
+      playlist_item_id: str | None          (if known; otherwise looked up)
+    """
+    action: str
+    type: str | None = None
+    video_id: str | None = None
+    playlist_id: str | None = None
+    target_playlist_id: str | None = None
+    playlist_item_id: str | None = None
 
 
 class MappingIn(BaseModel):
@@ -1036,6 +1064,259 @@ async def api_maintenance() -> dict[str, Any]:
         "duplicated_videos": [],
         "misplaced_videos": [],
         "info": "Maintenance analysis requires full video scan. Run Full Playlist Sync first."
+    }
+
+
+def _load_maintenance_data() -> dict[str, Any]:
+    """Load maintenance.json (scan output). Returns empty-shape dict on miss."""
+    maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
+    if maintenance_file.exists():
+        try:
+            return json.loads(maintenance_file.read_text())
+        except Exception:
+            pass
+    return {
+        "move_from_x_to_y": [],
+        "duplicated_videos": [],
+        "misplaced_videos": [],
+    }
+
+
+def _maintenance_items_by_type(maintenance: dict[str, Any], item_type: str) -> list[dict[str, Any]]:
+    """Return the list of maintenance records for a given type key."""
+    if item_type == "dup":
+        return maintenance.get("duplicated_videos", [])
+    if item_type == "misplaced":
+        return maintenance.get("misplaced_videos", [])
+    if item_type == "move":
+        return maintenance.get("move_from_x_to_y", [])
+    return []
+
+
+async def _maintenance_resolve_item_id(
+    yt_client, playlist_id: str, video_id: str, supplied_item_id: str | None
+) -> str | None:
+    """Resolve a playlistItem ID for delete/move.
+
+    If the caller already supplied a playlist_item_id, use it directly.
+    Otherwise look it up via list_videos/find_playlist_item_id (maintenance
+    records do NOT store playlistItem IDs).
+    """
+    if supplied_item_id:
+        return supplied_item_id
+    # find_playlist_item_id iterates pages internally and returns the id or None.
+    return yt_client.find_playlist_item_id(playlist_id, video_id)
+
+
+async def _maintenance_apply_one(
+    yt_client,
+    action: str,
+    item_type: str,
+    record: dict[str, Any],
+    playlist_id: str | None,
+    target_playlist_id: str | None,
+    playlist_item_id: str | None,
+    video_id: str | None,
+) -> dict[str, Any]:
+    """Apply a single action to a single maintenance record.
+
+    Returns a small result dict describing success/failure. Does NOT raise for
+    YouTube errors — callers aggregate failures for the fix_all summary.
+    """
+    # Normalise inputs: prefer explicit args, else pull from the record shape.
+    video_id = video_id or record.get("video_id")
+    if not playlist_id:
+        playlist_id = record.get("current_playlist_id") or record.get("source_playlist_id")
+        # dup records store copies as playlists: [{id,title}] — use the first copy.
+        if not playlist_id and item_type == "dup":
+            _pls = record.get("playlists") or []
+            if _pls:
+                playlist_id = (_pls[0].get("id") if isinstance(_pls[0], dict) else None) or _pls[0]
+
+    if action == "keep":
+        # No-op. Optionally could prune the record from maintenance.json, but
+        # keeping it simple: mark resolved, delete nothing.
+        return {"status": "ok", "action": "keep", "video_id": video_id,
+                "message": "No-op: item kept"}
+
+    if not video_id:
+        return {"status": "error", "action": action, "error": "missing video_id"}
+
+    if action == "remove":
+        if not playlist_id:
+            return {"status": "error", "action": "remove", "error": "missing playlist_id"}
+        item_id = await _maintenance_resolve_item_id(
+            yt_client, playlist_id, video_id, playlist_item_id
+        )
+        if not item_id:
+            return {"status": "error", "action": "remove",
+                    "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
+        yt_client.remove_video_from_playlist_item(item_id)
+        # Invalidate cache so the change shows immediately.
+        try:
+            await youtube_service._cache.set(f"playlist_videos_{playlist_id}", None)
+        except Exception:
+            pass
+        return {"status": "ok", "action": "remove", "video_id": video_id,
+                "playlist_item_id": item_id}
+
+    if action == "move":
+        target_playlist_id = target_playlist_id or record.get(
+            "mapped_playlist_id"
+        ) or record.get("target_playlist_id")
+        if not playlist_id:
+            return {"status": "error", "action": "move", "error": "missing source playlist_id"}
+        if not target_playlist_id:
+            return {"status": "error", "action": "move", "error": "missing target_playlist_id"}
+        # 1 delete (source) + 1 insert (target) = 2 quota units.
+        item_id = await _maintenance_resolve_item_id(
+            yt_client, playlist_id, video_id, playlist_item_id
+        )
+        if not item_id:
+            return {"status": "error", "action": "move",
+                    "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
+        yt_client.remove_video_from_playlist_item(item_id)
+        yt_client.add_video_to_playlist(target_playlist_id, video_id)
+        for pid in (playlist_id, target_playlist_id):
+            try:
+                await youtube_service._cache.set(f"playlist_videos_{pid}", None)
+            except Exception:
+                pass
+        return {"status": "ok", "action": "move", "video_id": video_id,
+                "source": playlist_id, "target": target_playlist_id}
+
+    return {"status": "error", "action": action, "error": f"unknown action '{action}'"}
+
+
+# Maintenance action endpoint
+@app.post("/api/maintenance/action", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]:
+    """Apply a Maintenance Queue action (keep/remove/move/fix_all).
+
+    Body JSON (see MaintenanceActionIn):
+      { "action": "keep"|"remove"|"move"|"fix_all",
+        "type": "dup"|"misplaced"|"move",
+        "video_id": str, "playlist_id": str,
+        "target_playlist_id": str|null, "playlist_item_id": str|null }
+    """
+    action = (payload.action or "").lower()
+    item_type = (payload.type or "").lower()
+
+    if action not in ("keep", "remove", "move", "fix_all"):
+        return {"status": "error", "error": f"invalid action '{payload.action}'"}
+    if action != "fix_all" and item_type not in ("dup", "misplaced", "move"):
+        return {"status": "error", "error": f"invalid or missing type '{payload.type}'"}
+
+    # Defense-in-depth: validate ID shapes (Sheldon's hardening note).
+    if payload.video_id and not validate_video_id(payload.video_id):
+        return {"status": "error", "error": "invalid video_id format"}
+    if payload.playlist_id and not validate_playlist_id(payload.playlist_id):
+        return {"status": "error", "error": "invalid playlist_id format"}
+    if payload.target_playlist_id and not validate_playlist_id(payload.target_playlist_id):
+        return {"status": "error", "error": "invalid target_playlist_id format"}
+    if payload.playlist_item_id and not validate_playlist_id(payload.playlist_item_id):
+        return {"status": "error", "error": "invalid playlist_item_id format"}
+
+    if youtube_service is None:
+        return {"status": "error", "error": "YouTube service not initialized"}
+
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if yt_client is None:
+        return {"status": "error", "error": "OAuth client not available"}
+
+    # Single-item actions
+    if action != "fix_all":
+        try:
+            result = await _maintenance_apply_one(
+                yt_client,
+                action=action,
+                item_type=item_type,
+                record={},
+                playlist_id=payload.playlist_id,
+                target_playlist_id=payload.target_playlist_id,
+                playlist_item_id=payload.playlist_item_id,
+                video_id=payload.video_id,
+            )
+            if result.get("status") == "ok":
+                # Drop the inner "status":"ok" so it doesn't overwrite "success".
+                clean = {k: v for k, v in result.items() if k != "status"}
+                return {"status": "success", **clean}
+            return result  # already {"status": "error", ...}
+        except Exception as e:
+            log.error(f"Maintenance action '{action}' failed: {e}")
+            return {"status": "error", "error": str(e)}
+
+    # fix_all: apply the given action to every record of the given type.
+    maintenance = _load_maintenance_data()
+    records = _maintenance_items_by_type(maintenance, item_type)
+    processed = 0
+    succeeded = 0
+    failed = 0
+    errors = []
+    for rec in records:
+        # fix_all is an aggregate of a real per-item op. Map it to that op:
+        #   - misplaced/move → remove (delete the item from its current/source playlist;
+        #     there is no single insert target for "fix all" on these types).
+        #   - dup → remove each *non-primary* copy (keep playlists[0], the primary).
+        if item_type == "dup":
+            sub_action = "remove"
+            copy_playlists = rec.get("playlists", []) or []
+            for idx, cp in enumerate(copy_playlists):
+                cp_id = cp.get("id") if isinstance(cp, dict) else None
+                if not cp_id:
+                    continue
+                if idx == 0:
+                    continue  # keep the primary copy
+                processed += 1
+                try:
+                    res = await _maintenance_apply_one(
+                        yt_client,
+                        action=sub_action,
+                        item_type=item_type,
+                        record=rec,
+                        playlist_id=cp_id,
+                        target_playlist_id=None,
+                        playlist_item_id=None,
+                        video_id=None,
+                    )
+                    if res.get("status") == "ok":
+                        succeeded += 1
+                    else:
+                        failed += 1
+                        errors.append(res.get("error", "unknown error"))
+                except Exception as e:
+                    failed += 1
+                    errors.append(str(e))
+            continue
+        # misplaced / move: fix_all deletes each item from its current/source playlist.
+        sub_action = "remove"
+        processed += 1
+        try:
+            res = await _maintenance_apply_one(
+                yt_client,
+                action=sub_action,
+                item_type=item_type,
+                record=rec,
+                playlist_id=None,
+                target_playlist_id=None,
+                playlist_item_id=None,
+                video_id=None,
+            )
+            if res.get("status") == "ok":
+                succeeded += 1
+            else:
+                failed += 1
+                errors.append(res.get("error", "unknown error"))
+        except Exception as e:
+            failed += 1
+            errors.append(str(e))
+            continue
+    return {
+        "status": "success" if failed == 0 else "partial",
+        "processed": processed,
+        "succeeded": succeeded,
+        "failed": failed,
+        "errors": errors[:25],
     }
 
 
