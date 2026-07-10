@@ -36,6 +36,12 @@ class TubeManagerConfig(BaseModel):
     # the mappings UI's name-enrichment pass and persisted so names survive a
     # reload without re-hitting the YouTube API every time.
     channel_metadata: Dict[str, Dict[str, str]] = Field(default_factory=dict)
+    # Whether open self-registration is permitted. Disabled by default so the
+    # app does not expose a public sign-up; enable explicitly via config.
+    allow_self_registration: bool = Field(default=False)
+    # Explicit list of additional allowed CORS/Origin values (CSRF guard).
+    # M2: only declared origins are trusted; blanket *.onrender.com is removed.
+    allowed_origins: List[str] = Field(default_factory=list)
 
     def to_dict_for_storage(self) -> Dict[str, Any]:
         """Convert to dictionary for storage.

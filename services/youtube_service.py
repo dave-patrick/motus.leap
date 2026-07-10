@@ -22,6 +22,55 @@ from core.lru_cache import LRUAsyncCache
 
 log = logging.getLogger(__name__)
 
+
+class _ReentrantAsyncLock:
+    """Asyncio reentrant lock (defensive safety guarantee).
+
+    asyncio.Lock() is NOT reentrant. The heavy data-fetch paths are wrapped in
+    _data_lock for single-flight serialization; a reentrant lock guarantees that
+    if any internal call path ever re-enters while the lock is held (e.g. a
+    future refactor of get_basic_stats -> list_*), it will not self-deadlock.
+    As of this writing, list_* do not acquire _data_lock, so this is a safety
+    guarantee rather than a fix for an active deadlock — but it still provides
+    correct single-flight serialization across distinct tasks.
+    """
+
+    def __init__(self):
+        self._lock = asyncio.Lock()
+        self._owner = None
+        self._depth = 0
+
+    def __repr__(self):
+        return f"_ReentrantAsyncLock(owner={self._owner}, depth={self._depth})"
+
+    async def acquire(self):
+        me = asyncio.current_task()
+        if self._owner is me:
+            self._depth += 1
+            return True
+        await self._lock.acquire()
+        self._owner = me
+        self._depth = 1
+        return True
+
+    def release(self):
+        me = asyncio.current_task()
+        if self._owner is not me:
+            raise RuntimeError("release() called by non-owner task")
+        self._depth -= 1
+        if self._depth == 0:
+            self._owner = None
+            self._lock.release()
+
+    async def __aenter__(self):
+        await self.acquire()
+        return self
+
+    async def __aexit__(self, *exc):
+        self.release()
+        return False
+
+
 def _best_thumbnail(thumbs: Optional[dict]) -> str:
     """Prefer the highest-resolution YouTube thumbnail available.
 
@@ -74,7 +123,14 @@ class YouTubeService:
         # LRU cache to avoid redundant API calls with eviction policy
         self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(hours=6))
         self._enrich_lock = asyncio.Lock()  # Prevent concurrent enrichment from crashing (heap corruption)
-        self._data_lock = asyncio.Lock()    # Single-flight: serialize ALL heavy data fetches to prevent heap corruption
+        # Reentrant single-flight lock (defensive). asyncio.Lock is NOT
+        # reentrant; a reentrant lock guarantees that if any internal call path
+        # ever re-enters while _data_lock is held (e.g. future refactor of
+        # get_basic_stats -> list_*) it will not self-deadlock. As of this
+        # writing, list_* do NOT acquire _data_lock, so this is a safety
+        # guarantee rather than a fix for an active deadlock — but it still
+        # provides correct single-flight serialization across distinct tasks.
+        self._data_lock = _ReentrantAsyncLock()    # Single-flight: serialize ALL heavy data fetches to prevent heap corruption
 
         # User-specific storage path — configurable via TUBE_MANAGER_DATA_DIR (defaults to /app/data on Render, tmp in tests)
         _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
@@ -478,6 +534,7 @@ class YouTubeService:
                 thumb = _best_thumbnail(sub_snip.get("thumbnails")) or _best_thumbnail(st_snip.get("thumbnails"))
                 subscriptions.append({
                     "id": cid,
+                    "subscription_id": sub.get("id", ""),
                     "title": title,
                     "thumbnail": thumb,
                     "description": (st_snip.get("description") or sub_snip.get("description", "")),
@@ -710,32 +767,36 @@ class YouTubeService:
     async def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Single-flight wrapper: concurrent callers share one in-flight fetch."""
         async with self._data_lock:
-            if not force_refresh:
-                # Check cache first without acquiring the lock
-                cached = await self._cache.get("all_data")
-                if cached is not None:
-                    return cached
-                disk_data = await self._load_from_disk("all_data")
-                if disk_data:
-                    await self._cache.set("all_data", disk_data, timedelta(minutes=10))
-                    return disk_data
-            # No cache — run the actual fetch
+            return await self._fetch_all_data_locked(force_refresh=force_refresh)
+
+    async def _fetch_all_data_locked(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """Body of fetch_all_data — must be called while _data_lock is held."""
+        if not force_refresh:
+            # Check cache first without acquiring the lock
+            cached = await self._cache.get("all_data")
+            if cached is not None:
+                return cached
+            disk_data = await self._load_from_disk("all_data")
+            if disk_data:
+                await self._cache.set("all_data", disk_data, timedelta(minutes=10))
+                return disk_data
+        # No cache — run the actual fetch
+        try:
+            result = await self._fetch_all_data_impl(force_refresh=force_refresh)
+        except httpx.HTTPStatusError as e:
+            log.error(f"[FETCH] HTTP error in fetch_all_data: {e.response.status_code} {e}")
             try:
-                result = await self._fetch_all_data_impl(force_refresh=force_refresh)
-            except httpx.HTTPStatusError as e:
-                log.error(f"[FETCH] HTTP error in fetch_all_data: {e.response.status_code} {e}")
-                try:
-                    detail = e.response.json().get("error", {}).get("message", str(e))
-                except Exception:
-                    detail = str(e)
-                return {"error": f"YouTube API error ({e.response.status_code}): {detail}"}
-            except Exception as e:
-                log.error(f"[FETCH] Unexpected error in fetch_all_data: {e}")
-                return {"error": str(e)}
-            # Cache the result for subsequent callers
-            if "error" not in result:
-                await self._cache.set("all_data", result, timedelta(minutes=10))
-            return result
+                detail = e.response.json().get("error", {}).get("message", str(e))
+            except Exception:
+                detail = str(e)
+            return {"error": f"YouTube API error ({e.response.status_code}): {detail}"}
+        except Exception as e:
+            log.error(f"[FETCH] Unexpected error in fetch_all_data: {e}")
+            return {"error": str(e)}
+        # Cache the result for subsequent callers
+        if "error" not in result:
+            await self._cache.set("all_data", result, timedelta(minutes=10))
+        return result
 
     async def _fetch_all_data_impl(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Actual fetch implementation. Caller is responsible for caching."""

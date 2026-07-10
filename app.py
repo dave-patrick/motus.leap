@@ -637,12 +637,7 @@ async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
     videos = await youtube_service.get_videos(playlist_id=playlist_id)
     video_ids = [v.get("video_id") for v in videos.get("videos", [])]
     duplicates = len(video_ids) - len(set(video_ids))
-    
-    # Record scan time
-    config = config_manager.config
-    config.last_scan_time = datetime.now(timezone.utc).isoformat()
-    await config_manager.save(config)
-    
+
     return {"duplicates": duplicates, "total_videos": len(video_ids), "playlist_id": playlist_id}
 
 
@@ -833,13 +828,17 @@ async def delete_playlist_endpoint(payload: dict):
             cached_all = await youtube_service._cache.get(all_key)
             if cached_all and "playlists" in cached_all:
                 cached_all["playlists"] = [p for p in cached_all["playlists"] if p.get("id") != playlist_id]
-                cached_all["stats"]["total_playlists"] = len(cached_all["playlists"])
+                stats = cached_all.get("stats") or {}
+                stats["total_playlists"] = len(cached_all["playlists"])
+                cached_all["stats"] = stats
                 await youtube_service._cache.set(all_key, cached_all)
             # Also update playlists cache
             cached_pl = await youtube_service._cache.get("playlists")
             if cached_pl and "playlists" in cached_pl:
                 cached_pl["playlists"] = [p for p in cached_pl["playlists"] if p.get("id") != playlist_id]
-                cached_pl["stats"]["total_playlists"] = len(cached_pl["playlists"])
+                stats = cached_pl.get("stats") or {}
+                stats["total_playlists"] = len(cached_pl["playlists"])
+                cached_pl["stats"] = stats
                 await youtube_service._cache.set("playlists", cached_pl)
         
         return {"status": "success", "message": "Playlist deleted successfully"}
@@ -2185,15 +2184,15 @@ async def clear_thumbnails():
 
 
 @app.get("/api/storage/export", dependencies=[Depends(get_current_user)])
-async def export_data():
+async def export_data(request: Request):
     """Export all data as JSON."""
     from datetime import datetime
     config = config_manager.config
-    
+
     export_data = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
-        "config": config.model_dump(exclude={'oauth': {'client_secret', 'access_token', 'refresh_token'}}),
-        "stats": await stats(),
+        "config": config.model_dump(exclude={'oauth': {'client_secret', 'access_token', 'refresh_token', 'client_id', 'token_expiry'}}),
+        "stats": await stats(request),
     }
     return export_data
 

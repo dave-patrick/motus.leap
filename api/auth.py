@@ -251,28 +251,38 @@ async def verify_origin(request: Request):
     # Debug logging
     log.debug(f"verify_origin: origin={origin}, referer={referer}")
 
+    # Resolve the set of app origins from config/env. Only origins that the
+    # operator has explicitly declared are trusted — we no longer blanket-allow
+    # every *.onrender.com subdomain (anyone can spin one up and point it at
+    # the API), which was an open CSRF/credential-relay surface (M2 fix).
+    allowed = set(ALLOWED_ORIGINS)
+    try:
+        from app import config_manager
+        _cfg = config_manager.config if config_manager else None
+        if _cfg is not None:
+            for _o in (getattr(_cfg, "allowed_origins", None) or []):
+                if _o:
+                    allowed.add(_o)
+    except Exception:
+        pass
+    # FRONTEND_URL is the canonical public origin.
+    _fe = os.getenv("FRONTEND_URL", "").rstrip("/")
+    if _fe:
+        allowed.add(_fe)
+
     # If origin is present, validate it
     if origin:
         # Check exact match first
-        if origin in ALLOWED_ORIGINS:
-            return
-        # Allow Render subdomains without enumerating every deploy host.
-        if origin.endswith(".onrender.com"):
-            return
-        # Allow known local development origins.
-        if origin in (
-            "http://localhost:8000",
-            "http://localhost:3000",
-            "http://127.0.0.1:8000",
-            "http://127.0.0.1:3000",
-        ):
+        if origin in allowed:
             return
         log.warning(f"verify_origin: BLOCKED origin={origin}")
         raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
 
     # If no origin header (same-origin POST forms), check referer
     if referer:
-        if ".onrender.com" in referer or "localhost" in referer or "127.0.0.1" in referer:
+        from urllib.parse import urlparse
+        ref_host = urlparse(referer).netloc
+        if any(ref_host == urlparse(a).netloc for a in allowed if urlparse(a).netloc):
             return
         log.warning(f"verify_origin: BLOCKED referer={referer}")
         raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
@@ -535,6 +545,17 @@ def get_user_permissions(role: str) -> List[str]:
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_origin)])
 @limiter.limit("5/minute")
 async def register(user_data: UserCreate, request: Request, users_db: Dict[str, Dict[str, Any]] = Depends(get_users_db)):
+    # Gate open self-registration behind a disabled-by-default config flag.
+    # The app must not expose a public sign-up surface unless the operator
+    # explicitly enables it (M1 security fix).
+    from app import config_manager
+    _cfg = config_manager.config if config_manager else None
+    if not (_cfg and getattr(_cfg, "allow_self_registration", False)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Self-registration is disabled",
+        )
+
     username_check = (user_data.username or "").strip()
     password_check = (user_data.password or "").strip()
     if not username_check or not password_check:

@@ -76,15 +76,22 @@ class LRUAsyncCache:
             self._cache[key] = value
             self._expires_at[key] = datetime.now() + (ttl or self._ttl)
             self._created_at[key] = datetime.now()
-            self._access_count[key] = 0
-            await self._maybe_evict()
+            self._access_count[key] = 1
+            await self._maybe_evict(exclude=key)
 
-    async def _maybe_evict(self) -> None:
-        """Evict least recently used if at capacity."""
-        if len(self._cache) >= self._max_size:
-            # Sort by access count, evict lowest
-            if self._access_count:
-                lru_key = min(self._access_count, key=self._access_count.get)
+    async def _maybe_evict(self, exclude: Optional[str] = None) -> None:
+        """Evict least recently used if at capacity.
+
+        Args:
+            exclude: key to never evict in this pass (the just-set key), so a
+                freshly added entry is not immediately evicted before it can be
+                accessed again.
+        """
+        if len(self._cache) > self._max_size:
+            # Sort by access count, evict lowest (excluding `exclude`)
+            candidates = {k: c for k, c in self._access_count.items() if k != exclude}
+            if candidates:
+                lru_key = min(candidates, key=lambda k: candidates[k])
                 await self._evict(lru_key)
                 log.debug(f"LRU evicted: {lru_key}")
 

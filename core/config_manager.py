@@ -88,12 +88,20 @@ class ConfigManager:
                             incoming["youtube_api_key"] = existing["youtube_api_key"]
                         if not incoming.get("ai_api_key") and existing.get("ai_api_key"):
                             incoming["ai_api_key"] = existing["ai_api_key"]
-                        # LOSSLESS mappings: any channel mapping already on disk
-                        # but absent from the incoming set is preserved. This
-                        # prevents a stale concurrent save (e.g. a background
-                        # scan that captured the config object before an
-                        # auto-map/bulk-import merged new entries) from
-                        # clobbering mappings it never knew about.
+                        # Channel mappings: the incoming config is authoritative.
+                        # A prior "lossless" merge re-added every mapping already
+                        # on disk even after the caller explicitly cleared it,
+                        # so deletions never persisted. We still preserve disk
+                        # mappings the incoming config does not enumerate ONLY
+                        # when the incoming save is a partial (empty mappings
+                        # dict means "clear", not "unknown"). To keep behaviour
+                        # predictable: incoming mappings win, but disk mappings
+                        # that are genuinely absent from the incoming set AND
+                        # were added by a concurrent writer are preserved — UNLESS
+                        # the incoming set explicitly removed them. Since we
+                        # cannot distinguish a deliberate removal from a stale
+                        # save, we make the incoming config authoritative so that
+                        # clearing mappings actually persists (per H2 fix).
                         disk_maps = existing.get("channel_mappings") or {}
                         if isinstance(disk_maps, list):
                             from app import _serialize_mappings
@@ -102,9 +110,9 @@ class ConfigManager:
                         if isinstance(inc_maps, list):
                             from app import _serialize_mappings
                             inc_maps = _serialize_mappings(inc_maps)
-                        merged_maps = dict(disk_maps)
-                        merged_maps.update(inc_maps)
-                        incoming["channel_mappings"] = merged_maps
+                        # Authoritative: incoming wins. This makes deletions
+                        # persist (set mapping -> clear -> save -> reload == gone).
+                        incoming["channel_mappings"] = inc_maps
                         data = incoming
                     else:
                         data = config.to_dict_for_storage()

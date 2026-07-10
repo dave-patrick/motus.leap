@@ -207,8 +207,14 @@ class YouTubeClient:
                 "refresh_token": self.oauth_refresh_token,
                 "grant_type": "refresh_token",
             }
-            client = _shared_client or httpx.Client(timeout=45.0)
-            resp = _with_retry(client.post, "https://oauth2.googleapis.com/token", data=data)
+            # Re-resolve the shared client on each attempt so that if
+            # _reset_shared_client() replaced it mid-retry (SSL/connection
+            # error path), we use the fresh client rather than the stale
+            # (possibly closed) one captured before the retry.
+            def _post_token():
+                client = _shared_client or httpx.Client(timeout=45.0)
+                return client.post("https://oauth2.googleapis.com/token", data=data)
+            resp = _with_retry(_post_token)
             resp.raise_for_status()
             tokens = resp.json()
 
