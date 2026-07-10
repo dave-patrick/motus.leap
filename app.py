@@ -815,14 +815,6 @@ async def rename_playlist_endpoint(payload: dict):
                         p["title"] = new_title
                         break
                 await youtube_service._cache.set(all_key, cached_all)
-            cached_pl = await youtube_service._cache.get("playlists")
-            if cached_pl and "playlists" in cached_pl:
-                for p in cached_pl["playlists"]:
-                    if p.get("id") == playlist_id:
-                        p["title"] = new_title
-                        break
-                cached_pl["playlists"].sort(key=lambda x: x["title"].lower())
-                await youtube_service._cache.set("playlists", cached_pl)
         return {"status": "success", "message": f"Playlist renamed to {new_title}"}
     except Exception as e:
         log.error(f"Error renaming playlist: {e}")
@@ -860,14 +852,6 @@ async def delete_playlist_endpoint(payload: dict):
                 stats["total_playlists"] = len(cached_all["playlists"])
                 cached_all["stats"] = stats
                 await youtube_service._cache.set(all_key, cached_all)
-            # Also update playlists cache
-            cached_pl = await youtube_service._cache.get("playlists")
-            if cached_pl and "playlists" in cached_pl:
-                cached_pl["playlists"] = [p for p in cached_pl["playlists"] if p.get("id") != playlist_id]
-                stats = cached_pl.get("stats") or {}
-                stats["total_playlists"] = len(cached_pl["playlists"])
-                cached_pl["stats"] = stats
-                await youtube_service._cache.set("playlists", cached_pl)
         
         return {"status": "success", "message": "Playlist deleted successfully"}
     except Exception as e:
@@ -1029,7 +1013,7 @@ async def delete_playlist_item_endpoint(payload: dict):
         yt_client.remove_video_from_playlist(playlist_item_id)
         if playlist_id:
             # Invalidate the specific playlist's cache key so the change is shown immediately
-            await youtube_service._cache.set(f"playlist_videos_{playlist_id}", None)
+            await youtube_service._cache_invalidate_playlist(playlist_id)
             
         return {"status": "success", "message": "Video removed from playlist"}
     except Exception as e:
@@ -1154,7 +1138,7 @@ async def _maintenance_apply_one(
         yt_client.remove_video_from_playlist_item(item_id)
         # Invalidate cache so the change shows immediately.
         try:
-            await youtube_service._cache.set(f"playlist_videos_{playlist_id}", None)
+            await youtube_service._cache_invalidate_playlist(playlist_id)
         except Exception:
             pass
         return {"status": "ok", "action": "remove", "video_id": video_id,
@@ -1179,7 +1163,7 @@ async def _maintenance_apply_one(
         yt_client.add_video_to_playlist(target_playlist_id, video_id)
         for pid in (playlist_id, target_playlist_id):
             try:
-                await youtube_service._cache.set(f"playlist_videos_{pid}", None)
+                await youtube_service._cache_invalidate_playlist(pid)
             except Exception:
                 pass
         return {"status": "ok", "action": "move", "video_id": video_id,
@@ -1414,7 +1398,7 @@ async def api_mappings() -> dict[str, Any]:
     return {"mappings": _normalize_mappings(formatted), "metadata": config.channel_metadata or {}}
 
 
-@app.post("/api/channels/titles", dependencies=[Depends(get_current_user)])
+@app.post("/api/channels/titles", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 @limiter.limit("20/minute")
 async def api_channel_titles(request: Request, body: dict[str, Any]) -> dict[str, Any]:
     """Batch-resolve channel IDs -> {title, thumbnail} via channels.list.
@@ -2470,13 +2454,32 @@ async def clear_thumbnails():
 
 @app.get("/api/storage/export", dependencies=[Depends(get_current_user)])
 async def export_data(request: Request):
-    """Export all data as JSON."""
+    """Export all data as JSON.
+
+    SECURITY: secrets (OAuth client_secret/tokens, API keys) are NEVER included
+    in plaintext. The previous implementation used config.model_dump(exclude={
+    'oauth': {...}}) which silently leaked the entire oauth block (a nested
+    Pydantic model the dict-form exclude does not affect) plus the raw
+    SecretStr API keys. We now redact every secret field.
+    """
     from datetime import datetime
     config = config_manager.config
 
+    # Redacted config: copy non-secret fields, mask secret-bearing ones.
+    config_dict = config.model_dump(exclude={"oauth", "youtube_api_key", "ai_api_key"})
+    config_dict["oauth"] = {
+        "client_id": _secret_val(config.oauth.client_id) or "",
+        "client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
+        "access_token": "••••••••" if config.oauth.access_token else None,
+        "refresh_token": "••••••••" if config.oauth.refresh_token else None,
+        "token_expiry": config.oauth.token_expiry,
+    }
+    config_dict["youtube_api_key"] = "••••••••" if _secret_val(config.youtube_api_key) else ""
+    config_dict["ai_api_key"] = "••••••••" if _secret_val(config.ai_api_key) else ""
+
     export_data = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
-        "config": config.model_dump(exclude={'oauth': {'client_secret', 'access_token', 'refresh_token', 'client_id', 'token_expiry'}}),
+        "config": config_dict,
         "stats": await stats(request),
     }
     return export_data

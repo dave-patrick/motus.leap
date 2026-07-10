@@ -539,14 +539,22 @@ class BackgroundWorker:
     # stub methods were removed as part of cleanup of obsolete surfaces.
 
     async def apply_rules(self, payload):
-        """Apply rules from editor."""
+        """Persist the rules editor content to config and save it.
+
+        Previously a dead stub that broadcast fake "N rules saved" without
+        persisting anything. Now it actually writes payload["rules"] into
+        config.rules and persists via config_manager.save so the Save Rules
+        button in settings.html has a real backend.
+        """
         await self.manager.broadcast(json.dumps({"type": "log", "message": "[RULES] Applying rules from editor..."}))
-        await asyncio.sleep(1)
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[RULES] Validating JSON..."}))
-        await asyncio.sleep(0.5)
         config = self.config_manager.config
-        rules_count = len(config.channel_mappings) if hasattr(config, 'channel_mappings') else 0
-        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[RULES] {rules_count} rules saved successfully"}))
+        rules_text = (payload or {}).get("rules")
+        if rules_text is None:
+            rules_text = (payload or {}).get("content")
+        config.rules = rules_text if rules_text is not None else config.rules
+        await self.config_manager.save(config)
+        rules_count = len(config.rules) if config.rules else 0
+        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[RULES] {rules_count} chars of rules saved successfully"}))
         await self.manager.broadcast(json.dumps({"type": "log", "message": "[RULES] Complete"}))
 
     async def sync_playlists(self, payload):

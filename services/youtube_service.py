@@ -342,7 +342,7 @@ class YouTubeService:
                 playlists = await self._fetch_all_paginated(
                     lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
                     max_results=50,
-                    max_items=500,
+                    max_items=0,
                 )
                 total_videos = sum(int((pl.get("contentDetails", {}) or {}).get("itemCount", 0) or 0) for pl in playlists)
                 subscriptions_data = await self.list_subscriptions(force_refresh=force_refresh)
@@ -380,7 +380,7 @@ class YouTubeService:
             playlist_items = await self._fetch_all_paginated(
                 lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
                 max_results=50,
-                max_items=500,
+                max_items=0,
             )
             current_playlists = sorted((self._playlist_item_to_dict(pl) for pl in playlist_items), key=lambda x: x["title"].lower())
             
@@ -445,15 +445,22 @@ class YouTubeService:
             if structural_change:
                 log.info("[SYNC DETECT] Playlist change (removal or addition) detected! Performing full fresh sync...")
                 sync_result = await self.fetch_all_data(force_refresh=True)
-                if "error" not in sync_result:
-                    playlists = sync_result.get("playlists", [])
-                    stats = {
-                        "total_playlists": len(playlists),
-                        "total_videos": sum(pl["video_count"] for pl in playlists),
-                    }
-                    payload = {"playlists": playlists, "stats": stats}
-                    await self._save_to_disk("playlists", payload)
-                    return payload
+                if "error" in sync_result:
+                    # Surface the upstream error instead of silently returning
+                    # possibly-stale cached playlists.
+                    log.warning(f"Full fresh sync failed: {sync_result.get('error')}")
+                    return {"playlists": current_playlists, "stats": {
+                        "total_playlists": len(current_playlists),
+                        "total_videos": sum(pl["video_count"] for pl in current_playlists),
+                    }, "error": sync_result.get("error")}
+                playlists = sync_result.get("playlists", [])
+                stats = {
+                    "total_playlists": len(playlists),
+                    "total_videos": sum(pl["video_count"] for pl in playlists),
+                }
+                payload = {"playlists": playlists, "stats": stats}
+                await self._save_to_disk("playlists", payload)
+                return payload
 
             # If no change detected or initial fetch, save current_playlists if no disk cache existed
             if not disk_playlists_payload:
@@ -489,7 +496,7 @@ class YouTubeService:
             all_subs = await self._fetch_all_paginated(
                 lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
                 max_results=50,
-                max_items=500,
+                max_items=0,
             )
             
             channel_ids = []
@@ -551,7 +558,7 @@ class YouTubeService:
             return {"channels": [], "error": str(e)}
 
     async def map_channels_from_playlist_contents(
-        self, max_items_per_playlist: int = 500
+        self, max_items_per_playlist: int = 0
     ) -> Dict[str, Any]:
         """Derive channel->playlist mappings from videos already IN each
         playlist. For every playlist, read its items and tally each video's
@@ -698,7 +705,7 @@ class YouTubeService:
         return await asyncio.to_thread(_lookup)
 
 
-    async def _fetch_all_paginated(self, fetch_fn, max_results: int = 50, max_items: int = 500) -> List[Any]:
+    async def _fetch_all_paginated(self, fetch_fn, max_results: int = 50, max_items: int = 0) -> List[Any]:
         """Fetch paginated results with caps and early exit.
 
         A ``max_items`` of 0 (or negative) means UNBOUNDED — paginate until
@@ -846,7 +853,7 @@ class YouTubeService:
                 all_subs = await self._fetch_all_paginated(
                     lambda max_results, page_token: client.list_mine_subscriptions(max_results=max_results, page_token=page_token),
                     max_results=50,
-                    max_items=500,
+                    max_items=0,
                 )
 
                 if not all_subs:
@@ -923,7 +930,7 @@ class YouTubeService:
                 all_playlists = await self._fetch_all_paginated(
                     lambda max_results, page_token: client.list_mine_playlists(max_results=max_results, page_token=page_token),
                     max_results=50,
-                    max_items=500,
+                    max_items=0,
                 )
                 if not all_playlists:
                     log.warning("[FETCH] Playlists returned 0 items")
@@ -1070,7 +1077,7 @@ class YouTubeService:
             video_items = await self._fetch_all_paginated(
                 lambda max_results, page_token: client.list_videos(playlist_id, max_results=max_results, page_token=page_token),
                 max_results=50,
-                max_items=500,
+                max_items=0,
             )
             videos = []
             for vid in video_items:

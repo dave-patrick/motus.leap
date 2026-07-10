@@ -117,7 +117,7 @@
                 info: 'bg-[#2f8fc9]'
             };
             toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ${colors[type] || colors.info}`;
-            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${DOMPurify.sanitize(message, {USE_PROFILES: {html: true}})}</span>`;
             container.appendChild(toast);
             setTimeout(() => {
                 toast.classList.add('animate-slide-out');
