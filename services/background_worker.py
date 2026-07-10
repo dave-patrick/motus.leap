@@ -581,6 +581,43 @@ class BackgroundWorker:
             error_msg = f"{type(e).__name__}: {str(e)}"
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Sync failed: {error_msg}"}))
 
+    async def _persist_maintenance(self, *, duplicated_videos=None, misplaced_videos=None):
+        """Merge a fresh scan result into maintenance.json so the Scan Details
+        card (/api/youtube/duplicates + /api/youtube/misplaced) reflects the
+        most recent scan rather than a stale cluster-scan snapshot.
+
+        Only the provided field(s) are overwritten; the other metric is kept
+        from the existing file (so a duplicates-only scan doesn't wipe the
+        misplaced list). Pass duplicated_videos/misplaced_videos only for a
+        FULL (no playlist_id) scan — a per-playlist scan must not clobber the
+        whole-library view the card displays.
+        """
+        if duplicated_videos is None and misplaced_videos is None:
+            return
+        _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+        maintenance_file = _data_dir / "maintenance.json"
+        existing = {}
+        try:
+            if maintenance_file.exists():
+                existing = json.loads(await asyncio.to_thread(maintenance_file.read_text))
+        except Exception:
+            existing = {}
+        if duplicated_videos is not None:
+            existing["duplicated_videos"] = duplicated_videos
+        if misplaced_videos is not None:
+            existing["misplaced_videos"] = misplaced_videos
+        existing.setdefault("move_from_x_to_y", [])
+        existing["info"] = (
+            f"Live scan updated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}. "
+            f"Found {len(existing.get('duplicated_videos', []))} duplicates and "
+            f"{len(existing.get('misplaced_videos', []))} misplaced videos."
+        )
+        try:
+            await asyncio.to_thread(maintenance_file.parent.mkdir, parents=True, exist_ok=True)
+            await asyncio.to_thread(maintenance_file.write_text, json.dumps(existing, indent=2))
+        except Exception as e:
+            log.error(f"Failed to persist live scan result: {e}")
+
     async def scan_duplicates(self, payload):
         """Scan playlist for duplicate videos."""
         playlist_id = payload.get("playlist_id") if payload else None
@@ -594,6 +631,25 @@ class BackgroundWorker:
             groups = compute_duplicate_groups(videos)
             duplicates = sum(g["copy_count"] - 1 for g in groups)
             await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate video copies across {len(groups)} groups"}))
+            # Persist FULL-scan results so the Scan Details card reflects the
+            # latest scan (not a stale cluster-scan snapshot). A per-playlist
+            # scan must not overwrite the whole-library view.
+            if not playlist_id:
+                await self._persist_maintenance(
+                    duplicated_videos=[
+                        {
+                            "video_id": g["canonical_video_id"],
+                            "video_title": g["video_title"],
+                            "channel_title": g["channel_title"],
+                            "thumbnail": next((c.get("thumbnail", "") for c in g["copies"] if c.get("thumbnail")), ""),
+                            "variant_ids": g["variant_ids"],
+                            "exact_duplicate": g["exact_duplicate"],
+                            "copy_count": g["copy_count"],
+                            "playlists": g["playlists"],
+                        }
+                        for g in groups
+                    ]
+                )
             return {"duplicates": duplicates, "groups": groups}
 
     async def scan_misplaced(self, payload):
@@ -602,6 +658,7 @@ class BackgroundWorker:
         location = f" in playlist {playlist_id}" if playlist_id else ""
         await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Scanning for misplaced videos{location}..."}))
         count = 0
+        misplaced_videos = []
         if self.youtube_service and hasattr(self.youtube_service, 'config') and hasattr(self.youtube_service.config, 'channel_mappings'):
             videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
             videos = videos_data.get("videos", [])
@@ -614,6 +671,18 @@ class BackgroundWorker:
                     for ch, target_pl in self.youtube_service.config.channel_mappings.items():
                         if channel_id == ch and target_pl and target_pl != playlist_id_v:
                             count += 1
+                            misplaced_videos.append({
+                                "video_id": v.get("video_id"),
+                                "video_title": v.get("title", ""),
+                                "current_playlist_id": playlist_id_v,
+                                "current_playlist_title": v.get("playlist_title", playlist_id_v),
+                                "mapped_playlist_id": target_pl,
+                                "mapped_playlist_title": target_pl,
+                            })
                             break
         await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"}))
+        # Persist FULL-scan results so the Scan Details card reflects the latest
+        # scan (not a stale cluster-scan snapshot). Per-playlist scan skipped.
+        if not playlist_id:
+            await self._persist_maintenance(misplaced_videos=misplaced_videos)
         return {"misplaced": count}
