@@ -40,18 +40,18 @@ function renderSubscriptionsList(channels) {
     list.innerHTML = channels.map((c) => {
         return `<div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors">
             <div class="flex items-center gap-3">
-                <img src="${c.thumbnail || 'https://picsum.photos/32'}" class="w-8 h-8 rounded-full object-cover">
+                <img src="${DOMPurify.sanitize(c.thumbnail || 'https://picsum.photos/32')}" class="w-8 h-8 rounded-full object-cover">
                 <div>
-                    <div class="text-sm font-medium text-white">${c.title}</div>
+                    <div class="text-sm font-medium text-white">${DOMPurify.sanitize(c.title || '')}</div>
                     <div class="text-[10px] text-gray-400 flex items-center gap-2">
                         <a class="text-[#2f8fc9] hover:underline" href="${c.channel_url || ('https://www.youtube.com/channel/' + c.id)}" target="_blank" rel="noreferrer">Open channel</a>
-                        ${c.description ? '<span class="text-gray-500">•</span><span class="text-gray-500 truncate max-w-[220px]">' + c.description.replace(/</g, '&lt;') + '</span>' : ''}
+                        ${c.description ? '<span class="text-gray-500">•</span><span class="text-gray-500 truncate max-w-[220px]">' + DOMPurify.sanitize(c.description) + '</span>' : ''}
                         ${c.subscribers !== 'Unknown' || c.video_count ? '<span class="text-gray-500">•</span><span class="text-gray-500">' + [c.subscribers !== 'Unknown' ? c.subscribers + ' subs' : '', c.video_count ? c.video_count + ' videos' : ''].filter(Boolean).join(' • ') + '</span>' : ''}
                     </div>
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="actionUnsubscribe('${c.id}')" class="bg-[#20242c] hover:bg-red-600/20 border border-[#2a2f3a] hover:border-red-500/30 text-gray-300 hover:text-red-400 text-xs px-3 py-1.5 rounded transition-colors">Unsubscribe</button>
+                <button onclick="actionUnsubscribe('${c.subscription_id || c.id}')" class="bg-[#20242c] hover:bg-red-600/20 border border-[#2a2f3a] hover:border-red-500/30 text-gray-300 hover:text-red-400 text-xs px-3 py-1.5 rounded transition-colors">Unsubscribe</button>
             </div>
         </div>`;
     }).join('');

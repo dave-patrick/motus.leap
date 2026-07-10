@@ -343,7 +343,7 @@ async function performFullScan() {
             video_id: v.video_id,
             title: v.video_title,
             channel: v.channel || '',
-            thumbnail: v.thumbnail,
+            thumbnail: v.video_id ? `https://i.ytimg.com/vi/${v.video_id}/hqdefault.jpg` : (v.thumbnail || ''),
             reason: v.reason || 'Misplaced channel',
             type: 'misplaced',
             current_playlist_id: playlistId, // Assuming current playlist is the source

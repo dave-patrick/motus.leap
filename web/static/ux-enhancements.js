@@ -1038,7 +1038,9 @@ function startAgentActivityTracker() {
     function connectWS() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
  try {
-   ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
+   // H5 FIX: attach auth token as query param (mirror dashboard.js connectWebSocket).
+   const token = localStorage.getItem('token') || '';
+   ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal?token=${encodeURIComponent(token)}`);
  } catch (e) {
    console.warn('[AgentDrawer] WebSocket connection failed:', e.message);
    if (logEl) logEl.textContent = 'WebSocket not available. Using polling.';

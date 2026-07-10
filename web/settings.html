@@ -374,7 +374,7 @@ window.open('/system/logs', '_blank');
                 payload[key] = value || null;
                 const resp = await fetch('/api/settings', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json', 'X-CSRF-Protect': '1'},
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
                 if (resp.ok) {
@@ -390,6 +390,8 @@ window.open('/system/logs', '_blank');
         // Settings actions
         async function loadPlaylistNames() {
             try {
+                // H3 FIX: declare targetSelect (the "Add mapping" playlist <select>) before use.
+                const targetSelect = document.getElementById('new-playlist-id');
                 const plResp = await fetch('/api/playlists/names');
                 if (plResp.ok) {
                     const plData = await plResp.json();

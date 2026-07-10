@@ -69,6 +69,45 @@ async function loadStats() {
     }
 }
 
+// H4 FIX: define loadDashboardStats() (was an undefined ReferenceError on every action dispatch).
+// Re-fetches dashboard counts (stats + duplicate/misplaced scan results) and updates the UI.
+async function loadDashboardStats() {
+    try {
+        const [statsResp, dupResp, misResp] = await Promise.all([
+            apiCall('/api/stats').catch(() => null),
+            apiCall('/api/youtube/duplicates').catch(() => null),
+            apiCall('/api/youtube/misplaced').catch(() => null)
+        ]);
+        const s = (statsResp && statsResp.ok) ? await statsResp.json().catch(() => ({})) : {};
+        if (s.last_scan) {
+            const lastScanEl = document.getElementById('last-scan');
+            if (lastScanEl) lastScanEl.textContent = new Date(s.last_scan).toLocaleTimeString();
+        }
+        const dupCount = (dupResp && dupResp.ok) ? ((await dupResp.json().catch(() => ({}))).duplicates || 0) : 0;
+        const misCount = (misResp && misResp.ok) ? ((await misResp.json().catch(() => ({}))).misplaced?.length || 0) : 0;
+        const dupEl = document.getElementById('stat-duplicates');
+        const misEl = document.getElementById('stat-misplaced');
+        if (dupEl) dupEl.textContent = String(dupCount);
+        if (misEl) misEl.textContent = String(misCount);
+        const statusEl = document.getElementById('scan-status');
+        const totalIssues = dupCount + misCount;
+        if (statusEl) {
+            if (totalIssues === 0) {
+                statusEl.textContent = 'Clean';
+                statusEl.className = 'text-green-400 font-medium';
+            } else if (totalIssues <= 5) {
+                statusEl.textContent = `${dupCount} duplicate${dupCount !== 1 ? 's' : ''}, ${misCount} misplaced`;
+                statusEl.className = 'text-yellow-400 font-medium';
+            } else {
+                statusEl.textContent = `${dupCount} duplicates · ${misCount} misplaced`;
+                statusEl.className = 'text-yellow-400 font-medium';
+            }
+        }
+    } catch (e) {
+        console.warn('loadDashboardStats failed', e);
+    }
+}
+
 // Handle OAuth popup callback messages
 window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'youtube-oauth-success') {
@@ -252,18 +291,19 @@ async function loadScanDetails() {
             lastScanEl.textContent = lastScan === 'Never' ? 'Never' : new Date(lastScan).toLocaleTimeString();
         }
 
-        // Status — show scan result severity
+        // Status — show scan result severity with a clear, meaningful label.
+        // Duplicates are informational (warning), misplaced are actionable (warn/red).
         const statusEl = document.getElementById('scan-status');
         if (statusEl) {
             if (totalIssues === 0) {
                 statusEl.textContent = 'Clean';
                 statusEl.className = 'text-green-400 font-medium';
             } else if (totalIssues <= 5) {
-                statusEl.textContent = `${totalIssues} issue${totalIssues > 1 ? 's' : ''}`;
+                statusEl.textContent = `${dupCount} duplicate${dupCount !== 1 ? 's' : ''}, ${misCount} misplaced`;
                 statusEl.className = 'text-yellow-400 font-medium';
             } else {
-                statusEl.textContent = `${totalIssues} issues`;
-                statusEl.className = 'text-red-400 font-medium';
+                statusEl.textContent = `${dupCount} duplicates · ${misCount} misplaced`;
+                statusEl.className = 'text-yellow-400 font-medium';
             }
         }
 
