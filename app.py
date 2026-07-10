@@ -1939,6 +1939,10 @@ async def dispatch_action(body: dict):
         # in-flight task. Launching via asyncio.create_task here would bypass
         # the queue, making cancellation and queue stats ineffective.
         await task_queue.put({"action": action, "payload": payload or {}})
+        # Broadcast an immediate status update so the dashboard Scan Details
+        # panel reflects the queued task without waiting for a poll.
+        if background_worker:
+            await background_worker._broadcast_status()
     except Exception as e:
         log.error(f"Action {action} failed: {e}")
         return {"status": "error", "error": str(e)}

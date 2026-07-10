@@ -132,6 +132,9 @@ function connectWebSocket() {
     ws.onopen = () => {
         logConsole('WebSocket connected.', 'success');
         missedPongs = 0;
+        // Re-sync the Scan Details indicators from the server on (re)connect so a
+        // scan that started while disconnected shows the correct live state.
+        loadScanDetails();
         // H3 FIX: Clear existing ping interval before setting new one
         if (pingInterval) clearInterval(pingInterval);
         pingInterval = setInterval(() => {
@@ -158,6 +161,11 @@ function connectWebSocket() {
             }
             if (msg.type === 'ping') {
                 ws.send(JSON.stringify({type: 'pong'}));
+                return;
+            }
+            // Live worker status — drives Queued Tasks / Active Workers / System Activity
+            if (msg.type === 'status') {
+                applyWorkerStatus(msg);
                 return;
             }
             logConsole(msg.text || msg.message || JSON.stringify(msg), msg.level || 'info');
@@ -321,13 +329,9 @@ async function loadScanDetails() {
             cancelBtn.classList.toggle('hidden', !isRunning);
         }
 
-        // Activity bar — base on worker load (running tasks + queue) with issues as a modifier
-        const load = (statsData.running_tasks || 0) + (statsData.pending_actions || 0);
-        const activityPct = Math.min(load * 15 + (totalIssues > 0 ? 10 : 0), 100);
-        const actPctEl = document.getElementById('activity-pct');
-        const actBarEl = document.getElementById('activity-bar');
-        if (actPctEl) actPctEl.textContent = activityPct + '%';
-        if (actBarEl) actBarEl.style.width = activityPct + '%';
+        // System Activity bar — reflect real worker load, never a fake 10%.
+        // When idle → 0%. When a scan is running → indeterminate pulsing state.
+        updateActivityBar((statsData.running_tasks || 0) > 0 || (statsData.pending_actions || 0) > 0);
 
         // Log results
         if (totalIssues > 0) {
@@ -342,6 +346,61 @@ async function loadScanDetails() {
             statusEl.className = 'text-red-400 font-medium';
         }
         console.warn('loadScanDetails failed', e);
+    }
+}
+
+// Live worker status handler — driven by the {"type":"status",...} WebSocket message.
+// Keeps Queued Tasks / Active Workers / System Activity live during a scan instead of
+// relying on a single /api/stats poll that can miss an in-flight task.
+function applyWorkerStatus(status) {
+    const queued = Number(status.pending || 0);
+    const running = Number(status.running || 0);
+
+    const queuedEl = document.getElementById('queued-tasks');
+    if (queuedEl) queuedEl.textContent = queued;
+
+    const workersEl = document.getElementById('active-workers');
+    if (workersEl) workersEl.textContent = running;
+
+    // Cancel button visible only while a task is in flight
+    const cancelBtn = document.getElementById('scan-cancel-btn');
+    if (cancelBtn) cancelBtn.classList.toggle('hidden', running === 0);
+
+    // Status label reflects current task while running
+    const statusEl = document.getElementById('scan-status');
+    if (statusEl) {
+        if (running > 0) {
+            const taskName = (status.current_task || '').replace(/_/g, ' ');
+            statusEl.textContent = taskName ? `Scanning… (${taskName})` : 'Scanning…';
+            statusEl.className = 'text-[#2f8fc9] font-medium';
+        } else if (queued > 0) {
+            statusEl.textContent = 'Queued';
+            statusEl.className = 'text-yellow-400 font-medium';
+        } else {
+            // Idle — leave the result severity label to loadScanDetails/loadDashboardStats;
+            // only override if it currently shows a transient scanning state.
+            if (statusEl.textContent === 'Scanning…' || statusEl.textContent.startsWith('Scanning…') || statusEl.textContent === 'Queued') {
+                statusEl.textContent = 'Idle';
+                statusEl.className = 'text-gray-300 font-medium';
+            }
+        }
+    }
+
+    // System Activity bar — pulsing indeterminate when busy, 0% when idle.
+    updateActivityBar(running > 0 || queued > 0);
+}
+
+// Update the System Activity progress bar. When `busy`, show an indeterminate
+// pulsing "Scanning…" state; otherwise collapse to a meaningful 0% idle bar.
+function updateActivityBar(busy) {
+    const actPctEl = document.getElementById('activity-pct');
+    const actBarEl = document.getElementById('activity-bar');
+    if (actBarEl) {
+        actBarEl.classList.toggle('activity-scanning', busy);
+        actBarEl.style.width = busy ? '100%' : '0%';
+    }
+    if (actPctEl) {
+        actPctEl.textContent = busy ? 'Scanning…' : '0%';
     }
 }
 
@@ -360,16 +419,55 @@ async function runScan() {
                 method: 'POST',
                 body: JSON.stringify({ action: 'scan_misplaced' })
             });
-            // Refresh details after a short delay to pick up results
+            // Reflect scan state immediately (before the first WS status arrives)
             const statusEl = document.getElementById('scan-status');
-            if (statusEl) { statusEl.textContent = 'Scanning…'; statusEl.className = 'text-blue-400 font-medium'; }
-            setTimeout(loadScanDetails, 4000);
+            if (statusEl) { statusEl.textContent = 'Scanning…'; statusEl.className = 'text-[#2f8fc9] font-medium'; }
+            updateActivityBar(true);
+            const cancelBtn = document.getElementById('scan-cancel-btn');
+            if (cancelBtn) cancelBtn.classList.remove('hidden');
+
+            // Safety verify-poll: refresh details until the worker reports idle.
+            // The WS status stream drives live updates; this covers reconnect gaps.
+            startScanVerifyPoll();
         } else {
             logConsole(`Scan failed: ${data.error || data.detail || resp.status}`, 'error');
         }
     } catch (e) {
         logConsole(`Scan error: ${e.message}`, 'error');
     }
+}
+
+// Poll /api/stats while a scan is believed to be running, stopping once idle.
+let scanVerifyTimer = null;
+function startScanVerifyPoll() {
+    if (scanVerifyTimer) return; // already polling
+    scanVerifyTimer = setInterval(async () => {
+        try {
+            const r = await apiCall('/api/stats').catch(() => null);
+            if (!r || !r.ok) return;
+            const s = await r.json().catch(() => ({}));
+            const busy = (s.running_tasks || 0) > 0 || (s.pending_actions || 0) > 0;
+            // Use the WS-driven handler for consistency; fall back to direct update.
+            applyWorkerStatus({
+                state: busy ? 'running' : 'idle',
+                current_task: s.current_task,
+                running: s.running_tasks || 0,
+                pending: s.pending_actions || 0
+            });
+            if (!busy) {
+                clearInterval(scanVerifyTimer);
+                scanVerifyTimer = null;
+                // Scan finished — refresh results (counts + Clean/severity status)
+                // and settle the indicators into a correct idle state. Must run AFTER
+                // applyWorkerStatus so the result severity label wins over "Idle".
+                loadScanDetails();
+            }
+        } catch { /* ignore */ }
+    }, 2000);
+    // Stop the poll on its own after 90s no matter what (safety net).
+    setTimeout(() => {
+        if (scanVerifyTimer) { clearInterval(scanVerifyTimer); scanVerifyTimer = null; }
+    }, 90000);
 }
 
 // Make available globally for button click and stats refresh

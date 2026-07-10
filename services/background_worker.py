@@ -170,6 +170,23 @@ class BackgroundWorker:
         except Exception:
             return self._youtube_service
 
+    async def _broadcast_status(self):
+        """Broadcast a structured worker status for the dashboard Scan Details panel.
+
+        Drives the live Queued Tasks / Active Workers / System Activity indicators
+        over the existing WebSocket channel so the UI updates without polling /api/stats.
+        """
+        try:
+            await self.manager.broadcast(json.dumps({
+                "type": "status",
+                "state": "running" if self.current_task_name else "idle",
+                "current_task": self.current_task_name,
+                "running": 1 if self.current_task_name else 0,
+                "pending": self.task_queue.qsize(),
+            }))
+        except Exception:
+            pass
+
     async def process_background_tasks(self):
         """Process background tasks from the queue."""
         self.background_tasks_running = True
@@ -184,16 +201,18 @@ class BackgroundWorker:
                 task = await self.task_queue.get()
                 action = task.get("action")
                 payload = task.get("payload", {})
-                
+
                 # If cancel was requested while waiting in queue, skip this task
                 if self._cancel_requested:
                     self._cancel_requested = False
                     self.task_queue.task_done()
+                    await self._broadcast_status()
                     continue
-                
+
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Starting: {action}"}))
 
                 self.current_task_name = action
+                await self._broadcast_status()
 
                 async def _run_handler():
                     """Run the selected handler and post-process scan timing."""
@@ -234,6 +253,7 @@ class BackgroundWorker:
                     self.current_task_name = None
                     self._current_task = None
                     self._cancel_requested = False
+                    await self._broadcast_status()
                     continue
                 finally:
                     self._current_task = None
@@ -247,6 +267,7 @@ class BackgroundWorker:
                     await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
                 self.task_queue.task_done()
                 self.current_task_name = None
+                await self._broadcast_status()
             except asyncio.CancelledError:
                 log.info("[WORKER] Background task processor cancelled — shutting down")
                 self.current_task_name = None
@@ -256,6 +277,7 @@ class BackgroundWorker:
                 await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] {str(e)}"}))
                 self.current_task_name = None
                 self.task_queue.task_done()
+                await self._broadcast_status()
 
     async def full_cluster_scan(self, payload):
         """Perform a full cluster scan."""
