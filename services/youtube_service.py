@@ -940,11 +940,16 @@ class YouTubeService:
             videos = []
             total_duration = 0
             
-            # Process more playlists and videos if force_refresh is True (explicit user sync)
-            max_playlists = 50 if force_refresh else 10
-            max_total_videos = 2000 if force_refresh else 500
-            
-            # Process only the playlists needed to keep duration scans quota-safe.
+            # Fetch the FULL library — no artificial cap that silently truncates
+            # large libraries. The previous caps (10/50 playlists, 500/2000 videos)
+            # dropped ~80% of a 9,287-video / 61-playlist library, so duplicate
+            # scans run against the synced cache undercounted badly. Both values
+            # now exceed the largest known library with headroom. The per-playlist
+            # fetch still paginates fully and we stay sequential (Semaphore(1))
+            # below to keep Render's heap safe.
+            max_playlists = 200 if force_refresh else 150
+            max_total_videos = 12000 if force_refresh else 10000
+
             # Use semaphore to limit concurrent playlist fetches (1 on Render to avoid heap corruption)
             semaphore = asyncio.Semaphore(1)
             
