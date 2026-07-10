@@ -699,13 +699,21 @@ class YouTubeService:
 
 
     async def _fetch_all_paginated(self, fetch_fn, max_results: int = 50, max_items: int = 500) -> List[Any]:
-        """Fetch paginated results with caps and early exit."""
+        """Fetch paginated results with caps and early exit.
+
+        A ``max_items`` of 0 (or negative) means UNBOUNDED — paginate until
+        YouTube returns no ``nextPageToken``. This is required when fetching the
+        full video set for a large library (some playlists exceed 500 videos);
+        a hard cap here silently truncates the synced cache and makes duplicate
+        scans undercount. All other callers keep the safe default cap.
+        """
         all_items = []
         page_token = None
         consecutive_errors = 0
         max_consecutive_errors = 3
+        unbounded = max_items <= 0
 
-        while len(all_items) < max_items:
+        while unbounded or len(all_items) < max_items:
             # Run the blocking sync fetch_fn in a separate thread to unblock the main FastAPI event loop
             try:
                 resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
@@ -754,14 +762,14 @@ class YouTubeService:
             if not page_token:
                 break
 
-            # Early exit if approaching quota
-            if len(all_items) + max_results > max_items:
+            # Early exit if approaching quota (only for bounded callers)
+            if not unbounded and len(all_items) + max_results > max_items:
                 log.warning(f"Approaching item cap {max_items}, stopping pagination")
                 break
 
-        if len(all_items) >= max_items:
+        if not unbounded and len(all_items) >= max_items:
             log.warning(f"_fetch_all_paginated: hit cap at {max_items} items — results may be truncated")
-        return all_items[:max_items]
+        return all_items if unbounded else all_items[:max_items]
 
 
     async def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
@@ -960,7 +968,11 @@ class YouTubeService:
                         video_items = await self._fetch_all_paginated(
                             lambda max_results, page_token: client.list_videos(pl_id, max_results=max_results, page_token=page_token),
                             max_results=50,
-                            max_items=500,
+                            # UNBOUNDED: fetch every video in the playlist. A cap
+                            # here silently truncated large playlists (>500 videos)
+                            # from the synced cache, making duplicate/misplaced
+                            # scans undercount vs the full cluster scan.
+                            max_items=0,
                         )
                         playlist_videos = []
                         for vid in video_items:
