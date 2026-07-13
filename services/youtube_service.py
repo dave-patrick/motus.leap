@@ -23,6 +23,26 @@ from core.lru_cache import LRUAsyncCache
 log = logging.getLogger(__name__)
 
 
+def _extract_quota_reason(resp) -> Optional[str]:
+    """Return the YouTube API error reason from an httpx error response.
+
+    Parses ``resp.json()["error"]["errors"][0]["reason"]`` and returns the
+    reason string (e.g. ``"quotaExceeded"``) or ``None`` if it cannot be
+    determined. ``resp`` is the httpx response object attached to an
+    ``httpx.HTTPStatusError`` (``e.response``).
+    """
+    try:
+        body = resp.json()
+    except Exception:
+        return None
+    errors = (
+        body.get("error", {}) if isinstance(body, dict) else {}
+    ).get("errors", [])
+    if errors and isinstance(errors, list):
+        return errors[0].get("reason")
+    return None
+
+
 class _ReentrantAsyncLock:
     """Asyncio reentrant lock (defensive safety guarantee).
 
@@ -739,7 +759,14 @@ class YouTubeService:
                     break
                 continue
             except httpx.HTTPStatusError as e:
-                # 4xx errors (401/403/404) won't succeed on retry — raise immediately
+                # 403 quotaExceeded: daily quota spent. Stop cleanly and log
+                # ONCE — retrying only burns more quota. Other 4xx (401/403
+                # non-quota/404) won't succeed on retry either — raise to stop.
+                if e.response.status_code == 403 and _extract_quota_reason(e.response) == "quotaExceeded":
+                    log.warning(
+                        "YouTube API daily quota EXCEEDED (quotaExceeded) — "
+                        "skipping further fetches until reset"
+                    )
                 err_msg = f"_fetch_all_paginated: HTTP {e.response.status_code} on API call: {e}. Stopping pagination."
                 log.warning(err_msg)
                 raise
@@ -799,6 +826,14 @@ class YouTubeService:
         try:
             result = await self._fetch_all_data_impl(force_refresh=force_refresh)
         except httpx.HTTPStatusError as e:
+            # 403 quotaExceeded: daily quota spent. Log ONCE and stop cleanly
+            # WITHOUT retrying — re-raising/retrying only burns more quota.
+            if e.response.status_code == 403 and _extract_quota_reason(e.response) == "quotaExceeded":
+                log.warning(
+                    "YouTube API daily quota EXCEEDED (quotaExceeded) — "
+                    "skipping further fetches until reset"
+                )
+                return {"error": "YouTube API daily quota exceeded (quotaExceeded). Try again after the quota resets."}
             log.error(f"[FETCH] HTTP error in fetch_all_data: {e.response.status_code} {e}")
             try:
                 detail = e.response.json().get("error", {}).get("message", str(e))

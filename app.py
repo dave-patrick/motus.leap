@@ -639,9 +639,11 @@ async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: b
 @app.get("/api/youtube/duplicates", dependencies=[Depends(get_current_user)])
 async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
     """Scan for duplicate videos in a playlist or all playlists.
-    
-    Reads from maintenance.json (populated by background worker) when
-    available, falling back to live scan otherwise.
+
+    Reads from maintenance.json (populated by the background worker) when
+    available. If that cache is absent, returns status="not_ready" rather than
+    falling through to a live get_videos()/fetch_all_data() enumeration (which
+    would burn the daily YouTube quota). Run Full Playlist Sync to populate it.
     """
     if not youtube_service:
         return {"duplicates": 0, "error": "YouTube service not initialized"}
@@ -656,20 +658,28 @@ async def scan_duplicates_endpoint(playlist_id: Optional[str] = None):
             return {"duplicates": len(dup_videos), "total_videos": len(dup_videos), "playlist_id": playlist_id, "items": dup_videos}
     except Exception:
         pass
-    
-    videos = await youtube_service.get_videos(playlist_id=playlist_id)
-    video_ids = [v.get("video_id") for v in videos.get("videos", [])]
-    duplicates = len(video_ids) - len(set(video_ids))
 
-    return {"duplicates": duplicates, "total_videos": len(video_ids), "playlist_id": playlist_id}
+    # QUOTA GUARD: never fall through to a live get_videos()/fetch_all_data()
+    # when maintenance.json is absent. That full enumeration is what exhausts
+    # the daily YouTube quota on every dashboard reload/poll. Read-only cache
+    # only — a full scan is an explicit user action (Full Playlist Sync).
+    return {
+        "duplicates": 0,
+        "items": [],
+        "playlist_id": playlist_id,
+        "status": "not_ready",
+        "error": "maintenance data not available",
+    }
 
 
 @app.get("/api/youtube/misplaced", dependencies=[Depends(get_current_user)])
 async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
     """Scan for misplaced videos based on channel mappings.
-    
-    Reads from maintenance.json (populated by background worker) when
-    available, falling back to live scan otherwise.
+
+    Reads from maintenance.json (populated by the background worker) when
+    available. If that cache is absent, returns status="not_ready" rather than
+    falling through to a live get_videos()/fetch_all_data() enumeration (which
+    would burn the daily YouTube quota). Run Full Playlist Sync to populate it.
     """
     if not youtube_service:
         return {"misplaced": [], "error": "YouTube service not initialized"}
@@ -685,37 +695,15 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
     except Exception:
         pass
     
-    config = config_manager.config
-    mappings = config.channel_mappings if hasattr(config, 'channel_mappings') else {}
-
-    metadata = config.channel_metadata or {}
-    def _title(cid: str) -> str:
-        info = metadata.get(cid)
-        return (info or {}).get("title", "") if info else ""
-
-    videos = await youtube_service.get_videos(playlist_id=playlist_id)
-    misplaced = []
-    for v in videos.get("videos", []):
-        video_channel_id = v.get("channel_id") or v.get("videoOwnerChannelId", "")
-        video_playlist_id = v.get("playlist_id")
-        if not video_channel_id or not video_playlist_id:
-            continue
-        if video_channel_id in mappings:
-            mapped_playlist_id = mappings[video_channel_id]
-            title = _title(video_channel_id)
-            if mapped_playlist_id and mapped_playlist_id != video_playlist_id:
-                misplaced.append({
-                    "video_id": v.get("video_id"),
-                    "title": v.get("title"),
-                    "video_title": v.get("title"),
-                    "channel_id": video_channel_id,
-                    "channel_title": title,
-                    "current_playlist_id": video_playlist_id,
-                    "mapped_playlist_id": mapped_playlist_id,
-                    "reason": f"Channel {title or video_channel_id} mapped to playlist {mapped_playlist_id}, but video is in {video_playlist_id}",
-                })
-
-    return {"misplaced": misplaced, "count": len(misplaced)}
+    # QUOTA GUARD: never fall through to a live get_videos()/fetch_all_data()
+    # when maintenance.json is absent. That full enumeration is what exhausts
+    # the daily YouTube quota on every dashboard reload/poll. Read-only cache
+    # only — a full scan is an explicit user action (Full Playlist Sync).
+    return {
+        "misplaced": [],
+        "count": 0,
+        "status": "not_ready",
+    }
 
 
 # Stats endpoint
