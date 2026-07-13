@@ -111,4 +111,48 @@ Candidates to queue next (Neo, non-AI):
 - M1/M2 auth gaps, M3 GET-mutates-config, M5 misplaced mismatch, M7 broken thumbs (UI → Arwin)
 - UI/UX (Arwin): U1 timezone, U2 "479 issues" banner, U3/U4 thumbnails + dead dropdown
 
+---
+
+## [AUDIT-2026-07-13-AI] 2026-07-13 — Full AI-Subsystem Audit (COMPLETE, AWAITING DEPLOY)
+
+- Scope: AI subsystem (services/ai_classifier.py, app.py /api/ai/*, web/settings.html) across
+  functionality/performance/efficiency/security/completeness.
+- Roster (all ran): Neo (C5+injection+allow-list+retry), Gwen (research brief), Arwin (XSS audit + wire UI),
+  Sheldon (review gate x2), MoA review preset (second tier), Jnu (archive).
+- Pipeline: Wave1 done -> Sheldon W2 APPROVE-WITH-NOTES -> MoA AMEND->CONDITIONAL (3 gates) ->
+  Neo+Arwin closed gates (W4) -> Sheldon W5 APPROVE (all 3 gates YES, 0 blockers).
+- C5 root cause (George, pre-dispatch): classify_video unpacked _classify_sync's return as dict but
+  it returns a tuple -> TypeError on every call. CONFIRMED fixed by Neo; 22 AI tests, suite 92 green.
+- Deliverables: ai_classification_research.md (Gwen), ai_ux_audit.md (Arwin),
+  updates/audits/2026-07-13_ai_audit.md (Jnu), this ledger.
+- Status: SHIP-READY. Awaiting Dave's commit word -> Render deploy.
+- **Scope:** Full audit of the AI subsystem — `services/ai_classifier.py`, `app.py` `/api/ai/*`, and `web/settings.html` AI UX — across five lenses: functionality, performance, efficiency, security, completeness.
+- **Roster fanned out (parallel):**
+  - **Neo** — code track: fix C5 (`ai_classifier.py` classify tuple/dict bug) + injection hardening + performance.
+  - **Gwen** — research track; deliverable → `project_information/architecture/ai_classification_research.md`.
+  - **Arwin** — UX audit of AI surface; deliverable → `project_information/design_guidelines/ai_ux_audit.md`.
+  - **Sheldon** — review gate (1st-tier verification of Neo's fix + others).
+  - **MoA review preset** — 2nd-tier (Mixture-of-Agents) review preset.
+  - **Jnu** — archival: this entry + master index at `updates/audits/2026-07-13_ai_audit.md`.
+- **Status table:**
+
+  | Agent | Role | Status |
+  |-------|------|--------|
+  | Neo | C5 fix + injection + perf | 🟡 DISPATCHED (in progress) |
+  | Gwen | research | 🟡 DISPATCHED (in progress) |
+  | Arwin | UX audit | 🟡 DISPATCHED (in progress) |
+  | Sheldon | review gate | ⬜ PENDING |
+  | MoA preset | 2nd-tier review | ⬜ PENDING |
+  | Jnu | archive | ✅ DISPATCHED (scaffold done) |
+
+- **Confirmed root cause (pre-dispatch, by George):** **C5** — `classify_video` in `ai_classifier.py` unpacks `_classify_sync`'s return **as a dict but it returns a tuple** → `TypeError` on every classify call. AI classification 100% broken. Bug register status: ⬜ open; **being fixed by Neo** (status NOT yet flipped — George verifies fix first, per standing rule).
+- **Expected deliverables / landing zones (all PENDING until produced):**
+  - Gwen research → `project_information/architecture/ai_classification_research.md`
+  - Arwin UX audit → `project_information/design_guidelines/ai_ux_audit.md`
+  - Neo fix diff → source (`services/ai_classifier.py` + `app.py`) + commit record under `updates/commits/` on Dave's approval
+  - Sheldon verdict → review-gate note (here / ledger)
+  - MoA verdict → 2nd-tier review note (here / ledger)
+- **Master audit index:** `updates/audits/2026-07-13_ai_audit.md`
+- **Rules honored:** no source/config/bug_register edits by Jnu; no commit/push/deploy.
+
 

@@ -321,6 +321,29 @@ window.open('/system/logs', '_blank');
                                     </div>
                                 </div>
                             </div>
+                            <div class="bento-card p-4 lg:col-span-2">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-1">Test AI Classification</h3>
+                                <p class="text-[9px] text-gray-500 mb-3">Send sample metadata to <code class="font-mono">/api/ai/classify</code> and preview the playlist match. Requires a configured AI provider.</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Video Title</label>
+                                        <input type="text" id="classify-title" placeholder="e.g. Building a 3D Printer Enclosure" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none min-h-[40px] font-mono">
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Channel</label>
+                                        <input type="text" id="classify-channel" placeholder="e.g. 3D Musketeers" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none min-h-[40px] font-mono">
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Description</label>
+                                        <textarea id="classify-description" rows="3" placeholder="e.g. A step-by-step walkthrough of assembling an enclosure..." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded px-3 py-2 outline-none font-mono resize-none"></textarea>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3 mt-3">
+                                    <button id="classify-btn" onclick="testClassify()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i> Classify</button>
+                                    <span id="classify-spinner" class="hidden text-[#2f8fc9] text-xs"><i class="fa-solid fa-spinner fa-spin"></i> Classifying…</span>
+                                </div>
+                                <div id="classify-result" class="mt-3 hidden text-[11px] rounded bg-[#20242c] border border-[#2a2f3a] px-3 py-2"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -685,13 +708,88 @@ window.open('/system/logs', '_blank');
                 container.innerHTML = suggestions.map(s => `
                     <div class="flex items-center justify-between p-2 rounded bg-[#20242c] border border-[#2a2f3a]">
                         <div class="flex-1 min-w-0">
-                            <div class="text-[10px] text-white font-medium truncate">${s.channel_title || s.channel_id}</div>
-                            <div class="text-[9px] text-gray-400">→ ${s.playlist_name} (${s.move_count} moves)</div>
+                            <div class="text-[10px] text-white font-medium truncate">${DOMPurify.sanitize(s.channel_title || s.channel_id)}</div>
+                            <div class="text-[9px] text-gray-400">→ ${DOMPurify.sanitize(s.playlist_name || '')} (${s.move_count} moves)</div>
                         </div>
                     </div>
                 `).join('');
             } catch (e) {
                 console.warn('Failed to load AI suggestions', e);
+            }
+        }
+
+        async function testClassify() {
+            const titleEl = document.getElementById('classify-title');
+            const channelEl = document.getElementById('classify-channel');
+            const descEl = document.getElementById('classify-description');
+            const resultEl = document.getElementById('classify-result');
+            const spinner = document.getElementById('classify-spinner');
+
+            const title = (titleEl && titleEl.value || '').trim();
+            const channel = (channelEl && channelEl.value || '').trim();
+            const description = (descEl && descEl.value || '').trim();
+
+            if (!title && !channel && !description) {
+                toast('Enter a title, channel, or description to classify', 'error');
+                return;
+            }
+
+            if (resultEl) resultEl.classList.add('hidden');
+            if (spinner) spinner.classList.remove('hidden');
+
+            try {
+                // Real caller of /api/ai/classify. Mirrors the page's existing
+                // fetch pattern (auth via auth-check cookie gate; verify_origin
+                // reads the browser's auto-sent Origin header — no invented headers).
+                const resp = await fetch('/api/ai/classify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        video_ids: ['test-1'],
+                        metadata: [{ title, channel, description }]
+                    })
+                });
+
+                const data = await resp.json().catch(() => ({}));
+
+                if (!resp.ok) {
+                    const msg = data.detail || data.error || ('HTTP ' + resp.status);
+                    if (resultEl) {
+                        resultEl.className = 'mt-3 text-[11px] rounded bg-[#20242c] border border-[#dc2626] px-3 py-2 text-red-400';
+                        resultEl.innerHTML = DOMPurify.sanitize(msg, { USE_PROFILES: { html: true } });
+                        resultEl.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                const results = data.results || [];
+                const r = results[0] || {};
+                let label, cls;
+                if (r.error) {
+                    label = 'Error: ' + r.error;
+                    cls = 'border-[#dc2626] text-red-400';
+                } else if (r.matched_playlist) {
+                    label = 'Matched playlist: ' + r.matched_playlist;
+                    cls = 'border-[#16a34a] text-green-400';
+                } else {
+                    label = 'UNSURE';
+                    cls = 'border-[#ca8a04] text-yellow-400';
+                }
+
+                if (resultEl) {
+                    // Whole label embeds API-derived + user-derived values — sanitized in full.
+                    resultEl.className = 'mt-3 text-[11px] rounded bg-[#20242c] border px-3 py-2 ' + cls;
+                    resultEl.innerHTML = DOMPurify.sanitize(label, { USE_PROFILES: { html: true } });
+                    resultEl.classList.remove('hidden');
+                }
+            } catch (e) {
+                if (resultEl) {
+                    resultEl.className = 'mt-3 text-[11px] rounded bg-[#20242c] border border-[#dc2626] px-3 py-2 text-red-400';
+                    resultEl.innerHTML = DOMPurify.sanitize('Network error: ' + (e && e.message || e), { USE_PROFILES: { html: true } });
+                    resultEl.classList.remove('hidden');
+                }
+            } finally {
+                if (spinner) spinner.classList.add('hidden');
             }
         }
 
@@ -769,7 +867,7 @@ window.open('/system/logs', '_blank');
                 // Seed dropdown of playlists for the "Add" row.
                 const sel = document.getElementById('new-playlist-id');
                 sel.innerHTML = '<option value="">-- playlist --</option>' +
-                    _playlists.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
+                    _playlists.map(p => `<option value="${p.id}">${DOMPurify.sanitize(p.title)}</option>`).join('');
 
                 renderMappingsList();
                 // Resolve real names for mapped channels that aren't in subs
@@ -953,8 +1051,8 @@ window.open('/system/logs', '_blank');
                         <input type="checkbox" class="sel-cb shrink-0 accent-[#2f8fc9]" data-channel="${id}" ${checked} onchange="onSelect('${id}', this.checked)">
                         ${avatar}
                         <div class="min-w-0 flex-1">
-                            <div class="text-[11px] font-semibold text-white truncate">${name || id}</div>
-                            ${sub ? `<div class="text-[9px] text-gray-500 truncate">${sub}</div>` : ''}
+                            <div class="text-[11px] font-semibold text-white truncate">${DOMPurify.sanitize(name || id)}</div>
+                            ${sub ? `<div class="text-[9px] text-gray-500 truncate">${DOMPurify.sanitize(sub)}</div>` : ''}
                             <select data-channel="${id}" onchange="onMappingChange('${id}', this.value)" class="mt-1 w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-1 py-1 outline-none">
                                 ${playlistOptions(_maps[id])}
                             </select>
@@ -990,7 +1088,7 @@ window.open('/system/logs', '_blank');
             const sel = document.getElementById('sel-playlist');
             if (sel && !sel.dataset.populated) {
                 sel.innerHTML = '<option value="">-- playlist --</option>' +
-                    _playlists.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
+                    _playlists.map(p => `<option value="${p.id}">${DOMPurify.sanitize(p.title)}</option>`).join('');
                 sel.dataset.populated = '1';
             }
         }

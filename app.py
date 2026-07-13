@@ -2061,40 +2061,43 @@ async def ai_classify_videos(body: AIClassifyIn):
         return {"error": "No playlists available"}
     
     from services.ai_classifier import classify_video
-    
-    results = []
-    for i, vid in enumerate(body.video_ids):
-        try:
-            # Use provided metadata if available (avoids YouTube API call)
-            if body.metadata and i < len(body.metadata):
-                meta = body.metadata[i]
-                title = meta.get("title", "")
-                channel = meta.get("channel", "")
-                description = meta.get("description", "")
-            else:
-                title = ""
-                channel = ""
-                description = ""
-            
-            matched_playlist, error = await classify_video(
-                title=title, channel=channel, description=description,
-                playlists=playlists, provider=provider, api_key=api_key,
-                prompt_template=prompt,
-                custom_endpoint=custom_endpoint, custom_model=custom_model,
-            )
-            
-            result = {
-                "video_id": vid,
-                "title": title,
-                "channel": channel,
-                "matched_playlist": matched_playlist,
-            }
-            if error:
-                result["error"] = error
-            results.append(result)
-        except Exception as e:
-            results.append({"video_id": vid, "error": str(e)})
-    
+
+    # Bounded concurrency: classify all videos at once instead of serially, but
+    # cap in-flight calls with a semaphore so a large batch can't open hundreds of
+    # simultaneous HTTP connections / hammer the LLM provider. Results stay in
+    # input order with the exact per-video (matched_playlist, error) shape the
+    # frontend expects.
+    sem = asyncio.Semaphore(5)
+
+    async def _classify_one(vid, meta):
+        async with sem:
+            try:
+                title = meta.get("title", "") if meta else ""
+                channel = meta.get("channel", "") if meta else ""
+                description = meta.get("description", "") if meta else ""
+                matched_playlist, error = await classify_video(
+                    title=title, channel=channel, description=description,
+                    playlists=playlists, provider=provider, api_key=api_key,
+                    prompt_template=prompt,
+                    custom_endpoint=custom_endpoint, custom_model=custom_model,
+                )
+                result = {
+                    "video_id": vid,
+                    "title": title,
+                    "channel": channel,
+                    "matched_playlist": matched_playlist,
+                }
+                if error:
+                    result["error"] = error
+                return result
+            except Exception as e:
+                return {"video_id": vid, "error": str(e)}
+
+    results = await asyncio.gather(
+        *(_classify_one(vid, (body.metadata[i] if body.metadata and i < len(body.metadata) else None))
+          for i, vid in enumerate(body.video_ids))
+    )
+
     return {"results": results}
 
 
