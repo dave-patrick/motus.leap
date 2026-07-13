@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 import asyncio
@@ -200,8 +201,26 @@ class ConfigManager:
                         data = config.to_dict_for_storage()
                 else:
                     data = config.to_dict_for_storage()
-                async with aiofiles.open(self.config_path, mode='w', encoding='utf-8') as f:
-                    await f.write(await asyncio.to_thread(json.dumps, data, indent=2))
+                # Atomic write: serialize to a temp file in the SAME directory,
+                # then os.replace() (POSIX-atomic rename) over the target. A
+                # crash between open('w') and write() previously left config.json
+                # truncated/partial and json.loads would raise on next boot.
+                # os.replace is atomic and overwrites the target in place.
+                tmp_path = self.config_path.with_suffix(
+                    self.config_path.suffix + ".tmp"
+                )
+                try:
+                    serialized = await asyncio.to_thread(json.dumps, data, indent=2)
+                    async with aiofiles.open(tmp_path, mode='w', encoding='utf-8') as tf:
+                        await tf.write(serialized)
+                    await asyncio.to_thread(os.replace, tmp_path, self.config_path)
+                finally:
+                    # Best-effort cleanup of a leftover temp on failure.
+                    if await asyncio.to_thread(tmp_path.exists):
+                        try:
+                            await asyncio.to_thread(tmp_path.unlink)
+                        except OSError:
+                            pass
                 self._config = config
                 log.info(f"Configuration saved to {self.config_path}")
             except Exception as e:
