@@ -83,16 +83,25 @@ async function loadDashboardStats() {
             const lastScanEl = document.getElementById('last-scan');
             if (lastScanEl) lastScanEl.textContent = new Date(s.last_scan).toLocaleTimeString();
         }
-        const dupCount = (dupResp && dupResp.ok) ? ((await dupResp.json().catch(() => ({}))).duplicates || 0) : 0;
-        const misCount = (misResp && misResp.ok) ? ((await misResp.json().catch(() => ({}))).misplaced?.length || 0) : 0;
+        const dupJson = (dupResp && dupResp.ok) ? await dupResp.json().catch(() => ({})) : {};
+        const misJson = (misResp && misResp.ok) ? await misResp.json().catch(() => ({})) : {};
+        // Backend returns status:'not_ready' when the maintenance cache is
+        // absent (no Full Playlist Sync yet, or quota guard blocked live scan).
+        // Surface that honestly instead of a misleading "Clean".
+        const notReady = dupJson.status === 'not_ready' || misJson.status === 'not_ready';
+        const dupCount = notReady ? 0 : (dupJson.duplicates || 0);
+        const misCount = notReady ? 0 : (misJson.misplaced?.length || 0);
         const dupEl = document.getElementById('stat-duplicates');
         const misEl = document.getElementById('stat-misplaced');
-        if (dupEl) dupEl.textContent = String(dupCount);
-        if (misEl) misEl.textContent = String(misCount);
+        if (dupEl) dupEl.textContent = notReady ? '—' : String(dupCount);
+        if (misEl) misEl.textContent = notReady ? '—' : String(misCount);
         const statusEl = document.getElementById('scan-status');
         const totalIssues = dupCount + misCount;
         if (statusEl) {
-            if (totalIssues === 0) {
+            if (notReady) {
+                statusEl.textContent = 'Not scanned — run Full Playlist Sync';
+                statusEl.className = 'text-gray-400 font-medium';
+            } else if (totalIssues === 0) {
                 statusEl.textContent = 'Clean';
                 statusEl.className = 'text-green-400 font-medium';
             } else if (totalIssues <= 5) {
@@ -288,8 +297,12 @@ async function loadScanDetails() {
         const misData = (misResp && misResp.ok) ? await misResp.json().catch(() => ({})) : {};
         const statsData = (statsResp && statsResp.ok) ? await statsResp.json().catch(() => ({})) : {};
 
-        const dupCount = dupData.duplicates || 0;
-        const misCount = misData.misplaced?.length || misData.count || 0;
+        // Backend returns status:'not_ready' when the maintenance cache is absent
+        // (no Full Playlist Sync yet, or the quota guard blocked a live scan).
+        // Show that honestly rather than a false "Clean".
+        const notReady = dupData.status === 'not_ready' || misData.status === 'not_ready';
+        const dupCount = notReady ? 0 : (dupData.duplicates || 0);
+        const misCount = notReady ? 0 : (misData.misplaced?.length || misData.count || 0);
         const totalIssues = dupCount + misCount;
 
         // Last scan time from server (or "Never" if not yet scanned)
