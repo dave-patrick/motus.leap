@@ -161,6 +161,9 @@ async def lifespan(app: FastAPI):
     background_worker = worker
     asyncio.create_task(worker.process_background_tasks())
 
+    # P3: start the in-process job scheduler ticker (stdlib cron, no APScheduler).
+    await worker.start()
+
     # Start nightly auto-apply mappings job if enabled
     async def nightly_auto_apply_mappings():
         """Nightly job to auto-apply AI mapping suggestions."""
@@ -2641,6 +2644,226 @@ async def ai_chat_history(conversation_id: Optional[str] = None, request: Reques
     user_id = user.get("sub") if isinstance(user, dict) else "anon"
     key = chat_mod.conversation_key(user_id, conversation_id)
     return {"conversation_id": conversation_id, "turns": chat_mod.get_conversation(key)}
+
+
+# =============================================================================
+# P3 — AI Job Scheduling (scheduled_jobs.json, NOT config.json)
+#
+# Endpoints (all mutating routes carry Depends(get_current_user) +
+# Depends(verify_origin), matching P1/P2 — clause P3-5):
+#   GET    /api/ai/jobs            list jobs
+#   POST   /api/ai/jobs            create job (privilege gate P1-2 on destructive)
+#   POST   /api/ai/jobs/parse      NL -> {cron, task} via active provider
+#   POST   /api/ai/jobs/{id}/run   run now (Flow C confirm for destructive)
+#   PATCH  /api/ai/jobs/{id}       enable/pause
+#   DELETE /api/ai/jobs/{id}       delete
+# =============================================================================
+
+from models.scheduled_job import (
+    ScheduledJob,
+    ScheduledJobTask,
+    ALLOWED_JOB_ACTIONS,
+    DESTRUCTIVE_JOB_ACTIONS,
+)
+from services import cron_util
+from services import job_store
+from services import job_parse
+
+
+class JobIn(BaseModel):
+    """Body for POST /api/ai/jobs (create)."""
+    name: str
+    cron: str
+    task: dict                       # {"type": <action>, "payload": {...}}
+    enabled: bool = True
+    # P1-2: MUST be True to schedule a destructive task. Never defaults open.
+    confirm_destructive: bool = False
+
+
+class JobPatchIn(BaseModel):
+    """Body for PATCH /api/ai/jobs/{id} (enable/pause)."""
+    enabled: Optional[bool] = None
+
+
+def _validate_task(task: dict) -> ScheduledJobTask:
+    """Strict validation (M4): enumerated type + additionalProperties:false."""
+    if not isinstance(task, dict):
+        raise ValueError("task must be an object")
+    ttype = task.get("type")
+    if ttype not in ALLOWED_JOB_ACTIONS:
+        raise ValueError(f"unknown task type '{ttype}'")
+    if "payload" not in task:
+        raise ValueError("task.payload is required")
+    payload = task.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError("task.payload must be an object")
+    # additionalProperties:false — reject any key other than type/payload.
+    extra = set(task.keys()) - {"type", "payload"}
+    if extra:
+        raise ValueError(f"task has unknown fields: {sorted(extra)}")
+    return ScheduledJobTask(type=ttype, payload=payload)
+
+
+def _job_summary(job: ScheduledJob) -> dict:
+    """Stable client shape (no secrets)."""
+    return job.model_dump()
+
+
+@app.get("/api/ai/jobs", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_list_jobs():
+    """List scheduled jobs (no secrets in the shape)."""
+    jobs = job_store.load_jobs()
+    return {"jobs": [_job_summary(j) for j in jobs]}
+
+
+@app.post("/api/ai/jobs", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_create_job(body: JobIn):
+    """Create a scheduled job.
+
+    Validation (M4): cron must parse; task.type must be in ALLOWED_JOB_ACTIONS;
+    task must be {type, payload} only. Destructive tasks (P1-2) require
+    confirm_destructive=True — otherwise 400. On success the job is persisted
+    and next_run recomputed (the scheduler reads it on its next tick).
+    """
+    cron = body.cron.strip()
+    if not cron_util.cron_valid(cron):
+        raise HTTPException(status_code=400, detail=f"invalid cron expression: {cron!r}")
+
+    try:
+        task = _validate_task(body.task)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Privilege gate P1-2: destructive payloads need explicit creation-time
+    # confirmation. We never allow a destructive job to be scheduled silently.
+    if task.type in DESTRUCTIVE_JOB_ACTIONS and not body.confirm_destructive:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Refusing to schedule destructive task "
+                f"'{task.type}' without confirm_destructive=true. "
+                "Destructive jobs execute automatically once created; this "
+                "confirmation is the only consent point."
+            ),
+        )
+
+    job = ScheduledJob(
+        name=body.name,
+        cron=cron,
+        task=task,
+        enabled=body.enabled,
+    )
+    nxt = cron_util.next_run(cron)
+    job.next_run = nxt.isoformat() if nxt else None
+    job_store.add_job(job)
+    return JSONResponse(status_code=201,
+                        content={"id": job.id, "next_run": job.next_run, "status": "created"})
+
+
+@app.post("/api/ai/jobs/parse", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_parse_job(body: dict):
+    """Parse natural-language into {cron, task} via the active AI provider.
+
+    Returns a validated structured object, or 400/502 if the model returns
+    something unparseable or no provider is configured (M4 — never forward raw
+    model text into a schedule).
+    """
+    text = (body or {}).get("text", "")
+    if not text or not text.strip():
+        raise HTTPException(status_code=400, detail="missing 'text'")
+    try:
+        parsed = job_parse.parse_schedule_nl(text, config_manager.config)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"could not parse schedule: {str(e)[:300]}")
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return {"cron": parsed["cron"], "name": parsed["name"],
+            "task": parsed["task"], "explain": parsed["explain"]}
+
+
+@app.post("/api/ai/jobs/{job_id}/run", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_run_job(job_id: str):
+    """Run a job immediately (Flow D / Run now).
+
+    Non-destructive: dispatched synchronously through the shared handler (like
+    the scheduler). Destructive: held PENDING via the existing ai_chat pending
+    store (P1-9 / Flow C) and returned as a preview needing explicit confirm
+    through POST /api/ai/chat/confirm — i.e. we reuse the existing confirm
+    wiring rather than duplicating the bulk-ops service.
+    """
+    from services import ai_chat as chat_mod
+
+    job = job_store.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    action = job.task.type
+    if action not in DESTRUCTIVE_JOB_ACTIONS:
+        # Non-destructive: run like a scheduled fire (tracked + persisted).
+        if background_worker is not None:
+            try:
+                await background_worker._execute_job(job)
+            except Exception as e:
+                return JSONResponse(status_code=200, content={
+                    "job_run_id": job.id, "ok": False,
+                    "error": chat_mod._redact(str(e))})
+            return {"job_run_id": job.id, "ok": True, "last_status": job.last_status}
+        raise HTTPException(status_code=503, detail="scheduler worker unavailable")
+
+    # Destructive: build preview + hold pending (Flow C). Execution only via
+    # POST /api/ai/chat/confirm (reuses BulkOperationsService wiring).
+    params = dict(job.task.payload or {})
+    if action == "remove_duplicates":
+        # Capture dupe ids NOW (read-only scan) so /confirm can delete without
+        # a second call.
+        try:
+            from services.ai_chat import _tool_find_duplicates
+            dup = _tool_find_duplicates(
+                getattr(background_worker, "youtube_service", None),
+                params.get("playlist_id", ""))
+            ids = []
+            for g in dup.get("duplicate_groups", []):
+                ids.extend(g.get("video_ids", []))
+            params["duplicate_video_ids"] = ids
+        except Exception:
+            params.setdefault("duplicate_video_ids", [])
+    pending = {
+        "action": action,
+        "preview": {"action": action, **params},
+        "display": f"{action} (scheduled job {job.name})",
+        "params": params,
+    }
+    action_id = chat_mod.store_pending_action(pending)
+    return {
+        "job_run_id": job.id,
+        "needs_confirm": True,
+        "pending_action_id": action_id,
+        "preview": pending["preview"],
+        "action": action,
+    }
+
+
+@app.patch("/api/ai/jobs/{job_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_patch_job(job_id: str, body: JobPatchIn):
+    """Enable / pause a job."""
+    job = job_store.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    if body.enabled is not None:
+        job.enabled = body.enabled
+        nxt = cron_util.next_run(job.cron) if job.enabled else None
+        job.next_run = nxt.isoformat() if nxt else None
+    job_store.update_job(job)
+    return {"ok": True, "enabled": job.enabled, "id": job.id}
+
+
+@app.delete("/api/ai/jobs/{job_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_delete_job(job_id: str):
+    """Delete a job (removed from store; scheduler skips it next tick)."""
+    removed = job_store.remove_job(job_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="job not found")
+    return {"ok": True}
 
 
 # Reset settings

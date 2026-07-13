@@ -10,7 +10,17 @@ from pathlib import Path
 from typing import Any, Optional, List, Dict
 
 from models.config import TubeManagerConfig
+from models.scheduled_job import ScheduledJob
 from core.config_manager import ConfigManager
+from services import cron_util
+from services.job_store import load_jobs, update_job
+
+# Reused for secret redaction in scheduler error surfacing (M3, P3 contract).
+try:
+    from services.ai_chat import _redact as _redact
+except Exception:  # pragma: no cover
+    def _redact(text):
+        return text or ""
 
 log = logging.getLogger(__name__)
 
@@ -112,6 +122,166 @@ class BackgroundWorker:
         self._current_task: Optional[asyncio.Task] = None
         self._cancel_requested = False
         # Playlist cache for AI mode
+
+    async def start(self) -> None:
+        """Launch the in-process scheduler ticker (P3).
+
+        Started once from app lifespan alongside process_background_tasks().
+        The scheduler fires due enabled jobs directly through ``_execute_job``
+        — it does NOT enqueue them on the interactive task_queue.
+        """
+        if getattr(self, "_scheduler_task", None) is None or self._scheduler_task.done():
+            self._scheduler_task = asyncio.create_task(self._scheduler_loop())
+            log.info("[SCHED] job scheduler started")
+
+    async def stop(self) -> None:
+        """Cancel the scheduler ticker (best-effort shutdown)."""
+        task = getattr(self, "_scheduler_task", None)
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+    async def _scheduler_loop(self) -> None:
+        """Wake at the soonest enabled job's next_run and fire it.
+
+        Never lets an exception escape — a crash here would kill scheduling,
+        so every iteration is wrapped and logged.
+        """
+        while True:
+            try:
+                jobs = load_jobs()
+                enabled = [j for j in jobs if j.enabled]
+                # Recompute next_run for any job missing it (e.g. after edits).
+                for j in enabled:
+                    if j.next_run is None and cron_util.cron_valid(j.cron):
+                        nxt = cron_util.next_run(j.cron)
+                        j.next_run = nxt.isoformat() if nxt else None
+                        update_job(j)
+
+                if not enabled:
+                    await asyncio.sleep(30)
+                    continue
+
+                now = datetime.now()
+                due = [j for j in enabled
+                       if j.next_run and datetime.fromisoformat(j.next_run) <= now]
+                upcoming = sorted(
+                    j for j in enabled if j.next_run
+                    and datetime.fromisoformat(j.next_run) > now
+                )
+
+                if due:
+                    for job in due:
+                        try:
+                            await self._execute_job(job)
+                        except Exception as e:
+                            log.error("[SCHED] job %s failed: %s", job.id, _redact(str(e)))
+                    # Loop immediately to catch anything else now due.
+                    continue
+
+                if upcoming:
+                    sleep_s = max(1.0, (
+                        datetime.fromisoformat(upcoming[0].next_run) - now
+                    ).total_seconds())
+                    # Cap the wake-up so restarts/edits are noticed within a minute.
+                    sleep_s = min(sleep_s, 60.0)
+                else:
+                    sleep_s = 30.0
+                await asyncio.sleep(sleep_s)
+            except asyncio.CancelledError:
+                log.info("[SCHED] scheduler cancelled")
+                raise
+            except Exception as e:
+                log.error("[SCHED] scheduler loop error (continuing): %s", _redact(str(e)))
+                try:
+                    await asyncio.sleep(30)
+                except asyncio.CancelledError:
+                    raise
+
+    async def _execute_job(self, job: "ScheduledJob") -> None:
+        """Run a single scheduled job through the shared handler dispatch.
+
+        Tracks last_run/last_status, bumps last_scan_time for scan actions, and
+        recomputes next_run so the schedule rolls forward (P3 §4).
+        """
+        action = job.task.type
+        payload = job.task.payload or {}
+        try:
+            log.info("[SCHED] firing job %s (%s)", job.name, action)
+            await self._dispatch_action(action, payload)
+            job.last_status = "ok"
+        except Exception as e:
+            job.last_status = f"error: {_redact(str(e))[:200]}"
+            log.error("[SCHED] job %s error: %s", job.id, job.last_status)
+        finally:
+            job.last_run = datetime.now(timezone.utc).isoformat()
+            nxt = cron_util.next_run(job.cron) if cron_util.cron_valid(job.cron) else None
+            job.next_run = nxt.isoformat() if nxt else None
+            try:
+                update_job(job)
+            except Exception as e:
+                log.error("[SCHED] failed to persist job %s: %s", job.id, e)
+
+    async def _dispatch_action(self, action: str, payload: dict) -> Any:
+        """Single source of truth for running an action (scheduled or Run-now).
+
+        Mirrors the action->handler mapping in process_background_tasks
+        (background_worker.py:194-207) so the same handler set is exercised.
+        """
+        if action == "full_cluster_scan":
+            return await self.full_cluster_scan(payload)
+        if action == "diagnose_failures":
+            return await self.diagnose_failures(payload)
+        if action == "apply_rules":
+            return await self.apply_rules(payload)
+        if action == "sync_playlists":
+            return await self.sync_playlists(payload)
+        if action == "scan_duplicates":
+            result = await self.scan_duplicates(payload)
+            await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
+            return result
+        if action == "scan_misplaced":
+            result = await self.scan_misplaced(payload)
+            await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
+            return result
+        # Destructive actions (move_video/delete_video/remove_duplicates) are
+        # only reachable here if a job was created WITH the confirm_destructive
+        # gate (P1-2). Per the informed-consent boundary they execute WITHOUT a
+        # per-run confirm. They are executed via the bulk-ops service.
+        if action in ("move_video", "delete_video", "remove_duplicates"):
+            from api.bulk_operations_impl import BulkOperationsService
+            svc = BulkOperationsService(self.config_manager.config, self.config_manager)
+            if action == "move_video":
+                return await svc.move_video(
+                    payload["video_id"],
+                    target_playlist_id=payload.get("to_playlist"),
+                    source_playlist_id=payload.get("from_playlist"),
+                )
+            if action == "delete_video":
+                return await svc.delete_video(payload["video_id"], payload["playlist_id"])
+            if action == "remove_duplicates":
+                # If dupe ids were captured at schedule time, delete those; else
+                # scan now (best-effort), then delete.
+                del_ids = payload.get("duplicate_video_ids") or []
+                pid = payload.get("playlist_id", "")
+                if not del_ids and self.youtube_service:
+                    try:
+                        from services.ai_chat import _tool_find_duplicates
+                        dup = _tool_find_duplicates(self.youtube_service, pid)
+                        for g in dup.get("duplicate_groups", []):
+                            del_ids.extend(g.get("video_ids", []))
+                    except Exception:
+                        pass
+                deleted = 0
+                for vid in del_ids:
+                    ok = await svc.delete_video(vid, pid)
+                    if ok:
+                        deleted += 1
+                return {"deleted": deleted}
+        raise ValueError(f"unknown job action '{action}'")
 
     def cancel_current_task(self):
         """Request cancellation of the currently running task.
