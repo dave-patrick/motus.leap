@@ -368,11 +368,20 @@ def _validate_label(label: str | None, playlists: list[dict]) -> str | None:
 async def classify_video(title: str, channel: str, description: str,
                    playlists: list[dict], provider: str, api_key: str,
                    prompt_template: str = DEFAULT_PROMPT,
-                   custom_endpoint: str = "", custom_model: str = "") -> tuple[str | None, str | None]:
+                   custom_endpoint: str = "", custom_model: str = "",
+                   base_url: str = "", provider_type: str = "",
+                   selected_models: list[str] | None = None) -> tuple[str | None, str | None]:
     """Classify a video into a playlist using the configured AI provider.
 
     Returns (matched_playlist_name, error_message).
     matched_playlist_name is None if unsure or error.
+
+    P1: when called via the multi-provider model, the caller may pass the
+    resolved connection's ``base_url``/``provider_type``/``selected_models``
+    instead of the legacy single-provider scalars. ``provider`` is the resolved
+    provider *type* (openai/anthropic/groq/google/custom). ``selected_models``
+    is used to choose the model string for the request (first element, or the
+    legacy per-type default).
     """
     if not api_key:
         return None, "No API key configured"
@@ -384,11 +393,13 @@ async def classify_video(title: str, channel: str, description: str,
     prompt = _build_prompt(prompt_template, title, channel, description, playlists)
 
     try:
-        endpoint = API_ENDPOINTS.get(provider, "")
-        if provider == "google":
-            endpoint = f"{endpoint}?key={api_key}"
-        elif provider == "custom":
-            endpoint = custom_endpoint.rstrip("/") + "/chat/completions"
+        # Resolve request URL + model from the active ProviderConnection (P1)
+        # or from the legacy scalars (back-compat).
+        endpoint = _resolve_endpoint(
+            provider, api_key, base_url or custom_endpoint, selected_models,
+        )
+        if endpoint is None:
+            return None, f"Unsupported provider type: {provider}"
 
         # C5 fix: _classify_sync returns a (data, err) tuple, NOT a bare dict.
         # Unpacking it as a dict previously raised
@@ -421,3 +432,34 @@ async def classify_video(title: str, channel: str, description: str,
     except Exception as e:
         log.error(f"[AI] Classification failed: {e}")
         return None, str(e)
+
+
+def _resolve_endpoint(provider: str, api_key: str,
+                      base_url_or_endpoint: str = "",
+                      selected_models: list[str] | None = None) -> str | None:
+    """Build the chat/completions endpoint URL for the (resolved) provider.
+
+    For P1 multi-provider calls, ``base_url_or_endpoint`` carries the
+    connection's ``base_url`` and ``selected_models`` carries the chosen model
+    ids; for legacy calls it carries ``custom_endpoint`` and ``custom_model``.
+
+    Returns the full request URL, or None for an unknown provider.
+    """
+    from models.config import PROVIDER_BUILTIN_BASE_URLS
+
+    if provider == "openai":
+        return f"{PROVIDER_BUILTIN_BASE_URLS['openai']}/v1/chat/completions"
+    if provider == "anthropic":
+        return f"{PROVIDER_BUILTIN_BASE_URLS['anthropic']}/v1/messages"
+    if provider == "groq":
+        return f"{PROVIDER_BUILTIN_BASE_URLS['groq']}/openai/v1/chat/completions"
+    if provider == "google":
+        # Legacy generateContent URL (selected model appended at call time via
+        # custom_model/selected_models[0]).
+        model = (selected_models or ["gemini-2.0-flash"])[0]
+        return (f"{PROVIDER_BUILTIN_BASE_URLS['google']}"
+                f"/v1beta/models/{model}:generateContent?key={api_key}")
+    if provider == "custom":
+        endpoint = (base_url_or_endpoint or "").rstrip("/")
+        return f"{endpoint}/chat/completions"
+    return None

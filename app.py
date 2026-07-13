@@ -2,6 +2,7 @@
 # Deploy v2.2
 
 import os
+import uuid
 from dotenv import load_dotenv
 
 try:
@@ -30,7 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 from starlette.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, SecretStr
 import aiofiles
 
 # Video ID validation
@@ -68,7 +69,7 @@ from api.auth import router as auth_router
 # Core imports
 from core.http_client import shutdown_http_client
 from core.config_manager import ConfigManager
-from models.config import TubeManagerConfig
+from models.config import TubeManagerConfig, ProviderConnection, PROVIDER_TYPES, PROVIDER_BUILTIN_BASE_URLS
 from models.task import Task, TaskStatus, TaskPriority
 
 # Service imports
@@ -2026,12 +2027,28 @@ async def ai_classify_videos(body: AIClassifyIn):
     If metadata is provided, it is used directly instead of fetching from YouTube.
     """
     config = config_manager.config
-    provider = config.ai_provider
-    api_key = _secret_val(config.ai_api_key)
-    prompt = config.ai_classification_prompt
-    custom_endpoint = config.ai_custom_endpoint
-    custom_model = config.ai_custom_model
-    
+
+    # P1: resolve the active provider connection. Fall back to legacy scalars
+    # for back-compat (e.g. if no providers list yet but legacy fields set).
+    active = _get_active_provider(config)
+    if active is not None:
+        provider = active.type
+        api_key = _secret_val(active.api_key)
+        prompt = config.ai_classification_prompt
+        custom_endpoint = active.base_url
+        custom_model = active.selected_models[0] if active.selected_models else ""
+        base_url = active.base_url
+        selected_models = active.selected_models
+    else:
+        # Legacy single-provider path (pre-migration config).
+        provider = config.ai_provider
+        api_key = _secret_val(config.ai_api_key)
+        prompt = config.ai_classification_prompt
+        custom_endpoint = config.ai_custom_endpoint
+        custom_model = config.ai_custom_model
+        base_url = ""
+        selected_models = None
+
     if not provider or not api_key:
         return {"error": "AI provider not configured"}
     
@@ -2068,6 +2085,7 @@ async def ai_classify_videos(body: AIClassifyIn):
                     playlists=playlists, provider=provider, api_key=api_key,
                     prompt_template=prompt,
                     custom_endpoint=custom_endpoint, custom_model=custom_model,
+                    base_url=base_url, selected_models=selected_models,
                 )
                 result = {
                     "video_id": vid,
@@ -2133,6 +2151,278 @@ async def ai_get_memory():
     from services.ai_classifier import _load_memory
     memory = await _load_memory()
     return {"moves": memory[-100:]}
+
+
+# =============================================================================
+# P1 — AI Management: multi-provider config + dynamic model discovery
+# (DESIGN_SPEC §7 contract; Gwen §A.2 / §B). Every mutating route carries
+# get_current_user + verify_origin. Keys are redacted on all read responses.
+# =============================================================================
+
+class ProviderConnectIn(BaseModel):
+    """Body for POST /api/ai/providers (connect a new connection)."""
+    name: str
+    type: str                          # one of PROVIDER_TYPES
+    api_key: str = ""
+    base_url: str = ""                 # required for custom; ignored for builtins
+    # optional pre-selection of models at connect time (skips manual entry)
+    selected_models: list[str] = []
+
+
+class ProviderSelectModelsIn(BaseModel):
+    """Body for PUT /api/ai/providers/{id}/models (select active + default)."""
+    active: list[str] = []
+    default: str = ""
+
+
+def _get_active_provider(config: TubeManagerConfig) -> ProviderConnection | None:
+    """Resolve the currently active ProviderConnection by ai_active_provider_id."""
+    if not config.ai_providers:
+        return None
+    if config.ai_active_provider_id:
+        for p in config.ai_providers:
+            if p.id == config.ai_active_provider_id:
+                return p
+    # Fallback: first enabled provider.
+    for p in config.ai_providers:
+        if p.enabled:
+            return p
+    return None
+
+
+def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
+    """Run model discovery for a connection.
+
+    Returns a dict with one of:
+      - {"models": [{"id", "name", "owned_by?"}], "manual_entry": False}
+      - {"manual_entry": True}   (anthropic/google catalog OR probe-unsupported)
+      - {"error": <msg>, "manual_entry": True}  (probe failed; manual fallback)
+
+    For openai/groq/custom: live GET {base}/v1/models probe with B.4 error
+    handling. For anthropic/google: probe skipped, manual_entry=True.
+    """
+    import httpx
+
+    # anthropic/google: skip probe entirely (known non-OpenAI shape).
+    if conn.type in ("anthropic", "google"):
+        return {"manual_entry": True, "models": []}
+
+    base = (conn.base_url or "").rstrip("/")
+    if not base:
+        return {"manual_entry": True, "error": "No base_url configured"}
+
+    models_url = f"{base}/v1/models"
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.get(models_url, headers=headers)
+    except (httpx.TimeoutException, httpx.ConnectError, httpx.TransportError) as e:
+        # Retry once with backoff (B.4 timeout/network).
+        try:
+            import time
+            time.sleep(1.0)
+            with httpx.Client(timeout=15.0) as client:
+                resp = client.get(models_url, headers=headers)
+        except Exception as e2:
+            return {"manual_entry": True, "error": f"Discovery probe failed: {e2}"}
+
+    # B.4: 401/403 -> invalid key, do NOT cache, surface to UI.
+    if resp.status_code in (401, 403):
+        return {"manual_entry": True, "error": "Invalid API key / unauthorized (401/403)"}
+    # B.4: 404 / non-OpenAI host -> manual entry fallback.
+    if resp.status_code == 404:
+        return {"manual_entry": True, "error": "No /v1/models route (404)"}
+
+    # B.4: non-JSON or unexpected shape -> manual entry.
+    try:
+        payload = resp.json()
+    except Exception:
+        return {"manual_entry": True, "error": "Provider returned non-JSON body"}
+
+    if not isinstance(payload, dict) or payload.get("object") != "list":
+        return {"manual_entry": True, "error": "Response is not OpenAI-shaped"}
+
+    models = []
+    try:
+        for item in payload.get("data", []):
+            models.append({
+                "id": item.get("id"),
+                "name": item.get("id"),
+                "owned_by": item.get("owned_by"),
+            })
+    except Exception:
+        return {"manual_entry": True, "error": "Malformed model list"}
+
+    return {"models": models, "manual_entry": False}
+
+
+@app.get("/api/ai/providers", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_list_providers():
+    """List provider connections (keys redacted)."""
+    config = config_manager.config
+    providers = []
+    for p in config.ai_providers:
+        d = p.redacted()
+        d["status"] = "active" if (p.id == config.ai_active_provider_id) else ("enabled" if p.enabled else "disabled")
+        d["active_model_count"] = len(p.selected_models)
+        d["discovered_model_count"] = len(p.discovered_models)
+        d["is_active"] = (p.id == config.ai_active_provider_id)
+        providers.append(d)
+    return {"providers": providers}
+
+
+@app.post("/api/ai/providers", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_connect_provider(body: ProviderConnectIn):
+    """Connect (add) a new provider connection."""
+    if body.type not in PROVIDER_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid provider type '{body.type}'")
+    if body.type == "custom" and not body.base_url:
+        raise HTTPException(status_code=400, detail="base_url is required for custom providers")
+
+    config = config_manager.config
+
+    # Derive base_url for builtins.
+    if body.type == "custom":
+        base_url = body.base_url.rstrip("/")
+    else:
+        base_url = PROVIDER_BUILTIN_BASE_URLS.get(body.type, body.base_url)
+
+    conn = ProviderConnection(
+        id=uuid.uuid4().hex,
+        name=body.name,
+        type=body.type,
+        base_url=base_url,
+        api_key=SecretStr(body.api_key) if body.api_key else SecretStr(""),
+        enabled=True,
+        selected_models=list(body.selected_models),
+        is_builtin=(body.type in PROVIDER_BUILTIN_BASE_URLS),
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    config.ai_providers.append(conn)
+    # First provider connected becomes the active one if none is set.
+    if not config.ai_active_provider_id:
+        config.ai_active_provider_id = conn.id
+
+    await config_manager.save(config)
+    return {"id": conn.id, "status": "connected"}
+
+
+@app.delete("/api/ai/providers/{provider_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_disconnect_provider(provider_id: str):
+    """Disconnect (remove) a provider connection."""
+    config = config_manager.config
+    before = len(config.ai_providers)
+    config.ai_providers = [p for p in config.ai_providers if p.id != provider_id]
+    if len(config.ai_providers) == before:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    # If we removed the active provider, clear/advance the active pointer.
+    if config.ai_active_provider_id == provider_id:
+        config.ai_active_provider_id = next((p.id for p in config.ai_providers if p.enabled), None)
+    await config_manager.save(config)
+    return {"ok": True}
+
+
+@app.get("/api/ai/providers/{provider_id}/models", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_discover_provider_models(provider_id: str):
+    """Discover available models for a provider connection.
+
+    openai/groq/custom -> live GET {base}/v1/models probe (B.3/B.4).
+    anthropic/google  -> probe skipped, returns manual_entry:true.
+    The discovered list is cached onto the connection (discovered_models).
+    """
+    config = config_manager.config
+    conn = next((p for p in config.ai_providers if p.id == provider_id), None)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    api_key = _secret_val(conn.api_key)
+    result = _discover_models_for_type(conn, api_key)
+
+    if "error" in result and not result.get("manual_entry"):
+        # genuine probe error that isn't a manual-entry fallback
+        return {"provider_id": provider_id, "models": [], "manual_entry": True,
+                "error": result["error"]}
+
+    models = result.get("models", [])
+    manual = result.get("manual_entry", False)
+    error = result.get("error")
+
+    # Cache discovered models when the probe succeeded.
+    if not manual and models:
+        conn.discovered_models = [m["id"] for m in models if m.get("id")]
+        conn.discovered_at = datetime.now(timezone.utc).isoformat()
+        # Best-effort persist (don't fail discovery on a save error).
+        try:
+            await config_manager.save(config)
+        except Exception as e:
+            log.warning(f"Failed to persist discovered models: {e}")
+
+    return {
+        "provider_id": provider_id,
+        "type": conn.type,
+        "models": models,
+        "manual_entry": manual,
+        "error": error,
+    }
+
+
+@app.put("/api/ai/providers/{provider_id}/models", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_select_provider_models(provider_id: str, body: ProviderSelectModelsIn):
+    """Select active models for a provider and activate it.
+
+    Sets selected_models on the connection and makes it the active provider
+    (ai_active_provider_id). `default` (optional) is recorded in selected_models
+    ordering / stored as the first element for classify precedence.
+    """
+    config = config_manager.config
+    conn = next((p for p in config.ai_providers if p.id == provider_id), None)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    # Validate requested model ids against discovered/catalog when available.
+    valid = set(conn.discovered_models) if conn.discovered_models else set(body.active)
+    selected = []
+    for m in body.active:
+        if valid and m not in valid:
+            # Allow manual-entry models through even if not in discovered set.
+            if conn.discovered_models:
+                raise HTTPException(status_code=400, detail=f"Unknown model id: {m}")
+        selected.append(m)
+    if body.default and body.default not in selected:
+        # Same validation as `active`: block arbitrary model ids unless manual
+        # entry is in play (no discovered set yet).
+        if conn.discovered_models and body.default not in conn.discovered_models:
+            raise HTTPException(status_code=400, detail=f"Unknown model id: {body.default}")
+        selected.insert(0, body.default)
+
+    conn.selected_models = selected
+    conn.enabled = True
+    config.ai_active_provider_id = conn.id
+    await config_manager.save(config)
+    return {"ok": True, "active_provider_id": conn.id, "selected_models": selected}
+
+
+@app.get("/api/ai/models", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_list_active_models():
+    """All active (selected) models grouped by provider."""
+    config = config_manager.config
+    providers = []
+    for p in config.ai_providers:
+        if not p.enabled or not p.selected_models:
+            continue
+        providers.append({
+            "id": p.id,
+            "name": p.name,
+            "type": p.type,
+            "is_active": (p.id == config.ai_active_provider_id),
+            "models": [
+                {"id": m, "name": m, "active": True,
+                 "default": (m == (p.selected_models[0] if p.selected_models else None))}
+                for m in p.selected_models
+            ],
+        })
+    return {"providers": providers}
 
 
 # Reset settings

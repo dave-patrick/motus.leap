@@ -47,6 +47,11 @@ class ConfigManager:
                     content = await f.read()
                 data = await asyncio.to_thread(json.loads, content)
                 self._config = TubeManagerConfig.from_dict(data)
+                # P1 migration: legacy single-provider scalars -> multi-provider
+                # list. Only fires when a legacy provider is set but the new
+                # ai_providers list is empty, so existing configs don't break
+                # (DESIGN_SPEC §7 migration note, Gwen §A.2).
+                await self._migrate_legacy_provider(self._config)
                 log.info(f"Configuration loaded from {self.config_path}")
             else:
                 self._config = TubeManagerConfig()
@@ -56,6 +61,83 @@ class ConfigManager:
             self._config = TubeManagerConfig()
 
         return self._config
+
+    # ── P1 provider migration (DESIGN_SPEC §7, Gwen §A.2) ──────────────
+
+    async def _migrate_legacy_provider(self, config: "TubeManagerConfig") -> None:
+        """Synthesize an ai_providers entry from legacy single-provider scalars.
+
+        If ``ai_provider`` is set but ``ai_providers`` is empty, build a
+        ProviderConnection from the legacy scalars (ai_provider, ai_api_key,
+        ai_custom_endpoint, ai_custom_model) and set ai_active_provider_id.
+        Idempotent: does nothing if ai_providers is already populated.
+        """
+        from models.config import (
+            ProviderConnection,
+            PROVIDER_BUILTIN_BASE_URLS,
+        )
+        from datetime import datetime, timezone
+        from pydantic import SecretStr
+        import uuid
+
+        if config.ai_providers:
+            # Already migrated / multi-provider config; leave untouched.
+            if not config.ai_active_provider_id and config.ai_providers:
+                # Defensive: if active id missing, pick first enabled provider.
+                for p in config.ai_providers:
+                    if p.enabled:
+                        config.ai_active_provider_id = p.id
+                        break
+            return
+
+        legacy = (config.ai_provider or "").strip()
+        if not legacy:
+            return  # nothing to migrate
+
+        # Validate the legacy type against the current enum (defensive).
+        if legacy not in ("openai", "anthropic", "groq", "google", "custom"):
+            log.warning(
+                f"Legacy ai_provider '{legacy}' not in P1 enum; skipping migration."
+            )
+            return
+
+        key = config.ai_api_key.get_secret_value() if config.ai_api_key else ""
+
+        if legacy == "custom":
+            base_url = (config.ai_custom_endpoint or "").rstrip("/")
+            # strip any trailing /chat/completions or /v1 leftover from old UI
+            for suffix in ("/chat/completions", "/v1"):
+                if base_url.endswith(suffix):
+                    base_url = base_url[: -len(suffix)]
+        else:
+            base_url = PROVIDER_BUILTIN_BASE_URLS[legacy]
+
+        selected = [config.ai_custom_model] if legacy == "custom" and config.ai_custom_model else []
+        # For builtin types with no discovered/selected models yet, pre-seed the
+        # historically-hardcoded default model so classify still works post-cut.
+        legacy_default_models = {
+            "openai": ["gpt-4o-mini"],
+            "anthropic": ["claude-3-haiku-20240307"],
+            "groq": ["llama-3.3-70b-versatile"],
+            "google": ["gemini-2.0-flash"],
+        }
+        if legacy in legacy_default_models and not selected:
+            selected = list(legacy_default_models[legacy])
+
+        conn = ProviderConnection(
+            id=uuid.uuid4().hex,
+            name=f"{legacy.capitalize()} (migrated)",
+            type=legacy,
+            base_url=base_url,
+            api_key=SecretStr(key),
+            enabled=True,
+            selected_models=selected,
+            is_builtin=(legacy in PROVIDER_BUILTIN_BASE_URLS),
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+        config.ai_providers = [conn]
+        config.ai_active_provider_id = conn.id
+        log.info(f"Migrated legacy ai_provider='{legacy}' -> ai_providers[0].id={conn.id}")
 
     async def save(self, config: TubeManagerConfig) -> None:
         """Save configuration to file.
