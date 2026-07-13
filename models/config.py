@@ -1,5 +1,7 @@
 """Configuration models for motus.leap."""
 
+import uuid
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field, SecretStr
 from typing import Optional, Dict, Any, List
 
@@ -52,6 +54,43 @@ class ProviderConnection(BaseModel):
         }
 
 
+class AIRule(BaseModel):
+    """An AI classification rule (P2).
+
+    Maps a natural-language rule ("all aviation videos → Aviation playlist")
+    to a target playlist. Persisted in ``TubeManagerConfig.ai_rules`` which is
+    the single source of truth — the chat agent's ``apply_rules`` tool only
+    READS these (P1-7 / DESIGN_SPEC §7); it never mutates the store.
+
+    ``target_playlist`` is the canonical key (playlist id) used for the
+    one-rule-per-target uniqueness constraint (Decision 2). ``playlist_name``
+    is a denormalized display value refreshed from the user's library.
+    """
+
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+    name: str
+    description: str = ""                       # NL rule text
+    target_playlist: str = ""                  # playlist id (uniqueness key)
+    playlist_name: str = ""                    # denormalized display name
+    model: str = ""                            # model id this rule was built with
+    enabled: bool = True
+    is_global: bool = False
+    priority: int = 0
+    matched_count: int = 0
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> Dict[str, Any]:
+        return self.model_dump()
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AIRule":
+        return cls(**data)
+
+    def redacted(self) -> Dict[str, Any]:
+        """No secrets possible, but keep a stable client shape."""
+        return self.model_dump()
+
+
 class YouTubeOAuthConfig(BaseModel):
     """YouTube OAuth configuration."""
     client_id: str = Field(default="")
@@ -94,6 +133,10 @@ class TubeManagerConfig(BaseModel):
     # Explicit list of additional allowed CORS/Origin values (CSRF guard).
     # M2: only declared origins are trusted; blanket *.onrender.com is removed.
     allowed_origins: List[str] = Field(default_factory=list)
+    # ── P2 AI Rules + AI Chat ──
+    ai_rules: List[AIRule] = Field(default_factory=list)
+    # Per-user (by identity) chat request ceiling per minute (M8). 0 = unlimited.
+    ai_chat_rate_limit_per_min: int = Field(default=20)
 
     def to_dict_for_storage(self) -> Dict[str, Any]:
         """Convert to dictionary for storage.
@@ -132,6 +175,9 @@ class TubeManagerConfig(BaseModel):
         }
         data['youtube_api_key'] = _secret(self.youtube_api_key) if self.youtube_api_key else ''
         data['ai_api_key'] = _secret(self.ai_api_key) if self.ai_api_key else ''
+        # P2: serialize ai_rules (no secrets; plain models).
+        data['ai_rules'] = [r.model_dump() for r in self.ai_rules]
+        data['ai_chat_rate_limit_per_min'] = self.ai_chat_rate_limit_per_min
         return data
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TubeManagerConfig':

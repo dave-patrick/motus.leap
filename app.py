@@ -2425,6 +2425,226 @@ async def ai_list_active_models():
     return {"providers": providers}
 
 
+
+
+# =============================================================================
+# P2 — AI Management: Rules CRUD + AI Chat with tool-calling
+# (DESIGN_SPEC §7 contract; Gwen §A.2 / §C. Every mutating route carries
+# get_current_user + verify_origin. Destructive chat actions are held PENDING
+# (ai_chat.store_pending_action) and execute only on /api/ai/chat/confirm.)
+# Chat rate-limit (M8) enforced here at the endpoint layer.
+# =============================================================================
+
+class AIRuleIn(BaseModel):
+    """Body for POST /api/ai/rules."""
+    name: str
+    description: str = ""
+    target_playlist: str                 # playlist id (uniqueness key, Decision 2)
+    playlist_name: str = ""
+    model: str = ""
+    enabled: bool = True
+    is_global: bool = False
+    priority: int = 0
+
+
+class AIRuleUpdateIn(BaseModel):
+    """Body for PUT /api/ai/rules/{id} (partial)."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    target_playlist: Optional[str] = None
+    playlist_name: Optional[str] = None
+    model: Optional[str] = None
+    enabled: Optional[bool] = None
+    is_global: Optional[bool] = None
+    priority: Optional[int] = None
+
+
+class ChatIn(BaseModel):
+    """Body for POST /api/ai/chat."""
+    message: str
+    conversation_id: Optional[str] = None
+
+
+class ChatConfirmIn(BaseModel):
+    """Body for POST /api/ai/chat/confirm."""
+    action_id: str
+
+
+# ── M8: per-user chat rate-limit (simple in-memory token bucket) ──────────
+_chat_limit = 20          # requests
+_chat_window = 60.0       # seconds
+_chat_buckets: dict[str, list[float]] = {}
+
+
+def _chat_rate_ok(user_id: str) -> bool:
+    """Return True if the user is under the chat rate limit (M8)."""
+    now = __import__("time").monotonic()
+    hits = _chat_buckets.setdefault(user_id, [])
+    # Drop hits outside the window.
+    _chat_buckets[user_id] = [t for t in hits if now - t < _chat_window]
+    if len(_chat_buckets[user_id]) >= _chat_limit:
+        return False
+    _chat_buckets[user_id].append(now)
+    return True
+
+
+def _rules_list(config) -> list:
+    """Redacted rule list (no secrets — rules carry none, but keep shape stable)."""
+    return [r.model_dump() for r in config.ai_rules]
+
+
+@app.get("/api/ai/rules", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_list_rules():
+    """List AI classification rules."""
+    return {"rules": _rules_list(config_manager.config)}
+
+
+@app.post("/api/ai/rules", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_create_rule(body: AIRuleIn):
+    """Create a rule. 409 if target_playlist already has a rule (Decision 2)."""
+    config = config_manager.config
+    if any(r.target_playlist == body.target_playlist for r in config.ai_rules):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Rule already exists for target_playlist '{body.target_playlist}'",
+        )
+    from models.config import AIRule
+    rule = AIRule(
+        name=body.name, description=body.description,
+        target_playlist=body.target_playlist, playlist_name=body.playlist_name,
+        model=body.model, enabled=body.enabled,
+        is_global=body.is_global, priority=body.priority,
+    )
+    config.ai_rules.append(rule)
+    await config_manager.save(config)
+    return {"id": rule.id, "status": "created"}
+
+
+@app.put("/api/ai/rules/{rule_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_update_rule(rule_id: str, body: AIRuleUpdateIn):
+    """Update a rule. Re-checks 409 if target_playlist changes to an occupied one."""
+    config = config_manager.config
+    rule = next((r for r in config.ai_rules if r.id == rule_id), None)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    data = body.model_dump(exclude_unset=True)
+    if "target_playlist" in data and data["target_playlist"] != rule.target_playlist:
+        if any(r.target_playlist == data["target_playlist"] and r.id != rule_id
+               for r in config.ai_rules):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Rule already exists for target_playlist '{data['target_playlist']}'",
+            )
+    for k, v in data.items():
+        setattr(rule, k, v)
+    await config_manager.save(config)
+    return {"id": rule.id, "status": "updated"}
+
+
+@app.delete("/api/ai/rules/{rule_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_delete_rule(rule_id: str):
+    """Delete a rule."""
+    config = config_manager.config
+    before = len(config.ai_rules)
+    config.ai_rules = [r for r in config.ai_rules if r.id != rule_id]
+    if len(config.ai_rules) == before:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    await config_manager.save(config)
+    return {"ok": True}
+
+
+@app.post("/api/ai/chat", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_chat(body: ChatIn, request: Request):
+    """Conversational management with constrained tool-calling (ai_chat.run_chat).
+
+    Destructive tools (move/delete/remove-duplicates) are held pending and
+    returned as previews; they execute only on /api/ai/chat/confirm.
+    """
+    from services import ai_chat as chat_mod
+    user = getattr(request.state, "user", None)
+    user_id = user.get("sub") if isinstance(user, dict) else "anon"
+    if not _chat_rate_ok(user_id):
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(int(_chat_window))},
+            content={"error": "Chat rate limit exceeded. Retry later."},
+        )
+    config = config_manager.config
+    key = chat_mod.conversation_key(user_id, body.conversation_id)
+    history = chat_mod.get_conversation(key)
+    result = chat_mod.run_chat(
+        message=body.message, config=config,
+        youtube_service=youtube_service, history=history,
+    )
+    # Persist the turn (with any pending actions) for /history.
+    chat_mod.append_turn(key, "user", body.message,
+                          pending=result.get("pending_actions"))
+    chat_mod.append_turn(key, "assistant", result.get("reply", ""),
+                          pending=result.get("pending_actions"))
+    return result
+
+
+@app.post("/api/ai/chat/confirm", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_chat_confirm(body: ChatConfirmIn):
+    """Execute a retained pending destructive action (P1-9 / M4).
+
+    Reads the in-memory pending record, dispatches the REAL bulk op
+    (api.bulk_operations_impl), and consumes the record (one-shot).
+    """
+    from services import ai_chat as chat_mod
+    pending = chat_mod.consume_pending_action(body.action_id)
+    if pending is None:
+        raise HTTPException(status_code=404, detail="Pending action not found or already executed")
+    action = pending.get("action")
+    params = pending.get("params", {})
+    try:
+        if action == "move_video":
+            from api.bulk_operations_impl import BulkOperationsService
+            svc = BulkOperationsService(config_manager.config, config_manager)
+            await svc.move_video(
+                params["video_id"],
+                target_playlist_id=params["to_playlist"],
+                source_playlist_id=params["from_playlist"],
+            )
+        elif action == "delete_video":
+            from api.bulk_operations_impl import BulkOperationsService
+            svc = BulkOperationsService(config_manager.config, config_manager)
+            await svc.delete_video(params["video_id"], params["playlist_id"])
+        elif action == "remove_duplicates":
+            from api.bulk_operations_impl import BulkOperationsService
+            svc = BulkOperationsService(config_manager.config, config_manager)
+            del_ids = pending.get("params", {}).get("duplicate_video_ids", [])
+            pid = pending.get("params", {}).get("playlist_id", "")
+            deleted = 0
+            for vid in del_ids:
+                ok = await svc.delete_video(vid, pid)
+                if ok:
+                    deleted += 1
+            return {"ok": True, "action": action, "deleted": deleted,
+                    "action_id": body.action_id}
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown pending action '{action}'")
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Redact secrets in surfaced errors (M3).
+        return JSONResponse(status_code=200, content={
+            "ok": False, "error": chat_mod._redact(str(e)), "action_id": body.action_id})
+    return {"ok": True, "action": action, "action_id": body.action_id}
+
+
+@app.get("/api/ai/chat/history", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_chat_history(conversation_id: Optional[str] = None, request: Request = None):
+    """Return prior chat turns for a conversation."""
+    from services import ai_chat as chat_mod
+    user = getattr(request.state, "user", None) if request else None
+    user_id = user.get("sub") if isinstance(user, dict) else "anon"
+    key = chat_mod.conversation_key(user_id, conversation_id)
+    return {"conversation_id": conversation_id, "turns": chat_mod.get_conversation(key)}
+
+
+# Reset settings
+
 # Reset settings
 @app.post("/api/settings/reset", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def reset_settings():
