@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>AI Hub - motus.leap</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=1783211869">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=1783211869">
+    <link rel="manifest" href="/static/manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        .nav-item.active { background-color: rgba(47,143,201,0.15); color: #2f8fc9; font-weight: 600; }
+        .ai-sub.active { background-color: #2a2f3a; color: #fff; border-left: 2px solid #2f8fc9; }
+        .ai-sub { border-left: 2px solid transparent; }
+        .pill { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-size:11px; }
+        .pill-success { background: rgba(22,163,74,0.15); border:1px solid rgba(22,163,74,0.3); color:#16a34a; }
+        .pill-error { background: rgba(220,38,38,0.15); border:1px solid rgba(220,38,38,0.3); color:#dc2626; }
+        .pill-warn { background: rgba(202,138,4,0.15); border:1px solid rgba(202,138,4,0.3); color:#ca8a04; }
+        .pill-info { background: rgba(47,143,201,0.15); border:1px solid rgba(47,143,201,0.3); color:#2f8fc9; }
+        .spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/auth-check.js?v=1781919149"></script>
+    <script src="/static/ux-enhancements.js?v=20260708b"></script>
+</head>
+<body class="min-h-screen">
+<div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+<button id="sidebar-toggle" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+
+<div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
+        <div class="flex items-center gap-2 px-2 py-3 mb-2">
+            <i class="fas fa-robot text-[#2f8fc9] text-xl"></i>
+            <span class="site-title text-lg tracking-wide text-white">MOTUSLEAP</span>
+        </div>
+        <nav class="flex flex-col gap-1">
+            <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+            <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+            <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+            <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+            <!-- AI Hub sub-nav group -->
+            <div class="mt-2 pt-2 border-t border-[#2a2f3a]">
+                <a href="/ai" class="ai-sub flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 text-sm transition-colors" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
+                <a href="/ai/providers" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="providers"><i class="fas fa-plug w-4 text-center"></i> Providers</a>
+                <a href="/ai/models" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="models"><i class="fas fa-cube w-4 text-center"></i> Models</a>
+                <a href="/ai/rules" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="rules"><i class="fas fa-sliders w-4 text-center"></i> Rules</a>
+                <a href="/ai/chat" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="chat"><i class="fas fa-comments w-4 text-center"></i> AI Chat</a>
+                <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="jobs"><i class="fas fa-clock w-4 text-center"></i> Scheduled Jobs</a>
+            </div>
+        </nav>
+        <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+            <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+            <a href="#" id="logout-link" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-sign-out-alt w-5 text-center"></i> Logout</a>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
+        <div class="max-w-7xl mx-auto w-full">
+            <!-- Top sub-nav -->
+            <div class="flex items-center gap-1 border-b border-[#2a2f3a] pb-2 mb-5 flex-wrap">
+                <button class="ai-tab px-3 py-2 text-sm rounded-lg" data-ai="hub">Hub</button>
+                <button class="ai-tab px-3 py-2 text-sm rounded-lg" data-ai="providers">Providers</button>
+                <button class="ai-tab px-3 py-2 text-sm rounded-lg" data-ai="models">Models</button>
+                <button class="ai-tab px-3 py-2 text-sm rounded-lg" data-ai="rules">Rules</button>
+                <button class="ai-tab px-3 py-2 text-sm rounded-lg" data-ai="chat">AI Chat</button>
+                <button class="ai-tab px-3 py-2 text-sm rounded-lg" data-ai="jobs">Scheduled Jobs</button>
+            </div>
+
+            <!-- HUB PANEL -->
+            <section id="panel-hub" class="ai-panel space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-xl font-bold text-white">AI Hub</h1>
+                        <p class="text-xs text-gray-400 mt-1">Connected providers, rules, scheduled jobs and conversational management.</p>
+                    </div>
+                    <button id="hub-open-chat" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-comments"></i> Open AI Chat</button>
+                </div>
+                <!-- Settings pointer (Decision 3) -->
+                <div class="bento-card p-4 border-[#2f8fc9]/30 flex items-start gap-3">
+                    <i class="fas fa-info-circle text-[#2f8fc9] mt-1"></i>
+                    <div class="flex-1">
+                        <p class="text-[13px] text-gray-300">Global classification prompt &amp; auto-apply are managed in <span class="text-white font-medium">Settings → AI Integration</span>.</p>
+                        <a href="/settings" class="inline-block mt-2 text-xs text-[#2f8fc9] hover:underline">Go to Settings →</a>
+                    </div>
+                </div>
+                <!-- Stat strip -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="hub-stats"></div>
+                <!-- Provider health -->
+                <div class="bento-card p-4">
+                    <h3 class="text-xs font-semibold text-gray-300 mb-3">Provider Health</h3>
+                    <div id="hub-providers" class="space-y-2"></div>
+                </div>
+                <!-- Recent jobs -->
+                <div class="bento-card p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs font-semibold text-gray-300">Recent Scheduled Jobs</h3>
+                        <button class="ai-tab text-xs text-[#2f8fc9] hover:underline" data-ai="jobs">View all →</button>
+                    </div>
+                    <div id="hub-jobs" class="space-y-2"></div>
+                </div>
+            </section>
+
+            <!-- PROVIDERS PANEL -->
+            <section id="panel-providers" class="ai-panel space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-xl font-bold text-white">Providers</h1>
+                    <button id="prov-add-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> Add Provider</button>
+                </div>
+                <div id="prov-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+            </section>
+
+            <!-- MODELS PANEL -->
+            <section id="panel-models" class="ai-panel space-y-4 hidden">
+                <h1 class="text-xl font-bold text-white">Models</h1>
+                <p class="text-xs text-gray-400">Select which models are active per provider and pick a default. Discovered live from each provider.</p>
+                <div id="models-list" class="space-y-4"></div>
+            </section>
+
+            <!-- RULES PANEL -->
+            <section id="panel-rules" class="ai-panel space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-xl font-bold text-white">Rules</h1>
+                    <div class="flex gap-2">
+                        <button id="rule-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Rule</button>
+                        <button id="rule-chat-btn" class="ai-tab bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2" data-ai="chat"><i class="fas fa-comments"></i> Edit via Chat</button>
+                    </div>
+                </div>
+                <div id="rules-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+            </section>
+
+            <!-- CHAT PANEL -->
+            <section id="panel-chat" class="ai-panel space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-xl font-bold text-white">AI Chat</h1>
+                    <span class="text-[11px] text-gray-500">Describe rules or ask it to scan / clean playlists.</span>
+                </div>
+                <div class="bento-card p-0 flex flex-col h-[70vh]">
+                    <div id="chat-log" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+                    <div id="chat-confirm-zone" class="px-4 pb-2 hidden"></div>
+                    <div class="border-t border-[#2a2f3a] p-3 flex gap-2">
+                        <input id="chat-input" type="text" placeholder="e.g. Add a rule: synthwave music → Synthwave playlist" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-sm rounded-lg px-3 py-2 outline-none min-h-[44px]">
+                        <button id="chat-send" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-sm font-medium px-4 py-2 rounded-lg"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- JOBS PANEL -->
+            <section id="panel-jobs" class="ai-panel space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-xl font-bold text-white">Scheduled Jobs</h1>
+                    <button id="job-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Job</button>
+                </div>
+                <div id="jobs-list" class="space-y-3"></div>
+                <!-- Create form -->
+                <div class="bento-card p-4 hidden" id="job-form">
+                    <h3 class="text-xs font-semibold text-gray-300 mb-3">New Scheduled Job</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Name</label>
+                            <input id="job-name" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Describe in plain language (optional)</label>
+                            <div class="flex gap-2">
+                                <input id="job-nl" placeholder="Every day at 3am, scan 1sort for duplicates" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                                <button id="job-parse" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-2 rounded-lg">Parse with AI</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] text-gray-400 mb-1 block">Cron (5-field)</label>
+                                <input id="job-cron" placeholder="0 3 * * *" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 mb-1 block">Task type</label>
+                                <select id="job-task" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                                    <option value="scan_duplicates">scan_duplicates</option>
+                                    <option value="scan_misplaced">scan_misplaced</option>
+                                    <option value="apply_rules">apply_rules</option>
+                                    <option value="move_video">move_video (destructive)</option>
+                                    <option value="delete_video">delete_video (destructive)</option>
+                                    <option value="remove_duplicates">remove_duplicates (destructive)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="job-priv-warn" class="hidden text-[11px] text-[#ca8a04]"><i class="fas fa-triangle-exclamation"></i> Destructive task — requires confirm at creation.</div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Playlist ID (for task, if needed)</label>
+                            <input id="job-playlist" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                        </div>
+                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="job-enabled" class="accent-[#2f8fc9]" checked> Enabled</label>
+                        <div class="flex gap-2">
+                            <button id="job-create" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Create Job</button>
+                            <button id="job-form-cancel" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded-lg">Cancel</button>
+                        </div>
+                        <div id="job-form-msg" class="text-[11px]"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<!-- Add Provider modal -->
+<div id="prov-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+    <div class="bento-card p-5 w-full max-w-lg space-y-3">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-white">Connect Provider</h3>
+            <button id="prov-modal-close" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="flex items-center gap-2 text-[10px] text-gray-500">
+            <span id="prov-step1-dot" class="w-2 h-2 rounded-full bg-[#2f8fc9]"></span> Step 1: Connect
+            <span class="mx-1">→</span>
+            <span id="prov-step2-dot" class="w-2 h-2 rounded-full bg-[#374151]"></span> Step 2: Select models
+        </div>
+        <div id="prov-step1">
+            <div class="space-y-3">
+                <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label><input id="prov-name" placeholder="Groq" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+                <div><label class="text-[10px] text-gray-400 mb-1 block">Type</label>
+                    <select id="prov-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="groq">Groq</option>
+                        <option value="google">Google</option>
+                        <option value="custom">Custom (OpenAI-compatible)</option>
+                    </select>
+                </div>
+                <div id="prov-base-wrap" class="hidden"><label class="text-[10px] text-gray-400 mb-1 block">Base URL</label><input id="prov-base" placeholder="https://your-llm-api.com/v1" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+                <div><label class="text-[10px] text-gray-400 mb-1 block">API Key</label><input id="prov-key" type="password" placeholder="sk-..." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+                <button id="prov-connect" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Connect</button>
+                <div id="prov-step1-msg" class="text-[11px]"></div>
+            </div>
+        </div>
+        <div id="prov-step2" class="hidden space-y-3">
+            <div id="prov-models-checklist" class="space-y-1 max-h-64 overflow-y-auto"></div>
+            <button id="prov-save" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Save Selection</button>
+            <div id="prov-step2-msg" class="text-[11px]"></div>
+        </div>
+    </div>
+</div>
+
+<!-- New/Edit Rule modal -->
+<div id="rule-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+    <div class="bento-card p-5 w-full max-w-lg space-y-3">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-white" id="rule-modal-title">New Rule</h3>
+            <button id="rule-modal-close" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="space-y-3">
+            <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label><input id="rule-name" placeholder="Synthwave rule" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+            <div><label class="text-[10px] text-gray-400 mb-1 block">Target Playlist ID</label><input id="rule-playlist" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+            <div><label class="text-[10px] text-gray-400 mb-1 block">Role Description</label><textarea id="rule-desc" rows="3" placeholder="Route synthwave music videos to the Synthwave playlist." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-[11px] rounded px-3 py-2 outline-none resize-none"></textarea></div>
+            <div><label class="text-[10px] text-gray-400 mb-1 block">Model (optional — uses default if blank)</label><input id="rule-model" placeholder="llama-3.3-70b-versatile" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+            <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="rule-enabled" class="accent-[#2f8fc9]" checked> Enabled</label>
+            <div id="rule-conflict" class="hidden text-[11px] text-[#dc2626] bg-[#dc2626]/10 border border-[#dc2626]/30 rounded p-2"></div>
+            <div class="flex gap-2">
+                <button id="rule-save" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Save Rule</button>
+                <button id="rule-modal-cancel" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded-lg">Cancel</button>
+            </div>
+            <div id="rule-form-msg" class="text-[11px]"></div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/ai-hub.js?v=1783211869"></script>
+</body>
+</html>

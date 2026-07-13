@@ -559,9 +559,14 @@ async def rules():
 
 
 @app.get("/ai")
-async def ai():
-    """AI Integration page."""
-    return await no_cache_file_response(WEB_DIR / "settings.html")
+@app.get("/ai/providers")
+@app.get("/ai/models")
+@app.get("/ai/rules")
+@app.get("/ai/chat")
+@app.get("/ai/jobs")
+async def ai_hub():
+    """AI Management Hub (P1+P2+P3 wired UI)."""
+    return await no_cache_file_response(WEB_DIR / "ai-hub.html")
 
 
 @app.get("/bulk")
@@ -2521,6 +2526,12 @@ async def ai_create_rule(body: AIRuleIn):
     config.ai_rules.append(rule)
     await config_manager.save(config)
     return {"id": rule.id, "status": "created"}
+
+
+@app.patch("/api/ai/rules/{rule_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_patch_rule(rule_id: str, body: AIRuleUpdateIn):
+    """PATCH alias for ai_update_rule (matches DESIGN_SPEC §7 + frontend convention)."""
+    return await ai_update_rule(rule_id, body)
 
 
 @app.put("/api/ai/rules/{rule_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])

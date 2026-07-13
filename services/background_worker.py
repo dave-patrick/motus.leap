@@ -169,8 +169,9 @@ class BackgroundWorker:
                 due = [j for j in enabled
                        if j.next_run and datetime.fromisoformat(j.next_run) <= now]
                 upcoming = sorted(
-                    j for j in enabled if j.next_run
-                    and datetime.fromisoformat(j.next_run) > now
+                    (j for j in enabled if j.next_run
+                     and datetime.fromisoformat(j.next_run) > now),
+                    key=lambda j: j.next_run or "",
                 )
 
                 if due:
