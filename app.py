@@ -2655,6 +2655,7 @@ async def ai_chat_history(conversation_id: Optional[str] = None, request: Reques
 #   POST   /api/ai/jobs            create job (privilege gate P1-2 on destructive)
 #   POST   /api/ai/jobs/parse      NL -> {cron, task} via active provider
 #   POST   /api/ai/jobs/{id}/run   run now (Flow C confirm for destructive)
+#   POST   /api/ai/jobs/{id}/cancel hard-cancel an in-flight run (no future effect)
 #   PATCH  /api/ai/jobs/{id}       enable/pause
 #   DELETE /api/ai/jobs/{id}       delete
 # =============================================================================
@@ -2855,6 +2856,24 @@ async def ai_patch_job(job_id: str, body: JobPatchIn):
         job.next_run = nxt.isoformat() if nxt else None
     job_store.update_job(job)
     return {"ok": True, "enabled": job.enabled, "id": job.id}
+
+
+@app.post("/api/ai/jobs/{job_id}/cancel", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_cancel_job(job_id: str):
+    """Hard-cancel an in-flight run of this job (Dave's "hard cancel").
+
+    Stops a scheduled/Run-now job that is CURRENTLY executing. Does not affect
+    future ticks (use DELETE to remove, or PATCH {enabled:false} to pause).
+    Returns {"ok": true, "cancelled": <bool>} — cancelled is False if nothing
+    was running.
+    """
+    job = job_store.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    if background_worker is None:
+        raise HTTPException(status_code=503, detail="scheduler worker unavailable")
+    cancelled = background_worker.cancel_in_flight()
+    return {"ok": True, "cancelled": cancelled, "id": job_id}
 
 
 @app.delete("/api/ai/jobs/{job_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])

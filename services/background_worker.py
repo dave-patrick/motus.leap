@@ -177,6 +177,10 @@ class BackgroundWorker:
                     for job in due:
                         try:
                             await self._execute_job(job)
+                        except asyncio.CancelledError:
+                            # The scheduler task itself was cancelled (shutdown).
+                            # Let it propagate so the loop stops cleanly.
+                            raise
                         except Exception as e:
                             log.error("[SCHED] job %s failed: %s", job.id, _redact(str(e)))
                     # Loop immediately to catch anything else now due.
@@ -206,17 +210,35 @@ class BackgroundWorker:
 
         Tracks last_run/last_status, bumps last_scan_time for scan actions, and
         recomputes next_run so the schedule rolls forward (P3 §4).
+
+        The dispatch runs as a tracked ``self._current_task`` (mirroring the
+        interactive queue consumer) so an in-flight scheduled run can be
+        hard-cancelled via ``cancel_in_flight()`` (Dave's "hard cancel").
         """
         action = job.task.type
         payload = job.task.payload or {}
+        self.current_task_name = f"scheduled:{job.name}"
         try:
             log.info("[SCHED] firing job %s (%s)", job.name, action)
-            await self._dispatch_action(action, payload)
-            job.last_status = "ok"
-        except Exception as e:
-            job.last_status = f"error: {_redact(str(e))[:200]}"
-            log.error("[SCHED] job %s error: %s", job.id, job.last_status)
+            self._current_task = asyncio.create_task(self._dispatch_action(action, payload))
+            try:
+                await self._current_task
+                job.last_status = "ok"
+            except asyncio.CancelledError:
+                # A hard-cancel (cancel_in_flight) stopped this run. Swallow the
+                # CancelledError here so it does NOT propagate out of _execute_job
+                # (which would kill the whole _scheduler_loop — its outer handler
+                # catches Exception, not BaseException/CancelledError). The
+                # finally block below already resets task state + persists.
+                job.last_status = "cancelled"
+                log.info("[SCHED] job %s cancelled", job.id)
+            except Exception as e:
+                job.last_status = f"error: {_redact(str(e))[:200]}"
+                log.error("[SCHED] job %s error: %s", job.id, job.last_status)
         finally:
+            self.current_task_name = None
+            self._current_task = None
+            self._cancel_requested = False
             job.last_run = datetime.now(timezone.utc).isoformat()
             nxt = cron_util.next_run(job.cron) if cron_util.cron_valid(job.cron) else None
             job.next_run = nxt.isoformat() if nxt else None
@@ -306,6 +328,24 @@ class BackgroundWorker:
         if self._current_task is not None and not self._current_task.done():
             self._current_task.cancel()
         log.info("[WORKER] Cancel requested — current task will stop, queue drained")
+
+    def cancel_in_flight(self) -> bool:
+        """Hard-cancel the currently running scheduled/Run-now job (Dave's
+        "hard cancel"), if one is in flight.
+
+        Mirrors the cooperative flag + hard asyncio.Task.cancel() of
+        cancel_current_task(), but deliberately does NOT drain the manual
+        task_queue (scheduled jobs run outside that queue, so there is nothing
+        to drain) — this only stops a run that is actively executing.
+
+        Returns True if a run was cancelled, False if none was in flight.
+        """
+        if self._current_task is not None and not self._current_task.done():
+            self._current_task.cancel()
+            self._cancel_requested = True
+            log.info("[SCHED] in-flight job cancelled")
+            return True
+        return False
 
     @property
     def youtube_service(self):
