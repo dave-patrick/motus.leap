@@ -388,7 +388,6 @@ window.open('/system/logs', '_blank');
                     if (apiKeyStatus) apiKeyStatus.classList.add('hidden');
                 }
 
-                }
 
                 if (data.oauth_client_secret) {
                     document.getElementById('oauth-client-secret').value = '';
@@ -549,12 +548,7 @@ window.open('/system/logs', '_blank');
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
 
-        
-
-
-        
-
-
+        async function resetSettings() {
             if (!confirm('Reset ALL settings to defaults? This cannot be undone.')) return;
             try {
                 const resp = await fetch('/api/settings/reset', {method: 'POST'});
