@@ -2372,6 +2372,10 @@ async def ai_discover_provider_models(provider_id: str):
         "models": models,
         "manual_entry": manual,
         "error": error,
+        # Reflect the connection's saved selection so the UI can pre-check
+        # active models and mark the default (Sheldon finding #8).
+        "active": list(conn.selected_models),
+        "default": conn.selected_models[0] if conn.selected_models else None,
     }
 
 

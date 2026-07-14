@@ -234,14 +234,20 @@
           '<input id="prov-manual-model" type="text" placeholder="e.g. grok-4-latest" class="w-full bg-[#20242c] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-gray-200" />' +
           '<div class="text-[10px] text-gray-500 mt-1">Separate multiple model ids with commas if needed.</div>';
         return;
-        return;
       }
-      // sensible default: first model pre-selected
-      box.innerHTML = models.map((m, i) =>
-        '<label class="flex items-center gap-2 text-xs text-gray-300 py-1 cursor-pointer">' +
-        '<input type="checkbox" class="prov-model-chk accent-[#2f8fc9]" value="' + esc(m.id) + '"' + (i === 0 ? ' checked' : '') + '>' +
-        '<span class="font-mono">' + esc(m.name || m.id) + '</span></label>'
-      ).join('');
+      // Pre-check models that were previously selected (active) and mark the
+      // default. Fall back to first model checked when nothing is saved yet.
+      const active = (data.active && data.active.length) ? data.active : null;
+      const isDefault = (id) => data.default && (data.default === id || (active && active[0] === id));
+      box.innerHTML = models.map((m) => {
+        const id = m.id;
+        const checked = active ? active.includes(id) : false;
+        const def = isDefault(id);
+        return '<label class="flex items-center gap-2 text-xs text-gray-300 py-1 cursor-pointer">' +
+          '<input type="checkbox" class="prov-model-chk accent-[#2f8fc9]" value="' + esc(id) + '"' + (checked ? ' checked' : '') + '>' +
+          '<span class="font-mono">' + esc(m.name || id) + '</span>' +
+          (def ? ' <span class="text-[9px] text-[#2f8fc9]">default</span>' : '') + '</label>';
+      }).join('');
     } catch (e) {
       box.innerHTML = '<div class="text-xs text-[#dc2626]">' + sanitize(e.message) + '</div>';
     }
@@ -429,10 +435,16 @@
 
   // ---- CHAT ----------------------------------------------------------------
   let chatHistory = [];
-  function chatBubble(role, text, modelUsed, fallback) {
+  function chatBubble(role, text, modelUsed, fallback, errorMsg) {
     const wrap = document.createElement('div');
     wrap.className = 'flex ' + (role === 'user' ? 'justify-end' : 'justify-start');
     const inner = document.createElement('div');
+    if (errorMsg) {
+      inner.className = 'max-w-[85%] rounded-lg px-3 py-2 text-[13px] bg-[#3a1d1d] border border-[#7f1d1d] text-[#fca5a5]';
+      inner.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i>' + sanitize(errorMsg);
+      wrap.appendChild(inner);
+      return wrap;
+    }
     inner.className = 'max-w-[85%] rounded-lg px-3 py-2 text-[13px] ' +
       (role === 'user' ? 'bg-[#2f8fc9] text-white' : 'bg-[#20242c] border border-[#2a2f3a] text-gray-200');
     inner.innerHTML = sanitize(text);
@@ -459,12 +471,18 @@
     try {
       const res = await api('/api/ai/chat', { method: 'POST', body: JSON.stringify({ message: text, conversation_id: window.__aiConv || undefined }) });
       typing.remove();
-      log.appendChild(chatBubble('ai', res.reply || '', res.model_used, res.fallback));
+      if (res.error) {
+        // Backend returned an error payload (e.g. provider failed). Surface it
+        // in a red bubble instead of a blank assistant message.
+        log.appendChild(chatBubble('ai', '', null, false, res.error));
+      } else {
+        log.appendChild(chatBubble('ai', res.reply || '(no response)', res.model_used, res.fallback));
+      }
       chatHistory.push({ role: 'assistant', content: res.reply || '' });
       if (res.pending_actions && res.pending_actions.length) renderChatActions(res.pending_actions);
     } catch (e) {
       typing.remove();
-      log.appendChild(chatBubble('ai', 'Error: ' + e.message));
+      log.appendChild(chatBubble('ai', '', null, false, e.message));
     } finally { btn.disabled = false; log.scrollTop = log.scrollHeight; }
   }
   function renderChatActions(actions) {
