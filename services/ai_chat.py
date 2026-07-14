@@ -319,7 +319,7 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
     """Build the chat/completions URL for a connection (OpenAI-compatible)."""
     from models.config import PROVIDER_BUILTIN_BASE_URLS
 
-    if conn.type in ("openai", "groq"):
+    if conn.type in ("openai", "groq", "grok"):
         base = PROVIDER_BUILTIN_BASE_URLS.get(conn.type, conn.base_url)
         return f"{base}/v1/chat/completions"
     if conn.type == "custom":

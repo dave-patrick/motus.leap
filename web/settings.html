@@ -70,14 +70,21 @@ window.open('/system/logs', '_blank');
                 <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
             <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
-                    <div class="mt-2 pt-2 border-t border-[#2a2f3a]">
-                    <a href="/ai" class="ai-sub flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 text-sm transition-colors" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
-                    <a href="/ai/providers" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors"><i class="fas fa-plug w-4 text-center"></i> Providers</a>
-                    <a href="/ai/models" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors"><i class="fas fa-cube w-4 text-center"></i> Models</a>
-                    <a href="/ai/rules" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors"><i class="fas fa-sliders w-4 text-center"></i> Rules</a>
-                    <a href="/ai/chat" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors"><i class="fas fa-comments w-4 text-center"></i> AI Chat</a>
-                    <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors"><i class="fas fa-clock w-4 text-center"></i> Scheduled Jobs</a>
-                </div>
+                    <!-- AI Hub sub-nav group (collapsible) -->
+<div class="mt-2 pt-2 border-t border-[#2a2f3a]">
+    <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub">
+        <a href="/ai" class="ai-sub flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
+        <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
+    </div>
+    <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">
+        <a href="/ai/providers" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="providers"><i class="fas fa-plug w-4 text-center"></i> Providers</a>
+        <a href="/ai/models" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="models"><i class="fas fa-cube w-4 text-center"></i> Models</a>
+        <a href="/ai/rules" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="rules"><i class="fas fa-sliders w-4 text-center"></i> Rules</a>
+        <a href="/ai/chat" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="chat"><i class="fas fa-comments w-4 text-center"></i> AI Chat</a>
+        <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="jobs"><i class="fas fa-clock w-4 text-center"></i> Scheduled Jobs</a>
+    </div>
+</div>
+</div>
             <a href="/settings" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
             </div>
         </aside>
@@ -89,7 +96,6 @@ window.open('/system/logs', '_blank');
                     <div class="flex gap-4">
                         <button id="tab-btn-general" class="text-sm font-bold tracking-wide text-white border-b-2 border-[#2f8fc9] pb-2 px-1 focus:outline-none transition-colors">General & API</button>
                         <button id="tab-btn-rules" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">Channel Mappings</button>
-                        <button id="tab-btn-ai" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">AI Integration</button>
                     </div>
                 </div>
 
@@ -263,97 +269,6 @@ window.open('/system/logs', '_blank');
                         </div>
                     </div>
 
-                    <!-- TAB 3: AI INTEGRATION -->
-                    <div id="tab-content-ai" class="tab-pane hidden space-y-4">
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div class="bento-card p-4">
-                                <h3 class="text-xs font-semibold text-gray-300 mb-4">AI Provider</h3>
-                                <div class="space-y-4">
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Provider</label>
-                                        <select id="ai-provider" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                            <option value="">-- Disabled --</option>
-                                            <option value="openai">OpenAI (GPT-4o-mini)</option>
-                                            <option value="anthropic">Anthropic (Claude 3 Haiku)</option>
-                                            <option value="groq">Groq (Llama 3.3 70B)</option>
-                                            <option value="google">Google (Gemini 2.0 Flash)</option>
-                                            <option value="custom">Custom (OpenAI-compatible)</option>
-                                        </select>
-                                    </div>
-                                    <div id="ai-custom-fields" class="hidden space-y-3">
-                                        <div>
-                                            <label class="text-[10px] text-gray-400 mb-1 block">Endpoint URL</label>
-                                            <input type="text" id="ai-custom-endpoint" placeholder="https://your-llm-api.com/v1" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                        </div>
-                                        <div>
-                                            <label class="text-[10px] text-gray-400 mb-1 block">Model Name</label>
-                                            <input type="text" id="ai-custom-model" placeholder="gpt-4o-mini" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="ai-key-status" class="hidden text-[9px] text-green-400 ml-2"><i class="fa-solid fa-check-circle"></i> Saved</span></label>
-                                        <input type="password" id="ai-api-key" placeholder="Enter your AI provider API key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Classification Mode</label>
-                                        <select id="ai-mode" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                            <option value="channel">Channel Mappings (current)</option>
-                                            <option value="ai">AI Classification</option>
-                                        </select>
-                                        <p class="text-[9px] text-gray-500 mt-1">Channel mode uses your manual mappings. AI mode uses the provider to classify videos by title/description.</p>
-                                    </div>
-                                    <div>
-                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="ai-auto-apply" class="accent-[#2f8fc9]"> Auto-apply mappings: automatically create channel mappings after detecting patterns in your moves</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bento-card p-4">
-                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Classification Prompt</h3>
-                                <div class="space-y-4">
-                                    <textarea id="ai-prompt" rows="6" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded px-3 py-2 outline-none font-mono resize-none">Classify this YouTube video into one of my playlists based on its title and description. Return ONLY the playlist name, nothing else. If unsure, return 'UNSURE'.</textarea>
-                                    <button id="reset-ai-prompt-btn" onclick="resetPrompt()" class="text-[9px] px-2 py-1 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white hover:border-[#374151] transition-colors"><i class="fa-solid fa-rotate-left text-[8px] mr-1"></i>Reset to Default</button>
-                                </div>
-                            </div>
-                            <div class="bento-card p-4 lg:col-span-2">
-                                <h3 class="text-xs font-semibold text-gray-300 mb-4">Training Memory</h3>
-                                <div class="space-y-3">
-                                    <div class="flex items-center gap-4 text-[10px] text-gray-400">
-                                        <span>When you move videos manually, those actions are recorded here.</span>
-                                        <span class="text-[#2f8fc9] font-medium" id="ai-memory-count">0 moves</span>
-                                    </div>
-                                    <div id="ai-suggestions" class="space-y-1 max-h-40 overflow-y-auto">
-                                        <div class="text-[10px] text-gray-500 italic">Move videos to build up training data. Suggestions will appear here after 3+ moves from the same channel to the same playlist.</div>
-                                    </div>
-                                    <div class="flex gap-2">
-                                        <button id="load-ai-suggestions-btn" onclick="loadAiSuggestions()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] px-3 py-1.5 rounded flex items-center gap-1.5"><i class="fa-solid fa-rotate text-[9px]"></i> Refresh Suggestions</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bento-card p-4 lg:col-span-2">
-                                <h3 class="text-xs font-semibold text-gray-300 mb-1">Test AI Classification</h3>
-                                <p class="text-[9px] text-gray-500 mb-3">Send sample metadata to <code class="font-mono">/api/ai/classify</code> and preview the playlist match. Requires a configured AI provider.</p>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Video Title</label>
-                                        <input type="text" id="classify-title" placeholder="e.g. Building a 3D Printer Enclosure" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none min-h-[40px] font-mono">
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Channel</label>
-                                        <input type="text" id="classify-channel" placeholder="e.g. 3D Musketeers" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none min-h-[40px] font-mono">
-                                    </div>
-                                    <div class="md:col-span-2">
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Description</label>
-                                        <textarea id="classify-description" rows="3" placeholder="e.g. A step-by-step walkthrough of assembling an enclosure..." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded px-3 py-2 outline-none font-mono resize-none"></textarea>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-3 mt-3">
-                                    <button id="classify-btn" onclick="testClassify()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i> Classify</button>
-                                    <span id="classify-spinner" class="hidden text-[#2f8fc9] text-xs"><i class="fa-solid fa-spinner fa-spin"></i> Classifying…</span>
-                                </div>
-                                <div id="classify-result" class="mt-3 hidden text-[11px] rounded bg-[#20242c] border border-[#2a2f3a] px-3 py-2"></div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </main>
@@ -473,16 +388,6 @@ window.open('/system/logs', '_blank');
                     if (apiKeyStatus) apiKeyStatus.classList.add('hidden');
                 }
 
-                if (data.ai_api_key) {
-                    document.getElementById('ai-api-key').value = '';
-                    document.getElementById('ai-api-key').placeholder = '•••••••• — previously saved';
-                    const aiKeyStatus = document.getElementById('ai-key-status');
-                    if (aiKeyStatus) aiKeyStatus.classList.remove('hidden');
-                } else {
-                    document.getElementById('ai-api-key').value = '';
-                    document.getElementById('ai-api-key').placeholder = 'Enter API key';
-                    const aiKeyStatus = document.getElementById('ai-key-status');
-                    if (aiKeyStatus) aiKeyStatus.classList.add('hidden');
                 }
 
                 if (data.oauth_client_secret) {
@@ -501,34 +406,9 @@ window.open('/system/logs', '_blank');
                 document.getElementById('log-level').value = data.log_level || 'INFO';
 
 
-                const aiProvider = document.getElementById('ai-provider');
-                if (aiProvider && data.ai_provider) aiProvider.value = data.ai_provider;
-                const aiKey = document.getElementById('ai-api-key');
-                if (aiKey) {
-                    if (data.ai_api_key && data.ai_api_key.startsWith('••••')) {
-                        aiKey.placeholder = '•••••••• — previously saved';
-                        aiKey.value = '';
-                    } else {
-                        aiKey.placeholder = 'Enter your AI provider API key';
-                        aiKey.value = data.ai_api_key || '';
-                    }
-                }
-                const aiMode = document.getElementById('ai-mode');
-                if (aiMode && data.ai_mode) aiMode.value = data.ai_mode;
-                const aiPrompt = document.getElementById('ai-prompt');
-                if (aiPrompt && data.ai_classification_prompt) aiPrompt.value = data.ai_classification_prompt;
-                const aiEndpoint = document.getElementById('ai-custom-endpoint');
-                if (aiEndpoint && data.ai_custom_endpoint) aiEndpoint.value = data.ai_custom_endpoint;
-                const aiModel = document.getElementById('ai-custom-model');
-                if (aiModel && data.ai_custom_model) aiModel.value = data.ai_custom_model;
-                toggleCustomAiFields();
-
-                loadAiSuggestions();
 
                 if (data.default_privacy) document.getElementById('default-privacy').value = data.default_privacy;
                 if (data.scan_interval) document.getElementById('scan-interval').value = data.scan_interval;
-                const aiAutoApply = document.getElementById('ai-auto-apply');
-                if (aiAutoApply && data.ai_auto_apply_mappings !== undefined) aiAutoApply.checked = data.ai_auto_apply_mappings;
             } catch (e) {
                 console.error(e);
             }
@@ -546,13 +426,6 @@ window.open('/system/logs', '_blank');
                                 notify_failures: document.getElementById('notify-failures').checked,
                 dark_mode: document.getElementById('dark-mode').checked,
                 log_level: document.getElementById('log-level').value,
-                ai_provider: document.getElementById('ai-provider').value || undefined,
-                ai_api_key: document.getElementById('ai-api-key').value || undefined,
-                ai_mode: document.getElementById('ai-mode').value,
-                ai_classification_prompt: document.getElementById('ai-prompt').value,
-                ai_custom_endpoint: document.getElementById('ai-custom-endpoint').value || undefined,
-                ai_custom_model: document.getElementById('ai-custom-model').value || undefined,
-                ai_auto_apply_mappings: document.getElementById('ai-auto-apply')?.checked || false,
             };
 
             try {
@@ -682,134 +555,6 @@ window.open('/system/logs', '_blank');
         
 
 
-        function toggleCustomAiFields() {
-            const provider = document.getElementById('ai-provider')?.value;
-            const fields = document.getElementById('ai-custom-fields');
-            if (fields) {
-                fields.classList.toggle('hidden', provider !== 'custom');
-            }
-        }
-
-        async function loadAiSuggestions() {
-            const container = document.getElementById('ai-suggestions');
-            const countEl = document.getElementById('ai-memory-count');
-            if (!container) return;
-
-            try {
-                const resp = await fetch('/api/ai/memory');
-                if (resp.ok) {
-                    const data = await resp.json();
-                    const moves = data.moves || [];
-                    if (countEl) countEl.textContent = moves.length + ' moves';
-                }
-
-                const sugResp = await fetch('/api/ai/suggestions');
-                if (!sugResp.ok) return;
-                const sugData = await sugResp.json();
-                const suggestions = sugData.suggestions || [];
-
-                if (!suggestions.length) {
-                    container.innerHTML = '<div class="text-[10px] text-gray-500 italic">Move videos to build up training data. Suggestions will appear here after 3+ moves from the same channel to the same playlist.</div>';
-                    return;
-                }
-
-                container.innerHTML = suggestions.map(s => `
-                    <div class="flex items-center justify-between p-2 rounded bg-[#20242c] border border-[#2a2f3a]">
-                        <div class="flex-1 min-w-0">
-                            <div class="text-[10px] text-white font-medium truncate">${DOMPurify.sanitize(s.channel_title || s.channel_id)}</div>
-                            <div class="text-[9px] text-gray-400">→ ${DOMPurify.sanitize(s.playlist_name || '')} (${s.move_count} moves)</div>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (e) {
-                console.warn('Failed to load AI suggestions', e);
-            }
-        }
-
-        async function testClassify() {
-            const titleEl = document.getElementById('classify-title');
-            const channelEl = document.getElementById('classify-channel');
-            const descEl = document.getElementById('classify-description');
-            const resultEl = document.getElementById('classify-result');
-            const spinner = document.getElementById('classify-spinner');
-
-            const title = (titleEl && titleEl.value || '').trim();
-            const channel = (channelEl && channelEl.value || '').trim();
-            const description = (descEl && descEl.value || '').trim();
-
-            if (!title && !channel && !description) {
-                toast('Enter a title, channel, or description to classify', 'error');
-                return;
-            }
-
-            if (resultEl) resultEl.classList.add('hidden');
-            if (spinner) spinner.classList.remove('hidden');
-
-            try {
-                // Real caller of /api/ai/classify. Mirrors the page's existing
-                // fetch pattern (auth via auth-check cookie gate; verify_origin
-                // reads the browser's auto-sent Origin header — no invented headers).
-                const resp = await fetch('/api/ai/classify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        video_ids: ['test-1'],
-                        metadata: [{ title, channel, description }]
-                    })
-                });
-
-                const data = await resp.json().catch(() => ({}));
-
-                if (!resp.ok) {
-                    const msg = data.detail || data.error || ('HTTP ' + resp.status);
-                    if (resultEl) {
-                        resultEl.className = 'mt-3 text-[11px] rounded bg-[#20242c] border border-[#dc2626] px-3 py-2 text-red-400';
-                        resultEl.innerHTML = DOMPurify.sanitize(msg, { USE_PROFILES: { html: true } });
-                        resultEl.classList.remove('hidden');
-                    }
-                    return;
-                }
-
-                const results = data.results || [];
-                const r = results[0] || {};
-                let label, cls;
-                if (r.error) {
-                    label = 'Error: ' + r.error;
-                    cls = 'border-[#dc2626] text-red-400';
-                } else if (r.matched_playlist) {
-                    label = 'Matched playlist: ' + r.matched_playlist;
-                    cls = 'border-[#16a34a] text-green-400';
-                } else {
-                    label = 'UNSURE';
-                    cls = 'border-[#ca8a04] text-yellow-400';
-                }
-
-                if (resultEl) {
-                    // Whole label embeds API-derived + user-derived values — sanitized in full.
-                    resultEl.className = 'mt-3 text-[11px] rounded bg-[#20242c] border px-3 py-2 ' + cls;
-                    resultEl.innerHTML = DOMPurify.sanitize(label, { USE_PROFILES: { html: true } });
-                    resultEl.classList.remove('hidden');
-                }
-            } catch (e) {
-                if (resultEl) {
-                    resultEl.className = 'mt-3 text-[11px] rounded bg-[#20242c] border border-[#dc2626] px-3 py-2 text-red-400';
-                    resultEl.innerHTML = DOMPurify.sanitize('Network error: ' + (e && e.message || e), { USE_PROFILES: { html: true } });
-                    resultEl.classList.remove('hidden');
-                }
-            } finally {
-                if (spinner) spinner.classList.add('hidden');
-            }
-        }
-
-        async function resetPrompt() {
-            const prompt = document.getElementById('ai-prompt');
-            if (prompt) {
-                prompt.value = "Classify this YouTube video into one of my playlists based on its title and description. Return ONLY the playlist name, nothing else. If unsure, return 'UNSURE'.";
-                toast('Prompt reset to default', 'info');
-            }
-        }
-
-        async function resetAllSettings() {
             if (!confirm('Reset ALL settings to defaults? This cannot be undone.')) return;
             try {
                 const resp = await fetch('/api/settings/reset', {method: 'POST'});
@@ -1342,7 +1087,7 @@ function initSettingsPage() {
             initMappings();
 
             // Highlight active sidebar link based on current path
-            const activeMap = {'/settings': 'Settings', '/rules': 'Settings', '/ai': 'Settings'};
+            const activeMap = {'/settings': 'Settings', '/rules': 'Settings'};
             const activeLabel = activeMap[window.location.pathname];
             if (activeLabel) {
                 document.querySelectorAll('.sidebar-link').forEach(link => {
@@ -1368,9 +1113,9 @@ function initSettingsPage() {
                 console.error('Tab wiring error:', err);
             }
 
-            const pathMap = {'/rules': 'rules', '/ai': 'ai', '/settings': 'general'};
+            const pathMap = {'/rules': 'rules', '/settings': 'general'};
             const hash = window.location.hash.replace('#', '');
-            const initialTab = pathMap[window.location.pathname] || (hash === 'rules' || hash === 'ai' || hash === 'general' ? hash : 'general');
+            const initialTab = pathMap[window.location.pathname] || (hash === 'rules' || hash === 'general' ? hash : 'general');
             switchTab(initialTab);
 
             const log = document.getElementById('ai-log');

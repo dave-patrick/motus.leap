@@ -225,7 +225,15 @@
       const data = await api('/api/ai/providers/' + pid + '/models');
       const models = (data.models || []);
       if (!models.length) {
-        box.innerHTML = '<div class="text-xs text-gray-500">No models discovered. For Anthropic/Google a curated catalog is used — save to continue.</div>';
+        // No models discovered (e.g. provider has no /v1/models, or empty).
+        // Offer manual entry so the user is never stuck (they can paste a model id).
+        const hint = (data.error && data.error.indexOf('Anthropic') >= 0) ? 'a curated catalog is used' : 'enter a model id manually';
+        const manualMsg = sanitize((data.error || 'No models discovered') + ' — ' + hint + '.');
+        box.innerHTML =
+          '<div class="text-xs text-gray-500 mb-2">' + manualMsg + '</div>' +
+          '<input id="prov-manual-model" type="text" placeholder="e.g. grok-4-latest" class="w-full bg-[#20242c] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-gray-200" />' +
+          '<div class="text-[10px] text-gray-500 mt-1">Separate multiple model ids with commas if needed.</div>';
+        return;
         return;
       }
       // sensible default: first model pre-selected
@@ -239,8 +247,12 @@
     }
   }
   async function saveProviderModels() {
-    const chks = $all('.prov-model-chk:checked').map(c => c.value);
-    if (!chks.length) { $('#prov-step2-msg').textContent = 'Select at least one model.'; return; }
+    let chks = $all('.prov-model-chk:checked').map(c => c.value);
+    const manual = $('#prov-manual-model');
+    if (!chks.length && manual && manual.value.trim()) {
+      chks = manual.value.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    if (!chks.length) { $('#prov-step2-msg').textContent = 'Select or enter at least one model.'; return; }
     try {
       await api('/api/ai/providers/' + pendingProviderId + '/models', {
         method: 'PUT',
@@ -618,6 +630,25 @@
     // sub-nav buttons
     $all('.ai-tab').forEach(b => b.addEventListener('click', () => switchTab(b.getAttribute('data-ai'))));
     $all('.ai-sub').forEach(a => a.addEventListener('click', (e) => { if (a.getAttribute('href')) return; }));
+    // collapsible sidebar groups (AI Hub etc.)
+    $all('.ai-group-toggle').forEach(t => {
+      const name = t.getAttribute('data-group');
+      const items = document.querySelector('.ai-group-items[data-group="' + name + '"]');
+      const chev = t.querySelector('.ai-group-chevron');
+      // restore persisted state
+      if (localStorage.getItem('nav_collapse_' + name) === '1') {
+        items.classList.add('hidden'); chev.classList.replace('fa-chevron-down', 'fa-chevron-right');
+      }
+      t.addEventListener('click', (e) => {
+        // don't toggle when clicking the actual link (let it navigate)
+        if (e.target.closest('a')) return;
+        const hidden = items.classList.toggle('hidden');
+        chev.classList.toggle('fa-chevron-down', !hidden);
+        chev.classList.toggle('fa-chevron-right', hidden);
+        localStorage.setItem('nav_collapse_' + name, hidden ? '1' : '0');
+      });
+    });
+
     $('#hub-open-chat') && $('#hub-open-chat').addEventListener('click', () => switchTab('chat'));
 
     // mobile sidebar (CSP-clean: no inline onclick)

@@ -5,16 +5,17 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field, SecretStr
 from typing import Optional, Dict, Any, List
 
-# Provider type enum for the P1 multi-provider model. openai/groq/custom speak
+# Provider type enum for the P1 multi-provider model. openai/groq/grok/custom speak
 # the OpenAI-compatible /v1/models surface (live probe); anthropic/google do NOT
 # and are served a curated catalog / manual-entry (see DESIGN_SPEC §7, Gwen §A.2).
-PROVIDER_TYPES = ["openai", "anthropic", "groq", "google", "custom"]
+PROVIDER_TYPES = ["openai", "anthropic", "groq", "grok", "google", "custom"]
 
 # Builtin base URLs for known providers (no /v1 suffix; code appends as needed).
 PROVIDER_BUILTIN_BASE_URLS = {
     "openai": "https://api.openai.com",
     "anthropic": "https://api.anthropic.com",
     "groq": "https://api.groq.com",
+    "grok": "https://api.x.ai",
     "google": "https://generativelanguage.googleapis.com",
 }
 
