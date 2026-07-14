@@ -1043,6 +1043,36 @@ def _resolve_oauth_credentials() -> tuple[str, str]:
     return "", ""
 
 
+@router.get("/oauth-debug")
+async def oauth_debug():
+    """Non-sensitive diagnostic: which OAuth creds resolve, from where, no secret."""
+    env_id = (os.getenv("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
+    env_secret = bool((os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip())
+    cfg_id = cfg_secret = False
+    try:
+        base = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+        cf = base / "config.json"
+        if cf.exists():
+            with open(cf) as f:
+                o = (json.load(f).get("oauth", {}) or {})
+            cfg_id = bool((o.get("client_id") or "").strip())
+            cfg_secret = bool((o.get("client_secret") or "").strip())
+    except Exception:
+        pass
+    rid, rsec = _resolve_oauth_credentials()
+    source = "env" if (env_id or env_secret) else ("config" if (cfg_id or cfg_secret) else "none")
+    return {
+        "resolved_client_id_prefix": (rid[:8] + "…") if rid else None,
+        "resolved_has_secret": bool(rsec),
+        "source": source,
+        "env_client_id_set": bool(env_id),
+        "env_client_secret_set": env_secret,
+        "config_client_id_set": cfg_id,
+        "config_client_secret_set": cfg_secret,
+        "redirect_uri_used": GOOGLE_OAUTH_REDIRECT_URI,
+    }
+
+
 @router.get("/google")
 async def google_oauth_init(request: Request):
     """Initiate Google OAuth flow for user login.
