@@ -2409,10 +2409,28 @@ async def ai_discover_provider_models(provider_id: str):
     api_key = _secret_val(conn.api_key)
     result = _discover_models_for_type(conn, api_key)
 
-    if "error" in result and not result.get("manual_entry"):
-        # genuine probe error that isn't a manual-entry fallback
-        return {"provider_id": provider_id, "models": [], "manual_entry": True,
-                "error": result["error"]}
+    if ("error" in result and not result.get("manual_entry")) or (result.get("manual_entry") and conn.discovered_models):
+        # Probe failed (genuine error, or non-OpenAI 404/catalog fallback)
+        # AND we have a previous discovery cache. Serve it so the Providers
+        # page still lists known models instead of going blank when a key
+        # is temporarily invalid/rotated or the host has no /v1/models.
+        cached = [{"id": m, "name": m} for m in (conn.discovered_models or [])]
+        if cached:
+            log.warning("Discovery probe failed; serving cached %d models", len(cached))
+            return {
+                "provider_id": provider_id,
+                "type": conn.type,
+                "models": cached,
+                "manual_entry": False,
+                "error": None,
+                "cached": True,
+                "active": list(conn.selected_models),
+                "default": conn.selected_models[0] if conn.selected_models else None,
+            }
+        if "error" in result:
+            return {"provider_id": provider_id, "models": [], "manual_entry": True,
+                    "error": result["error"]}
+        return {"provider_id": provider_id, "models": [], "manual_entry": True}
 
     models = result.get("models", [])
     manual = result.get("manual_entry", False)

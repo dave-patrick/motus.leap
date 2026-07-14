@@ -40,7 +40,7 @@
 
 <div class="flex min-h-screen">
     <!-- Sidebar -->
-    <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
+    <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-56 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
         <div class="flex items-center gap-2 px-2 py-3 mb-2">
             <i class="fas fa-robot text-[#2f8fc9] text-xl"></i>
             <span class="site-title text-lg tracking-wide text-white">MOTUSLEAP</span>
@@ -121,7 +121,10 @@
             <section id="panel-providers" class="ai-panel space-y-4 hidden">
                 <div class="flex items-center justify-between">
                     <h1 class="text-xl font-bold text-white">Providers</h1>
-                    <button id="prov-add-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> Add Provider</button>
+                    <div class="flex gap-2">
+                        <button id="prov-rescan-all" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-sync"></i> Rescan Models</button>
+                        <button id="prov-add-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> Add Provider</button>
+                    </div>
                 </div>
                 <div id="prov-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
             </section>
