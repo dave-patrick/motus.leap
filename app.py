@@ -2014,6 +2014,10 @@ class SettingsIn(BaseModel):
     youtube_api_key: str | None = None
     oauth_client_id: str | None = None
     oauth_client_secret: str | None = None
+    # Raw Google client_secret.json (web or installed OAuth client). When
+    # supplied we extract client_id + client_secret automatically so the user
+    # never has to hand-copy them out of the downloaded file.
+    oauth_client_secret_json: str | None = None
     default_privacy: str | None = None
     scan_interval: str | None = None
     max_concurrent: int | None = None
@@ -2055,11 +2059,43 @@ async def get_settings():
     }
 
 
+def parse_google_client_secret_json(raw: str) -> tuple[str, str]:
+    """Extract (client_id, client_secret) from a Google OAuth client_secret.json.
+
+    Handles both the ``web`` and ``installed`` client shapes Google emits.
+    Returns ("", "") if extraction fails; callers should surface a clear error.
+    """
+    import json
+    raw = (raw or "").strip()
+    if not raw:
+        return "", ""
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return "", ""
+    # Installed/web clients nest creds under either key.
+    creds = data.get("web") or data.get("installed") or {}
+    client_id = (creds.get("client_id") or "").strip()
+    client_secret = (creds.get("client_secret") or "").strip()
+    return client_id, client_secret
+
+
 @app.post("/api/settings", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def save_settings(body: SettingsIn):
     """Save settings."""
     config = config_manager.config
-    
+
+    # Auto-extract client_id/secret from an uploaded Google client_secret.json.
+    if body.oauth_client_secret_json:
+        cid, csec = parse_google_client_secret_json(body.oauth_client_secret_json)
+        if not cid or not csec:
+            return {"error": "Could not parse client_id/client_secret from the provided client_secret.json"}, 400
+        # Prefer the JSON-derived values, but let explicit fields override them.
+        if not body.oauth_client_id:
+            body.oauth_client_id = cid
+        if not body.oauth_client_secret:
+            body.oauth_client_secret = csec
+
     for key, value in body.model_dump(exclude_none=True).items():
         if hasattr(config, key):
             setattr(config, key, value)

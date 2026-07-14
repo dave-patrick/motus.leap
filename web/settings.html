@@ -124,6 +124,11 @@ window.open('/system/logs', '_blank');
                                             </button>
                                         </div>
                                     </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">…or load the Google client_secret.json</label>
+                                        <input type="file" id="oauth-secret-file" accept=".json,application/json" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none min-h-[44px] file:mr-3 file:bg-[#2f8fc9] file:text-white file:text-[10px] file:px-3 file:py-1 file:rounded file:border-0 cursor-pointer" onchange="loadClientSecretJson(event)">
+                                        <p class="text-[9px] text-gray-500 mt-1">Upload the JSON you downloaded from Google Cloud — Client ID & Secret are filled in automatically.</p>
+                                    </div>
                                     <div class="pt-2 border-t border-[#2a2f3a] space-y-3">
                                         <button id="save-settings-btn" onclick="saveSettings()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-2 rounded"><i class="fa-solid fa-floppy-disk mr-2"></i>Save All Settings</button>
                                         <div class="border-t border-[#2a2f3a] pt-2 space-y-2">
@@ -520,6 +525,36 @@ window.open('/system/logs', '_blank');
                 input.type = 'password';
                 icon.classList.remove('fa-eye-slash');
                 icon.classList.add('fa-eye');
+            }
+        }
+
+        // Read an uploaded Google client_secret.json and auto-fill the
+        // Client ID + Secret fields so the user never hand-copies them.
+        async function loadClientSecretJson(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                let parsed;
+                try {
+                    parsed = JSON.parse(text);
+                } catch (e) {
+                    toast('That file is not valid JSON', 'error');
+                    return;
+                }
+                const creds = parsed.web || parsed.installed || {};
+                const cid = (creds.client_id || '').trim();
+                const csec = (creds.client_secret || '').trim();
+                if (!cid || !csec) {
+                    toast('No client_id/client_secret found in that JSON', 'error');
+                    return;
+                }
+                document.getElementById('oauth-client-id').value = cid;
+                document.getElementById('oauth-client-secret').value = csec;
+                document.getElementById('oauth-client-secret').placeholder = 'Loaded from client_secret.json';
+                toast('Client ID & Secret loaded — click Save All Settings', 'success');
+            } catch (e) {
+                toast('Failed to read file: ' + e.message, 'error');
             }
         }
 

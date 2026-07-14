@@ -8,7 +8,7 @@ import secrets
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Mapping
 import asyncio
 
 from core.limiter import limiter # Import limiter from core.limiter
@@ -956,30 +956,91 @@ async def create_default_admin() -> None:
 import os
 from pathlib import Path
 
-def _load_oauth_credentials():
-    """Load Google OAuth credentials from environment or config.json."""
-    client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
-    client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
-    
-    # Fallback: load from config.json
+def resolve_oauth_credentials(env: "Mapping[str, str]", config_dir: Optional[Path] = None) -> tuple[str, str]:
+    """Resolve (client_id, client_secret) from env vars then config.json.
+
+    Env precedence (canonical name wins over the alias Render injects):
+      GOOGLE_OAUTH_CLIENT_ID    > YOUTUBE_CLIENT_ID
+      GOOGLE_OAUTH_CLIENT_SECRET > YOUTUBE_CLIENT_SECRET
+    Falls back to config.json's ``oauth`` block (the in-app Settings save
+    writes there). ``env`` is injected so the resolver is pure/testable; the
+    module-level loader passes ``os.environ``.
+    """
+    def _env_get(*names: str) -> str:
+        for n in names:
+            v = (env.get(n) or "").strip()
+            if v:
+                return v
+        return ""
+
+    client_id = _env_get("GOOGLE_OAUTH_CLIENT_ID", "YOUTUBE_CLIENT_ID")
+    client_secret = _env_get("GOOGLE_OAUTH_CLIENT_SECRET", "YOUTUBE_CLIENT_SECRET")
+
+    # Fallback: load from config.json (the in-app Settings save path writes here)
     if not client_id or not client_secret:
         try:
-            config_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
-            config_file = config_dir / "config.json"
+            base = config_dir or Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+            config_file = base / "config.json"
             if config_file.exists():
-                import json
                 with open(config_file) as f:
                     config = json.load(f)
                 oauth = config.get("oauth", {})
-                client_id = oauth.get("client_id", "")
-                client_secret = oauth.get("client_secret", "")
+                if not client_id:
+                    client_id = (oauth.get("client_id") or "").strip()
+                if not client_secret:
+                    client_secret = (oauth.get("client_secret") or "").strip()
         except Exception:
             pass
-    
+
     return client_id, client_secret
+
+
+def _load_oauth_credentials():
+    """Module entrypoint: resolve OAuth creds from the live process env."""
+    return resolve_oauth_credentials(os.environ)
 
 GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET = _load_oauth_credentials()
 GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "https://tubemanager.onrender.com/api/auth/google/callback")
+
+
+def _resolve_oauth_credentials() -> tuple[str, str]:
+    """Resolve live OAuth credentials for a request.
+
+    The module-level GOOGLE_OAUTH_CLIENT_ID/SECRET constants are captured at
+    import and DO NOT reflect credentials saved via the Settings UI after
+    startup. This helper resolves them fresh on every call:
+
+      1. environment variables (GOOGLE_OAUTH_* then YOUTUBE_* alias)
+      2. the live in-app config (config_manager.config.oauth — updated by the
+         Settings save handler without a restart)
+      3. config.json on disk (resolve_oauth_credentials)
+
+    Returns (client_id, client_secret), both stripped; either may be empty.
+    """
+    client_id, client_secret = resolve_oauth_credentials(os.environ)
+    if client_id and client_secret:
+        return client_id, client_secret
+
+    # Fall back to the live in-app config (reflects Settings UI saves).
+    try:
+        from app import config_manager as app_cm
+
+        def _as_str(val: object) -> str:
+            if val is None:
+                return ""
+            if hasattr(val, "get_secret_value"):
+                return str(val.get_secret_value())  # type: ignore[attr-defined]
+            return str(val)
+
+        if app_cm and getattr(app_cm.config, "oauth", None):
+            cid = _as_str(app_cm.config.oauth.client_id).strip()
+            sec = _as_str(app_cm.config.oauth.client_secret).strip()
+            if cid and sec:
+                return cid, sec
+    except Exception:
+        pass
+
+    return "", ""
 
 
 @router.get("/google")
@@ -990,12 +1051,13 @@ async def google_oauth_init(request: Request):
     returns a 302 redirect to Google's auth URL.  API clients that request JSON
     get the auth_url in a JSON body instead.
     """
-    if not GOOGLE_OAUTH_CLIENT_ID:
-        return {"error": "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars."}
+    client_id, _ = _resolve_oauth_credentials()
+    if not client_id:
+        return {"error": "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars or configure in Settings."}
 
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth"
-        f"?client_id={GOOGLE_OAUTH_CLIENT_ID}"
+        f"?client_id={client_id}"
         f"&redirect_uri={GOOGLE_OAUTH_REDIRECT_URI}"
         f"&response_type=code"
         f"&scope=openid%20email%20profile"
@@ -1021,19 +1083,7 @@ async def youtube_oauth_init():
     
     Checks environment variables first, falls back to config.json settings.
     """
-    client_id = GOOGLE_OAUTH_CLIENT_ID
-    client_secret = GOOGLE_OAUTH_CLIENT_SECRET
-    
-    # Fall back to config.json settings if env vars not set
-    if not client_id or not client_secret:
-        try:
-            from app import config_manager as app_cm
-            if app_cm and app_cm.config.oauth.client_id:
-                client_id = app_cm.config.oauth.client_id
-                client_secret = app_cm.config.oauth.client_secret
-        except Exception:
-            pass
-    
+    client_id, client_secret = _resolve_oauth_credentials()
     if not client_id:
         return {"error": "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars or configure in Settings."}
 
@@ -1064,20 +1114,7 @@ _youtube_oauth_states: dict[str, bool] = {}
 @router.get("/google/callback")
 async def google_oauth_callback(code: str, state: str = None, response: Response = None): # Added response here
     """Handle Google OAuth callback. If state is a YouTube OAuth state, save YouTube tokens."""
-    # Try env vars first, fall back to config.json settings
-    cb_client_id = GOOGLE_OAUTH_CLIENT_ID
-    cb_client_secret = GOOGLE_OAUTH_CLIENT_SECRET
-    if not cb_client_id or not cb_client_secret:
-        try:
-            from app import config_manager as app_cm
-            if app_cm and app_cm.config.oauth.client_id:
-                raw_id = app_cm.config.oauth.client_id
-                cb_client_id = raw_id.get_secret_value() if hasattr(raw_id, 'get_secret_value') else raw_id
-                raw_secret = app_cm.config.oauth.client_secret
-                cb_client_secret = raw_secret.get_secret_value() if hasattr(raw_secret, 'get_secret_value') else raw_secret
-        except Exception:
-            pass
-
+    cb_client_id, cb_client_secret = _resolve_oauth_credentials()
     if not cb_client_id or not cb_client_secret:
         return HTMLResponse("""
             <h1 style="color: #ff4444;">❌ Google OAuth Not Configured</h1>
