@@ -433,23 +433,85 @@ async def add_compression(request: Request, call_next):
     return response
 
 
+# --- CSP strictness (motus.leap CSP-hardening workstream) -------------------
+# Default behavior is UNCHANGED: every response gets the original CSP that
+# allows 'unsafe-inline' (so the 8 legacy pages keep working). Strict mode is
+# opt-in per-route via the `X-CSP-Mode: strict` response header AND only takes
+# effect when CSP_STRICT is enabled in the environment (default OFF). This lets
+# us flip pages one at a time with a kill-switch, with zero risk to the others.
+_CSP_STRICT_ENABLED = os.environ.get("CSP_STRICT", "0") == "1"
+
+def _csp_header(strict: bool) -> str:
+    if strict:
+        # Strict: no 'unsafe-inline'. All JS external + handlers removed on the
+        # opted-in routes. Tailwind is served as a static stylesheet.
+        return (
+            "default-src 'self'; "
+            "script-src 'self' https://cdnjs.cloudflare.com; "
+            "style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
+            "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
+            "img-src 'self' https://i.ytimg.com https://yt3.ggpht.com https://picsum.photos data:; "
+            "connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
+            "frame-ancestors 'none'; "
+            "frame-src 'none';"
+        )
+    # Legacy/permissive (unchanged from before the workstream).
+    return (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
+        "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
+        "img-src 'self' https://i.ytimg.com https://yt3.ggpht.com https://picsum.photos; "
+        "connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
+        "frame-ancestors 'none'; "
+        "frame-src 'none';"
+    )
+
+
+@app.post("/api/csp-report")
+async def csp_violation_report(request: Request):
+    """Receive CSP violation reports (report-only mode).
+
+    Lets us observe which inline scripts/handlers/styles would break on a
+    strict CSP BEFORE enforcing it. Logs the violation; never errors.
+    """
+    try:
+        body = await request.body()
+        # Browsers POST either JSON or CSP-report envelope.
+        try:
+            data = json.loads(body)
+        except Exception:
+            data = {"raw": body.decode("utf-8", "replace")[:500]}
+        report = data.get("csp-report", data) if isinstance(data, dict) else data
+        log.warning("CSP violation report: %s", json.dumps(report)[:500])
+    except Exception as e:
+        log.debug("csp-report parse failed: %s", e)
+    return Response(status_code=204)
+
+
 # Security middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
-    """Add security headers including strict CSP."""
+    """Add security headers including strict CSP.
+
+    Strict mode per-route: if the downstream route set `X-CSP-Mode: strict`
+    on the response AND CSP_STRICT env is enabled, emit the strict header.
+    Otherwise the original permissive CSP is used (unchanged behavior).
+    """
     response = await call_next(request)
 
-    # Strict Content Security Policy — explicitly list all allowed script sources
-    response.headers["Content-Security-Policy"] = (
-        f"default-src 'self'; "
-        f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; "
-        f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
-        f"font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
-        f"img-src 'self' https://i.ytimg.com https://yt3.ggpht.com https://picsum.photos; "
-        f"connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
-        f"frame-ancestors 'none'; "
-        f"frame-src 'none';"
-    )
+    # Honor a per-route strict opt-in only when the global kill-switch is on.
+    route_wants_strict = response.headers.get("X-CSP-Mode", "").lower() == "strict"
+    strict = _CSP_STRICT_ENABLED and route_wants_strict
+
+    csp = _csp_header(strict)
+    # When strict is active, also attach a report-only header so any residual
+    # inline usage is logged without breaking the page.
+    if strict:
+        response.headers["Content-Security-Policy-Report-Only"] = (
+            _csp_header(strict) + " report-uri /api/csp-report"
+        )
+    response.headers["Content-Security-Policy"] = csp
 
     # Additional security headers
     response.headers["X-Frame-Options"] = "DENY"
