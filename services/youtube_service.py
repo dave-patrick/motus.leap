@@ -158,10 +158,18 @@ class YouTubeService:
         self._user_data_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_user_id(self) -> str:
-        """Get unique user ID for data storage."""
-        # Use OAuth token hash as user identifier
-        if self.config.oauth.access_token:
-            return hashlib.sha256(self.config.oauth.access_token.encode()).hexdigest()[:16]
+        """Get unique user ID for data storage.
+
+        Keyed on the STABLE OAuth client_id (never on the rotating access
+        token). The access_token string changes on every refresh/re-auth, so
+        hashing it would move the cache dir (users/<hash>) and orphan every
+        prior cache — a likely contributor to "the sync didn't seem to save"
+        across re-auths. Single-user instance, so client_id is a safe, constant
+        key.
+        """
+        cid = (self.config.oauth.client_id or "").strip()
+        if cid:
+            return hashlib.sha256(cid.encode()).hexdigest()[:16]
         return "default"
 
     def get_client(self, require_oauth: bool = False) -> Optional[YouTubeClient]:
@@ -843,15 +851,29 @@ class YouTubeService:
         except Exception as e:
             log.error(f"[FETCH] Unexpected error in fetch_all_data: {e}")
             return {"error": str(e)}
-        # Cache the result for subsequent callers
-        if "error" not in result:
+        # Cache the result for subsequent callers — BUT never overwrite a good
+        # existing cache with an empty/quota-dead result. A 2nd sync that dies
+        # on quota (playlists.list returns 403 -> empty playlists) must NOT
+        # clobber the valid library the 1st sync persisted to disk. If the new
+        # result has no videos/playlists AND we already hold a populated disk
+        # cache, keep the old cache and surface the real error separately.
+        if "error" not in result and (result.get("videos") or result.get("playlists") or result.get("subscriptions")):
             await self._cache.set("all_data", result, timedelta(minutes=10))
+        else:
+            prior = await self._load_from_disk("all_data")
+            if prior and (prior.get("videos") or prior.get("playlists")):
+                log.warning(
+                    "[FETCH] New result is empty/errored (quota death?); "
+                    "preserving prior populated disk cache instead of overwriting it."
+                )
+                # Make sure the in-memory cache still holds the good data too.
+                await self._cache.set("all_data", prior, timedelta(minutes=10))
         return result
 
     async def _fetch_all_data_impl(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Actual fetch implementation. Caller is responsible for caching."""
         user_id = self._get_user_id()
-        
+
         # 1. Try persistent disk cache if not in memory (decorator already handled memory)
         disk_data = await self._load_from_disk("all_data")
         if disk_data and not force_refresh:
@@ -1006,6 +1028,25 @@ class YouTubeService:
             async def fetch_playlist_videos(playlist):
                 pl_id = playlist["id"]
                 async with semaphore:
+                    # RESUMABLE: if this playlist is already cached on disk AND
+                    # its video count is unchanged, serve the cache without a
+                    # single API call. This makes a 2nd (even force_refresh)
+                    # sync cheap — it only re-fetches playlists missing from disk
+                    # or whose item count changed. Works regardless of
+                    # force_refresh because we consult disk directly here.
+                    # NOTE: `playlist` here is the NORMALIZED dict from
+                    # _playlist_item_to_dict (carries `video_count`, not
+                    # contentDetails.itemCount), so read video_count.
+                    cache_key = f"playlist_videos_{pl_id}"
+                    try:
+                        current_count = int(playlist.get("video_count", 0) or 0)
+                    except (TypeError, ValueError):
+                        current_count = -1
+                    cached = await self._load_from_disk(cache_key)
+                    if cached is not None and current_count >= 0 and len(cached) == current_count:
+                        log.info(f"[FETCH] Playlist {pl_id} unchanged ({current_count} vids) — using disk cache, skipping API")
+                        return cached
+
                     try:
                         video_items = await self._fetch_all_paginated(
                             lambda max_results, page_token: client.list_videos(pl_id, max_results=max_results, page_token=page_token),
@@ -1024,6 +1065,10 @@ class YouTubeService:
                             except (KeyError, ValueError, TypeError) as e:
                                 log.warning(f"Skipping malformed video in playlist {pl_id}: {e}")
                                 continue
+                        # PERSIST immediately — so a quota death after this
+                        # playlist still leaves it on disk for the next run.
+                        if playlist_videos:
+                            await self._save_to_disk(cache_key, playlist_videos)
                         return playlist_videos
                     except ssl.SSLError as e:
                         log.warning(f"SSL error fetching videos for playlist {pl_id}: {e}. Skipping playlist.")
@@ -1037,7 +1082,20 @@ class YouTubeService:
             
             # Create tasks for all playlists
             playlist_tasks = [fetch_playlist_videos(pl) for pl in playlists[:max_playlists]]
-            playlist_results = await asyncio.gather(*playlist_tasks, return_exceptions=True)
+            try:
+                playlist_results: list = await asyncio.gather(*playlist_tasks, return_exceptions=True)
+            except Exception as e:
+                # Quota death mid-loop (e.g. 403) — save PARTIAL progress so the
+                # next run resumes instead of restarting from zero.
+                log.warning(f"[FETCH] Playlist loop aborted ({e}); saving partial all_data from progress so far")
+                videos = []
+                prior = await self._load_from_disk("all_data")
+                if prior and isinstance(prior.get("videos"), list):
+                    videos.extend(prior["videos"])
+                result["videos"] = videos
+                result["stats"]["total_videos"] = len(videos)
+                await self._save_to_disk("all_data", result)
+                return result
             
             videos = []
             total_duration = 0
