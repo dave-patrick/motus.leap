@@ -134,7 +134,7 @@ function hideButtonLoading(buttonId) {
  */
 function showErrorToast(title, message, action = null, actionCallback = null) {
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex flex-col gap-2 max-w-md';
+    toast.className = 'fixed top-24 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex flex-col gap-2 max-w-md';
     toast.innerHTML = `
         <div class="flex items-start gap-3">
             <div class="flex-shrink-0">
@@ -171,7 +171,7 @@ function showErrorToast(title, message, action = null, actionCallback = null) {
  */
 function showSuccessToast(message) {
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex items-center gap-3 max-w-md';
+    toast.className = 'fixed top-24 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex items-center gap-3 max-w-md';
     toast.innerHTML = `
         <i class="fa-solid fa-circle-check text-xl"></i>
         <p class="font-medium">${escapeHtml(message)}</p>
@@ -196,7 +196,7 @@ function showSuccessToast(message) {
  */
 function showInfoToast(message) {
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-[#2f8fc9] text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex items-center gap-3 max-w-md';
+    toast.className = 'fixed top-24 right-4 bg-[#2f8fc9] text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex items-center gap-3 max-w-md';
     toast.innerHTML = `
         <i class="fa-solid fa-circle-info text-xl"></i>
         <p class="font-medium">${escapeHtml(message)}</p>
