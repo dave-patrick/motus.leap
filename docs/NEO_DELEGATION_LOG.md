@@ -165,6 +165,7 @@ Candidates to queue next (Neo, non-AI):
 - **Sheldon gate (George stand-in, APPROVE-WITH-NOTES):** disk-first order correct; `cached` key added to all returns (harmless to frontend, useful telemetry); no auth surface touched; 3 new tests pass; full suite 156 pass / 20 fail — the 20 are pre-existing unrelated `test_ai_providers_p1.py` failures (unchanged). NOTE: orphaned `tests/unit/test_youtube_stats_cache.py` is dead rot (Pydantic rejects its fake `oauth` config) — confirmed failing identically on a stashed pre-fix tree; removed this commit.
 - **Tests:** NEW `tests/unit/test_basic_stats_cache.py` (3 tests: all_data cache path / playlists fallback / force_refresh-no-cache graceful zeros). All pass.
 - **George's independent verify:** git diff shows only services/youtube_service.py (+41/-1); full suite `python -m pytest tests/unit/ -q` → 156 passed / 20 failed (20 pre-existing, unrelated).
-- **Committed & PUSHED:** commit COMMIT_SHA → main → Render auto-deploy. Dave to verify live: after a scan, reload the dashboard — stats must persist (`cached: true`) even after the daily quota is exhausted.
+- **Committed:** `7d37785` → `origin/main` (pushed; `git ls-remote` confirmed SHA match). Render auto-deploy fired (502 cold-start, then cleared).
+- **VERIFIED LIVE by Dave (2026-07-15):** playlist + video counts now persist across page reload — recurrence CLOSED. `get_basic_stats` serves from disk cache (`cached: true`) instead of re-fetching live under quota.
 
 
