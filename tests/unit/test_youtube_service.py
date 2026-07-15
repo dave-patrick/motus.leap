@@ -319,3 +319,47 @@ class TestYouTubeServiceAdvanced:
 
         # No NameError surfaced as a swallowed error (BUG C3).
         assert "subscriptions_error" not in result or result.get("subscriptions_error") is None
+
+    @pytest.mark.asyncio
+    async def test_list_playlists_falls_back_to_all_data_when_playlists_json_empty(self, youtube_service):
+        """Regression 2026-07-15: Dashboard showed playlists (reads all_data.json)
+        but /api/playlists (list_playlists, reads playlists.json) returned empty,
+        so the Playlists page rendered 'No playlists found'. When playlists.json
+        is present-but-empty, list_playlists must derive from all_data.json."""
+        fake_all_data = {
+            "playlists": [
+                {"id": "PL1", "title": "Music", "video_count": 3},
+                {"id": "PL2", "title": "Tutorials", "video_count": 7},
+            ],
+            "videos": [{"id": "v1"}],
+            "subscriptions": [{"id": "s1"}],
+        }
+        # playlists.json present but empty playlists list
+        empty_playlists_cache = {"playlists": [], "stats": {"total_playlists": 0}}
+
+        async def fake_load(key):
+            if key == "playlists":
+                return empty_playlists_cache
+            if key == "all_data":
+                return fake_all_data
+            return None
+
+        with patch.object(youtube_service, "_load_from_disk", side_effect=fake_load):
+            result = await youtube_service.list_playlists(force_refresh=False)
+
+        assert result.get("cached") is True
+        playlists = result.get("playlists", [])
+        assert len(playlists) == 2, f"Expected 2 playlists from all_data fallback, got {len(playlists)}"
+        assert {p["id"] for p in playlists} == {"PL1", "PL2"}
+
+    @pytest.mark.asyncio
+    async def test_list_playlists_empty_when_both_caches_empty(self, youtube_service):
+        """When neither playlists.json nor all_data.json has playlists, return empty
+        (do NOT fabricate data)."""
+        async def fake_load(key):
+            return None
+
+        with patch.object(youtube_service, "_load_from_disk", side_effect=fake_load):
+            result = await youtube_service.list_playlists(force_refresh=False)
+
+        assert result.get("playlists", []) == []

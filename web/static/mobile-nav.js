@@ -35,4 +35,16 @@
       if (window.innerWidth < 768) closeSidebar();
     });
   });
+
+  // Collapsible AI Hub sub-nav group (shared across all SPA pages)
+  window.toggleAiGroup = function (group) {
+    const items = document.querySelector('.ai-group-items[data-group="' + group + '"]');
+    const chevron = document.querySelector('.ai-group-toggle[data-group="' + group + '"] .ai-group-chevron');
+    if (!items) return;
+    const collapsed = items.classList.toggle('hidden');
+    if (chevron) {
+      chevron.classList.toggle('fa-chevron-down', !collapsed);
+      chevron.classList.toggle('fa-chevron-right', collapsed);
+    }
+  };
 })();

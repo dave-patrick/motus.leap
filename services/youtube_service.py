@@ -436,6 +436,20 @@ class YouTubeService:
         # 1. Try persistent disk cache first for fast initial load
         disk_playlists_payload = await self._load_from_disk("playlists")
         if disk_playlists_payload and not force_refresh:
+            # If the dedicated playlists cache is present but empty (e.g. a scan
+            # wrote all_data.json but the playlists.json cache is stale/empty),
+            # fall back to deriving from all_data so the Playlists page never
+            # shows "no playlists" while the Dashboard (which reads all_data)
+            # reports real counts. See 2026-07-15 regression: dashboard showed
+            # playlists but /api/playlists returned empty.
+            pls = disk_playlists_payload.get("playlists") if isinstance(disk_playlists_payload, dict) else None
+            if not pls:
+                all_data = await self._load_from_disk("all_data")
+                if all_data and all_data.get("playlists"):
+                    log.info("list_playlists: playlists.json empty, deriving from all_data cache")
+                    return {"playlists": all_data["playlists"],
+                            "stats": disk_playlists_payload.get("stats") if isinstance(disk_playlists_payload, dict) else None,
+                            "cached": True}
             log.info("list_playlists: returning from disk cache for instant load.")
             return disk_playlists_payload
 
