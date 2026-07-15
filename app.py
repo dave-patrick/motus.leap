@@ -2125,10 +2125,41 @@ class AIClassifyIn(BaseModel):
     metadata: list[dict] | None = None  # [{video_id, title, channel, description}]
 
 
-@app.post("/api/ai/classify", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+# ── Pre-wiring allow-list gate (MoA / Gwen gap b) ──────────────────────
+# The classify endpoint must NOT be callable until an AI provider is
+# explicitly wired in Settings → AI Providers.  This dependency runs
+# synchronously (no await) so it blocks the request before any YouTube
+# API calls are made.  Returns HTTP 409 Conflict with a helpful message
+# when no provider is pre-configured.
+_ALLOW_LIST_GATE_ERROR = {
+    "error": "AI classification unavailable — please configure an AI provider "
+             "in Settings → AI Providers first.",
+}
+
+
+def _require_ai_provider() -> None:
+    """FastAPI dependency: gate /api/ai/classify behind pre-wired provider."""
+    cfg = config_manager.config
+    active = _get_active_provider(cfg)
+    if active is not None and _secret_val(active.api_key):
+        return  # provider pre-wired and key present
+    # Fallback: legacy scalar path (pre-migration).
+    if cfg.ai_provider and _secret_val(cfg.ai_api_key):
+        return
+    raise HTTPException(status_code=409, detail=_ALLOW_LIST_GATE_ERROR["error"])
+
+
+@app.post(
+    "/api/ai/classify",
+    dependencies=[
+        Depends(get_current_user),
+        Depends(verify_origin),
+        Depends(_require_ai_provider),  # MoA: pre-wiring allow-list gate
+    ],
+)
 async def ai_classify_videos(body: AIClassifyIn):
     """Classify videos using the configured AI provider.
-    
+
     Accepts optional metadata to avoid extra YouTube API calls.
     If metadata is provided, it is used directly instead of fetching from YouTube.
     """
@@ -2178,6 +2209,20 @@ async def ai_classify_videos(body: AIClassifyIn):
     # simultaneous HTTP connections / hammer the LLM provider. Results stay in
     # input order with the exact per-video (matched_playlist, error) shape the
     # frontend expects.
+    #
+    # MoA fix: cap batch size to prevent Render proxy 504s.  A batch of N videos
+    # with Semaphore(5) serialises into ceil(N/5) waves; each wave can take up to
+    # 20 s (httpx timeout) × 3 retries ≈ 60 s, which exceeds Render's 30 s proxy
+    # timeout.  We cap the total batch at 15 videos (3 waves × 5 concurrent) so
+    # even a slow wave finishes well within the proxy budget.  Larger batches are
+    # split into sub-waves that the caller can poll for.
+    MAX_CLASSIFY_BATCH = 15
+    if len(body.video_ids) > MAX_CLASSIFY_BATCH:
+        return {
+            "error": f"Batch too large ({len(body.video_ids)}); maximum is {MAX_CLASSIFY_BATCH}. "
+                     "Split your request into smaller batches.",
+        }
+
     sem = asyncio.Semaphore(5)
 
     async def _classify_one(vid, meta):
