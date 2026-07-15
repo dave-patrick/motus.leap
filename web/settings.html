@@ -70,7 +70,7 @@ window.open('/system/logs', '_blank');
                 <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             </nav>
             <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
-                    <!-- AI Hub sub-nav group (collapsible) -->
+                    <!-- AI Hub sub-nav group (collapsible) - now part of main nav group -->
 <div class="mt-2 pt-2 border-t border-[#2a2f3a]">
     <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub" onclick="toggleAiGroup('aihub')">
         <a href="/ai" class="ai-sub flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
@@ -107,6 +107,17 @@ window.open('/system/logs', '_blank');
                             <div class="bento-card p-4">
                                 <h3 class="text-xs font-semibold text-gray-300 mb-4">YouTube API</h3>
                                 <div class="space-y-4">
+                                    <!-- Connection Status -->
+                                    <div class="bento-card p-3 border-l-4 border-[#2f8fc9]" id="yt-connection-status">
+                                        <div class="flex items-center gap-3">
+                                            <i class="fas fa-youtube text-[#c8102e] text-xl"></i>
+                                            <div class="flex-1">
+                                                <div class="text-xs font-medium text-white" id="yt-status-title">YouTube: Not Connected</div>
+                                                <div class="text-[10px] text-gray-400" id="yt-status-detail">Connect your YouTube account to enable playlist sync</div>
+                                            </div>
+                                            <span class="px-2 py-0.5 rounded text-[9px] font-medium bg-red-900/30 text-red-400" id="yt-status-badge">Disconnected</span>
+                                        </div>
+                                    </div>
                                     <div>
                                         <label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="api-key-status" class="hidden text-[9px] text-green-400 ml-2"><i class="fa-solid fa-check-circle"></i> Saved</span></label>
                                         <input type="password" id="yt-api-key" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]" placeholder="Enter API key">
@@ -413,8 +424,39 @@ window.open('/system/logs', '_blank');
 
                 if (data.default_privacy) document.getElementById('default-privacy').value = data.default_privacy;
                 if (data.scan_interval) document.getElementById('scan-interval').value = data.scan_interval;
+
+                // Update YouTube connection status UI
+                updateYouTubeStatusUI(data);
+
             } catch (e) {
                 console.error(e);
+            }
+        }
+
+        function updateYouTubeStatusUI(data) {
+            const hasTokens = data.oauth_access_token && data.oauth_refresh_token;
+            const hasClientId = data.oauth_client_id;
+            const title = document.getElementById('yt-status-title');
+            const detail = document.getElementById('yt-status-detail');
+            const badge = document.getElementById('yt-status-badge');
+
+            if (title && detail && badge) {
+                if (hasTokens && hasClientId) {
+                    title.textContent = 'YouTube: Connected';
+                    detail.textContent = 'OAuth tokens active — playlist sync enabled';
+                    badge.textContent = 'Connected';
+                    badge.className = 'px-2 py-0.5 rounded text-[9px] font-medium bg-green-900/30 text-green-400';
+                } else if (hasClientId) {
+                    title.textContent = 'YouTube: Configured (needs auth)';
+                    detail.textContent = 'Client ID/Secret saved — click Connect to authorize';
+                    badge.textContent = 'Needs Auth';
+                    badge.className = 'px-2 py-0.5 rounded text-[9px] font-medium bg-yellow-900/30 text-yellow-400';
+                } else {
+                    title.textContent = 'YouTube: Not Connected';
+                    detail.textContent = 'Connect your YouTube account to enable playlist sync';
+                    badge.textContent = 'Disconnected';
+                    badge.className = 'px-2 py-0.5 rounded text-[9px] font-medium bg-red-900/30 text-red-400';
+                }
             }
         }
 
