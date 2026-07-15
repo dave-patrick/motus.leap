@@ -204,7 +204,6 @@ window.open('/system/logs', '_blank');
                                     <div class="bg-[#20242c] p-3 rounded border border-[#2a2f3a]"><div class="text-xs text-gray-400">Thumbnails</div><div class="text-lg font-bold text-white" id="thumb-count">1,331 files</div></div>
                                     <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
                                         <button id="clear-thumbnail-cache-btn" onclick="clearThumbnailCache()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Thumbnail Cache</button>
-                                        <button id="export-all-data-btn" onclick="exportAllData()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Export All Data (JSON)</button>
                                     </div>
         
                                 </div>
@@ -223,6 +222,7 @@ window.open('/system/logs', '_blank');
                                         </select>
                                     </div>
                                     <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
+                                        <button id="clear-thumbnail-cache-btn" onclick="clearThumbnailCache()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Thumbnail Cache</button>
                                         <button id="view-system-logs-btn" onclick="viewSystemLogs()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">View System Logs</button>
                                         <button id="reset-all-settings-btn" onclick="resetAllSettings()" class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2 rounded">Reset All Settings</button>
                                     </div>
@@ -607,21 +607,6 @@ window.open('/system/logs', '_blank');
                 const resp = await fetch('/api/storage/clear-thumbnails', {method: 'POST'});
                 const data = await resp.json();
                 toast(data.message || 'Cache cleared', 'success');
-            } catch (e) { toast('Failed: ' + e.message, 'error'); }
-        }
-
-        async function exportAllData() {
-            try {
-                const resp = await fetch('/api/storage/export');
-                const data = await resp.json();
-                const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `motus-leap-export-${new Date().toISOString().slice(0,10)}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-                toast('Export started', 'success');
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
 

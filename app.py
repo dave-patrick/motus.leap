@@ -2042,6 +2042,8 @@ async def get_settings():
         "youtube_api_key": (_secret_val(config.youtube_api_key) or "")[:4] + "••••" if _secret_val(config.youtube_api_key) else "",
         "oauth_client_id": config.oauth.client_id,
         "oauth_client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
+        "oauth_access_token": config.oauth.access_token or "",
+        "oauth_refresh_token": config.oauth.refresh_token or "",
         "default_privacy": config.default_privacy,
         "scan_interval": config.scan_interval,
         "max_concurrent": config.max_concurrent,
@@ -3364,39 +3366,6 @@ async def clear_thumbnails():
         return {"message": "Thumbnail cache cleared"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/storage/export", dependencies=[Depends(get_current_user)])
-async def export_data(request: Request):
-    """Export all data as JSON.
-
-    SECURITY: secrets (OAuth client_secret/tokens, API keys) are NEVER included
-    in plaintext. The previous implementation used config.model_dump(exclude={
-    'oauth': {...}}) which silently leaked the entire oauth block (a nested
-    Pydantic model the dict-form exclude does not affect) plus the raw
-    SecretStr API keys. We now redact every secret field.
-    """
-    from datetime import datetime
-    config = config_manager.config
-
-    # Redacted config: copy non-secret fields, mask secret-bearing ones.
-    config_dict = config.model_dump(exclude={"oauth", "youtube_api_key", "ai_api_key"})
-    config_dict["oauth"] = {
-        "client_id": _secret_val(config.oauth.client_id) or "",
-        "client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
-        "access_token": "••••••••" if config.oauth.access_token else None,
-        "refresh_token": "••••••••" if config.oauth.refresh_token else None,
-        "token_expiry": config.oauth.token_expiry,
-    }
-    config_dict["youtube_api_key"] = "••••••••" if _secret_val(config.youtube_api_key) else ""
-    config_dict["ai_api_key"] = "••••••••" if _secret_val(config.ai_api_key) else ""
-
-    export_data = {
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "config": config_dict,
-        "stats": await stats(request),
-    }
-    return export_data
 
 
 # Webhook endpoints

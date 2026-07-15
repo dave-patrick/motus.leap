@@ -1177,8 +1177,7 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
 
         # If YouTube OAuth, save tokens and show success
         if is_youtube_oauth:
-            # Use the app's running config manager/service so the in-memory
-            # YouTubeService picks up the new tokens immediately.
+            # Use the app's running config manager so the in-memory config is updated
             try:
                 from app import config_manager as app_config_manager, youtube_service as app_youtube_service
                 cm = app_config_manager
@@ -1192,11 +1191,19 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             config.oauth.access_token = tokens["access_token"]
             config.oauth.refresh_token = tokens.get("refresh_token", "")
             config.oauth.token_expiry = int(time.time()) + tokens.get("expires_in", 3600)
-            await cm.save(config) # Await the save
+            await cm.save(config)  # Await the save - this updates the in-memory config
 
-            # Force the running YouTubeService to rebuild its client with new tokens
-            if app_youtube_service is not None:
-                app_youtube_service._client = None
+            # Recreate the YouTubeService with the updated config so it picks up new tokens
+            from services.youtube_service import YouTubeService
+            new_youtube_service = YouTubeService(config)
+            
+            # Update the global youtube_service reference
+            try:
+                import app
+                app.youtube_service = new_youtube_service
+                app_youtube_service = new_youtube_service
+            except Exception:
+                pass
 
             # Propagate the new YouTubeService to the background worker
             try:

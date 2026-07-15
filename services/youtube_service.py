@@ -371,19 +371,21 @@ class YouTubeService:
         # 1. Prefer the persisted all_data cache (carries playlists + videos + subs).
         if not force_refresh:
             cached = await self._load_from_disk("all_data")
-            if cached and (cached.get("playlists") or cached.get("videos") or cached.get("subscriptions")):
+            if cached and isinstance(cached, dict):
                 playlists = cached.get("playlists", []) or []
                 videos = cached.get("videos", []) or []
                 subs = cached.get("subscriptions", []) or []
-                return {
-                    "total_playlists": len(playlists),
-                    "total_videos": len(videos),
-                    "total_subscriptions": len(subs),
-                    "cached": True,
-                }
+                # Check if we have meaningful data
+                if playlists or videos or subs:
+                    return {
+                        "total_playlists": len(playlists),
+                        "total_videos": len(videos),
+                        "total_subscriptions": len(subs),
+                        "cached": True,
+                    }
             # 2. Fall back to the per-playlist payload cache.
             cached_pl = await self._load_from_disk("playlists")
-            if cached_pl and cached_pl.get("playlists"):
+            if cached_pl and isinstance(cached_pl, dict) and cached_pl.get("playlists"):
                 pls = cached_pl["playlists"]
                 return {
                     "total_playlists": len(pls),
