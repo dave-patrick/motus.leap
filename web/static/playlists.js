@@ -90,7 +90,9 @@ function renderPlaylistsGrid(playlists) {
     if (!playlistsList) return;
 
     if (!playlists.length) {
-        playlistsList.innerHTML = `<div class="col-span-full bento-card p-12 text-center text-gray-400">No playlists found. Create one to get started.</div>`;
+        playlistsList.innerHTML = `<div class="col-span-full flex items-center justify-center min-h-[60vh]">
+            <div class="bento-card p-12 text-center text-gray-400 text-base">No playlists found. Create one to get started.</div>
+        </div>`;
         return;
     }
     playlistsList.innerHTML = playlists.map(p => {
