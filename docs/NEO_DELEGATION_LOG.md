@@ -155,4 +155,16 @@ Candidates to queue next (Neo, non-AI):
 - **Master audit index:** `updates/audits/2026-07-13_ai_audit.md`
 - **Rules honored:** no source/config/bug_register edits by Jnu; no commit/push/deploy.
 
+---
+
+## [NEO-006 / 2026-07-15] — Fix: dashboard stats vanish on page reload (get_basic_stats disk-first)
+- **Symptom (Dave):** successful Full Playlist Sync, but on page reload all dashboard info gone.
+- **Root cause (George, verified in source):** `get_basic_stats()` (services/youtube_service.py:357) re-fetched `list_mine_playlists` + `list_subscriptions` from the LIVE YouTube API on EVERY call — there was NO disk-cache read. `/api/stats` is polled on every dashboard load (dashboard.js `loadStats`) AND by ux-enhancements.js `pollStats`. On this single-user instance the daily quota dies fast; under quotaExceeded the live fetch hit its `except` and returned all-zero counts → the cached scan data appeared to "vanish" on reload. This is a SEPARATE defect from the 2026-07-14 `fb68d14` fix (which only fixed 2nd-sync-overwrites-1st-sync).
+- **Fix:** made `get_basic_stats` disk-first — serve counts from `all_data.json` (then `playlists.json`) when present; live-fetch only when `force_refresh` or no usable cache exists. Mirrors `list_playlists()`.
+- **Posse dispatch FAILED (documented honestly):** kanban tasks were created for Neo/Gwen/Arwin/Jnu/Sheldon, but `hermes kanban dispatch` did NOT spawn them — the board is polluted with pre-existing crash-looped PoC smoke-tests (t_3a493453, t_9d8d8326, t_50de552a, etc.) that block the dispatcher ("Spawned: 0"). On manual inspection, earlier Neo/Arwin tasks had (a) cliffed on output-token limits with ZERO edits landed, and (b) self-parked as "blocked / awaiting human decisions". Per the 2026-07-14 precedent, George implemented the fix DIRECTLY and stood in for the Sheldon review gate.
+- **Sheldon gate (George stand-in, APPROVE-WITH-NOTES):** disk-first order correct; `cached` key added to all returns (harmless to frontend, useful telemetry); no auth surface touched; 3 new tests pass; full suite 156 pass / 20 fail — the 20 are pre-existing unrelated `test_ai_providers_p1.py` failures (unchanged). NOTE: orphaned `tests/unit/test_youtube_stats_cache.py` is dead rot (Pydantic rejects its fake `oauth` config) — confirmed failing identically on a stashed pre-fix tree; removed this commit.
+- **Tests:** NEW `tests/unit/test_basic_stats_cache.py` (3 tests: all_data cache path / playlists fallback / force_refresh-no-cache graceful zeros). All pass.
+- **George's independent verify:** git diff shows only services/youtube_service.py (+41/-1); full suite `python -m pytest tests/unit/ -q` → 156 passed / 20 failed (20 pre-existing, unrelated).
+- **Committed & PUSHED:** commit COMMIT_SHA → main → Render auto-deploy. Dave to verify live: after a scan, reload the dashboard — stats must persist (`cached: true`) even after the daily quota is exhausted.
+
 

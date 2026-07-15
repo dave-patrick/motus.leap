@@ -356,7 +356,45 @@ class YouTubeService:
 
     @cache_result("basic_stats", ttl=timedelta(minutes=10))
     async def get_basic_stats(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """Return lightweight playlist/video counts without fetching video durations."""
+        """Return lightweight playlist/video counts without fetching video durations.
+
+        DISK-FIRST (fixed 2026-07-15): previously this re-fetched list_mine_playlists +
+        list_subscriptions from the live YouTube API on EVERY call. On the single-user
+        instance the daily quota dies fast, and the live fetch then fell into the except
+        branch and returned all-zero counts — so a successful scan's results appeared to
+        "vanish" on the next page reload (which re-polls /api/stats via dashboard.js and
+        ux-enhancements.js). The scan/playlist data is persisted to the Render disk
+        (all_data.json / playlists.json), so we serve counts from that cache when present
+        and only hit the API when force_refresh is set or no usable cache exists. This
+        mirrors list_playlists()'s disk-first pattern.
+        """
+        # 1. Prefer the persisted all_data cache (carries playlists + videos + subs).
+        if not force_refresh:
+            cached = await self._load_from_disk("all_data")
+            if cached and (cached.get("playlists") or cached.get("videos") or cached.get("subscriptions")):
+                playlists = cached.get("playlists", []) or []
+                videos = cached.get("videos", []) or []
+                subs = cached.get("subscriptions", []) or []
+                return {
+                    "total_playlists": len(playlists),
+                    "total_videos": len(videos),
+                    "total_subscriptions": len(subs),
+                    "cached": True,
+                }
+            # 2. Fall back to the per-playlist payload cache.
+            cached_pl = await self._load_from_disk("playlists")
+            if cached_pl and cached_pl.get("playlists"):
+                pls = cached_pl["playlists"]
+                return {
+                    "total_playlists": len(pls),
+                    "total_videos": sum(int((p.get("video_count", 0) or 0)) for p in pls),
+                    "total_subscriptions": (cached_pl.get("stats") or {}).get("total_subscriptions", 0),
+                    "cached": True,
+                }
+
+        # 3. No usable cache (or forced) — fetch live. Under quota death this still
+        #    returns zeros, but that only happens when there is genuinely no cached
+        #    data to fall back on, not after a successful scan.
         async with self._data_lock:
             client = self.get_client(require_oauth=True)
             if not client:
@@ -364,6 +402,7 @@ class YouTubeService:
                     "total_playlists": 0,
                     "total_videos": 0,
                     "total_subscriptions": 0,
+                    "cached": False,
                 }
 
             try:
@@ -379,6 +418,7 @@ class YouTubeService:
                     "total_playlists": len(playlists),
                     "total_videos": total_videos,
                     "total_subscriptions": total_subscriptions,
+                    "cached": False,
                 }
                 return stats
             except Exception as e:
