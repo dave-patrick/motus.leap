@@ -10,7 +10,7 @@
     <link rel="manifest" href="/static/manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=1781919149d">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260715f">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
@@ -73,7 +73,7 @@
             <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
                     <!-- AI Hub sub-nav group (collapsible) -->
 <div class="mt-2 pt-2 border-t border-[#2a2f3a]">
-    <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub">
+    <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub" onclick="toggleAiGroup('aihub')">
         <a href="/ai" class="ai-sub flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
         <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
     </div>
@@ -133,8 +133,8 @@
     </div>
 </main>
     </div>
-    <script src="/static/playlists.js?v=20260715c"></script>
-    <script src="/static/mobile-nav.js"></script>
+    <script src="/static/playlists.js?v=20260715f"></script>
+    <script src="/static/mobile-nav.js?v=20260715f"></script>
 
     <script>
     function openCreatePlaylistModal() { document.getElementById('create-playlist-modal').classList.remove('hidden'); }
