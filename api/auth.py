@@ -1189,28 +1189,33 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
 
             config = cm.config
             config.oauth.access_token = tokens["access_token"]
-            config.oauth.refresh_token = tokens.get("refresh_token", "")
+            # Only update refresh_token if Google returns a new one; preserve existing otherwise
+            if "refresh_token" in tokens:
+                config.oauth.refresh_token = tokens["refresh_token"]
             config.oauth.token_expiry = int(time.time()) + tokens.get("expires_in", 3600)
-            await cm.save(config)  # Await the save - this updates the in-memory config
+            await cm.save(config)
+            log.info('✅ Saved OAuth tokens to config')
 
             # Recreate the YouTubeService with the updated config so it picks up new tokens
             from services.youtube_service import YouTubeService
             new_youtube_service = YouTubeService(config)
-            
+
             # Update the global youtube_service reference
             try:
                 import app
                 app.youtube_service = new_youtube_service
                 app_youtube_service = new_youtube_service
-            except Exception:
-                pass
+                log.info('🌐 Updated global app.youtube_service reference')
+            except Exception as e:
+                log.error(f'❌ Failed to update global youtube_service reference: {e}')
 
             # Propagate the new YouTubeService to the background worker
             try:
                 from app import _sync_worker_youtube_service
                 _sync_worker_youtube_service()
-            except Exception:
-                pass
+                log.info('🔁 Synced background worker youtube service')
+            except Exception as e:
+                log.error(f'❌ Failed to sync worker youtube_service: {e}')
 
             frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com").rstrip("/")
             return RedirectResponse(url=f"{frontend_url}/auth?status=success&type=youtube", status_code=302)
