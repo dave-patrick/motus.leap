@@ -1198,6 +1198,13 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             if app_youtube_service is not None:
                 app_youtube_service._client = None
 
+            # Propagate the new YouTubeService to the background worker
+            try:
+                from app import _sync_worker_youtube_service
+                _sync_worker_youtube_service()
+            except Exception:
+                pass
+
             frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com").rstrip("/")
             return RedirectResponse(url=f"{frontend_url}/auth?status=success&type=youtube", status_code=302)
 
