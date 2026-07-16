@@ -51,36 +51,15 @@
     <!-- ===== FULL-WIDTH TOP HEADER ===== -->
     <header class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center justify-between border-b border-[#2a2f3a] shrink-0 z-20">
         <div class="flex items-center gap-4 pl-14 md:pl-0">
-            <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height:45px;width:auto;object-fit:contain;">
-            <h1 class="text-2xl md:text-4xl font-semibold tracking-tight flex items-baseline leading-none site-title">
+            <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height:56px;width:auto;object-fit:contain;">
+            <h1 class="text-3xl md:text-5xl font-semibold tracking-tight flex items-baseline leading-none site-title">
                 <span class="text-white">m</span><span class="text-white">o</span><span class="text-white">t</span>
                 <span class="text-[#2f8fc9]">u</span><span class="text-white">s</span>
                 <span class="text-gray-500">.</span>
                 <span class="text-white">l</span><span class="text-white">e</span><span class="text-white">a</span><span class="text-white">p</span>
             </h1>
         </div>
-        <!-- No logout here — managed in Settings only. AI chat button injected by ux-enhancements.js?v=20260716d -->
-    </header>
-
-    <!-- ===== LIVE CONSOLE (below header, above content) ===== -->
-    <div class="w-full h-[18vh] bg-[#1a1d24] border-b border-[#2a2f3a] flex flex-col shrink-0">
-        <div class="px-4 py-1.5 bg-[#171920] border-b border-[#2a2f3a] flex items-center justify-between shrink-0">
-            <div class="flex items-center gap-2">
-                <i class="fas fa-terminal text-[#2f8fc9] text-xs"></i>
-                <span class="text-[11px] font-semibold text-gray-300">Live Console</span>
-            </div>
-            <div class="flex gap-2">
-                <button id="btn-copy-console" class="text-[10px] px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white transition-colors"><i class="fas fa-copy mr-1"></i>Copy</button>
-                <button id="btn-clear-console" class="text-[10px] px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white transition-colors"><i class="fas fa-trash mr-1"></i>Clear</button>
-            </div>
-        </div>
-        <div id="console-output" class="flex-1 bg-[#0a0c10] p-3 font-mono text-[10px] text-gray-400 overflow-y-auto space-y-1">
-            <div class="console-line info">Dashboard connected.</div>
-        </div>
-    </div>
-
-    <!-- ===== SIDEBAR + MAIN ROW ===== -->
-    <div class="flex flex-1 min-h-0 overflow-hidden">
+        <!-- No logout here — managed in Settings only. AI chat button injected by ux-enhancements.js?v=20260716e"flex flex-1 min-h-0 overflow-hidden">
 
         <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
         <button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
@@ -110,7 +89,7 @@
         </aside>
 
         <!-- Main Content Area -->
-        <main class="flex-1 min-h-0 p-6 pb-6 bg-[#0f1115] overflow-y-auto">
+        <main class="flex-1 min-h-0 p-6 pb-4 bg-[#0f1115] overflow-y-auto">
             <div class="flex flex-col gap-6 max-w-[1600px] w-full">
 
                 <h3 class="text-2xl font-bold text-white">Dashboard</h3>
@@ -167,7 +146,7 @@
                 </div>
 
                 <!-- Slim footer -->
-                <footer class="pt-3 border-t border-[#2a2f3a] text-[10px] text-gray-600 flex flex-wrap items-center gap-3">
+                <footer class="pt-2 border-t border-[#2a2f3a] text-[9px] text-gray-600 flex flex-wrap items-center gap-3">
                     <span>&copy; 2026 motus.leap</span>
                     <a href="/terms?v=20260715b" class="hover:text-[#2f8fc9]">Terms of Use</a>
                     <a href="/privacy?v=20260715b" class="hover:text-[#2f8fc9]">Privacy Policy</a>
@@ -178,7 +157,7 @@
     </div>
 
     <script src="/static/dashboard.js?v=2"></script>
-    <script src="/static/ux-enhancements.js?v=20260716d"></script>
+    <script src="/static/ux-enhancements.js?v=20260716e"></script>
     <script src="/static/mobile-nav.js?v=20260715f"></script>
     <script>
         if ('serviceWorker' in navigator) {

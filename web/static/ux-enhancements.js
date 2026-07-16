@@ -968,14 +968,7 @@ function initGlobalAgentDrawer() {
     let card = document.getElementById('agent-status-card');
     if (card) return; // already injected
 
-    // Detect pages with a 20vh pinned bottom tray (dashboard console / AI chat tray)
-    // so we can float the card above them instead of over them.
-    const hasPinnedTray = (
-        document.querySelector('.h-\\[20vh\\]') !== null ||
-        document.getElementById('live-console') !== null ||
-        document.getElementById('chat-log') !== null
-    );
-    const bottomClass = hasPinnedTray ? 'bottom-[calc(20vh+1.25rem)]' : 'bottom-6';
+    const bottomClass = 'bottom-6';
 
     card = document.createElement('div');
     card.id = 'agent-status-card';
@@ -1244,7 +1237,127 @@ window.clearLogs = function() {
     toast('Logs cleared', 'info');
 };
 
+// ============================================================
+// Global Live Console Widget — terminal button + slide-in panel
+// ============================================================
+(function () {
+    'use strict';
+
+    function initLiveConsoleWidget() {
+        if (document.getElementById('live-console-panel')) return;
+
+        // ---- Floating terminal button (left of AI Chat button) ----
+        const btn = document.createElement('button');
+        btn.id = 'live-console-btn';
+        btn.title = 'Live Console';
+        btn.setAttribute('aria-label', 'Open Live Console');
+        btn.className = [
+            'fixed top-[13px] right-[60px] z-[60]',
+            'w-10 h-10 rounded-xl',
+            'bg-[#1a1d24] hover:bg-[#20242c]',
+            'border border-[#2a2f3a] hover:border-[#2f8fc9]/40',
+            'text-gray-400 hover:text-[#2f8fc9]',
+            'flex items-center justify-center',
+            'shadow-lg shadow-black/30',
+            'transition-all duration-200 hover:scale-105 active:scale-95',
+        ].join(' ');
+        btn.innerHTML = '<i class="fa-solid fa-terminal text-sm"></i>';
+        document.body.appendChild(btn);
+
+        // ---- Backdrop ----
+        const overlay = document.createElement('div');
+        overlay.id = 'live-console-overlay';
+        overlay.className = 'fixed inset-0 bg-black/40 z-[65] hidden';
+        document.body.appendChild(overlay);
+
+        // ---- Slide-in panel ----
+        const panel = document.createElement('div');
+        panel.id = 'live-console-panel';
+        panel.className = [
+            'fixed top-0 right-0 h-full w-[520px] max-w-[100vw]',
+            'bg-[#1a1d24] border-l border-[#2a2f3a]',
+            'z-[70] flex flex-col',
+            'transform translate-x-full transition-transform duration-300 ease-in-out',
+            'font-sans shadow-2xl shadow-black/60',
+        ].join(' ');
+
+        panel.innerHTML = `
+            <!-- Header -->
+            <div class="px-5 py-3.5 border-b border-[#2a2f3a] flex items-center justify-between shrink-0 bg-[#171920]">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-[#2f8fc9]/10 border border-[#2f8fc9]/25 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-terminal text-[#2f8fc9] text-xs"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-white leading-tight">Live Console</div>
+                        <div class="text-[10px] text-gray-500 mt-0.5">Real-time agent log stream</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btn-copy-console" title="Copy logs"
+                        class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors text-[11px]">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button id="btn-clear-console" title="Clear console"
+                        class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-red-400 flex items-center justify-center transition-colors text-[11px]">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button id="live-console-close"
+                        class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Log output -->
+            <div id="console-output" class="flex-1 bg-[#0a0c10] p-4 font-mono text-[11px] text-gray-400 overflow-y-auto space-y-1">
+                <div class="console-line info">Console ready.</div>
+            </div>
+        `;
+
+        document.body.appendChild(panel);
+
+        // ---- Events ----
+        btn.addEventListener('click', _openConsole);
+        overlay.addEventListener('click', _closeConsole);
+        panel.querySelector('#live-console-close').addEventListener('click', _closeConsole);
+
+        // Copy button
+        panel.querySelector('#btn-copy-console').addEventListener('click', function () {
+            const lines = Array.from(
+                document.querySelectorAll('#console-output .console-line, #console-output div')
+            ).map(el => el.textContent.trim()).filter(Boolean);
+            navigator.clipboard.writeText(lines.join('\n')).then(() => {
+                if (typeof toast === 'function') toast('Logs copied', 'success');
+            }).catch(() => {});
+        });
+
+        // Clear button
+        panel.querySelector('#btn-clear-console').addEventListener('click', function () {
+            const out = document.getElementById('console-output');
+            if (out) out.innerHTML = '<div class="console-line info">[SYSTEM] Console cleared.</div>';
+            if (typeof toast === 'function') toast('Console cleared', 'info');
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') _closeConsole();
+        });
+    }
+
+    function _openConsole() {
+        document.getElementById('live-console-panel')?.classList.remove('translate-x-full');
+        document.getElementById('live-console-overlay')?.classList.remove('hidden');
+    }
+
+    function _closeConsole() {
+        document.getElementById('live-console-panel')?.classList.add('translate-x-full');
+        document.getElementById('live-console-overlay')?.classList.add('hidden');
+    }
+
+    document.addEventListener('DOMContentLoaded', initLiveConsoleWidget);
+})();
+
 document.addEventListener('DOMContentLoaded', initGlobalAgentDrawer);
+
 
 // NOTE: A second SPA router (loadPageContent) previously lived here and
 // registered its own click + popstate handlers. It conflicted with the
