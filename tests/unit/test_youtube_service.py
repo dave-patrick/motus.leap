@@ -337,7 +337,7 @@ class TestYouTubeServiceAdvanced:
         # playlists.json present but empty playlists list
         empty_playlists_cache = {"playlists": [], "stats": {"total_playlists": 0}}
 
-        async def fake_load(key):
+        async def fake_load(key, max_age_days=None):
             if key == "playlists":
                 return empty_playlists_cache
             if key == "all_data":
@@ -356,10 +356,52 @@ class TestYouTubeServiceAdvanced:
     async def test_list_playlists_empty_when_both_caches_empty(self, youtube_service):
         """When neither playlists.json nor all_data.json has playlists, return empty
         (do NOT fabricate data)."""
-        async def fake_load(key):
+        async def fake_load(key, max_age_days=None):
             return None
 
         with patch.object(youtube_service, "_load_from_disk", side_effect=fake_load):
             result = await youtube_service.list_playlists(force_refresh=False)
 
         assert result.get("playlists", []) == []
+
+    @pytest.mark.asyncio
+    async def test_is_stale_helper(self):
+        """is_stale() flags files older than max_age_days and missing files."""
+        import tempfile
+        from pathlib import Path as _Path
+        from datetime import datetime, timedelta
+        from services.youtube_service import is_stale
+
+        with tempfile.TemporaryDirectory() as d:
+            fresh = _Path(d) / "fresh.json"
+            fresh.write_text("{}")
+            stale = _Path(d) / "stale.json"
+            stale.write_text("{}")
+            # Set mtime 31 days in the past
+            old = datetime.now() - timedelta(days=31)
+            import os
+            os.utime(stale, (old.timestamp(), old.timestamp()))
+
+            assert is_stale(fresh, max_age_days=30) is False
+            assert is_stale(stale, max_age_days=30) is True
+            # Missing file is stale
+            assert is_stale(_Path(d) / "nope.json", max_age_days=30) is True
+
+    @pytest.mark.asyncio
+    async def test_load_from_disk_rejects_stale(self, youtube_service, tmp_path):
+        """_load_from_disk returns None for a file older than max_age_days (III.E.4a-g)."""
+        from datetime import datetime, timedelta
+        import os
+        cache_file = tmp_path / "old.json"
+        cache_file.write_text('{"playlists": [{"id": "PL1"}]}')
+        old = datetime.now() - timedelta(days=31)
+        os.utime(cache_file, (old.timestamp(), old.timestamp()))
+        # Point the service's data dir at our temp dir
+        youtube_service._user_data_dir = tmp_path
+        result = await youtube_service._load_from_disk("old", max_age_days=30)
+        assert result is None, "Stale cached YouTube data must be treated as a miss"
+        # Fresh file is returned
+        fresh = tmp_path / "new.json"
+        fresh.write_text('{"playlists": [{"id": "PL2"}]}')
+        assert await youtube_service._load_from_disk("new", max_age_days=30) == {"playlists": [{"id": "PL2"}]}
+

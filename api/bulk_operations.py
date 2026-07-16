@@ -333,52 +333,7 @@ async def bulk_tag_videos(
 # Export/Import Endpoints
 # =============================================================================
 
-# Route removed
-async def export_data(
-    request: ExportRequest,
-    config: TubeManagerConfig = Depends(get_config),
-    config_manager: ConfigManager = Depends(get_config_manager)
-):
-    """Export data in specified format."""
-    # Create service instance
-    service = BulkOperationsService(config, config_manager)
-
-    if request.resource_type == "playlists":
-        data = await service.export_playlists(request.filters)
-    elif request.resource_type == "subscriptions":
-        data = await service.export_subscriptions(request.filters)
-    elif request.resource_type == "mappings":
-        data = await service.export_mappings(request.filters)
-    else:
-        raise HTTPException(status_code=400, detail="Invalid resource type")
-
-    if request.format == "json":
-        return {
-            "format": "json",
-            "data": data,
-            "exported_at": datetime.now().isoformat()
-        }
-    elif request.format == "csv":
-        # Convert to CSV
-        output = io.StringIO()
-        if isinstance(data, dict):
-            # Mappings - convert to list of dicts
-            data = [{"channel": k, "playlist": v} for k, v in data.items()]
-
-        if data:
-            writer = csv.DictWriter(output, fieldnames=data[0].keys())
-            writer.writeheader()
-            writer.writerows(data)
-
-        csv_data = output.getvalue()
-        return {
-            "format": "csv",
-            "data": csv_data,
-            "exported_at": datetime.now().isoformat()
-        }
-    else:
-        raise HTTPException(status_code=400, detail="Invalid format")
-
+# Route removed - export functionality deleted per YouTube ToS F.2b
 
 @router.post("/import")
 async def import_data(

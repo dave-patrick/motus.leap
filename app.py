@@ -128,7 +128,7 @@ async def lifespan(app: FastAPI):
 
     # Clean up stale disk cache files on startup
     try:
-        removed = await youtube_service.disk_cache_cleanup(max_age_days=7)
+        removed = await youtube_service.disk_cache_cleanup(max_age_days=30)
         if removed:
             log.info(f"Startup cache cleanup: removed {removed} stale files")
     except Exception as e:

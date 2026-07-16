@@ -110,7 +110,7 @@ window.open('/system/logs', '_blank');
                                     <!-- Connection Status -->
                                     <div class="bento-card p-3 border-l-4 border-[#2f8fc9]" id="yt-connection-status">
                                         <div class="flex items-center gap-3">
-                                            <i class="fas fa-youtube text-[#c8102e] text-xl"></i>
+                                            <i class="fab fa-youtube text-2xl"></i>
                                             <div class="flex-1">
                                                 <div class="text-xs font-medium text-white" id="yt-status-title">YouTube: Not Connected</div>
                                                 <div class="text-[10px] text-gray-400" id="yt-status-detail">Connect your YouTube account to enable playlist sync</div>
@@ -1190,5 +1190,11 @@ if (document.readyState === 'loading') {
 setTimeout(loadPlaylistNames, 300);
     </script>
     <script src="/static/mobile-nav.js?v=20260715e"></script>
+    <footer class="mt-10 pt-6 border-t border-[#2a2f3a] px-6 py-6 text-[11px] text-gray-500 flex flex-wrap items-center gap-4 bg-[#121419]">
+        <span>&copy; 2026 motus.leap</span>
+        <a href="/terms?v=20260715b" class="hover:text-[#2f8fc9]">Terms of Use</a>
+        <a href="/privacy?v=20260715b" class="hover:text-[#2f8fc9]">Privacy Policy</a>
+        <span class="ml-auto">Not affiliated with YouTube or Google.</span>
+    </footer>
 </body>
 </html>

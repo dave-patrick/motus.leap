@@ -91,6 +91,21 @@ class _ReentrantAsyncLock:
         return False
 
 
+def is_stale(path: Path, max_age_days: int = 30) -> bool:
+    """Return True if the file at ``path`` is missing or older than ``max_age_days``.
+
+    Used to enforce the 30-day retention cap on cached YouTube statistics/content
+    (YouTube API Services Developer Policy III.E.4a-g). Files that do not exist are
+    considered stale so callers fall through to a fresh fetch.
+    """
+    try:
+        file_stat = path.stat()
+    except (OSError, FileNotFoundError):
+        return True
+    file_mtime = datetime.fromtimestamp(file_stat.st_mtime)
+    return file_mtime < (datetime.now() - timedelta(days=max_age_days))
+
+
 def _best_thumbnail(thumbs: Optional[dict]) -> str:
     """Prefer the highest-resolution YouTube thumbnail available.
 
@@ -214,11 +229,22 @@ class YouTubeService:
         except Exception as e:
             log.warning(f"Failed to save {key} to disk: {e}")
 
-    async def _load_from_disk(self, key: str) -> Optional[Any]:
-        """Load data from persistent disk storage asynchronously."""
+    async def _load_from_disk(self, key: str, max_age_days: Optional[int] = None) -> Optional[Any]:
+        """Load data from persistent disk storage asynchronously.
+
+        Args:
+            key: Cache key (file is ``{key}.json`` under the user data dir).
+            max_age_days: If set, files older than this many days are treated as
+                absent (return None) so callers never serve data that has been
+                retained longer than the allowed window. Enforces the YouTube API
+                Services Developer Policy III.E.4a-g (30-day data-retention cap).
+        """
         try:
             cache_file = self._user_data_dir / f"{key}.json"
             if await asyncio.to_thread(cache_file.exists):
+                if max_age_days is not None and is_stale(cache_file, max_age_days):
+                    log.info(f"Disk cache {key} older than {max_age_days}d — treating as stale miss")
+                    return None
                 content = await asyncio.to_thread(cache_file.read_text)
                 return json.loads(content)
         except Exception as e:
@@ -370,7 +396,7 @@ class YouTubeService:
         """
         # 1. Prefer the persisted all_data cache (carries playlists + videos + subs).
         if not force_refresh:
-            cached = await self._load_from_disk("all_data")
+            cached = await self._load_from_disk("all_data", max_age_days=30)
             if cached and isinstance(cached, dict):
                 playlists = cached.get("playlists", []) or []
                 videos = cached.get("videos", []) or []
@@ -384,7 +410,7 @@ class YouTubeService:
                         "cached": True,
                     }
             # 2. Fall back to the per-playlist payload cache.
-            cached_pl = await self._load_from_disk("playlists")
+            cached_pl = await self._load_from_disk("playlists", max_age_days=30)
             if cached_pl and isinstance(cached_pl, dict) and cached_pl.get("playlists"):
                 pls = cached_pl["playlists"]
                 return {
@@ -436,7 +462,7 @@ class YouTubeService:
         """List user's playlists with lightweight change detection (renames/removals force a sync)."""
         
         # 1. Try persistent disk cache first for fast initial load
-        disk_playlists_payload = await self._load_from_disk("playlists")
+        disk_playlists_payload = await self._load_from_disk("playlists", max_age_days=30)
         if disk_playlists_payload and not force_refresh:
             # If the dedicated playlists cache is present but empty (e.g. a scan
             # wrote all_data.json but the playlists.json cache is stale/empty),
@@ -446,7 +472,7 @@ class YouTubeService:
             # playlists but /api/playlists returned empty.
             pls = disk_playlists_payload.get("playlists") if isinstance(disk_playlists_payload, dict) else None
             if not pls:
-                all_data = await self._load_from_disk("all_data")
+                all_data = await self._load_from_disk("all_data", max_age_days=30)
                 if all_data and all_data.get("playlists"):
                     log.info("list_playlists: playlists.json empty, deriving from all_data cache")
                     return {"playlists": all_data["playlists"],
@@ -507,7 +533,7 @@ class YouTubeService:
             # current_playlists without a quota-burning full re-sync.
             if rename_only and not structural_change:
                 try:
-                    all_data = await self._load_from_disk("all_data")
+                    all_data = await self._load_from_disk("all_data", max_age_days=30)
                     if all_data and "playlists" in all_data:
                         title_by_id = {p["id"]: p["title"] for p in current_playlists}
                         for pl in all_data.get("playlists", []):
@@ -670,7 +696,7 @@ class YouTubeService:
         # ---- NAME RESOLUTION: primary path is the disk cache (zero quota) ----
         all_data = None
         try:
-            all_data = await self._load_from_disk("all_data")
+            all_data = await self._load_from_disk("all_data", max_age_days=30)
         except Exception as e:  # noqa: BLE001
             log.warning(f"[map_from_playlists] all_data read failed: {e}")
 
@@ -882,7 +908,7 @@ class YouTubeService:
             cached = await self._cache.get("all_data")
             if cached is not None:
                 return cached
-            disk_data = await self._load_from_disk("all_data")
+            disk_data = await self._load_from_disk("all_data", max_age_days=30)
             if disk_data:
                 await self._cache.set("all_data", disk_data, timedelta(minutes=10))
                 return disk_data
@@ -916,7 +942,7 @@ class YouTubeService:
         if "error" not in result and (result.get("videos") or result.get("playlists") or result.get("subscriptions")):
             await self._cache.set("all_data", result, timedelta(minutes=10))
         else:
-            prior = await self._load_from_disk("all_data")
+            prior = await self._load_from_disk("all_data", max_age_days=30)
             if prior and (prior.get("videos") or prior.get("playlists")):
                 log.warning(
                     "[FETCH] New result is empty/errored (quota death?); "
@@ -931,7 +957,7 @@ class YouTubeService:
         user_id = self._get_user_id()
 
         # 1. Try persistent disk cache if not in memory (decorator already handled memory)
-        disk_data = await self._load_from_disk("all_data")
+        disk_data = await self._load_from_disk("all_data", max_age_days=30)
         if disk_data and not force_refresh:
             log.info("Using cached all_data from disk, caching in memory")
             return disk_data # Return disk data, decorator will cache it in memory
@@ -1145,7 +1171,7 @@ class YouTubeService:
                 # next run resumes instead of restarting from zero.
                 log.warning(f"[FETCH] Playlist loop aborted ({e}); saving partial all_data from progress so far")
                 videos = []
-                prior = await self._load_from_disk("all_data")
+                prior = await self._load_from_disk("all_data", max_age_days=30)
                 if prior and isinstance(prior.get("videos"), list):
                     videos.extend(prior["videos"])
                 result["videos"] = videos

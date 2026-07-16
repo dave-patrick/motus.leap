@@ -93,7 +93,6 @@
                     <button onclick="showTab('move')" class="tab-btn active px-4 py-2 rounded-lg text-xs font-medium bg-[#2f8fc9] text-white transition-colors whitespace-nowrap"><i class="fa-solid fa-arrows-right-left mr-2"></i>Move Videos</button>
                     <button onclick="showTab('delete')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors whitespace-nowrap"><i class="fa-solid fa-trash mr-2"></i>Delete Videos</button>
                     <button onclick="showTab('tag')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors whitespace-nowrap"><i class="fa-solid fa-tags mr-2"></i>Tag Videos</button>
-                    <button onclick="showTab('export')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors whitespace-nowrap"><i class="fa-solid fa-download mr-2"></i>Export Data</button>
                     <button onclick="showTab('import')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors whitespace-nowrap"><i class="fa-solid fa-upload mr-2"></i>Import Data</button>
                 </div>
 
@@ -138,47 +137,25 @@
                         </div>
 
                         <div id="panel-tag" class="bento-card p-4 hidden">
-                            <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-tags text-green-400"></i> Tag Videos</h3>
-                            <div class="space-y-3">
-                                <div class="flex gap-2">
-                                    <button onclick="setTagAction('add')" id="tag-add-btn" class="flex-1 bg-[#2f8fc9] text-white text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-plus mr-1"></i> Add Tags</button>
-                                    <button onclick="setTagAction('remove')" id="tag-remove-btn" class="flex-1 bg-[#2a2f3a] text-gray-400 text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-minus mr-1"></i> Remove Tags</button>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-400 mb-1 block">Tags (comma-separated)</label>
-                                    <input type="text" id="tag-input" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]" placeholder="music, tutorial, 2024">
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
-                                    <textarea id="tag-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9] font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
-                                </div>
-                                <button onclick="executeBulkTag()" class="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Tagging</button>
-                            </div>
-                        </div>
+                                                    <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-tags text-green-400"></i> Tag Videos</h3>
+                                                    <div class="space-y-3">
+                                                        <div class="flex gap-2">
+                                                            <button onclick="setTagAction('add')" id="tag-add-btn" class="flex-1 bg-[#2f8fc9] text-white text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-plus mr-1"></i> Add Tags</button>
+                                                            <button onclick="setTagAction('remove')" id="tag-remove-btn" class="flex-1 bg-[#2a2f3a] text-gray-400 text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-minus mr-1"></i> Remove Tags</button>
+                                                        </div>
+                                                        <div>
+                                                            <label class="text-xs text-gray-400 mb-1 block">Tags (comma-separated)</label>
+                                                            <input type="text" id="tag-input" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]" placeholder="music, tutorial, 2024">
+                                                        </div>
+                                                        <div>
+                                                            <label class="text-xs text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
+                                                            <textarea id="tag-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9] font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                                        </div>
+                                                        <button onclick="executeBulkTag()" class="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Tagging</button>
+                                                    </div>
+                                                </div>
 
-                        <div id="panel-export" class="bento-card p-4 hidden">
-                            <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-download text-purple-400"></i> Export Data</h3>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="text-xs text-gray-400 mb-1 block">Resource Type</label>
-                                    <select id="export-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
-                                        <option value="playlists">Playlists</option>
-                                        <option value="subscriptions">Subscriptions</option>
-                                        <option value="mappings">Channel Mappings</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-gray-400 mb-1 block">Format</label>
-                                    <select id="export-format" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
-                                        <option value="json">JSON</option>
-                                        <option value="csv">CSV</option>
-                                    </select>
-                                </div>
-                                <button onclick="executeExport()" class="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-download"></i> Export Data</button>
-                            </div>
-                        </div>
-
-                        <div id="panel-import" class="bento-card p-4 hidden">
+                                                <div id="panel-import" class="bento-card p-4 hidden">
                             <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-upload text-yellow-400"></i> Import Data</h3>
                             <div class="space-y-3">
                                 <div>
@@ -389,24 +366,6 @@
             }
         }
 
-        async function executeExport() {
-            const type = document.getElementById('export-type').value;
-            const format = document.getElementById('export-format').value;
-
-            const response = await fetch('/api/bulk/export', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ resource_type: type, format: format })
-            });
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `motus-leap-${type}-${Date.now()}.${format}`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
-
         async function executeImport() {
             const type = document.getElementById('import-type').value;
             const mode = document.getElementById('import-mode').value;
@@ -497,5 +456,11 @@ if (document.readyState === 'loading') {
 };
     </script>
     <script src="/static/mobile-nav.js"></script>
+    <footer class="mt-10 pt-6 border-t border-[#2a2f3a] px-6 py-6 text-[11px] text-gray-500 flex flex-wrap items-center gap-4 bg-[#121419]">
+        <span>&copy; 2026 motus.leap</span>
+        <a href="/terms?v=20260715b" class="hover:text-[#2f8fc9]">Terms of Use</a>
+        <a href="/privacy?v=20260715b" class="hover:text-[#2f8fc9]">Privacy Policy</a>
+        <span class="ml-auto">Not affiliated with YouTube or Google.</span>
+    </footer>
 </body>
 </html>
