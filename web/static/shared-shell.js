@@ -68,6 +68,60 @@
     </footer>`;
   }
 
+  let _aiPanelInjected = false;
+  function injectAISheet() {
+    if (_aiPanelInjected) return;
+    _aiPanelInjected = true;
+
+    const btn = document.getElementById('robot-button');
+    if (!btn) return;
+    btn.setAttribute('data-shell-wired', '1');
+
+    const old = document.getElementById('ai-chat-btn');
+    if (old) old.remove();
+
+    const panel = document.createElement('div');
+    panel.id = 'ai-chat-panel';
+    panel.className = 'fixed inset-0 z-[60]';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ai-chat-overlay';
+    overlay.className = 'absolute inset-0 bg-black/60 hidden';
+
+    const sheet = document.createElement('div');
+    sheet.className = 'absolute right-0 top-0 h-full w-[360px] max-w-[100vw] bg-[#141720] border-l border-[#232834] shadow-2xl translate-x-full transition-transform duration-200';
+    sheet.innerHTML = `
+      <div class="flex items-center justify-between px-4 py-3 border-b border-[#2a2f3a]">
+        <div class="font-semibold text-sm text-white">Shared AI Chat</div>
+        <button id="ai-chat-close" class="px-2 py-1 text-xs text-gray-400 hover:text-white">Close</button>
+      </div>
+      <div id="ai-chat-drop" class="p-3 text-xs text-gray-500">Drop-in AI chat shell.</div>
+    `;
+
+    panel.appendChild(overlay);
+    panel.appendChild(sheet);
+    document.body.appendChild(panel);
+
+    let open = false;
+    function show() {
+      open = true;
+      overlay.classList.remove('hidden');
+      sheet.classList.remove('translate-x-full');
+    }
+    function hide() {
+      open = false;
+      overlay.classList.add('hidden');
+      sheet.classList.add('translate-x-full');
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      open ? hide() : show();
+    });
+    overlay.addEventListener('click', hide);
+    sheet.querySelector('#ai-chat-close').addEventListener('click', hide);
+  }
+
   function injectOnce() {
     const header = document.querySelector('header');
     if (header && !header.dataset.shellVersion) {
@@ -103,7 +157,6 @@
       });
     }
   }
-
   function init() {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', injectOnce);

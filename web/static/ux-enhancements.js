@@ -964,25 +964,6 @@ window.toggleAgentDrawer = function() {
     }
 };
 
-function initGlobalAgentDrawer() {
-    let card = document.getElementById('agent-status-pill');
-    if (card) return; // already injected
-
-    const pill = document.createElement('div');
-    pill.id = 'agent-status-pill';
-    pill.className = 'fixed top-[13px] right-[168px] z-[60] w-24 h-7 rounded-full bg-[#1a1d24] border border-[#2a2f3a] flex items-center gap-1.5 px-2.5 text-[10px] text-gray-400 cursor-pointer select-none hover:bg-white/[0.03] transition-colors';
-    pill.title = 'Agent activity';
-    pill.setAttribute('aria-label', 'Open agent activity');
-    pill.innerHTML = '<span id="agent-pill-dot" class="rounded-full h-2.5 w-2.5 bg-green-500"></span><span class="text-[#2f8fc9] font-medium">Agent</span><span id="agent-pill-status" class="text-gray-300 truncate">Idle</span>';
-    pill.addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.toggleAgentCard && window.toggleAgentCard();
-    });
-    document.body.appendChild(pill);
-
-    startAgentActivityTracker();
-}
-
 window.toggleAgentCard = function() {
     const body = document.getElementById('agent-card-body');
     const chevron = document.getElementById('agent-card-chevron');
@@ -1316,7 +1297,6 @@ window.clearLogs = function() {
     document.addEventListener('DOMContentLoaded', initLiveConsoleWidget);
 })();
 
-document.addEventListener('DOMContentLoaded', initGlobalAgentDrawer);
 
 
 // NOTE: A second SPA router (loadPageContent) previously lived here and
