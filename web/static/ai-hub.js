@@ -144,7 +144,6 @@
   }
 
   // ---- PROVIDERS -----------------------------------------------------------
-  // ---- PROVIDERS -----------------------------------------------------------
   async function loadProviders() {
     const box = $('#prov-list');
     box.innerHTML = '<div class="bento-card p-4 text-xs text-gray-500">Loading…</div>';
@@ -180,7 +179,10 @@
             const id = m.id;
             const checked = activeSet.has(id);
             const isDef = (def === id);
-            return '<div class="flex items-center justify-between gap-4 text-[11px] py-1.5 px-3 border-b border-[#2a2f3a]/30 last:border-0 hover:bg-[#20242c]/30">' +
+            const isFree = isModelFree(p.type, p.base_url, id, m.name);
+            const isFiltered = freeFilters.has(p.id);
+            const showRow = !isFiltered || isFree;
+            return '<div class="model-item-row ' + (showRow ? '' : 'hidden') + ' flex items-center justify-between gap-4 text-[11px] py-1.5 px-3 border-b border-[#2a2f3a]/30 last:border-0 hover:bg-[#20242c]/30" data-free="' + isFree + '">' +
               '<label class="flex items-center gap-2.5 text-gray-300 cursor-pointer min-w-0 flex-1 select-none">' +
                 '<input type="checkbox" class="model-chk accent-[#2f8fc9] flex-shrink-0" data-pid="' + esc(p.id) + '" value="' + esc(id) + '"' + (checked ? ' checked' : '') + '>' +
                 '<span class="font-mono truncate ' + (checked ? 'text-gray-200' : 'text-gray-500') + '">' + esc(m.name || id) + '</span>' +
@@ -211,8 +213,18 @@
             '<span class="prov-chevron text-gray-500 transition-transform duration-200" style="' + (isOpen ? 'transform: rotate(180deg);' : '') + '"><i class="fas fa-chevron-down text-[9px]"></i></span>' +
           '</button>' +
           // Collapsible model body (hidden/visible based on open state)
-          '<div class="prov-models-body ' + (isOpen ? '' : 'hidden') + ' border border-[#2a2f3a] rounded-lg mt-0.5 bg-[#13151b] py-0.5 max-h-52 overflow-y-auto" data-id="' + esc(p.id) + '">' +
-            modelsBody +
+          '<div class="prov-models-body ' + (isOpen ? '' : 'hidden') + ' border border-[#2a2f3a] rounded-lg mt-0.5 bg-[#13151b] overflow-hidden" data-id="' + esc(p.id) + '">' +
+            // Filter sub-header
+            '<div class="flex items-center justify-between px-3 py-1.5 border-b border-[#2a2f3a]/40 bg-[#161920]/60">' +
+              '<span class="text-[9px] text-gray-500 uppercase tracking-wider font-semibold">Available Models</span>' +
+              '<label class="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-200 cursor-pointer select-none">' +
+                '<input type="checkbox" class="prov-free-filter accent-[#2f8fc9] scale-90" data-id="' + esc(p.id) + '"' + (freeFilters.has(p.id) ? ' checked' : '') + '>' +
+                '<span>Free only</span>' +
+              '</label>' +
+            '</div>' +
+            '<div class="prov-models-list-items max-h-48 overflow-y-auto" data-id="' + esc(p.id) + '">' +
+              modelsBody +
+            '</div>' +
           '</div>' +
           // Actions row
           '<div class="flex items-center justify-between text-[11px] text-gray-500 pt-1">' +
@@ -240,6 +252,19 @@
             expandedProviders.add(id);
             if (chevron) chevron.style.transform = 'rotate(180deg)';
           }
+        });
+      });
+      $all('.prov-free-filter').forEach(chk => {
+        chk.addEventListener('change', () => {
+          const pid = chk.getAttribute('data-id');
+          if (chk.checked) freeFilters.add(pid);
+          else freeFilters.delete(pid);
+          // Apply toggle instantly
+          const rows = $all('.prov-models-body[data-id="' + CSS.escape(pid) + '"] .model-item-row');
+          rows.forEach(r => {
+            const isFree = r.getAttribute('data-free') === 'true';
+            r.classList.toggle('hidden', chk.checked && !isFree);
+          });
         });
       });
     } catch (e) {
@@ -303,9 +328,18 @@
     if (nameEl) nameEl.placeholder = namePh[type] || 'Provider name';
   }
 
-  // Add provider modal
   let pendingProviderId = null;
   const expandedProviders = new Set();
+  const freeFilters = new Set();
+
+  function isModelFree(type, baseUrl, modelId, modelName) {
+    const id = (modelId || '').toLowerCase();
+    const name = (modelName || '').toLowerCase();
+    const base = (baseUrl || '').toLowerCase();
+    if (id.includes('free') || name.includes('free')) return true;
+    if (base.includes('localhost') || base.includes('127.0.0.1') || base.includes('::1') || base.includes('ollama') || base.includes('lmstudio')) return true;
+    return false;
+  }
   function openProvModal() {
     pendingProviderId = null;
     $('#prov-step1').classList.remove('hidden');
@@ -360,15 +394,37 @@
           '<div class="text-[10px] text-gray-500 mt-1">Separate multiple model ids with commas if needed.</div>';
         return;
       }
+
       // Pre-check models that were previously selected (active) and mark the
       // default. Fall back to first model checked when nothing is saved yet.
       const active = (data.active && data.active.length) ? data.active : null;
       const isDefault = (id) => data.default && (data.default === id || (active && active[0] === id));
+
+      const freeToggle = $('#prov-step2-free');
+      const freeWrap = $('#prov-step2-free-wrap');
+      if (freeToggle && freeWrap) {
+        const hasFree = models.some(m => isModelFree(data.type, '', m.id, m.name));
+        freeWrap.classList.toggle('hidden', !hasFree);
+        freeToggle.checked = false; // reset
+        
+        // Remove old listener if any and bind fresh
+        const newToggle = freeToggle.cloneNode(true);
+        freeToggle.parentNode.replaceChild(newToggle, freeToggle);
+        newToggle.addEventListener('change', () => {
+          const rows = $all('.step2-model-row');
+          rows.forEach(r => {
+            const isFree = r.getAttribute('data-free') === 'true';
+            r.classList.toggle('hidden', newToggle.checked && !isFree);
+          });
+        });
+      }
+
       box.innerHTML = models.map((m) => {
         const id = m.id;
         const checked = active ? active.includes(id) : false;
         const def = isDefault(id);
-        return '<label class="flex items-center gap-2 text-xs text-gray-300 py-1 cursor-pointer">' +
+        const isFree = isModelFree(data.type, '', id, m.name);
+        return '<label class="step2-model-row flex items-center gap-2 text-xs text-gray-300 py-1 cursor-pointer" data-free="' + isFree + '">' +
           '<input type="checkbox" class="prov-model-chk accent-[#2f8fc9]" value="' + esc(id) + '"' + (checked ? ' checked' : '') + '>' +
           '<span class="font-mono">' + esc(m.name || id) + '</span>' +
           (def ? ' <span class="text-[9px] text-[#2f8fc9]">default</span>' : '') + '</label>';
@@ -377,6 +433,7 @@
       box.innerHTML = '<div class="text-xs text-[#dc2626]">' + sanitize(e.message) + '</div>';
     }
   }
+
   async function saveProviderModels() {
     let chks = $all('.prov-model-chk:checked').map(c => c.value);
     const manual = $('#prov-manual-model');
