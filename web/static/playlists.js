@@ -50,7 +50,7 @@ async function loadPlaylists() {
         const response = await authFetch("/api/playlists");
         const data = await response.json();
 
-        if (!response.ok) {
+        if (!response.ok || data.error) {
             throw new Error(data.error || "Failed to load playlists");
         }
 

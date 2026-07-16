@@ -57,42 +57,19 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js"></script>
 </head>
-<body class="flex flex-col min-h-screen selection:bg-[#2f8fc9]/30">
-
+<body class="bg-[#0f1115] min-h-screen flex selection:bg-[#2f8fc9]/30">
     <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
     <button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 
-    <header class="bg-[#1a1d24] px-4 md:px-8 py-3 md:py-6 flex items-center justify-between">
-        <div class="flex items-center gap-3 md:gap-4 pl-16 md:pl-0">
-            <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height: 60px; width: auto; object-fit: contain;">
-            <h1 class="text-3xl md:text-[3rem] font-bold tracking-tight mb-1 flex items-baseline leading-none site-title">
-                <span class="text-white">m</span>
-                <span class="text-white">o</span>
-                <span class="text-white">t</span>
-                <span class="text-[#2f8fc9]">u</span>
-                <span class="text-white">s</span>
-                <span class="text-gray-500">.</span>
-                <span class="text-white">l</span>
-                <span class="text-white">e</span>
-                <span class="text-white">a</span>
-                <span class="text-white">p</span>
-            </h1>
-        </div>
-        <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
-    </header>
-
-    <div class="flex flex-1 overflow-hidden">
-        <!-- Left Sidebar Navigation -->
-                <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-60 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
-            <nav class="flex flex-col gap-1.5">
-                            <a href="/dashboard" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
-                            <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-                            <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
-                            <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-                        </nav>
-                        <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
-                                <!-- AI Hub sub-nav group (collapsible) - now part of main nav group -->
-            <div class="mt-2 pt-2 border-t border-[#2a2f3a]">
+    <!-- Left Sidebar -->
+    <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-60 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
+        <nav class="flex flex-col gap-1.5">
+            <a href="/dashboard" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+            <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+            <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+            <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+            <!-- AI Hub sub-nav group (collapsible) - now part of main nav group -->
+            <div class="mt-1.5 pt-1.5 border-t border-[#2a2f3a]/40">
                 <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub" onclick="toggleAiGroup('aihub')">
                     <a href="/ai" class="ai-sub flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
                     <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
@@ -105,9 +82,32 @@
                     <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="jobs"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
                 </div>
             </div>
+        </nav>
+        <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+            <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+        </div>
+    </aside>
+
+    <div class="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <!-- Top Header -->
+        <header class="bg-[#1a1d24] px-4 md:px-6 py-3 md:py-4 flex items-center justify-between border-b border-[#2a2f3a] shrink-0">
+            <div class="flex items-center gap-3 md:gap-4 pl-16 md:pl-0">
+                <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height: 32px; width: auto; object-fit: contain;">
+                <h1 class="text-xl md:text-3xl font-semibold tracking-tight mb-1 flex items-baseline leading-none site-title">
+                    <span class="text-white">m</span>
+                    <span class="text-white">o</span>
+                    <span class="text-white">t</span>
+                    <span class="text-[#2f8fc9]">u</span>
+                    <span class="text-white">s</span>
+                    <span class="text-gray-500">.</span>
+                    <span class="text-white">l</span>
+                    <span class="text-white">e</span>
+                    <span class="text-white">a</span>
+                    <span class="text-white">p</span>
+                </h1>
             </div>
-                        <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
-        </aside>
+            <button onclick="logout()" class="w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+        </header>
 
         <!-- Main Content Area -->
         <main class="flex-1 min-h-0 p-6 pb-10 bg-[#0f1115] overflow-y-auto">

@@ -27,7 +27,8 @@ def setup_logging(log_level: str = "INFO", log_file: Optional[Path] = None) -> l
         level=getattr(logging, log_level.upper(), logging.INFO),
         format=log_format,
         datefmt=date_format,
-        handlers=handlers
+        handlers=handlers,
+        force=True
     )
 
     # Set up root logger

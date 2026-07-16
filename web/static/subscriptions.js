@@ -18,15 +18,15 @@ function toast(message, type = 'info', duration = 4000) {
 async function loadSubscriptions() {
     window._lastSubscriptions = [];
     const list = document.getElementById('subscriptions-list');
-    list.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Loading subscriptions...</div>';
+    list.innerHTML = '<div class="col-span-full text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Loading subscriptions...</div>';
     try {
-        const subResp = await fetch('/api/subscriptions');
+        const subResp = await authFetch('/api/subscriptions');
         const data = await subResp.json();
-        if (!subResp.ok) throw new Error(data.error || 'Failed to load subscriptions');
+        if (!subResp.ok || data.error) throw new Error(data.error || 'Failed to load subscriptions');
         localStorage.setItem('cached_subscriptions', JSON.stringify(data));
         renderSubscriptionsList(data.channels || []);
     } catch (e) {
-        list.innerHTML = `<div class="text-center text-red-400 py-8">Error: ${DOMPurify.sanitize(e.message || 'Failed to load subscriptions due to a network error.')}</div>`;
+        list.innerHTML = `<div class="col-span-full text-center text-red-400 py-8">Error: ${DOMPurify.sanitize(e.message || 'Failed to load subscriptions due to a network error.')}</div>`;
         toast(`Error: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
     }
 }
@@ -34,25 +34,29 @@ async function loadSubscriptions() {
 function renderSubscriptionsList(channels) {
     const list = document.getElementById('subscriptions-list');
     if (!channels || !channels.length) {
-        list.innerHTML = '<div class="text-center text-gray-400 py-8">No subscriptions found. Connect YouTube in Settings.</div>';
+        list.innerHTML = '<div class="col-span-full text-center text-gray-400 py-8">No subscriptions found. Connect YouTube in Settings.</div>';
         return;
     }
     list.innerHTML = channels.map((c) => {
-        return `<div class="flex items-center justify-between p-2 hover:bg-[#20242c] rounded transition-colors">
-            <div class="flex items-center gap-3">
-                <img src="${DOMPurify.sanitize(c.thumbnail || 'https://picsum.photos/32')}" class="w-8 h-8 rounded-full object-cover">
-                <div>
-                    <div class="text-sm font-medium text-white">${DOMPurify.sanitize(c.title || '')}</div>
-                    <div class="text-[10px] text-gray-400 flex items-center gap-2">
-                        <a class="text-[#2f8fc9] hover:underline" href="${c.channel_url || ('https://www.youtube.com/channel/' + c.id)}" target="_blank" rel="noreferrer">Open channel</a>
-                        ${c.description ? '<span class="text-gray-500">•</span><span class="text-gray-500 truncate max-w-[220px]">' + DOMPurify.sanitize(c.description) + '</span>' : ''}
-                        ${c.subscribers !== 'Unknown' || c.video_count ? '<span class="text-gray-500">•</span><span class="text-gray-500">' + [c.subscribers !== 'Unknown' ? c.subscribers + ' subs' : '', c.video_count ? c.video_count + ' videos' : ''].filter(Boolean).join(' • ') + '</span>' : ''}
-                    </div>
-                </div>
+        const safeTitle = (c.title || '').replace(/'/g, "\\'");
+        const openUrl = c.channel_url || ('https://www.youtube.com/channel/' + c.id);
+        const subId = c.subscription_id || c.id;
+        const displayId = c.id || '';
+        return `<div class="bento-card p-2.5 w-full flex flex-row gap-3 items-center hover:border-[#2a7db8]/50 transition-colors relative min-h-[96px]">
+          <div class="flex-shrink-0 w-14 h-14 rounded-full overflow-hidden bg-[#0f1115]">
+            <img src="${DOMPurify.sanitize(c.thumbnail || 'https://picsum.photos/64')}" class="w-full h-full object-cover" loading="lazy" onerror="this.onerror=null; this.src='https://picsum.photos/64'">
+          </div>
+          <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+            <h3 class="text-sm md:text-base font-semibold text-[#2f8fc9] truncate" title="${DOMPurify.sanitize(c.title || '')}">${DOMPurify.sanitize(c.title || '')}</h3>
+            <p class="text-[10px] text-gray-500 font-mono truncate" title="${DOMPurify.sanitize(displayId)}">${DOMPurify.sanitize(displayId)}</p>
+            <p class="text-xs text-gray-400 truncate">
+                ${[c.subscribers !== 'Unknown' ? c.subscribers + ' subs' : '', c.video_count ? c.video_count + ' videos' : ''].filter(Boolean).join(' • ') || 'No statistics available'}
+            </p>
+            <div class="flex items-center gap-2 mt-1">
+              <a href="${openUrl}" target="_blank" rel="noreferrer" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[10px] font-semibold py-1 px-2 rounded transition-colors flex items-center gap-1" title="Open Channel"><i class="fa-solid fa-external-link text-[9px]"></i> Open</a>
+              <button onclick="actionUnsubscribe('${subId}')" class="bg-red-950/20 hover:bg-red-900/30 border border-red-900/30 text-red-400 text-[10px] py-1 px-2 rounded transition-colors flex items-center gap-1" title="Unsubscribe"><i class="fa-solid fa-trash-can text-[9px]"></i> Unsubscribe</button>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="actionUnsubscribe('${c.subscription_id || c.id}')" class="bg-[#20242c] hover:bg-red-600/20 border border-[#2a2f3a] hover:border-red-500/30 text-gray-300 hover:text-red-400 text-xs px-3 py-1.5 rounded transition-colors">Unsubscribe</button>
-            </div>
+          </div>
         </div>`;
     }).join('');
 }

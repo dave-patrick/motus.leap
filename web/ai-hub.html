@@ -51,11 +51,11 @@
             <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
             <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
             <!-- AI Hub sub-nav group (collapsible) - now part of main nav group -->
-<div class="mt-2 pt-2 border-t border-[#2a2f3a]">
-    <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub" onclick="toggleAiGroup('aihub')">
-        <a href="/ai" class="ai-sub flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
-        <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
-    </div>
+            <div class="mt-1.5 pt-1.5 border-t border-[#2a2f3a]/40">
+                <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub" onclick="toggleAiGroup('aihub')">
+                    <a href="/ai" class="ai-sub flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
+                    <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
+                </div>
     <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">
         <a href="/ai/providers" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="providers"><i class="fas fa-plug w-5 text-center"></i> Providers</a>
         <a href="/ai/models" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="models"><i class="fas fa-cube w-5 text-center"></i> Models</a>
