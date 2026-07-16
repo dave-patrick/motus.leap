@@ -8,6 +8,7 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=1783211869">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=1783211869">
     <link rel="manifest" href="/static/manifest.json">
+    <script src="/static/shared-shell.js?v=20260716h"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -29,189 +30,128 @@
         .pill-info { background: rgba(47,143,201,0.15); border:1px solid rgba(47,143,201,0.3); color:#2f8fc9; }
         .spinner { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .mobile-only { display: none; }
+        @media (max-width: 767px) {
+            .mobile-only { display: block; }
+            .page-shell { height: 100dvh; }
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/ux-enhancements.js?v=20260716g"></script>
 </head>
 <body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
-    <!-- ===== FULL-WIDTH TOP HEADER ===== -->
-    <header class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center border-b border-[#2a2f3a] shrink-0 z-20">
-        <div class="flex items-center gap-4 pl-14 md:pl-0">
-            <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height:56px;width:auto;object-fit:contain;">
-            <h1 class="text-3xl md:text-5xl font-semibold tracking-tight flex items-baseline leading-none site-title">
-                <span class="text-white">m</span><span class="text-white">o</span><span class="text-white">t</span>
-                <span class="text-[#2f8fc9]">u</span><span class="text-white">s</span>
-                <span class="text-gray-500">.</span>
-                <span class="text-white">l</span><span class="text-white">e</span><span class="text-white">a</span><span class="text-white">p</span>
-            </h1>
-        </div>
-    </header>
-    <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
-    <button id="sidebar-toggle" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 
-    <!-- Left Sidebar -->
-    <aside id="mobile-sidebar" class="w-60 bg-[#1a1d24] p-3 flex-col border-r border-[#2a2f3a] overflow-y-auto shrink-0 hidden md:flex">
-        <nav class="flex flex-col gap-1.5">
-            <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
-            <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-            <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
-            <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <!-- AI Hub sub-nav group (collapsible) - now part of main nav group -->
-            <div class="mt-1.5 pt-1.5 border-t border-[#2a2f3a]/40">
-                <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub" onclick="toggleAiGroup('aihub')">
-                    <a href="/ai" class="ai-sub flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
-                    <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
+    <!-- Top header is now injected by shared-shell.js. -->
+
+
+<div class="flex flex-1 min-h-0 overflow-hidden">
+    <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115] min-h-0">
+        <div class="max-w-[1600px] mx-auto w-full flex flex-col min-h-full">
+            <section id="panel-hub" class="ai-panel space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-xl font-bold text-white">AI Hub</h1>
+                        <p class="text-xs text-gray-400 mt-1">Connected providers, rules, scheduled jobs and conversational management.</p>
+                    </div>
                 </div>
-                <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">
-                    <a href="/ai/providers" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="providers"><i class="fas fa-plug w-5 text-center"></i> Providers</a>
-                    <a href="/ai/rules" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="rules"><i class="fas fa-sliders w-5 text-center"></i> Rules</a>
-                    <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="jobs"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
+                <!-- Settings pointer removed per authority spec: global prompt stays in Settings, not on AI Hub. -->
+                
+                <!-- Stat strip -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="hub-stats"></div>
+                <!-- Provider health -->
+                <div class="bento-card p-4">
+                    <h3 class="text-xs font-semibold text-gray-300 mb-3">Provider Health</h3>
+                    <div id="hub-providers" class="space-y-2"></div>
                 </div>
-            </div>
-        </nav>
-    </aside>
+                <!-- Recent jobs -->
+                <div class="bento-card p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs font-semibold text-gray-300">Recent Scheduled Jobs</h3>
+                        <button class="ai-tab text-xs text-[#2f8fc9] hover:underline" data-ai="jobs">View all →</button>
+                    </div>
+                    <div id="hub-jobs" class="space-y-2"></div>
+                </div>
+            </section>
 
-    <div class="flex flex-1 min-h-0 overflow-hidden">
-        <!-- Top Header -->
+            <section id="panel-providers" class="ai-panel space-y-4 hidden">
+                <h1 class="text-xl font-bold text-white">Providers & Models</h1>
+                <p class="text-xs text-gray-400">Manage providers and their models inline. Toggle models on/off per provider.</p>
+                <div class="flex gap-2 mb-4">
+                    <button id="prov-rescan-all" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-sync"></i> Rescan Models</button>
+                    <button id="prov-add-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> Add Provider</button>
+                </div>
+                <div id="prov-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+            </section>
 
-        <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
-            <div class="max-w-[1600px] mx-auto w-full flex flex-col min-h-full">
-                <!-- HUB PANEL -->
-                <section id="panel-hub" class="ai-panel space-y-4">
-                    <div class="flex items-center justify-between">
+            <!-- section id="panel-models" merged into providers -->
+
+            <section id="panel-rules" class="ai-panel space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-xl font-bold text-white">Rules</h1>
+                    <div class="flex gap-2">
+                        <button id="rule-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Rule</button>
+                    </div>
+                </div>
+                <div id="rules-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+            </section>
+
+            <section id="panel-jobs" class="ai-panel space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-xl font-bold text-white">Scheduled Jobs</h1>
+                    <button id="job-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Job</button>
+                </div>
+                <div id="jobs-list" class="space-y-3"></div>
+                <div class="bento-card p-4 hidden" id="job-form">
+                    <h3 class="text-xs font-semibold text-gray-300 mb-3">New Scheduled Job</h3>
+                    <div class="space-y-3">
                         <div>
-                            <h1 class="text-xl font-bold text-white">AI Hub</h1>
-                            <p class="text-xs text-gray-400 mt-1">Connected providers, rules, scheduled jobs and conversational management.</p>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Name</label>
+                            <input id="job-name" placeholder="Every day at 3am, scan 1sort for duplicates" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                         </div>
-                    </div>
-                    <!-- Settings pointer (Decision 3) -->
-                    <div class="bento-card p-4 border-[#2f8fc9]/30 flex items-start gap-3">
-                        <i class="fas fa-info-circle text-[#2f8fc9] mt-1"></i>
-                        <div class="flex-1">
-                            <p class="text-[13px] text-gray-300">Global classification prompt & auto-apply are managed in <span class="text-white font-medium">Settings → AI Integration</span>.</p>
-                            <a href="/settings" class="inline-block mt-2 text-xs text-[#2f8fc9] hover:underline">Go to Settings →</a>
-                        </div>
-                    </div>
-                    <!-- Stat strip -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="hub-stats"></div>
-                    <!-- Provider health -->
-                    <div class="bento-card p-4">
-                        <h3 class="text-xs font-semibold text-gray-300 mb-3">Provider Health</h3>
-                        <div id="hub-providers" class="space-y-2"></div>
-                    </div>
-                    <!-- Recent jobs -->
-                    <div class="bento-card p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-xs font-semibold text-gray-300">Recent Scheduled Jobs</h3>
-                            <button class="ai-tab text-xs text-[#2f8fc9] hover:underline" data-ai="jobs">View all →</button>
-                        </div>
-                        <div id="hub-jobs" class="space-y-2"></div>
-                    </div>
-                </section>
-
-                <!-- PROVIDERS + MODELS PANEL (combined) -->
-                <section id="panel-providers" class="ai-panel space-y-4 hidden">
-                    <h1 class="text-xl font-bold text-white">Providers & Models</h1>
-                    <p class="text-xs text-gray-400">Manage providers and their models inline. Toggle models on/off per provider.</p>
-                    <div class="flex gap-2 mb-4">
-                        <button id="prov-rescan-all" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-sync"></i> Rescan Models</button>
-                        <button id="prov-add-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> Add Provider</button>
-                    </div>
-                    <div id="prov-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
-                </section>
-
-                <!-- MODELS PANEL (removed - merged into providers) -->
-                <!-- section id="panel-models" class="ai-panel space-y-4 hidden" removed -->
-
-                <!-- RULES PANEL -->
-                <section id="panel-rules" class="ai-panel space-y-4 hidden">
-                    <div class="flex items-center justify-between">
-                        <h1 class="text-xl font-bold text-white">Rules</h1>
-                        <div class="flex gap-2">
-                            <button id="rule-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Rule</button>
-                        </div>
-                    </div>
-                    <div id="rules-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
-                </section>
-
-                <!-- JOBS PANEL -->
-                <section id="panel-jobs" class="ai-panel space-y-4 hidden">
-                    <div class="flex items-center justify-between">
-                        <h1 class="text-xl font-bold text-white">Scheduled Jobs</h1>
-                        <button id="job-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Job</button>
-                    </div>
-                    <div id="jobs-list" class="space-y-3"></div>
-                    <!-- Create form -->
-                    <div class="bento-card p-4 hidden" id="job-form">
-                        <h3 class="text-xs font-semibold text-gray-300 mb-3">New Scheduled Job</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">Name</label>
-                                <input id="job-name" placeholder="Every day at 3am, scan 1sort for duplicates" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                            </div>
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">Describe in plain language (optional)</label>
-                                <div class="flex gap-2">
-                                    <input id="job-nl" placeholder="0 3 * * *" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                                    <button id="job-parse" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-2 rounded-lg">Parse with AI</button>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="text-[10px] text-gray-400 mb-1 block">Cron (5-field)</label>
-                                    <input id="job-cron" placeholder="0 3 * * *" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                                </div>
-                                <div>
-                                    <label class="text-[10px] text-gray-400 mb-1 block">Task type</label>
-                                    <select id="job-task" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                                        <option value="scan_duplicates">scan_duplicates</option>
-                                        <option value="scan_misplaced">scan_misplaced</option>
-                                        <option value="apply_rules">apply_rules</option>
-                                        <option value="move_video">move_video (destructive)</option>
-                                        <option value="delete_video">delete_video (destructive)</option>
-                                        <option value="remove_duplicates">remove_duplicates (destructive)</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div id="job-priv-warn" class="hidden text-[11px] text-[#ca8a04]"><i class="fas fa-triangle-exclamation"></i> Destructive task — requires confirm at creation.</div>
-                            <div>
-                                <label class="text-[10px] text-gray-400 mb-1 block">Playlist ID (for task, if needed)</label>
-                                <input id="job-playlist" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                            </div>
-                            <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="job-enabled" class="accent-[#2f8fc9]" checked> Enabled</label>
+                        <div>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Describe in plain language (optional)</label>
                             <div class="flex gap-2">
-                                <button id="job-create" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Create Job</button>
-                                <button id="job-form-cancel" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded-lg">Cancel</button>
+                                <input id="job-nl" placeholder="0 3 * * *" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                                <button id="job-parse" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-2 rounded-lg">Parse with AI</button>
                             </div>
-                            <div id="job-form-msg" class="text-[11px]"></div>
                         </div>
-                <!-- Footer inside main scroll area at the bottom -->
-                <footer class="pt-2 border-t border-[#2a2f3a] text-[9px] text-gray-600 flex flex-wrap items-center gap-3">
-                    <span>&copy; 2026 motus.leap</span>
-                    <a href="/terms?v=20260715b" class="hover:text-[#2f8fc9]">Terms of Use</a>
-                    <a href="/privacy?v=20260715b" class="hover:text-[#2f8fc9]">Privacy Policy</a>
-                    <span class="ml-auto">Not affiliated with YouTube or Google.</span>
-                </footer>
-            </div>
-        </main>
-
-        <!-- Pinned AI Chat Box (Takes up 20% of display area, stays in place) -->
-        <div class="h-[20vh] bg-[#1a1d24] border-t border-[#2a2f3a] flex flex-col shrink-0">
-            <div class="px-4 py-2 bg-[#171920] border-b border-[#2a2f3a] flex items-center justify-between text-xs text-gray-400 shrink-0">
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-robot text-[#2f8fc9]"></i>
-                    <span class="font-semibold text-gray-300">AI Chat Console</span>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] text-gray-400 mb-1 block">Cron (5-field)</label>
+                                <input id="job-cron" placeholder="0 3 * * *" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 mb-1 block">Task type</label>
+                                <select id="job-task" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                                    <option value="scan_duplicates">scan_duplicates</option>
+                                    <option value="scan_misplaced">scan_misplaced</option>
+                                    <option value="apply_rules">apply_rules</option>
+                                    <option value="move_video">move_video (destructive)</option>
+                                    <option value="delete_video">delete_video (destructive)</option>
+                                    <option value="remove_duplicates">remove_duplicates (destructive)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="job-priv-warn" class="hidden text-[11px] text-[#ca8a04]"><i class="fas fa-triangle-exclamation"></i> Destructive task — requires confirm at creation.</div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Playlist ID (for task, if needed)</label>
+                            <input id="job-playlist" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                        </div>
+                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="job-enabled" class="accent-[#2f8fc9]" checked> Enabled</label>
+                        <div class="flex gap-2">
+                            <button id="job-create" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Create Job</button>
+                            <button id="job-form-cancel" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded-lg">Cancel</button>
+                        </div>
+                        <div id="job-form-msg" class="text-[11px]"></div>
+                    </div>
                 </div>
-                <div id="chat-confirm-zone" class="hidden text-[11px] text-gray-300"></div>
-            </div>
-            <div id="chat-log" class="flex-1 overflow-y-auto p-3 space-y-2 text-xs"></div>
-            <div class="p-2 border-t border-[#2a2f3a]/60 bg-[#15181f] flex gap-2 shrink-0">
-                <input id="chat-input" type="text" placeholder="Ask AI to manage rules, scan playlists, or ask questions..." class="flex-1 bg-[#0a0c10] border border-[#2a2f3a] text-gray-200 text-xs rounded-lg px-3 py-1.5 outline-none min-h-[36px]">
-                <button id="chat-send" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-1.5 rounded-lg flex items-center justify-center min-h-[36px]"><i class="fas fa-paper-plane"></i></button>
-            </div>
+            </section>
         </div>
-    </div>
+        <!-- Slim footer -->
+        <footer class="py-8 text-[10px] text-gray-500 text-center"> motus.leap — lower footprint shell. </footer>
+    </main>
+</div>
 
 <!-- Add Provider modal -->
 <div id="prov-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">

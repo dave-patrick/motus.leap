@@ -8,7 +8,8 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=1783211869">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=1783211869">
     <link rel="manifest" href="/static/manifest.json">
-    <script src="https://cdn.tailwindcss.com"></script>
+        <script src="/static/shared-shell.js?v=20260716h"></script>
+<script src="https://cdn.tailwindcss.com"></script>
 <script>
 async function viewSystemLogs() {
 window.open('/system/logs', '_blank');
@@ -42,42 +43,7 @@ window.open('/system/logs', '_blank');
 </head>
 <body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <!-- ===== FULL-WIDTH TOP HEADER ===== -->
-    <header class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center border-b border-[#2a2f3a] shrink-0 z-20">
-        <div class="flex items-center gap-4 pl-14 md:pl-0">
-            <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height:56px;width:auto;object-fit:contain;">
-            <h1 class="text-3xl md:text-5xl font-semibold tracking-tight flex items-baseline leading-none site-title">
-                <span class="text-white">m</span><span class="text-white">o</span><span class="text-white">t</span>
-                <span class="text-[#2f8fc9]">u</span><span class="text-white">s</span>
-                <span class="text-gray-500">.</span>
-                <span class="text-white">l</span><span class="text-white">e</span><span class="text-white">a</span><span class="text-white">p</span>
-            </h1>
-        </div>
-    </header>
-    <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
-    <button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
-
     <!-- Left Sidebar -->
-    <aside id="mobile-sidebar" class="w-60 bg-[#1a1d24] p-3 flex-col border-r border-[#2a2f3a] overflow-y-auto shrink-0 hidden md:flex">
-        <nav class="flex flex-col gap-1.5">
-            <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
-            <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-            <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
-            <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
-            <!-- AI Hub sub-nav group (collapsible) - now part of main nav group -->
-            <div class="mt-1.5 pt-1.5 border-t border-[#2a2f3a]/40">
-                <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub" onclick="toggleAiGroup('aihub')">
-                    <a href="/ai" class="ai-sub flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
-                    <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
-                </div>
-                <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">
-                    <a href="/ai/providers" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="providers"><i class="fas fa-plug w-5 text-center"></i> Providers</a>
-                    <a href="/ai/rules" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="rules"><i class="fas fa-sliders w-5 text-center"></i> Rules</a>
-                    <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="jobs"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
-                </div>
-            </div>
-        </nav>
-    </aside>
-
     <div class="flex flex-1 min-h-0 overflow-hidden">
         <!-- Top Header -->
 
@@ -85,6 +51,8 @@ window.open('/system/logs', '_blank');
             <div class="flex flex-col gap-4 max-w-[1600px] w-full">
                 <!-- Tabs Navigation -->
                 <div class="flex items-center justify-between border-b border-[#2a2f3a] pb-2 shrink-0">
+                        <div class="flex gap-3 items-center">                        <a href="/roadmap" class="text-xs text-[#2f8fc9] hover:underline">Roadmap</a>
+                        </div>
                     <div class="flex gap-4">
                         <button id="tab-btn-general" class="text-sm font-bold tracking-wide text-white border-b-2 border-[#2f8fc9] pb-2 px-1 focus:outline-none transition-colors">General & API</button>
                         <button id="tab-btn-rules" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">Channel Mappings</button>
@@ -283,13 +251,7 @@ window.open('/system/logs', '_blank');
                 </div>
             </div>
         </main>
-        <footer class="mt-10 pt-6 border-t border-[#2a2f3a] px-6 py-6 text-[11px] text-gray-500 flex flex-wrap items-center gap-4 bg-[#121419]">
-            <span>&copy; 2026 motus.leap</span>
-            <a href="/terms?v=20260715b" class="hover:text-[#2f8fc9]">Terms of Use</a>
-            <a href="/privacy?v=20260715b" class="hover:text-[#2f8fc9]">Privacy Policy</a>
-            <span class="ml-auto">Not affiliated with YouTube or Google.</span>
-        </footer>
-    </div>
+        </div>
 
     <script>
         // Tab switching logic
