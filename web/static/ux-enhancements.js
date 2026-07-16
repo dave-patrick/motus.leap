@@ -965,68 +965,86 @@ window.toggleAgentDrawer = function() {
 };
 
 function initGlobalAgentDrawer() {
-    // The dashboard has its own pinned Live Console, and AI Hub pages have
-    // the pinned AI Chat tray. The global drawer is suppressed everywhere.
-    return;
+    let card = document.getElementById('agent-status-card');
+    if (card) return; // already injected
 
-    let drawer = document.getElementById('global-agent-drawer');
-    if (!drawer) {
-        drawer = document.createElement('div');
-        drawer.id = 'global-agent-drawer';
-        drawer.className = 'fixed bottom-0 left-0 right-0 h-12 bg-[#16191f] border-t border-[#2a2f3a] z-50 flex flex-col font-sans text-xs transition-all duration-300';
-        drawer.innerHTML = `
-            <div class="flex items-center justify-between w-full h-12 px-6">
-                <!-- Left: Status & Current Task -->
-                <div class="flex items-center gap-2.5 min-w-0">
-                    <div class="flex items-center gap-1.5 shrink-0">
-                        <span class="relative flex h-2 w-2">
-                            <span id="agent-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span id="agent-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                        </span>
-                        <span class="font-bold text-[#2f8fc9] uppercase tracking-wider text-[9px]">Agent Status:</span>
+    // Detect pages with a 20vh pinned bottom tray (dashboard console / AI chat tray)
+    // so we can float the card above them instead of over them.
+    const hasPinnedTray = (
+        document.querySelector('.h-\\[20vh\\]') !== null ||
+        document.getElementById('live-console') !== null ||
+        document.getElementById('chat-log') !== null
+    );
+    const bottomClass = hasPinnedTray ? 'bottom-[calc(20vh+1.25rem)]' : 'bottom-6';
+
+    card = document.createElement('div');
+    card.id = 'agent-status-card';
+    card.className = `fixed ${bottomClass} right-5 z-50 w-72 font-sans transition-all duration-300`;
+    card.innerHTML = `
+        <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-xl shadow-2xl shadow-black/60 overflow-hidden" style="backdrop-filter:blur(8px);">
+            <!-- Card header row -->
+            <div id="agent-card-header" class="flex items-center gap-2.5 px-3.5 py-2.5 cursor-pointer select-none hover:bg-white/[0.03] transition-colors" onclick="window.toggleAgentCard()">
+                <!-- Pulsing status dot -->
+                <span class="relative flex h-2 w-2 shrink-0">
+                    <span id="agent-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span id="agent-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <!-- Label -->
+                <span class="text-[9px] font-bold text-[#2f8fc9] uppercase tracking-widest shrink-0">Agent</span>
+                <!-- Current task -->
+                <span id="agent-task" class="text-[11px] text-gray-200 font-mono truncate flex-1">Idle</span>
+                <!-- Cancel button (visible only when running) -->
+                <button id="agent-cancel-btn" onclick="event.stopPropagation(); window.cancelCurrentTask()" class="hidden shrink-0 text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-500/30 bg-red-600/20 hover:bg-red-600/30 transition-colors flex items-center gap-1">
+                    <i class="fa-solid fa-stop-circle text-[8px]"></i> Stop
+                </button>
+                <!-- Expand chevron -->
+                <i id="agent-card-chevron" class="fa-solid fa-chevron-up text-[9px] text-gray-500 shrink-0 transition-transform duration-200"></i>
+            </div>
+
+            <!-- Expandable log panel (hidden by default) -->
+            <div id="agent-card-body" class="border-t border-[#2a2f3a]/70">
+                <!-- Live log ticker -->
+                <div class="flex items-center gap-2 px-3.5 py-1.5 border-b border-[#2a2f3a]/50 bg-[#12151b]">
+                    <i class="fa-solid fa-terminal text-[#2f8fc9] text-[8px] shrink-0"></i>
+                    <span id="agent-log" class="text-[9px] text-gray-400 font-mono truncate flex-1">Connecting...</span>
+                </div>
+                <!-- Scrollable log lines -->
+                <div id="agent-drawer-log-content" class="p-2.5 font-mono text-[10px] text-gray-400 space-y-0.5 max-h-40 overflow-y-auto bg-[#0e1014]">
+                    <div class="text-[#2f8fc9]/60">[SYSTEM] Agent console ready.</div>
+                </div>
+                <!-- Footer: last task + controls -->
+                <div class="flex items-center justify-between px-3.5 py-2 bg-[#13161d] border-t border-[#2a2f3a]/50">
+                    <div class="text-[9px] text-gray-500 truncate min-w-0">
+                        Last: <span id="agent-summary" class="text-green-400 font-medium">None</span>
                     </div>
-                    <span id="agent-task" class="text-white font-semibold truncate max-w-xs font-mono bg-[#20242c] border border-[#2a2f3a] px-2 py-0.5 rounded text-[10px]">Idle</span>
-                </div>
-                
-                <!-- Center: Live Logs Stream -->
-                <div class="flex-1 min-w-0 mx-6 flex items-center gap-2 border-l border-r border-[#2a2f3a]/60 px-4 font-mono text-[9px] text-gray-400 h-full">
-                    <i class="fa-solid fa-terminal text-[#2f8fc9] shrink-0"></i>
-                    <span id="agent-log" class="truncate">Listening to live log stream...</span>
-                </div>
-                
-                <!-- Right: Latest Completed Task Summary & Chevron Toggle -->
-                <div class="shrink-0 flex items-center gap-2 text-gray-400 max-w-xs truncate">
-                    <button id="agent-cancel-btn" onclick="cancelCurrentTask()" class="hidden bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-[9px] font-bold px-2 py-1 rounded transition-colors flex items-center gap-1"><i class="fa-solid fa-stop-circle text-[8px]"></i> Cancel</button>
-                    <span class="text-[9px] uppercase tracking-wider font-bold text-gray-500 shrink-0">Last Task:</span>
-                    <span id="agent-summary" class="text-[10px] font-medium text-green-400 truncate">None</span>
-                    <button onclick="event.stopPropagation(); toggleAgentDrawer()" id="agent-drawer-toggle" class="text-gray-400 hover:text-white p-1 rounded hover:bg-[#20242c] border border-transparent hover:border-[#2a2f3a] transition-all ml-2" title="Toggle Console">
-                        <i id="agent-drawer-toggle-icon" class="fa-solid fa-chevron-up text-[10px]"></i>
+                    <button onclick="window.clearLogs()" class="shrink-0 text-[9px] text-gray-500 hover:text-red-400 transition-colors ml-2 flex items-center gap-1">
+                        <i class="fa-solid fa-eraser text-[8px]"></i> Clear
                     </button>
                 </div>
             </div>
-            
-            <!-- Hidden full-size scrollable console -->
-            <div id="agent-drawer-console" class="hidden w-full h-36 bg-[#0e1014] border-t border-[#2a2f3a] flex flex-col">
-                <div class="flex items-center justify-between px-3 py-1 border-b border-[#2a2f3a/50] shrink-0">
-                    <span class="text-[9px] text-gray-500 font-mono">Live Console</span>
-                    <div class="flex items-center gap-1">
-                        <button onclick="exportLogs()" class="text-gray-500 hover:text-white text-[9px] px-1.5 py-0.5 rounded hover:bg-[#20242c] transition-colors" title="Export logs"><i class="fa-solid fa-download text-[8px] mr-1"></i>Export</button>
-                        <button onclick="clearLogs()" class="text-gray-500 hover:text-red-400 text-[9px] px-1.5 py-0.5 rounded hover:bg-[#20242c] transition-colors" title="Clear logs"><i class="fa-solid fa-eraser text-[8px] mr-1"></i>Clear</button>
-                    </div>
-                </div>
-                <div class="flex-1 p-3 overflow-y-auto font-mono text-[10px] text-gray-400 space-y-1" id="agent-drawer-log-content">
-                    <div class="text-[#2f8fc9]/80">[SYSTEM] Live agent console initialized. Logs will stream below...</div>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(drawer);
-        
-        // Compensate for sticky drawer height
-        document.body.style.paddingBottom = '48px';
-    }
-    
+        </div>
+    `;
+
+    document.body.appendChild(card);
+
+    // Start collapsed
+    const body = card.querySelector('#agent-card-body');
+    const chevron = card.querySelector('#agent-card-chevron');
+    body.classList.add('hidden');
+    chevron.style.transform = 'rotate(180deg)'; // pointing down = collapsed
+
     startAgentActivityTracker();
 }
+
+window.toggleAgentCard = function() {
+    const body = document.getElementById('agent-card-body');
+    const chevron = document.getElementById('agent-card-chevron');
+    if (!body) return;
+    const collapsed = body.classList.toggle('hidden');
+    chevron.style.transform = collapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+};
+
+
 
 function startAgentActivityTracker() {
     const taskEl = document.getElementById('agent-task');
