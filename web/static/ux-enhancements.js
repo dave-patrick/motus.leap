@@ -965,9 +965,10 @@ window.toggleAgentDrawer = function() {
 };
 
 function initGlobalAgentDrawer() {
-    if (window.location.pathname === '/' || window.location.pathname === '/dashboard') {
-        return;
-    }
+    // The dashboard has its own pinned Live Console, and AI Hub pages have
+    // the pinned AI Chat tray. The global drawer is suppressed everywhere.
+    return;
+
     let drawer = document.getElementById('global-agent-drawer');
     if (!drawer) {
         drawer = document.createElement('div');
