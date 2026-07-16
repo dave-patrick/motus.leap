@@ -241,17 +241,7 @@ document.getElementById('btn-copy-console').addEventListener('click', () => {
     navigator.clipboard.writeText(text).then(() => logConsole('Console copied to clipboard.', 'success'));
 });
 
-document.getElementById('btn-export-console').addEventListener('click', () => {
-    const text = Array.from(consoleOutput.children).map(c => c.textContent).join('\n');
-    const blob = new Blob([text], {type: 'text/plain'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `motus-console-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    logConsole('Console exported.', 'success');
-});
+// Export button click handler removed
 
 document.getElementById('btn-clear-console').addEventListener('click', () => {
     consoleOutput.innerHTML = '';

@@ -333,7 +333,7 @@ async def bulk_tag_videos(
 # Export/Import Endpoints
 # =============================================================================
 
-@router.post("/export")
+# Route removed
 async def export_data(
     request: ExportRequest,
     config: TubeManagerConfig = Depends(get_config),
