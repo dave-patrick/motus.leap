@@ -620,6 +620,18 @@ async def rules():
     return await no_cache_file_response(WEB_DIR / "settings.html")
 
 
+@app.get("/privacy")
+async def privacy():
+    """Privacy Policy page (public, no auth gate — required for YouTube API compliance)."""
+    return await no_cache_file_response(WEB_DIR / "privacy.html")
+
+
+@app.get("/terms")
+async def terms():
+    """Terms of Use page (public, no auth gate — required for YouTube API compliance)."""
+    return await no_cache_file_response(WEB_DIR / "terms.html")
+
+
 @app.get("/ai")
 @app.get("/ai/providers")
 @app.get("/ai/models")
