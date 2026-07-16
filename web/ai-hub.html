@@ -34,17 +34,12 @@
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/ux-enhancements.js?v=20260708b"></script>
 </head>
-<body class="min-h-screen">
-<div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
-<button id="sidebar-toggle" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+<body class="bg-[#0f1115] min-h-screen flex selection:bg-[#2f8fc9]/30">
+    <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+    <button id="sidebar-toggle" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 
-<div class="flex min-h-screen">
-    <!-- Sidebar -->
+    <!-- Left Sidebar -->
     <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-60 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
-        <div class="flex items-center gap-2 px-2 py-3 mb-2">
-            <i class="fas fa-robot text-[#2f8fc9] text-xl"></i>
-            <span class="site-title text-lg tracking-wide text-white">MOTUSLEAP</span>
-        </div>
         <nav class="flex flex-col gap-1.5">
             <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
             <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
@@ -56,23 +51,41 @@
                     <a href="/ai" class="ai-sub flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
                     <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
                 </div>
-    <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">
-        <a href="/ai/providers" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="providers"><i class="fas fa-plug w-5 text-center"></i> Providers</a>
-        <a href="/ai/models" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="models"><i class="fas fa-cube w-5 text-center"></i> Models</a>
-        <a href="/ai/rules" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="rules"><i class="fas fa-sliders w-5 text-center"></i> Rules</a>
-        <a href="/ai/chat" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="chat"><i class="fas fa-comments w-5 text-center"></i> AI Chat</a>
-        <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="jobs"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
-    </div>
-</div>
-</nav>
+                <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">
+                    <a href="/ai/providers" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="providers"><i class="fas fa-plug w-5 text-center"></i> Providers</a>
+                    <a href="/ai/rules" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="rules"><i class="fas fa-sliders w-5 text-center"></i> Rules</a>
+                    <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="jobs"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
+                </div>
+            </div>
+        </nav>
         <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
             <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
-            <a href="#" id="logout-link" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors"><i class="fas fa-sign-out-alt w-5 text-center"></i> Logout</a>
         </div>
     </aside>
 
-    <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
-            <div class="max-w-[1600px] mx-auto w-full">
+    <div class="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <!-- Top Header -->
+        <header class="bg-[#1a1d24] px-4 md:px-6 py-3 md:py-4 flex items-center justify-between border-b border-[#2a2f3a] shrink-0">
+            <div class="flex items-center gap-3 md:gap-4 pl-16 md:pl-0">
+                <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height: 32px; width: auto; object-fit: contain;">
+                <h1 class="text-xl md:text-3xl font-semibold tracking-tight mb-1 flex items-baseline leading-none site-title">
+                    <span class="text-white">m</span>
+                    <span class="text-white">o</span>
+                    <span class="text-white">t</span>
+                    <span class="text-[#2f8fc9]">u</span>
+                    <span class="text-white">s</span>
+                    <span class="text-gray-500">.</span>
+                    <span class="text-white">l</span>
+                    <span class="text-white">e</span>
+                    <span class="text-white">a</span>
+                    <span class="text-white">p</span>
+                </h1>
+            </div>
+            <button onclick="logout()" class="w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
+            <div class="max-w-[1600px] mx-auto w-full flex flex-col min-h-full">
                 <!-- HUB PANEL -->
                 <section id="panel-hub" class="ai-panel space-y-4">
                     <div class="flex items-center justify-between">
@@ -80,7 +93,6 @@
                             <h1 class="text-xl font-bold text-white">AI Hub</h1>
                             <p class="text-xs text-gray-400 mt-1">Connected providers, rules, scheduled jobs and conversational management.</p>
                         </div>
-                        <button id="hub-open-chat" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-comments"></i> Open AI Chat</button>
                     </div>
                     <!-- Settings pointer (Decision 3) -->
                     <div class="bento-card p-4 border-[#2f8fc9]/30 flex items-start gap-3">
@@ -127,26 +139,9 @@
                         <h1 class="text-xl font-bold text-white">Rules</h1>
                         <div class="flex gap-2">
                             <button id="rule-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Rule</button>
-                            <button id="rule-chat-btn" class="ai-tab bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2" data-ai="chat"><i class="fas fa-comments"></i> Edit via Chat</button>
                         </div>
                     </div>
                     <div id="rules-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
-                </section>
-
-                <!-- CHAT PANEL -->
-                <section id="panel-chat" class="ai-panel space-y-4 hidden">
-                    <div class="flex items-center justify-between">
-                        <h1 class="text-xl font-bold text-white">AI Chat</h1>
-                        <span class="text-[11px] text-gray-500">Describe rules or ask it to scan / clean playlists.</span>
-                    </div>
-                    <div class="bento-card p-0 flex flex-col h-[70vh]">
-                        <div id="chat-log" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
-                        <div id="chat-confirm-zone" class="px-4 pb-2 hidden"></div>
-                        <div class="border-t border-[#2a2f3a] p-3 flex gap-2">
-                            <input id="chat-input" type="text" placeholder="e.g. Add a rule: synthwave music → Synthwave playlist" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-sm rounded-lg px-3 py-2 outline-none min-h-[44px]">
-                            <button id="chat-send" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-sm font-medium px-4 py-2 rounded-lg"><i class="fas fa-paper-plane"></i></button>
-                        </div>
-                    </div>
                 </section>
 
                 <!-- JOBS PANEL -->
@@ -200,10 +195,31 @@
                             </div>
                             <div id="job-form-msg" class="text-[11px]"></div>
                         </div>
-                    </div>
-                </section>
+                <!-- Footer inside main scroll area at the bottom -->
+                <footer class="mt-auto pt-6 border-t border-[#2a2f3a] text-[11px] text-gray-500 flex flex-wrap items-center gap-4 bg-[#0f1115]">
+                    <span>&copy; 2026 motus.leap</span>
+                    <a href="/terms?v=20260715b" class="hover:text-[#2f8fc9]">Terms of Use</a>
+                    <a href="/privacy?v=20260715b" class="hover:text-[#2f8fc9]">Privacy Policy</a>
+                    <span class="ml-auto">Not affiliated with YouTube or Google.</span>
+                </footer>
             </div>
         </main>
+
+        <!-- Pinned AI Chat Box (Takes up 20% of display area, stays in place) -->
+        <div class="h-[20vh] bg-[#1a1d24] border-t border-[#2a2f3a] flex flex-col shrink-0">
+            <div class="px-4 py-2 bg-[#171920] border-b border-[#2a2f3a] flex items-center justify-between text-xs text-gray-400 shrink-0">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-robot text-[#2f8fc9]"></i>
+                    <span class="font-semibold text-gray-300">AI Chat Console</span>
+                </div>
+                <div id="chat-confirm-zone" class="hidden text-[11px] text-gray-300"></div>
+            </div>
+            <div id="chat-log" class="flex-1 overflow-y-auto p-3 space-y-2 text-xs"></div>
+            <div class="p-2 border-t border-[#2a2f3a]/60 bg-[#15181f] flex gap-2 shrink-0">
+                <input id="chat-input" type="text" placeholder="Ask AI to manage rules, scan playlists, or ask questions..." class="flex-1 bg-[#0a0c10] border border-[#2a2f3a] text-gray-200 text-xs rounded-lg px-3 py-1.5 outline-none min-h-[36px]">
+                <button id="chat-send" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-1.5 rounded-lg flex items-center justify-center min-h-[36px]"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
     </div>
 
 <!-- Add Provider modal -->
@@ -269,11 +285,5 @@
 </div>
 
 <script src="/static/ai-hub.js?v=1783211869"></script>
-    <footer class="mt-10 pt-6 border-t border-[#2a2f3a] px-6 py-6 text-[11px] text-gray-500 flex flex-wrap items-center gap-4 bg-[#121419]">
-        <span>&copy; 2026 motus.leap</span>
-        <a href="/terms?v=20260715b" class="hover:text-[#2f8fc9]">Terms of Use</a>
-        <a href="/privacy?v=20260715b" class="hover:text-[#2f8fc9]">Privacy Policy</a>
-        <span class="ml-auto">Not affiliated with YouTube or Google.</span>
-    </footer>
 </body>
 </html>

@@ -634,9 +634,7 @@ async def terms():
 
 @app.get("/ai")
 @app.get("/ai/providers")
-@app.get("/ai/models")
 @app.get("/ai/rules")
-@app.get("/ai/chat")
 @app.get("/ai/jobs")
 async def ai_hub():
     """AI Management Hub (P1+P2+P3 wired UI)."""

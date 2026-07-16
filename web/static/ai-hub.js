@@ -62,7 +62,7 @@
   }
 
   // ---- sub-nav routing -----------------------------------------------------
-  const PANELS = ['hub', 'providers', 'models', 'rules', 'chat', 'jobs'];
+  const PANELS = ['hub', 'providers', 'rules', 'jobs'];
   function showPanel(name) {
     PANELS.forEach(p => {
       const panel = document.getElementById('panel-' + p);
@@ -74,10 +74,8 @@
     // refresh data for the panel
     if (name === 'hub') loadHub();
     else if (name === 'providers') loadProviders();
-    else if (name === 'models') loadModels();
     else if (name === 'rules') loadRules();
     else if (name === 'jobs') { loadJobs(); /* do not auto-open form */ }
-    else if (name === 'chat') {/* chat persists */}
   }
 
   // ---- HUB -----------------------------------------------------------------

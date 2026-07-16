@@ -76,9 +76,7 @@
                 </div>
                 <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">
                     <a href="/ai/providers" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="providers"><i class="fas fa-plug w-5 text-center"></i> Providers</a>
-                    <a href="/ai/models" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="models"><i class="fas fa-cube w-5 text-center"></i> Models</a>
                     <a href="/ai/rules" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="rules"><i class="fas fa-sliders w-5 text-center"></i> Rules</a>
-                    <a href="/ai/chat" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="chat"><i class="fas fa-comments w-5 text-center"></i> AI Chat</a>
                     <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="jobs"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
                 </div>
             </div>
@@ -167,28 +165,33 @@
                         <button id="btn-cancel" class="hidden" onclick="fetch('/api/action/cancel', {method:'POST', headers:{'X-CSRF-Protect':'1'}}).catch(e=>console.warn(e))"></button>
                     </div>
 
-                    <div class="bento-card p-5 lg:col-span-2 flex flex-col h-[320px]">
-                        <div class="flex items-center justify-between mb-3">
-                            <h4 class="text-xs font-semibold text-gray-300 flex items-center gap-2"><i class="fas fa-terminal accent"></i> Live Console</h4>
-                            <div class="flex gap-2">
-                                <button id="btn-copy-console" class="text-[10px] px-2 py-1 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white transition-colors"><i class="fas fa-copy mr-1"></i>Copy</button>
-                                <!-- Export button removed -->
-                                <button id="btn-clear-console" class="text-[10px] px-2 py-1 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white transition-colors"><i class="fas fa-trash mr-1"></i>Clear</button>
-                            </div>
-                        </div>
-                        <div id="console-output" class="flex-1 bg-[#0a0c10] border border-[#2a2f3a] rounded p-3 font-mono text-[10px] text-gray-400 overflow-y-auto space-y-1">
-                            <div class="console-line info">Dashboard connected.</div>
-                        </div>
-                    </div>
                 </div>
+                <!-- Footer inside main scroll area at the bottom -->
+                <footer class="mt-auto pt-6 border-t border-[#2a2f3a] text-[11px] text-gray-500 flex flex-wrap items-center gap-4 bg-[#0f1115]">
+                    <span>&copy; 2026 motus.leap</span>
+                    <a href="/terms?v=20260715b" class="hover:text-[#2f8fc9]">Terms of Use</a>
+                    <a href="/privacy?v=20260715b" class="hover:text-[#2f8fc9]">Privacy Policy</a>
+                    <span class="ml-auto">Not affiliated with YouTube or Google.</span>
+                </footer>
             </div>
         </main>
-        <footer class="mt-10 pt-6 border-t border-[#2a2f3a] px-6 py-6 text-[11px] text-gray-500 flex flex-wrap items-center gap-4 bg-[#121419]">
-            <span>&copy; 2026 motus.leap</span>
-            <a href="/terms?v=20260715b" class="hover:text-[#2f8fc9]">Terms of Use</a>
-            <a href="/privacy?v=20260715b" class="hover:text-[#2f8fc9]">Privacy Policy</a>
-            <span class="ml-auto">Not affiliated with YouTube or Google.</span>
-        </footer>
+
+        <!-- Pinned Live Console (Takes up 20% of display area, stays in place) -->
+        <div class="h-[20vh] bg-[#1a1d24] border-t border-[#2a2f3a] flex flex-col shrink-0">
+            <div class="px-4 py-2 bg-[#171920] border-b border-[#2a2f3a] flex items-center justify-between text-xs text-gray-400 shrink-0">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-terminal text-[#2f8fc9]"></i>
+                    <span class="font-semibold text-gray-300">Live Console</span>
+                </div>
+                <div class="flex gap-2">
+                    <button id="btn-copy-console" class="text-[10px] px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white transition-colors"><i class="fas fa-copy mr-1"></i>Copy</button>
+                    <button id="btn-clear-console" class="text-[10px] px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white transition-colors"><i class="fas fa-trash mr-1"></i>Clear</button>
+                </div>
+            </div>
+            <div id="console-output" class="flex-1 bg-[#0a0c10] p-3 font-mono text-[10px] text-gray-400 overflow-y-auto space-y-1">
+                <div class="console-line info">Dashboard connected.</div>
+            </div>
+        </div>
     </div>
 
     <script src="/static/dashboard.js?v=2"></script>
