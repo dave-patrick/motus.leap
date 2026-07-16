@@ -168,36 +168,70 @@
         const mlist = grp.models || [];
         const activeSet = new Set((grp.active && grp.active.length) ? grp.active : []);
         const def = grp.default || null;
-        let modelsHtml = '<div class="text-[11px] text-gray-500 mt-2">No models discovered.</div>';
-        if (mlist.length) {
-          modelsHtml = '<div class="mt-2 space-y-1 border-t border-[#2a2f3a] pt-2">' +
-            mlist.map(m => {
-              const id = m.id;
-              const checked = activeSet.has(id);
-              return '<div class="flex items-center gap-2 text-[11px] ' + (checked ? 'text-gray-200' : 'text-gray-500') + '">' +
-                '<i class="fas ' + (checked ? 'fa-check-square text-[#2f8fc9]' : 'fa-square text-gray-600') + '"></i>' +
-                '<span class="font-mono truncate">' + esc(m.name || id) + '</span>' +
-                (def === id ? ' <span class="text-[9px] text-[#16a34a]">default</span>' : '') +
-                '</div>';
-            }).join('') +
-            '</div>';
+        const activeCount = p.active_model_count || activeSet.size;
+        const totalCount = p.discovered_model_count || mlist.length;
+
+        let modelsBody = '';
+        if (!mlist.length) {
+          modelsBody = '<div class="text-[11px] text-gray-500 py-1">No models discovered yet — click Rescan.</div>';
+        } else {
+          modelsBody = mlist.map(m => {
+            const id = m.id;
+            const checked = activeSet.has(id);
+            return '<div class="flex items-center gap-2 text-[11px] ' + (checked ? 'text-gray-200' : 'text-gray-500') + ' py-0.5">' +
+              '<i class="fas ' + (checked ? 'fa-check-square text-[#2f8fc9]' : 'fa-square text-gray-600') + ' flex-shrink-0"></i>' +
+              '<span class="font-mono truncate">' + esc(m.name || id) + '</span>' +
+              (def === id ? ' <span class="text-[9px] text-[#16a34a] flex-shrink-0">default</span>' : '') +
+              '</div>';
+          }).join('');
         }
-        return '<div class="bento-card p-4 flex flex-col gap-3">' +
-          '<div class="flex items-center justify-between"><div class="min-w-0"><div class="text-sm font-medium text-gray-100 truncate">' + esc(p.name) + '</div>' +
-          '<div class="text-[10px] text-gray-500 font-mono truncate">' + esc(p.base_url || p.type) + '</div></div>' +
-          '<span class="pill ' + (ok ? 'pill-success' : 'pill-error') + '">' + (ok ? 'Connected' : esc(p.status || 'error')) + '</span></div>' +
-          '<div class="flex items-center justify-between text-[11px] text-gray-400"><span>' + (p.active_model_count || activeSet.size) + ' / ' + (p.discovered_model_count || mlist.length) + ' models active</span>' +
-          '<div class="flex gap-3">' +
-          '<button class="prov-rescan text-[#2f8fc9] hover:underline" data-id="' + esc(p.id) + '"><i class="fas fa-sync"></i> Rescan</button>' +
-          '<button class="prov-manage text-[#2f8fc9] hover:underline" data-id="' + esc(p.id) + '">Manage</button>' +
-          '</div></div>' +
-          modelsHtml +
-          '<button class="prov-del bg-[#20242c] border border-[#2a2f3a] text-[#dc2626] text-xs px-3 py-2 rounded-lg" data-id="' + esc(p.id) + '">Disconnect</button>' +
-          '</div>';
+
+        const toggleLabel = totalCount
+          ? activeCount + ' active &nbsp;·&nbsp; ' + totalCount + ' total'
+          : 'No models';
+
+        return '<div class="bento-card p-4 flex flex-col gap-2">' +
+          // Header row: name + status pill
+          '<div class="flex items-center justify-between">' +
+            '<div class="min-w-0">' +
+              '<div class="text-sm font-medium text-gray-100 truncate">' + esc(p.name) + '</div>' +
+              '<div class="text-[10px] text-gray-500 font-mono truncate">' + esc(p.base_url || p.type) + '</div>' +
+            '</div>' +
+            '<span class="pill ' + (ok ? 'pill-success' : 'pill-error') + '">' + (ok ? 'Connected' : esc(p.status || 'error')) + '</span>' +
+          '</div>' +
+          // Collapsible model toggle row
+          '<button class="prov-models-toggle flex items-center justify-between w-full text-[11px] text-gray-400 border border-[#2a2f3a] rounded-lg px-3 py-1.5 hover:border-[#2f8fc9]/40 hover:text-gray-300 transition-colors" data-id="' + esc(p.id) + '">' +
+            '<span>' + toggleLabel + '</span>' +
+            '<span class="prov-chevron text-gray-500 transition-transform duration-200"><i class="fas fa-chevron-down text-[9px]"></i></span>' +
+          '</button>' +
+          // Collapsible model body (hidden by default)
+          '<div class="prov-models-body hidden border-t border-[#2a2f3a] pt-2 space-y-0.5 max-h-48 overflow-y-auto" data-id="' + esc(p.id) + '">' +
+            modelsBody +
+          '</div>' +
+          // Actions row
+          '<div class="flex items-center justify-between text-[11px] text-gray-500 pt-1">' +
+            '<div class="flex gap-3">' +
+              '<button class="prov-rescan text-[#2f8fc9] hover:underline" data-id="' + esc(p.id) + '"><i class="fas fa-sync"></i> Rescan</button>' +
+              '<button class="prov-manage text-[#2f8fc9] hover:underline" data-id="' + esc(p.id) + '">Manage</button>' +
+            '</div>' +
+            '<button class="prov-del text-[#dc2626] hover:underline" data-id="' + esc(p.id) + '">Disconnect</button>' +
+          '</div>' +
+        '</div>';
       }).join('');
       $all('.prov-del').forEach(b => b.addEventListener('click', () => deleteProvider(b.getAttribute('data-id'))));
       $all('.prov-manage').forEach(b => b.addEventListener('click', () => { switchTab('models'); loadModels(b.getAttribute('data-id')); }));
       $all('.prov-rescan').forEach(b => b.addEventListener('click', () => rescanProvider(b.getAttribute('data-id'))));
+      $all('.prov-models-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const body = document.querySelector('.prov-models-body[data-id="' + CSS.escape(id) + '"]');
+          const chevron = btn.querySelector('.prov-chevron');
+          if (!body) return;
+          const open = !body.classList.contains('hidden');
+          body.classList.toggle('hidden', open);
+          if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+        });
+      });
     } catch (e) {
       box.innerHTML = '<div class="bento-card p-4 text-xs text-[#dc2626]">' + sanitize(e.message) + '</div>';
     }
