@@ -59,7 +59,7 @@
                 <span class="text-white">l</span><span class="text-white">e</span><span class="text-white">a</span><span class="text-white">p</span>
             </h1>
         </div>
-        <!-- No logout here — managed in Settings only. AI chat button injected by ux-enhancements.js?v=20260716e"flex flex-1 min-h-0 overflow-hidden">
+        <!-- No logout here — managed in Settings only. AI chat button is injected by ux-enhancements.js into the global header. -->
 
         <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
         <button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
@@ -82,9 +82,6 @@
                         <a href="/ai/jobs" class="ai-sub flex items-center gap-3 pl-9 pr-4 py-2.5 rounded-lg text-gray-400 text-[13px] transition-colors" data-ai="jobs"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
                     </div>
                 </div>
-            </nav>
-            <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
-                <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 font-semibold text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
             </div>
         </aside>
 
@@ -156,8 +153,8 @@
         </main>
     </div>
 
-    <script src="/static/dashboard.js?v=2"></script>
-    <script src="/static/ux-enhancements.js?v=20260716e"></script>
+    <script src="/static/dashboard.js?v=3"></script>
+    <script src="/static/ux-enhancements.js?v=20260716f"></script>
     <script src="/static/mobile-nav.js?v=20260715f"></script>
     <script>
         if ('serviceWorker' in navigator) {

@@ -1079,7 +1079,13 @@ function startAgentActivityTracker() {
                     const line = document.createElement('div');
                     line.className = 'border-l-2 border-[#2f8fc9]/30 pl-2 py-0.5 hover:bg-white/5 transition-colors';
                     const time = new Date().toLocaleTimeString();
-                    line.innerHTML = `<span class="text-gray-500 text-[8px] mr-2">[${time}]</span> <span class="text-gray-300">${text}</span>`;
+                    // Escape log text before injecting — log payloads are server-sourced
+                    // and must not be treated as HTML (XSS via crafted log messages).
+                    const safeText = String(text)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                    line.innerHTML = `<span class="text-gray-500 text-[8px] mr-2">[${time}]</span> <span class="text-gray-300">${safeText}</span>`;
                     logContent.appendChild(line);
                     
                     // Limit total logs in console to 100
@@ -1263,6 +1269,27 @@ window.clearLogs = function() {
         ].join(' ');
         btn.innerHTML = '<i class="fa-solid fa-terminal text-sm"></i>';
         document.body.appendChild(btn);
+
+        // ---- Settings gear button (left of Live Console button) ----
+        // Kept in the global header (matching the circular >_ and robot buttons)
+        // per product decision; the sidebar Settings link is removed on all pages.
+        const settingsBtn = document.createElement('a');
+        settingsBtn.id = 'settings-gear-btn';
+        settingsBtn.href = '/settings';
+        settingsBtn.title = 'Settings';
+        settingsBtn.setAttribute('aria-label', 'Open Settings');
+        settingsBtn.className = [
+            'fixed top-[13px] right-[112px] z-[60]',
+            'w-10 h-10 rounded-xl',
+            'bg-[#1a1d24] hover:bg-[#20242c]',
+            'border border-[#2a2f3a] hover:border-[#2f8fc9]/40',
+            'text-gray-400 hover:text-[#2f8fc9]',
+            'flex items-center justify-center',
+            'shadow-lg shadow-black/30',
+            'transition-all duration-200 hover:scale-105 active:scale-95',
+        ].join(' ');
+        settingsBtn.innerHTML = '<i class="fa-solid fa-gear text-sm"></i>';
+        document.body.appendChild(settingsBtn);
 
         // ---- Backdrop ----
         const overlay = document.createElement('div');

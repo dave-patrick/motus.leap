@@ -1,4 +1,6 @@
-var consoleOutput = document.getElementById('console-output');
+// NOTE: #console-output is injected by ux-enhancements.js on DOMContentLoaded,
+// which runs AFTER this script parses. Resolving it eagerly here captured null
+// and crashed logConsole() on the first WS log. Resolve lazily instead.
 var token = localStorage.getItem('token') || '';
 
 // Redirect to auth if no token present
@@ -27,6 +29,8 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
 }
 
 function logConsole(text, type = 'info') {
+    const consoleOutput = document.getElementById('console-output');
+    if (!consoleOutput) return; // widget not yet injected (or no console on this page)
     const line = document.createElement('div');
     const time = new Date().toLocaleTimeString();
     line.className = `console-line ${type}`;
@@ -236,17 +240,12 @@ document.getElementById('btn-cancel').addEventListener('click', async () => {
     }
 });
 
-document.getElementById('btn-copy-console').addEventListener('click', () => {
-    const text = Array.from(consoleOutput.children).map(c => c.textContent).join('\n');
-    navigator.clipboard.writeText(text).then(() => logConsole('Console copied to clipboard.', 'success'));
-});
+// NOTE: Copy/Clear console buttons are wired inside the Live Console widget
+// (ux-enhancements.js). This block was a duplicate that also referenced the
+// removed global `consoleOutput` and is dead (the buttons don't exist at parse
+// time). Removed to avoid a parse-time null.addEventListener crash.
 
 // Export button click handler removed
-
-document.getElementById('btn-clear-console').addEventListener('click', () => {
-    consoleOutput.innerHTML = '';
-    logConsole('Console cleared.', 'info');
-});
 
 document.getElementById('btn-maintenance')?.addEventListener('click', function() {
     window.location.href = '/maintenance';
