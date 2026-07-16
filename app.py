@@ -2431,16 +2431,25 @@ def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
     except Exception:
         return {"manual_entry": True, "error": "Provider returned non-JSON body"}
 
-    if not isinstance(payload, dict) or payload.get("object") != "list":
-        return {"manual_entry": True, "error": "Response is not OpenAI-shaped"}
+    # Accept any response that has a "data" list — many OpenAI-compatible providers
+    # (OpenRouter, Mistral, Perplexity, Together AI, Fireworks…) return {"data": [...]}
+    # without the "object": "list" field that OpenAI itself adds.
+    if not isinstance(payload, dict):
+        return {"manual_entry": True, "error": "Provider returned non-JSON object"}
+    data_items = payload.get("data") or payload.get("models") or []
+    if not isinstance(data_items, list):
+        return {"manual_entry": True, "error": "Response is not OpenAI-shaped (no data array)"}
 
     models = []
     try:
-        for item in payload.get("data", []):
+        for item in data_items:
+            mid = item.get("id") or item.get("name") or ""
+            if not mid:
+                continue
             models.append({
-                "id": item.get("id"),
-                "name": item.get("id"),
-                "owned_by": item.get("owned_by"),
+                "id": mid,
+                "name": item.get("name") or item.get("display_name") or mid,
+                "owned_by": item.get("owned_by") or item.get("created_by"),
             })
     except Exception:
         return {"manual_entry": True, "error": "Malformed model list"}
