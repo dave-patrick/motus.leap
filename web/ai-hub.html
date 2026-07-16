@@ -215,7 +215,7 @@
 
 <!-- Add Provider modal -->
 <div id="prov-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
-    <div class="bento-card p-5 w-full max-w-lg space-y-3">
+    <div class="bento-card p-5 w-full max-w-xl space-y-3 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between">
             <h3 class="text-sm font-semibold text-white">Connect Provider</h3>
             <button id="prov-modal-close" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
@@ -227,20 +227,91 @@
         </div>
         <div id="prov-step1">
             <div class="space-y-3">
-                <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label><input id="prov-name" placeholder="Groq" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
-                <div><label class="text-[10px] text-gray-400 mb-1 block">Type</label>
+                <!-- Name -->
+                <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label>
+                    <input id="prov-name" placeholder="My Groq" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                </div>
+                <!-- Type -->
+                <div><label class="text-[10px] text-gray-400 mb-1 block">Provider Type</label>
                     <select id="prov-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                        <option value="openai">OpenAI</option>
-                        <option value="anthropic">Anthropic</option>
-                        <option value="groq">Groq</option>
-                        <option value="grok">Grok (xAI)</option>
-                        <option value="google">Google</option>
-                        <option value="custom">Custom (OpenAI-compatible)</option>
+                        <optgroup label="Hosted (managed API key)">
+                            <option value="openai">OpenAI — GPT-4o, o1, o3…</option>
+                            <option value="anthropic">Anthropic — Claude 3.5 / 4…</option>
+                            <option value="groq">Groq — ultra-fast inference</option>
+                            <option value="grok">Grok (xAI) — Grok-3…</option>
+                            <option value="google">Google — Gemini 2.5…</option>
+                        </optgroup>
+                        <optgroup label="OpenAI-compatible (custom endpoint)">
+                            <option value="custom">Custom / Self-hosted…</option>
+                        </optgroup>
                     </select>
                 </div>
-                <div id="prov-base-wrap" class="hidden"><label class="text-[10px] text-gray-400 mb-1 block">Base URL</label><input id="prov-base" placeholder="https://your-llm-api.com/v1" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
-                <div><label class="text-[10px] text-gray-400 mb-1 block">API Key</label><input id="prov-key" type="password" placeholder="sk-..." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
-                <button id="prov-connect" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Connect</button>
+                <!-- Type hint -->
+                <div id="prov-type-hint" class="text-[10px] text-gray-500 bg-[#20242c] rounded px-3 py-2 border border-[#2a2f3a] hidden"></div>
+                <!-- Base URL (shown for all types, pre-filled for builtins) -->
+                <div id="prov-base-wrap">
+                    <label class="text-[10px] text-gray-400 mb-1 flex items-center justify-between">
+                        <span>Base URL</span>
+                        <span id="prov-base-lock" class="text-[9px] text-gray-600">pre-filled · override if needed</span>
+                    </label>
+                    <input id="prov-base" placeholder="https://api.example.com" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                </div>
+                <!-- Quick presets grid (custom only) -->
+                <div id="prov-presets" class="hidden">
+                    <div class="text-[10px] text-gray-400 mb-2">Quick presets — click to fill:</div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                            data-url="http://localhost:11434" data-name="Ollama" data-key="">
+                            <div class="font-medium">Ollama</div>
+                            <div class="text-[9px] text-gray-500">localhost:11434</div>
+                        </button>
+                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                            data-url="http://localhost:1234" data-name="LM Studio" data-key="lm-studio">
+                            <div class="font-medium">LM Studio</div>
+                            <div class="text-[9px] text-gray-500">localhost:1234</div>
+                        </button>
+                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                            data-url="https://api.together.xyz" data-name="Together AI" data-key="">
+                            <div class="font-medium">Together AI</div>
+                            <div class="text-[9px] text-gray-500">together.xyz</div>
+                        </button>
+                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                            data-url="https://api.mistral.ai" data-name="Mistral" data-key="">
+                            <div class="font-medium">Mistral AI</div>
+                            <div class="text-[9px] text-gray-500">mistral.ai</div>
+                        </button>
+                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                            data-url="https://openrouter.ai/api" data-name="OpenRouter" data-key="">
+                            <div class="font-medium">OpenRouter</div>
+                            <div class="text-[9px] text-gray-500">openrouter.ai</div>
+                        </button>
+                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                            data-url="https://api.perplexity.ai" data-name="Perplexity" data-key="">
+                            <div class="font-medium">Perplexity</div>
+                            <div class="text-[9px] text-gray-500">perplexity.ai</div>
+                        </button>
+                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                            data-url="https://api.fireworks.ai/inference" data-name="Fireworks AI" data-key="">
+                            <div class="font-medium">Fireworks AI</div>
+                            <div class="text-[9px] text-gray-500">fireworks.ai</div>
+                        </button>
+                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                            data-url="https://api.deepseek.com" data-name="DeepSeek" data-key="">
+                            <div class="font-medium">DeepSeek</div>
+                            <div class="text-[9px] text-gray-500">deepseek.com</div>
+                        </button>
+                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                            data-url="https://api.cerebras.ai" data-name="Cerebras" data-key="">
+                            <div class="font-medium">Cerebras</div>
+                            <div class="text-[9px] text-gray-500">cerebras.ai</div>
+                        </button>
+                    </div>
+                </div>
+                <!-- API Key -->
+                <div><label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="prov-key-optional" class="text-gray-600">(optional for local)</span></label>
+                    <input id="prov-key" type="password" placeholder="sk-…" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                </div>
+                <button id="prov-connect" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Connect &amp; Discover Models</button>
                 <div id="prov-step1-msg" class="text-[11px]"></div>
             </div>
         </div>
@@ -251,6 +322,8 @@
         </div>
     </div>
 </div>
+
+
 
 <!-- New/Edit Rule modal -->
 <div id="rule-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">

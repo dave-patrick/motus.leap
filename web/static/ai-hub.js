@@ -227,8 +227,9 @@
     $('#prov-step2-dot').className = 'w-2 h-2 rounded-full bg-[#374151]';
     $('#prov-step1-dot').className = 'w-2 h-2 rounded-full bg-[#2f8fc9]';
     $('#prov-name').value = ''; $('#prov-key').value = ''; $('#prov-base').value = '';
-    $('#prov-type').value = 'openai'; $('#prov-base-wrap').classList.add('hidden');
+    $('#prov-type').value = 'openai';
     $('#prov-step1-msg').textContent = ''; $('#prov-step2-msg').textContent = '';
+    updateProvType(); // apply initial type state
     const m = $('#prov-modal'); m.classList.remove('hidden'); m.classList.add('flex');
   }
   function closeProvModal() { const m = $('#prov-modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
@@ -237,8 +238,9 @@
     const type = $('#prov-type').value;
     const apiKey = $('#prov-key').value.trim();
     const baseUrl = $('#prov-base').value.trim();
-    if (!name || !apiKey) { $('#prov-step1-msg').textContent = 'Name and API key required.'; return; }
-    if (type === 'custom' && !baseUrl) { $('#prov-step1-msg').textContent = 'Base URL required for custom.'; return; }
+    if (!name) { $('#prov-step1-msg').textContent = 'Name is required.'; return; }
+    if (!apiKey && type !== 'custom') { $('#prov-step1-msg').textContent = 'API key required for this provider type.'; return; }
+    if (type === 'custom' && !baseUrl) { $('#prov-step1-msg').textContent = 'Base URL required for custom providers.'; return; }
     const btn = $('#prov-connect'); const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner spinner"></i> Connecting…';
     try {
       const res = await api('/api/ai/providers', {
@@ -732,8 +734,61 @@
     $('#prov-modal-close') && $('#prov-modal-close').addEventListener('click', closeProvModal);
     $('#prov-connect') && $('#prov-connect').addEventListener('click', connectProvider);
     $('#prov-save') && $('#prov-save').addEventListener('click', saveProviderModels);
-    $('#prov-type') && $('#prov-type').addEventListener('change', () => {
-      $('#prov-base-wrap').classList.toggle('hidden', $('#prov-type').value !== 'custom');
+    // Provider type UI: pre-fill base URL, hints, presets
+    const PROV_URLS = {
+      openai: 'https://api.openai.com',
+      anthropic: 'https://api.anthropic.com',
+      groq: 'https://api.groq.com',
+      grok: 'https://api.x.ai',
+      google: 'https://generativelanguage.googleapis.com',
+    };
+    const PROV_HINTS = {
+      openai: 'Get your API key at platform.openai.com — GPT-4o, o1, o3 and more.',
+      anthropic: 'Get your API key at console.anthropic.com — Claude 3.5 Sonnet, Haiku, Opus.',
+      groq: 'Get a free API key at console.groq.com — blazing fast open-source model inference.',
+      grok: 'Get your API key at console.x.ai — Grok-3, Grok-2 and beta models.',
+      google: 'Get a Gemini API key at aistudio.google.com — Gemini 2.5 Pro, Flash and more.',
+      custom: 'Any OpenAI-compatible endpoint (Ollama, LM Studio, Together AI, Mistral, OpenRouter…). Needs a /v1/models route for automatic discovery.',
+    };
+    function updateProvType() {
+      const typeEl = $('#prov-type');
+      if (!typeEl) return;
+      const type = typeEl.value;
+      const baseEl = $('#prov-base');
+      const hintEl = $('#prov-type-hint');
+      const presetsEl = $('#prov-presets');
+      const lockEl = $('#prov-base-lock');
+      const keyOptEl = $('#prov-key-optional');
+      if (baseEl) {
+        baseEl.value = PROV_URLS[type] || '';
+        if (lockEl) lockEl.textContent = PROV_URLS[type] ? 'pre-filled · override if needed' : 'required';
+      }
+      if (hintEl) {
+        const hint = PROV_HINTS[type] || '';
+        hintEl.textContent = hint;
+        hintEl.classList.toggle('hidden', !hint);
+      }
+      if (presetsEl) presetsEl.classList.toggle('hidden', type !== 'custom');
+      if (keyOptEl) keyOptEl.classList.toggle('hidden', type !== 'custom');
+      const namePh = { openai: 'My OpenAI', anthropic: 'My Claude', groq: 'My Groq', grok: 'My Grok', google: 'My Gemini', custom: 'My LLM' };
+      const nameEl = $('#prov-name');
+      if (nameEl) nameEl.placeholder = namePh[type] || 'Provider name';
+    }
+    $('#prov-type') && $('#prov-type').addEventListener('change', updateProvType);
+    // Preset quick-fill
+    $all('.prov-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const baseEl = $('#prov-base');
+        if (baseEl) baseEl.value = btn.getAttribute('data-url') || '';
+        const n = btn.getAttribute('data-name') || '';
+        const nameEl = $('#prov-name');
+        if (n && nameEl && !nameEl.value) nameEl.value = n;
+        const k = btn.getAttribute('data-key') || '';
+        const keyEl = $('#prov-key');
+        if (k && keyEl && !keyEl.value) keyEl.value = k;
+        $all('.prov-preset').forEach(b => b.classList.remove('border-[#2f8fc9]', 'text-white'));
+        btn.classList.add('border-[#2f8fc9]', 'text-white');
+      });
     });
 
     // rules
