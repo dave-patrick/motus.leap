@@ -965,66 +965,20 @@ window.toggleAgentDrawer = function() {
 };
 
 function initGlobalAgentDrawer() {
-    let card = document.getElementById('agent-status-card');
+    let card = document.getElementById('agent-status-pill');
     if (card) return; // already injected
 
-    const bottomClass = 'bottom-6';
-
-    card = document.createElement('div');
-    card.id = 'agent-status-card';
-    card.className = `fixed ${bottomClass} right-5 z-50 w-72 font-sans transition-all duration-300`;
-    card.innerHTML = `
-        <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-xl shadow-2xl shadow-black/60 overflow-hidden" style="backdrop-filter:blur(8px);">
-            <!-- Card header row -->
-            <div id="agent-card-header" class="flex items-center gap-2.5 px-3.5 py-2.5 cursor-pointer select-none hover:bg-white/[0.03] transition-colors" onclick="window.toggleAgentCard()">
-                <!-- Pulsing status dot -->
-                <span class="relative flex h-2 w-2 shrink-0">
-                    <span id="agent-ping-animate" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span id="agent-ping-color" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                </span>
-                <!-- Label -->
-                <span class="text-[9px] font-bold text-[#2f8fc9] uppercase tracking-widest shrink-0">Agent</span>
-                <!-- Current task -->
-                <span id="agent-task" class="text-[11px] text-gray-200 font-mono truncate flex-1">Idle</span>
-                <!-- Cancel button (visible only when running) -->
-                <button id="agent-cancel-btn" onclick="event.stopPropagation(); window.cancelCurrentTask()" class="hidden shrink-0 text-red-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-500/30 bg-red-600/20 hover:bg-red-600/30 transition-colors flex items-center gap-1">
-                    <i class="fa-solid fa-stop-circle text-[8px]"></i> Stop
-                </button>
-                <!-- Expand chevron -->
-                <i id="agent-card-chevron" class="fa-solid fa-chevron-up text-[9px] text-gray-500 shrink-0 transition-transform duration-200"></i>
-            </div>
-
-            <!-- Expandable log panel (hidden by default) -->
-            <div id="agent-card-body" class="border-t border-[#2a2f3a]/70">
-                <!-- Live log ticker -->
-                <div class="flex items-center gap-2 px-3.5 py-1.5 border-b border-[#2a2f3a]/50 bg-[#12151b]">
-                    <i class="fa-solid fa-terminal text-[#2f8fc9] text-[8px] shrink-0"></i>
-                    <span id="agent-log" class="text-[9px] text-gray-400 font-mono truncate flex-1">Connecting...</span>
-                </div>
-                <!-- Scrollable log lines -->
-                <div id="agent-drawer-log-content" class="p-2.5 font-mono text-[10px] text-gray-400 space-y-0.5 max-h-40 overflow-y-auto bg-[#0e1014]">
-                    <div class="text-[#2f8fc9]/60">[SYSTEM] Agent console ready.</div>
-                </div>
-                <!-- Footer: last task + controls -->
-                <div class="flex items-center justify-between px-3.5 py-2 bg-[#13161d] border-t border-[#2a2f3a]/50">
-                    <div class="text-[9px] text-gray-500 truncate min-w-0">
-                        Last: <span id="agent-summary" class="text-green-400 font-medium">None</span>
-                    </div>
-                    <button onclick="window.clearLogs()" class="shrink-0 text-[9px] text-gray-500 hover:text-red-400 transition-colors ml-2 flex items-center gap-1">
-                        <i class="fa-solid fa-eraser text-[8px]"></i> Clear
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(card);
-
-    // Start collapsed
-    const body = card.querySelector('#agent-card-body');
-    const chevron = card.querySelector('#agent-card-chevron');
-    body.classList.add('hidden');
-    chevron.style.transform = 'rotate(180deg)'; // pointing down = collapsed
+    const pill = document.createElement('div');
+    pill.id = 'agent-status-pill';
+    pill.className = 'fixed top-[13px] right-[168px] z-[60] w-24 h-7 rounded-full bg-[#1a1d24] border border-[#2a2f3a] flex items-center gap-1.5 px-2.5 text-[10px] text-gray-400 cursor-pointer select-none hover:bg-white/[0.03] transition-colors';
+    pill.title = 'Agent activity';
+    pill.setAttribute('aria-label', 'Open agent activity');
+    pill.innerHTML = '<span id="agent-pill-dot" class="rounded-full h-2.5 w-2.5 bg-green-500"></span><span class="text-[#2f8fc9] font-medium">Agent</span><span id="agent-pill-status" class="text-gray-300 truncate">Idle</span>';
+    pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.toggleAgentCard && window.toggleAgentCard();
+    });
+    document.body.appendChild(pill);
 
     startAgentActivityTracker();
 }
@@ -1040,24 +994,22 @@ window.toggleAgentCard = function() {
 
 
 function startAgentActivityTracker() {
-    const taskEl = document.getElementById('agent-task');
+    const pillStatus = document.getElementById('agent-pill-status');
+    const pillDot = document.getElementById('agent-pill-dot');
     const logEl = document.getElementById('agent-log');
     const summaryEl = document.getElementById('agent-summary');
-    const pingColor = document.getElementById('agent-ping-color');
-    const pingAnimate = document.getElementById('agent-ping-animate');
 
     let ws = null;
     function connectWS() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
- try {
-   // H5 FIX: attach auth token as query param (mirror dashboard.js connectWebSocket).
-   const token = localStorage.getItem('token') || '';
-   ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal?token=${encodeURIComponent(token)}`);
- } catch (e) {
-   console.warn('[AgentDrawer] WebSocket connection failed:', e.message);
-   if (logEl) logEl.textContent = 'WebSocket not available. Using polling.';
-   return;
- }
+        try {
+            const token = localStorage.getItem('token') || '';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal?token=${encodeURIComponent(token)}`);
+        } catch (e) {
+            console.warn('[AgentDrawer] WebSocket connection failed:', e.message);
+            if (logEl) logEl.textContent = 'WebSocket not available. Using polling.';
+            return;
+        }
         ws.onopen = () => {
             if (logEl) logEl.textContent = 'Agent connected. Streaming telemetry...';
         };
@@ -1072,37 +1024,31 @@ function startAgentActivityTracker() {
             if (msg.type === 'log') {
                 const text = msg.message;
                 if (logEl) logEl.textContent = text;
-                
-                // Append log line to expanded console
+
                 const logContent = document.getElementById('agent-drawer-log-content');
                 if (logContent) {
                     const line = document.createElement('div');
                     line.className = 'border-l-2 border-[#2f8fc9]/30 pl-2 py-0.5 hover:bg-white/5 transition-colors';
                     const time = new Date().toLocaleTimeString();
-                    // Escape log text before injecting — log payloads are server-sourced
-                    // and must not be treated as HTML (XSS via crafted log messages).
                     const safeText = String(text)
                         .replace(/&/g, '&amp;')
                         .replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;');
                     line.innerHTML = `<span class="text-gray-500 text-[8px] mr-2">[${time}]</span> <span class="text-gray-300">${safeText}</span>`;
                     logContent.appendChild(line);
-                    
-                    // Limit total logs in console to 100
+
                     while (logContent.children.length > 100) {
                         logContent.removeChild(logContent.firstChild);
                     }
-                    
-                    // Auto scroll to bottom
+
                     logContent.scrollTop = logContent.scrollHeight;
                 }
-                
-                // Extract task completion status
+
                 if (text.includes('Successfully synchronized') || text.includes('Scan complete') || text.includes('Operation completed') || text.includes('completed') || text.includes('Success')) {
                     if (summaryEl) {
                         summaryEl.textContent = text;
                         summaryEl.classList.remove('text-green-400');
-                        void summaryEl.offsetWidth; // Trigger reflow to restart transition
+                        void summaryEl.offsetWidth;
                         summaryEl.classList.add('text-green-400');
                     }
                 }
@@ -1128,27 +1074,14 @@ function startAgentActivityTracker() {
             const resp = await fetch('/api/stats');
             if (resp.ok) {
                 const data = await resp.json();
-                if (taskEl) {
-                    taskEl.textContent = data.current_task || 'Idle';
+                if (pillStatus) {
+                    pillStatus.textContent = data.current_task || 'Idle';
                 }
                 const isRunning = data.running_tasks > 0 && data.current_task;
-                if (pingColor && pingAnimate) {
-                    if (isRunning) {
-                        pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-yellow-500";
-                        pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75";
-                    } else {
-                        pingColor.className = "relative inline-flex rounded-full h-2 w-2 bg-green-500";
-                        pingAnimate.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75";
-                    }
-                }
-                // Show/hide cancel button based on running state
-                const cancelBtn = document.getElementById('agent-cancel-btn');
-                if (cancelBtn) {
-                    if (isRunning) {
-                        cancelBtn.classList.remove('hidden');
-                    } else {
-                        cancelBtn.classList.add('hidden');
-                    }
+                if (pillDot) {
+                    pillDot.className = isRunning
+                        ? 'rounded-full h-2.5 w-2.5 bg-yellow-500'
+                        : 'rounded-full h-2.5 w-2.5 bg-green-500';
                 }
             }
         } catch (e) {
