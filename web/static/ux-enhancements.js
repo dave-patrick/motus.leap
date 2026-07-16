@@ -1252,3 +1252,391 @@ document.addEventListener('DOMContentLoaded', initGlobalAgentDrawer);
 // history.pushState calls, and two popstate listeners causing back/forward
 // to fire twice). It has been removed; navigateSPA is now the sole SPA
 // router.
+
+// ============================================================
+// Global AI Chat Widget — persistent button + slide-in panel
+// ============================================================
+(function () {
+    'use strict';
+
+    let _convId = null;
+    let _selectedModel = null; // { provider_id, model_id, label }
+    let _providersLoaded = false;
+
+    function _getToken() {
+        const m = document.cookie.match(/(?:^|;\s*)token=([^;]+)/);
+        if (m) return m[1];
+        return localStorage.getItem('token') || null;
+    }
+
+    async function _api(path, opts) {
+        opts = opts || {};
+        const headers = { 'Content-Type': 'application/json' };
+        const t = _getToken();
+        if (t) headers['Authorization'] = 'Bearer ' + t;
+        let resp;
+        try {
+            resp = await fetch(path, { method: opts.method || 'GET', headers, body: opts.body });
+        } catch (e) {
+            throw new Error('Network error — is the server up?');
+        }
+        let data = null;
+        try { data = await resp.json(); } catch (_) {}
+        if (!resp.ok) {
+            const msg = (data && (data.detail || data.error)) || ('HTTP ' + resp.status);
+            throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
+        return data;
+    }
+
+    function _esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // ---- Inject DOM ----------------------------------------------------------
+    function initAIChatWidget() {
+        if (document.getElementById('ai-chat-panel')) return;
+
+        // ---- Floating button (top-right, beside logout) ----
+        const btn = document.createElement('button');
+        btn.id = 'ai-chat-btn';
+        btn.title = 'AI Chat';
+        btn.setAttribute('aria-label', 'Open AI Chat');
+        btn.className = [
+            'fixed top-[13px] right-[72px] z-[60]',
+            'w-10 h-10 rounded-xl',
+            'bg-[#2f8fc9] hover:bg-[#2a7db8]',
+            'text-white flex items-center justify-center',
+            'shadow-lg shadow-[#2f8fc9]/25',
+            'transition-all duration-200 hover:scale-105 active:scale-95',
+        ].join(' ');
+        btn.innerHTML = '<i class="fa-solid fa-robot text-sm"></i>';
+        document.body.appendChild(btn);
+
+        // ---- Backdrop ----
+        const overlay = document.createElement('div');
+        overlay.id = 'ai-chat-overlay';
+        overlay.className = 'fixed inset-0 bg-black/50 z-[65] hidden';
+        document.body.appendChild(overlay);
+
+        // ---- Slide-in panel ----
+        const panel = document.createElement('div');
+        panel.id = 'ai-chat-panel';
+        panel.className = [
+            'fixed top-0 right-0 h-full w-[400px] max-w-[100vw]',
+            'bg-[#1a1d24] border-l border-[#2a2f3a]',
+            'z-[70] flex flex-col',
+            'transform translate-x-full transition-transform duration-300 ease-in-out',
+            'font-sans shadow-2xl shadow-black/60',
+        ].join(' ');
+
+        panel.innerHTML = `
+            <!-- Header -->
+            <div class="px-5 py-4 border-b border-[#2a2f3a] flex items-center justify-between shrink-0 bg-[#171920]">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-[#2f8fc9]/15 border border-[#2f8fc9]/30 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-robot text-[#2f8fc9]"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-semibold text-white leading-tight">AI Chat</div>
+                        <div id="ai-chat-subtitle" class="text-[10px] text-gray-500 mt-0.5">Loading…</div>
+                    </div>
+                </div>
+                <button id="ai-chat-close"
+                    class="w-9 h-9 rounded-xl bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Model selector bar (shown only when models available) -->
+            <div id="ai-chat-model-bar" class="hidden px-4 py-2.5 border-b border-[#2a2f3a]/60 bg-[#13161d] flex items-center gap-2.5 shrink-0">
+                <i class="fa-solid fa-microchip text-[#2f8fc9] text-[10px] shrink-0"></i>
+                <span class="text-[10px] text-gray-500 shrink-0">Model</span>
+                <select id="ai-chat-model-select"
+                    class="flex-1 bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-gray-200 text-[11px] rounded-lg px-2.5 py-1.5 outline-none cursor-pointer transition-colors font-mono">
+                </select>
+                <button id="ai-chat-new-conv" title="New conversation"
+                    class="w-7 h-7 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-[#2f8fc9] flex items-center justify-center transition-colors shrink-0">
+                    <i class="fa-solid fa-rotate-right text-[10px]"></i>
+                </button>
+            </div>
+
+            <!-- No-provider CTA -->
+            <div id="ai-chat-no-provider" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center gap-5">
+                <div class="w-20 h-20 rounded-3xl bg-[#2f8fc9]/10 border border-[#2f8fc9]/20 flex items-center justify-center">
+                    <i class="fa-solid fa-plug text-[#2f8fc9] text-3xl"></i>
+                </div>
+                <div class="space-y-1.5">
+                    <div class="text-sm font-semibold text-white">No AI Model Configured</div>
+                    <div class="text-[12px] text-gray-400 leading-relaxed max-w-[240px]">
+                        Connect a provider and activate at least one model before you can chat.
+                    </div>
+                </div>
+                <a href="/ai/providers"
+                    class="inline-flex items-center gap-2 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-[#2f8fc9]/20 hover:scale-105">
+                    <i class="fa-solid fa-arrow-right-to-bracket text-[10px]"></i>
+                    Configure Providers
+                </a>
+                <div class="text-[10px] text-gray-600">You'll be redirected to AI Hub → Providers</div>
+            </div>
+
+            <!-- Chat log -->
+            <div id="ai-chat-log" class="hidden flex-1 overflow-y-auto p-4 space-y-3">
+                <!-- Welcome bubble injected by JS -->
+            </div>
+
+            <!-- Input area -->
+            <div id="ai-chat-input-area" class="hidden px-3.5 py-3 border-t border-[#2a2f3a] bg-[#13161d] flex items-end gap-2.5 shrink-0">
+                <textarea id="ai-chat-input" rows="1"
+                    placeholder="Ask anything…"
+                    class="flex-1 bg-[#20242c] border border-[#2a2f3a] focus:border-[#2f8fc9]/50 text-gray-200 text-[12px] rounded-xl px-3.5 py-2.5 outline-none resize-none leading-relaxed transition-colors overflow-hidden"
+                    style="height:42px; min-height:42px; max-height:120px;"></textarea>
+                <button id="ai-chat-send"
+                    class="w-10 h-10 rounded-xl bg-[#2f8fc9] hover:bg-[#2a7db8] text-white flex items-center justify-center shrink-0 transition-all hover:scale-105 active:scale-95 shadow-md shadow-[#2f8fc9]/20 mb-0.5">
+                    <i class="fa-solid fa-paper-plane text-[11px]"></i>
+                </button>
+            </div>
+        `;
+
+        document.body.appendChild(panel);
+
+        // ---- Wire events ----
+        btn.addEventListener('click', _openPanel);
+        overlay.addEventListener('click', _closePanel);
+        document.getElementById('ai-chat-close').addEventListener('click', _closePanel);
+        document.getElementById('ai-chat-send').addEventListener('click', _send);
+        document.getElementById('ai-chat-new-conv').addEventListener('click', _newConversation);
+        document.getElementById('ai-chat-model-select').addEventListener('change', function () {
+            try {
+                _selectedModel = JSON.parse(this.value);
+                _convId = null; // reset conversation when model changes
+                _updateSubtitle();
+            } catch (_) {}
+        });
+
+        const ta = document.getElementById('ai-chat-input');
+        ta.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _send(); }
+        });
+        ta.addEventListener('input', function () {
+            this.style.height = '42px';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') _closePanel();
+        });
+    }
+
+    // ---- Panel open / close --------------------------------------------------
+    async function _openPanel() {
+        document.getElementById('ai-chat-panel').classList.remove('translate-x-full');
+        document.getElementById('ai-chat-overlay').classList.remove('hidden');
+        document.getElementById('ai-chat-input')?.focus();
+        if (!_providersLoaded) await _loadProviders();
+    }
+
+    function _closePanel() {
+        document.getElementById('ai-chat-panel')?.classList.add('translate-x-full');
+        document.getElementById('ai-chat-overlay')?.classList.add('hidden');
+    }
+
+    function _newConversation() {
+        _convId = null;
+        const log = document.getElementById('ai-chat-log');
+        if (log) { log.innerHTML = ''; _appendWelcome(); }
+    }
+
+    // ---- Load providers + build model dropdown --------------------------------
+    async function _loadProviders() {
+        _providersLoaded = true;
+        const subtitle = document.getElementById('ai-chat-subtitle');
+        const modelBar = document.getElementById('ai-chat-model-bar');
+        const modelSelect = document.getElementById('ai-chat-model-select');
+        const noProvider = document.getElementById('ai-chat-no-provider');
+        const chatLog = document.getElementById('ai-chat-log');
+        const inputArea = document.getElementById('ai-chat-input-area');
+
+        try {
+            const data = await _api('/api/ai/providers');
+            const providers = (data.providers || []).filter(
+                p => p.status === 'active' || p.status === 'enabled' || p.is_active
+            );
+
+            if (!providers.length) {
+                _showState('no-provider');
+                subtitle.textContent = 'No model configured';
+                return;
+            }
+
+            // Fetch active models for each provider in parallel
+            const modelInfos = await Promise.all(
+                providers.map(p =>
+                    _api('/api/ai/providers/' + p.id + '/models')
+                        .then(d => ({ provider: p, data: d }))
+                        .catch(() => ({ provider: p, data: { models: [], active: [] } }))
+                )
+            );
+
+            // Build <option> list from active models only
+            modelSelect.innerHTML = '';
+            let totalOptions = 0;
+            modelInfos.forEach(({ provider: p, data: d }) => {
+                const allModels = d.models || [];
+                const activeSet = new Set((d.active && d.active.length) ? d.active : []);
+                const defaultId = d.default || null;
+                // Use active models; fall back to first model if none are marked active
+                const usable = allModels.filter(m => activeSet.has(m.id) || (!activeSet.size && allModels.indexOf(m) === 0));
+                usable.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = JSON.stringify({ provider_id: p.id, model_id: m.id });
+                    opt.textContent = (p.name || p.type) + ' / ' + (m.name || m.id);
+                    if (m.id === defaultId) opt.textContent += ' ★';
+                    modelSelect.appendChild(opt);
+                    totalOptions++;
+                });
+                // If no usable models found, add provider-level fallback
+                if (!usable.length) {
+                    const opt = document.createElement('option');
+                    opt.value = JSON.stringify({ provider_id: p.id, model_id: null });
+                    opt.textContent = (p.name || p.type) + ' — default model';
+                    modelSelect.appendChild(opt);
+                    totalOptions++;
+                }
+            });
+
+            if (!totalOptions) {
+                _showState('no-provider');
+                subtitle.textContent = 'No active models found';
+                return;
+            }
+
+            // Set initial selection
+            try { _selectedModel = JSON.parse(modelSelect.value); } catch (_) {}
+            _updateSubtitle();
+
+            // Show chat UI
+            _showState('chat');
+            modelBar.classList.toggle('hidden', totalOptions <= 1);
+            _appendWelcome();
+
+        } catch (e) {
+            subtitle.textContent = 'Error: ' + e.message;
+            _showState('no-provider');
+        }
+    }
+
+    function _showState(state) {
+        const noProvider = document.getElementById('ai-chat-no-provider');
+        const chatLog = document.getElementById('ai-chat-log');
+        const inputArea = document.getElementById('ai-chat-input-area');
+
+        if (state === 'no-provider') {
+            noProvider.classList.remove('hidden'); noProvider.classList.add('flex');
+            chatLog.classList.add('hidden');
+            inputArea.classList.add('hidden');
+        } else {
+            noProvider.classList.add('hidden'); noProvider.classList.remove('flex');
+            chatLog.classList.remove('hidden');
+            inputArea.classList.remove('hidden');
+        }
+    }
+
+    function _updateSubtitle() {
+        const select = document.getElementById('ai-chat-model-select');
+        const subtitle = document.getElementById('ai-chat-subtitle');
+        if (select && select.selectedIndex >= 0) {
+            subtitle.textContent = select.options[select.selectedIndex].textContent.replace(' ★', '');
+        }
+    }
+
+    function _appendWelcome() {
+        _appendBubble('ai',
+            'Hello! I can help you manage playlists, create rules, or answer questions about your library. What would you like to do?',
+            false
+        );
+    }
+
+    // ---- Chat bubbles --------------------------------------------------------
+    function _appendBubble(role, content, isHtml) {
+        const log = document.getElementById('ai-chat-log');
+        if (!log) return null;
+        const wrap = document.createElement('div');
+
+        if (role === 'user') {
+            wrap.className = 'flex justify-end';
+            wrap.innerHTML = `<div class="bg-[#2f8fc9]/20 border border-[#2f8fc9]/30 rounded-2xl rounded-tr-sm px-4 py-2.5 text-[12px] text-gray-100 max-w-[85%] leading-relaxed whitespace-pre-wrap">${isHtml ? content : _esc(content)}</div>`;
+        } else {
+            wrap.className = 'flex items-start gap-2.5';
+            wrap.innerHTML = `
+                <div class="w-6 h-6 rounded-full bg-[#2f8fc9]/15 border border-[#2f8fc9]/30 flex items-center justify-center shrink-0 mt-0.5">
+                    <i class="fa-solid fa-robot text-[#2f8fc9] text-[9px]"></i>
+                </div>
+                <div class="bg-[#20242c] border border-[#2a2f3a] rounded-2xl rounded-tl-sm px-4 py-2.5 text-[12px] text-gray-200 max-w-[85%] leading-relaxed whitespace-pre-wrap">${isHtml ? content : _esc(content)}</div>
+            `;
+        }
+
+        log.appendChild(wrap);
+        log.scrollTop = log.scrollHeight;
+        return wrap;
+    }
+
+    // ---- Send ----------------------------------------------------------------
+    async function _send() {
+        const input = document.getElementById('ai-chat-input');
+        const sendBtn = document.getElementById('ai-chat-send');
+        const text = (input?.value || '').trim();
+        if (!text) return;
+
+        input.value = '';
+        input.style.height = '42px';
+        _appendBubble('user', text);
+
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[11px]"></i>';
+
+        const typing = _appendBubble('ai',
+            '<i class="fa-solid fa-ellipsis fa-fade text-gray-500 text-sm"></i>',
+            true
+        );
+
+        try {
+            const body = { message: text };
+            if (_convId) body.conversation_id = _convId;
+            if (_selectedModel) {
+                if (_selectedModel.provider_id) body.provider_id = _selectedModel.provider_id;
+                if (_selectedModel.model_id) body.model = _selectedModel.model_id;
+            }
+
+            const res = await _api('/api/ai/chat', { method: 'POST', body: JSON.stringify(body) });
+            typing.remove();
+
+            if (res.error) {
+                _appendBubble('ai',
+                    `<span class="text-red-400"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${_esc(res.error)}</span>`,
+                    true
+                );
+            } else {
+                if (res.conversation_id) _convId = res.conversation_id;
+                _appendBubble('ai', res.reply || '(no response)');
+            }
+        } catch (e) {
+            typing.remove();
+            _appendBubble('ai',
+                `<span class="text-red-400"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${_esc(e.message)}</span>`,
+                true
+            );
+        } finally {
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane text-[11px]"></i>';
+            input?.focus();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initAIChatWidget);
+})();
+
