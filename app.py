@@ -2356,32 +2356,63 @@ def _get_active_provider(config: TubeManagerConfig) -> ProviderConnection | None
 def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
     """Run model discovery for a connection.
 
-    Returns a dict with one of:
-      - {"models": [{"id", "name", "owned_by?"}], "manual_entry": False}
-      - {"manual_entry": True}   (anthropic/google catalog OR probe-unsupported)
-      - {"error": <msg>, "manual_entry": True}  (probe failed; manual fallback)
-
-    For openai/groq/custom: live GET {base}/v1/models probe with B.4 error
-    handling. For anthropic/google: probe skipped, manual_entry=True.
+    Returns a dict with:
+      - {"models": [{"id", "name"}], "manual_entry": False}  — live probe succeeded
+      - {"models": [...catalog...], "manual_entry": True}    — curated catalog (anthropic/google)
+      - {"error": <msg>, "manual_entry": True}               — probe failed
     """
     import httpx
 
-    # anthropic/google: skip probe entirely (known non-OpenAI shape).
-    if conn.type in ("anthropic", "google"):
-        return {"manual_entry": True, "models": []}
+    # ------------------------------------------------------------------ #
+    # Curated catalogs for providers whose APIs don't expose /v1/models   #
+    # ------------------------------------------------------------------ #
+    ANTHROPIC_CATALOG = [
+        {"id": "claude-opus-4-5",          "name": "Claude Opus 4.5"},
+        {"id": "claude-sonnet-4-5",        "name": "Claude Sonnet 4.5"},
+        {"id": "claude-haiku-3-5",         "name": "Claude Haiku 3.5"},
+        {"id": "claude-opus-4-0",          "name": "Claude Opus 4"},
+        {"id": "claude-sonnet-4-0",        "name": "Claude Sonnet 4"},
+        {"id": "claude-haiku-3-0",         "name": "Claude Haiku 3"},
+        {"id": "claude-3-5-sonnet-latest", "name": "Claude 3.5 Sonnet (latest)"},
+        {"id": "claude-3-5-haiku-latest",  "name": "Claude 3.5 Haiku (latest)"},
+        {"id": "claude-3-opus-20240229",   "name": "Claude 3 Opus"},
+    ]
 
+    GOOGLE_CATALOG = [
+        {"id": "gemini-2.5-pro",           "name": "Gemini 2.5 Pro"},
+        {"id": "gemini-2.5-flash",         "name": "Gemini 2.5 Flash"},
+        {"id": "gemini-2.0-flash",         "name": "Gemini 2.0 Flash"},
+        {"id": "gemini-2.0-flash-lite",    "name": "Gemini 2.0 Flash-Lite"},
+        {"id": "gemini-1.5-pro",           "name": "Gemini 1.5 Pro"},
+        {"id": "gemini-1.5-flash",         "name": "Gemini 1.5 Flash"},
+        {"id": "gemini-1.5-flash-8b",      "name": "Gemini 1.5 Flash-8B"},
+    ]
+
+    if conn.type == "anthropic":
+        return {"models": ANTHROPIC_CATALOG, "manual_entry": True}
+
+    if conn.type == "google":
+        return {"models": GOOGLE_CATALOG, "manual_entry": True}
+
+    # ------------------------------------------------------------------ #
+    # Live probe for OpenAI-compatible providers                          #
+    # ------------------------------------------------------------------ #
     base = (conn.base_url or "").rstrip("/")
     if not base:
         return {"manual_entry": True, "error": "No base_url configured"}
 
-    models_url = f"{base}/v1/models"
+    # Groq's OpenAI-compat surface is under /openai/v1, not /v1
+    if conn.type == "groq":
+        models_url = f"{base}/openai/v1/models"
+    else:
+        models_url = f"{base}/v1/models"
+
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
     try:
         with httpx.Client(timeout=15.0) as client:
             resp = client.get(models_url, headers=headers)
     except (httpx.TimeoutException, httpx.ConnectError, httpx.TransportError) as e:
-        # Retry once with backoff (B.4 timeout/network).
         try:
             import time
             time.sleep(1.0)
@@ -2390,14 +2421,11 @@ def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
         except Exception as e2:
             return {"manual_entry": True, "error": f"Discovery probe failed: {e2}"}
 
-    # B.4: 401/403 -> invalid key, do NOT cache, surface to UI.
     if resp.status_code in (401, 403):
         return {"manual_entry": True, "error": "Invalid API key / unauthorized (401/403)"}
-    # B.4: 404 / non-OpenAI host -> manual entry fallback.
     if resp.status_code == 404:
         return {"manual_entry": True, "error": "No /v1/models route (404)"}
 
-    # B.4: non-JSON or unexpected shape -> manual entry.
     try:
         payload = resp.json()
     except Exception:
@@ -2418,6 +2446,8 @@ def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
         return {"manual_entry": True, "error": "Malformed model list"}
 
     return {"models": models, "manual_entry": False}
+
+
 
 
 @app.get("/api/ai/providers", dependencies=[Depends(get_current_user), Depends(verify_origin)])
@@ -2529,11 +2559,11 @@ async def ai_discover_provider_models(provider_id: str):
     manual = result.get("manual_entry", False)
     error = result.get("error")
 
-    # Cache discovered models when the probe succeeded.
-    if not manual and models:
+    # Cache discovered models — both live probes AND curated catalogs so that
+    # the "X / Y models active" counter on the Providers page is populated.
+    if models and not error:
         conn.discovered_models = [m["id"] for m in models if m.get("id")]
         conn.discovered_at = datetime.now(timezone.utc).isoformat()
-        # Best-effort persist (don't fail discovery on a save error).
         try:
             await config_manager.save(config)
         except Exception as e:
