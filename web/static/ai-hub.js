@@ -144,6 +144,7 @@
   }
 
   // ---- PROVIDERS -----------------------------------------------------------
+  // ---- PROVIDERS -----------------------------------------------------------
   async function loadProviders() {
     const box = $('#prov-list');
     box.innerHTML = '<div class="bento-card p-4 text-xs text-gray-500">Loading…</div>';
@@ -154,8 +155,7 @@
         return;
       }
       // Pull the full per-provider model list (discovered + active + default) from
-      // the models endpoint — this is the source of truth, not the aggregate
-      // /api/ai/models which only returns already-selected models.
+      // the models endpoint.
       const modelInfos = await Promise.all(providers.map(p =>
         api('/api/ai/providers/' + p.id + '/models').then(d => ({ id: p.id, data: d })).catch(() => ({ id: p.id, data: { models: [], active: [], default: null } }))
       ));
@@ -170,19 +170,25 @@
         const def = grp.default || null;
         const activeCount = p.active_model_count || activeSet.size;
         const totalCount = p.discovered_model_count || mlist.length;
+        const isOpen = expandedProviders.has(p.id);
 
         let modelsBody = '';
         if (!mlist.length) {
-          modelsBody = '<div class="text-[11px] text-gray-500 py-1">No models discovered yet — click Rescan.</div>';
+          modelsBody = '<div class="text-[11px] text-gray-500 py-1 px-3">No models discovered yet — click Rescan.</div>';
         } else {
           modelsBody = mlist.map(m => {
             const id = m.id;
             const checked = activeSet.has(id);
-            return '<div class="flex items-center gap-2 text-[11px] ' + (checked ? 'text-gray-200' : 'text-gray-500') + ' py-0.5">' +
-              '<i class="fas ' + (checked ? 'fa-check-square text-[#2f8fc9]' : 'fa-square text-gray-600') + ' flex-shrink-0"></i>' +
-              '<span class="font-mono truncate">' + esc(m.name || id) + '</span>' +
-              (def === id ? ' <span class="text-[9px] text-[#16a34a] flex-shrink-0">default</span>' : '') +
-              '</div>';
+            const isDef = (def === id);
+            return '<div class="flex items-center justify-between gap-4 text-[11px] py-1.5 px-3 border-b border-[#2a2f3a]/30 last:border-0 hover:bg-[#20242c]/30">' +
+              '<label class="flex items-center gap-2.5 text-gray-300 cursor-pointer min-w-0 flex-1 select-none">' +
+                '<input type="checkbox" class="model-chk accent-[#2f8fc9] flex-shrink-0" data-pid="' + esc(p.id) + '" value="' + esc(id) + '"' + (checked ? ' checked' : '') + '>' +
+                '<span class="font-mono truncate ' + (checked ? 'text-gray-200' : 'text-gray-500') + '">' + esc(m.name || id) + '</span>' +
+              '</label>' +
+              '<button class="model-default text-[10px] flex-shrink-0 ' + (isDef ? 'text-[#16a34a] font-bold' : 'text-[#2f8fc9] hover:underline') + '" data-pid="' + esc(p.id) + '" data-mid="' + esc(id) + '">' +
+                (isDef ? 'DEFAULT ★' : 'Set default') +
+              '</button>' +
+            '</div>';
           }).join('');
         }
 
@@ -190,7 +196,7 @@
           ? activeCount + ' active &nbsp;·&nbsp; ' + totalCount + ' total'
           : 'No models';
 
-        return '<div class="bento-card p-4 flex flex-col gap-2">' +
+        return '<div class="bento-card p-4 flex flex-col gap-2.5">' +
           // Header row: name + status pill
           '<div class="flex items-center justify-between">' +
             '<div class="min-w-0">' +
@@ -200,27 +206,25 @@
             '<span class="pill ' + (ok ? 'pill-success' : 'pill-error') + '">' + (ok ? 'Connected' : esc(p.status || 'error')) + '</span>' +
           '</div>' +
           // Collapsible model toggle row
-          '<button class="prov-models-toggle flex items-center justify-between w-full text-[11px] text-gray-400 border border-[#2a2f3a] rounded-lg px-3 py-1.5 hover:border-[#2f8fc9]/40 hover:text-gray-300 transition-colors" data-id="' + esc(p.id) + '">' +
+          '<button class="prov-models-toggle flex items-center justify-between w-full text-[11px] text-gray-400 bg-[#16191f] border border-[#2a2f3a] rounded-lg px-3 py-2 hover:border-[#2f8fc9]/40 hover:text-gray-300 transition-colors" data-id="' + esc(p.id) + '">' +
             '<span>' + toggleLabel + '</span>' +
-            '<span class="prov-chevron text-gray-500 transition-transform duration-200"><i class="fas fa-chevron-down text-[9px]"></i></span>' +
+            '<span class="prov-chevron text-gray-500 transition-transform duration-200" style="' + (isOpen ? 'transform: rotate(180deg);' : '') + '"><i class="fas fa-chevron-down text-[9px]"></i></span>' +
           '</button>' +
-          // Collapsible model body (hidden by default)
-          '<div class="prov-models-body hidden border-t border-[#2a2f3a] pt-2 space-y-0.5 max-h-48 overflow-y-auto" data-id="' + esc(p.id) + '">' +
+          // Collapsible model body (hidden/visible based on open state)
+          '<div class="prov-models-body ' + (isOpen ? '' : 'hidden') + ' border border-[#2a2f3a] rounded-lg mt-0.5 bg-[#13151b] py-0.5 max-h-52 overflow-y-auto" data-id="' + esc(p.id) + '">' +
             modelsBody +
           '</div>' +
           // Actions row
           '<div class="flex items-center justify-between text-[11px] text-gray-500 pt-1">' +
-            '<div class="flex gap-3">' +
-              '<button class="prov-rescan text-[#2f8fc9] hover:underline" data-id="' + esc(p.id) + '"><i class="fas fa-sync"></i> Rescan</button>' +
-              '<button class="prov-manage text-[#2f8fc9] hover:underline" data-id="' + esc(p.id) + '">Manage</button>' +
-            '</div>' +
+            '<button class="prov-rescan text-[#2f8fc9] hover:underline" data-id="' + esc(p.id) + '"><i class="fas fa-sync"></i> Rescan</button>' +
             '<button class="prov-del text-[#dc2626] hover:underline" data-id="' + esc(p.id) + '">Disconnect</button>' +
           '</div>' +
         '</div>';
       }).join('');
       $all('.prov-del').forEach(b => b.addEventListener('click', () => deleteProvider(b.getAttribute('data-id'))));
-      $all('.prov-manage').forEach(b => b.addEventListener('click', () => { switchTab('models'); loadModels(b.getAttribute('data-id')); }));
       $all('.prov-rescan').forEach(b => b.addEventListener('click', () => rescanProvider(b.getAttribute('data-id'))));
+      $all('.model-chk').forEach(c => c.addEventListener('change', () => persistModels(c.getAttribute('data-pid'))));
+      $all('.model-default').forEach(b => b.addEventListener('click', () => setDefault(b.getAttribute('data-pid'), b.getAttribute('data-mid'))));
       $all('.prov-models-toggle').forEach(btn => {
         btn.addEventListener('click', () => {
           const id = btn.getAttribute('data-id');
@@ -229,7 +233,13 @@
           if (!body) return;
           const open = !body.classList.contains('hidden');
           body.classList.toggle('hidden', open);
-          if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+          if (open) {
+            expandedProviders.delete(id);
+            if (chevron) chevron.style.transform = '';
+          } else {
+            expandedProviders.add(id);
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+          }
         });
       });
     } catch (e) {
@@ -295,6 +305,7 @@
 
   // Add provider modal
   let pendingProviderId = null;
+  const expandedProviders = new Set();
   function openProvModal() {
     pendingProviderId = null;
     $('#prov-step1').classList.remove('hidden');
@@ -384,62 +395,10 @@
   }
 
   // ---- MODELS --------------------------------------------------------------
-  async function loadModels(highlightId) {
-    const box = $('#models-list');
-    box.innerHTML = '<div class="bento-card p-4 text-xs text-gray-500">Loading…</div>';
-    try {
-      const [provResp, all] = await Promise.all([api('/api/ai/providers'), api('/api/ai/models').catch(() => null)]);
-      const providers = provResp.providers || [];
-      if (!providers.length) {
-        box.innerHTML = '<div class="bento-card p-4">' + emptyState('No providers', 'Connect a provider first.') + '</div>';
-        return;
-      }
-      const grouped = (all && all.providers) || providers.map(p => ({ id: p.id, name: p.name, models: [] }));
-      box.innerHTML = grouped.map(g => {
-        return '<div class="bento-card p-4"><div class="flex items-center justify-between mb-2">' +
-          '<div class="text-sm text-gray-100">' + esc(g.name) + '</div>' +
-          '<button class="models-refresh text-[11px] text-[#2f8fc9] hover:underline" data-id="' + esc(g.id) + '">Refresh</button></div>' +
-          '<div class="models-box space-y-1" data-id="' + esc(g.id) + '"><div class="text-xs text-gray-500">Loading models…</div></div></div>';
-      }).join('');
-      for (const g of grouped) {
-        await renderProviderModels(g.id);
-      }
-      $all('.models-refresh').forEach(b => b.addEventListener('click', () => renderProviderModels(b.getAttribute('data-id'), true)));
-      if (highlightId) {
-        const el = document.querySelector('.models-box[data-id="' + CSS.escape(highlightId) + '"]');
-        if (el) el.scrollIntoView({ block: 'center' });
-      }
-    } catch (e) {
-      box.innerHTML = '<div class="bento-card p-4 text-xs text-[#dc2626]">' + sanitize(e.message) + '</div>';
-    }
-  }
-  async function renderProviderModels(pid, refresh) {
-    const box = document.querySelector('.models-box[data-id="' + (pid ? CSS.escape(pid) : '') + '"]');
-    if (!box) return;
-    try {
-      const data = await api('/api/ai/providers/' + pid + '/models' + (refresh ? '?refresh=1' : ''));
-      const models = data.models || [];
-      // Backend GET returns {models, manual_entry} without active/default, so
-      // derive a sensible default when absent: first model checked + default.
-      const active = new Set((data.active && data.active.length ? data.active : [models[0] && (models[0].id || models[0])]).map(a => a.id || a));
-      const def = data.default || (models.find(m => active.has(m.id)) || models[0] || {}).id;
-      if (!models.length) { box.innerHTML = '<div class="text-xs text-gray-500">No models discovered for this provider.</div>'; return; }
-      box.innerHTML = models.map(m =>
-        '<div class="flex items-center justify-between text-xs py-1">' +
-        '<label class="flex items-center gap-2 text-gray-300 cursor-pointer min-w-0">' +
-        '<input type="checkbox" class="model-chk accent-[#2f8fc9]" data-pid="' + esc(pid) + '" value="' + esc(m.id) + '"' + (active.has(m.id) ? ' checked' : '') + '>' +
-        '<span class="font-mono truncate">' + esc(m.name || m.id) + '</span></label>' +
-        '<button class="model-default text-[11px] ' + (def === m.id ? 'text-[#16a34a] font-semibold' : 'text-[#2f8fc9] hover:underline') + '" data-pid="' + esc(pid) + '" data-mid="' + esc(m.id) + '">' + (def === m.id ? 'DEFAULT' : 'Set default') + '</button>' +
-        '</div>'
-      ).join('');
-      $all('.model-chk').forEach(c => c.addEventListener('change', () => persistModels(c.getAttribute('data-pid'))));
-      $all('.model-default').forEach(b => b.addEventListener('click', () => setDefault(b.getAttribute('data-pid'), b.getAttribute('data-mid'))));
-    } catch (e) { box.innerHTML = '<div class="text-xs text-[#dc2626]">' + sanitize(e.message) + '</div>'; }
-  }
   function collectModels(pid) {
     const chks = $all('.model-chk[data-pid="' + CSS.escape(pid) + '"]:checked');
     const active = chks.map(c => c.value);
-    const defBtn = document.querySelector('.model-default[data-pid="' + CSS.escape(pid) + '"][data-mid]');
+    const defBtn = $all('.model-default[data-pid="' + CSS.escape(pid) + '"]').find(btn => btn.textContent.trim().toUpperCase().startsWith('DEFAULT'));
     let def = defBtn ? defBtn.getAttribute('data-mid') : (active[0] || '');
     return { active, default: def };
   }
@@ -448,6 +407,7 @@
     try {
       await api('/api/ai/providers/' + pid + '/models', { method: 'PUT', body: JSON.stringify({ active, default: def }) });
       loadHub();
+      loadProviders();
     } catch (e) { toast(e.message, 'error'); }
   }
   async function setDefault(pid, mid) {
@@ -455,8 +415,9 @@
     const arr = active.includes(mid) ? active : [mid, ...active];
     try {
       await api('/api/ai/providers/' + pid + '/models', { method: 'PUT', body: JSON.stringify({ active: arr, default: mid }) });
-      await renderProviderModels(pid);
       toast('Default model set', 'success');
+      loadHub();
+      loadProviders();
     } catch (e) { toast(e.message, 'error'); }
   }
 
