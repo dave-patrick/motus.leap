@@ -1307,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', initGlobalAgentDrawer);
         btn.title = 'AI Chat';
         btn.setAttribute('aria-label', 'Open AI Chat');
         btn.className = [
-            'fixed top-[13px] right-[72px] z-[60]',
+            'fixed top-[13px] right-4 z-[60]',
             'w-10 h-10 rounded-xl',
             'bg-[#2f8fc9] hover:bg-[#2a7db8]',
             'text-white flex items-center justify-center',
