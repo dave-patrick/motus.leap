@@ -218,6 +218,47 @@
     } catch (e) { toast(e.message, 'error'); }
   }
 
+  // ---- Provider type UI helpers (IIFE scope so openProvModal can call them) ----
+  const PROV_URLS = {
+    openai: 'https://api.openai.com',
+    anthropic: 'https://api.anthropic.com',
+    groq: 'https://api.groq.com',
+    grok: 'https://api.x.ai',
+    google: 'https://generativelanguage.googleapis.com',
+  };
+  const PROV_HINTS = {
+    openai: 'Get your API key at platform.openai.com — GPT-4o, o1, o3 and more.',
+    anthropic: 'Get your API key at console.anthropic.com — Claude 3.5 Sonnet, Haiku, Opus.',
+    groq: 'Get a free API key at console.groq.com — blazing fast open-source model inference.',
+    grok: 'Get your API key at console.x.ai — Grok-3, Grok-2 and beta models.',
+    google: 'Get a Gemini API key at aistudio.google.com — Gemini 2.5 Pro, Flash and more.',
+    custom: 'Any OpenAI-compatible endpoint (Ollama, LM Studio, Together AI, Mistral, OpenRouter…). Needs a /v1/models route for automatic discovery.',
+  };
+  function updateProvType() {
+    const typeEl = $('#prov-type');
+    if (!typeEl) return;
+    const type = typeEl.value;
+    const baseEl = $('#prov-base');
+    const hintEl = $('#prov-type-hint');
+    const presetsEl = $('#prov-presets');
+    const lockEl = $('#prov-base-lock');
+    const keyOptEl = $('#prov-key-optional');
+    if (baseEl) {
+      baseEl.value = PROV_URLS[type] || '';
+      if (lockEl) lockEl.textContent = PROV_URLS[type] ? 'pre-filled · override if needed' : 'required';
+    }
+    if (hintEl) {
+      const hint = PROV_HINTS[type] || '';
+      hintEl.textContent = hint;
+      hintEl.classList.toggle('hidden', !hint);
+    }
+    if (presetsEl) presetsEl.classList.toggle('hidden', type !== 'custom');
+    if (keyOptEl) keyOptEl.classList.toggle('hidden', type !== 'custom');
+    const namePh = { openai: 'My OpenAI', anthropic: 'My Claude', groq: 'My Groq', grok: 'My Grok', google: 'My Gemini', custom: 'My LLM' };
+    const nameEl = $('#prov-name');
+    if (nameEl) nameEl.placeholder = namePh[type] || 'Provider name';
+  }
+
   // Add provider modal
   let pendingProviderId = null;
   function openProvModal() {
@@ -734,48 +775,7 @@
     $('#prov-modal-close') && $('#prov-modal-close').addEventListener('click', closeProvModal);
     $('#prov-connect') && $('#prov-connect').addEventListener('click', connectProvider);
     $('#prov-save') && $('#prov-save').addEventListener('click', saveProviderModels);
-    // Provider type UI: pre-fill base URL, hints, presets
-    const PROV_URLS = {
-      openai: 'https://api.openai.com',
-      anthropic: 'https://api.anthropic.com',
-      groq: 'https://api.groq.com',
-      grok: 'https://api.x.ai',
-      google: 'https://generativelanguage.googleapis.com',
-    };
-    const PROV_HINTS = {
-      openai: 'Get your API key at platform.openai.com — GPT-4o, o1, o3 and more.',
-      anthropic: 'Get your API key at console.anthropic.com — Claude 3.5 Sonnet, Haiku, Opus.',
-      groq: 'Get a free API key at console.groq.com — blazing fast open-source model inference.',
-      grok: 'Get your API key at console.x.ai — Grok-3, Grok-2 and beta models.',
-      google: 'Get a Gemini API key at aistudio.google.com — Gemini 2.5 Pro, Flash and more.',
-      custom: 'Any OpenAI-compatible endpoint (Ollama, LM Studio, Together AI, Mistral, OpenRouter…). Needs a /v1/models route for automatic discovery.',
-    };
-    function updateProvType() {
-      const typeEl = $('#prov-type');
-      if (!typeEl) return;
-      const type = typeEl.value;
-      const baseEl = $('#prov-base');
-      const hintEl = $('#prov-type-hint');
-      const presetsEl = $('#prov-presets');
-      const lockEl = $('#prov-base-lock');
-      const keyOptEl = $('#prov-key-optional');
-      if (baseEl) {
-        baseEl.value = PROV_URLS[type] || '';
-        if (lockEl) lockEl.textContent = PROV_URLS[type] ? 'pre-filled · override if needed' : 'required';
-      }
-      if (hintEl) {
-        const hint = PROV_HINTS[type] || '';
-        hintEl.textContent = hint;
-        hintEl.classList.toggle('hidden', !hint);
-      }
-      if (presetsEl) presetsEl.classList.toggle('hidden', type !== 'custom');
-      if (keyOptEl) keyOptEl.classList.toggle('hidden', type !== 'custom');
-      const namePh = { openai: 'My OpenAI', anthropic: 'My Claude', groq: 'My Groq', grok: 'My Grok', google: 'My Gemini', custom: 'My LLM' };
-      const nameEl = $('#prov-name');
-      if (nameEl) nameEl.placeholder = namePh[type] || 'Provider name';
-    }
     $('#prov-type') && $('#prov-type').addEventListener('change', updateProvType);
-    // Preset quick-fill
     $all('.prov-preset').forEach(btn => {
       btn.addEventListener('click', () => {
         const baseEl = $('#prov-base');
