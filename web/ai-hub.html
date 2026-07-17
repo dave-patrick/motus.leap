@@ -38,7 +38,7 @@
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
-    <script src="/static/ux-enhancements.js?v=20260716g"></script>
+    <script src="/static/ux-enhancements.js?v=20260717a"></script>
 </head>
 <body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
 
@@ -258,7 +258,14 @@
         </div>
         <div id="prov-step2" class="hidden space-y-3">
             <div class="flex items-center justify-between">
-                <span class="text-[10px] text-gray-400">Select models to activate:</span>
+                <div class="flex items-center gap-3">
+                    <span class="text-[10px] text-gray-400">Select models to activate:</span>
+                    <div id="prov-bulk-actions" class="hidden flex items-center gap-2 ml-2 border-l border-[#2a2f3a] pl-2">
+                        <button id="prov-select-all" class="text-[10px] text-[#2f8fc9] hover:underline" type="button">Select all</button>
+                        <span class="text-[9px] text-gray-600">•</span>
+                        <button id="prov-deselect-all" class="text-[10px] text-gray-500 hover:underline" type="button">Deselect all</button>
+                    </div>
+                </div>
                 <label id="prov-step2-free-wrap" class="flex items-center gap-1.5 text-[10px] text-gray-400 hover:text-gray-300 cursor-pointer select-none hidden">
                     <input type="checkbox" id="prov-step2-free" class="accent-[#2f8fc9] scale-90">
                     <span>Free only</span>

@@ -372,6 +372,8 @@
     $('#prov-name').value = ''; $('#prov-key').value = ''; $('#prov-base').value = '';
     $('#prov-type').value = 'openai';
     $('#prov-step1-msg').textContent = ''; $('#prov-step2-msg').textContent = '';
+    const bulkActions = $('#prov-bulk-actions');
+    if (bulkActions) bulkActions.classList.add('hidden');
     updateProvType(); // apply initial type state
     const m = $('#prov-modal'); m.classList.remove('hidden'); m.classList.add('flex');
   }
@@ -396,6 +398,8 @@
     $('#prov-key').value = '**********'; // placeholder
     $('#prov-base').value = p.base_url || '';
     $('#prov-step1-msg').textContent = ''; $('#prov-step2-msg').textContent = '';
+    const bulkActions = $('#prov-bulk-actions');
+    if (bulkActions) bulkActions.classList.add('hidden');
     updateProvType(true);
     const m = $('#prov-modal'); m.classList.remove('hidden'); m.classList.add('flex');
   }
@@ -440,6 +444,8 @@
       const data = await api('/api/ai/providers/' + pid + '/models');
       const models = (data.models || []);
       if (!models.length) {
+        const bulkActions = $('#prov-bulk-actions');
+        if (bulkActions) bulkActions.classList.add('hidden');
         // No models discovered (e.g. provider has no /v1/models, or empty).
         // Offer manual entry so the user is never stuck (they can paste a model id).
         const hint = (data.error && data.error.indexOf('Anthropic') >= 0) ? 'a curated catalog is used' : 'enter a model id manually';
@@ -485,7 +491,11 @@
           '<span class="font-mono">' + esc(m.name || id) + '</span>' +
           (def ? ' <span class="text-[9px] text-[#2f8fc9]">default</span>' : '') + '</label>';
       }).join('');
+      const bulkActions = $('#prov-bulk-actions');
+      if (bulkActions) bulkActions.classList.remove('hidden');
     } catch (e) {
+      const bulkActions = $('#prov-bulk-actions');
+      if (bulkActions) bulkActions.classList.add('hidden');
       box.innerHTML = '<div class="text-xs text-[#dc2626]">' + sanitize(e.message) + '</div>';
     }
   }
@@ -883,6 +893,24 @@
     $('#prov-modal-close') && $('#prov-modal-close').addEventListener('click', closeProvModal);
     $('#prov-connect') && $('#prov-connect').addEventListener('click', connectProvider);
     $('#prov-save') && $('#prov-save').addEventListener('click', saveProviderModels);
+    $('#prov-select-all') && $('#prov-select-all').addEventListener('click', (e) => {
+      e.preventDefault();
+      $all('.prov-model-chk').forEach(cb => {
+        const label = cb.closest('label');
+        if (label && !label.classList.contains('hidden')) {
+          cb.checked = true;
+        }
+      });
+    });
+    $('#prov-deselect-all') && $('#prov-deselect-all').addEventListener('click', (e) => {
+      e.preventDefault();
+      $all('.prov-model-chk').forEach(cb => {
+        const label = cb.closest('label');
+        if (label && !label.classList.contains('hidden')) {
+          cb.checked = false;
+        }
+      });
+    });
     $('#prov-type') && $('#prov-type').addEventListener('change', () => updateProvType());
     $all('.prov-preset').forEach(btn => {
       btn.addEventListener('click', () => {
