@@ -591,7 +591,7 @@ class YouTubeService:
 
         except Exception as e:
             log.warning(f"Failed to check/list playlists: {e}")
-            if disk_playlists_payload: 
+            if disk_playlists_payload and disk_playlists_payload.get("playlists"): 
                 return disk_playlists_payload
             return {"playlists": [], "error": str(e)}
 
@@ -862,7 +862,7 @@ class YouTubeService:
                 raise
             except Exception as e:
                 log.warning(f"_fetch_all_paginated: fetch_fn raised: {e}. Stopping pagination.")
-                break
+                raise
 
             # Reset error counter on successful fetch
             consecutive_errors = 0
