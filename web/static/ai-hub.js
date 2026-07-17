@@ -883,7 +883,7 @@
     $('#prov-modal-close') && $('#prov-modal-close').addEventListener('click', closeProvModal);
     $('#prov-connect') && $('#prov-connect').addEventListener('click', connectProvider);
     $('#prov-save') && $('#prov-save').addEventListener('click', saveProviderModels);
-    $('#prov-type') && $('#prov-type').addEventListener('change', updateProvType);
+    $('#prov-type') && $('#prov-type').addEventListener('change', () => updateProvType());
     $all('.prov-preset').forEach(btn => {
       btn.addEventListener('click', () => {
         const baseEl = $('#prov-base');
