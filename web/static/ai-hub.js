@@ -979,8 +979,7 @@
     overlay && overlay.addEventListener('click', closeMobileSidebar);
     // close sidebar after navigating via a sub-nav link on mobile
     $all('.ai-sub').forEach(a => a.addEventListener('click', () => { if (window.innerWidth < 768) closeMobileSidebar(); }));
-    const logoutLink = document.getElementById('logout-link');
-    logoutLink && logoutLink.addEventListener('click', (e) => { e.preventDefault(); if (typeof window.logout === 'function') window.logout(); });
+    // (logout is handled in Settings only; no header logout button)
 
     // providers
     $('#prov-rescan-all') && $('#prov-rescan-all').addEventListener('click', () => {

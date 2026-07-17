@@ -1295,45 +1295,82 @@ window.clearLogs = function() {
     }
 
     function _openConsole() {
-        document.getElementById('live-console-panel')?.classList.remove('translate-x-full');
-        document.getElementById('live-console-overlay')?.classList.remove('hidden');
+        const p = document.getElementById('live-console-panel');
+        const o = document.getElementById('live-console-overlay');
+        if (p) p.classList.remove('translate-x-full');
+        if (o) o.classList.remove('hidden');
     }
 
-    function _closeConsole() {
-        const p = document.getElementById('live-console-panel');
-        if (p && p.dataset.docked === '1') return;
-        p?.classList.add('translate-x-full');
-        document.getElementById('live-console-overlay')?.classList.add('hidden');
+    function _closeConsole(force, panel) {
+        panel = panel || document.getElementById('live-console-panel');
+        const o = panel.id === 'live-console-panel'
+            ? document.getElementById('live-console-overlay')
+            : document.getElementById('ai-chat-overlay');
+        if (!panel) return;
+        if (force === undefined && panel.dataset.docked === '1') {
+            undockPanel(panel);
+            return;
+        }
+        if (panel.classList.contains('docked')) {
+            undockPanel(panel);
+            return;
+        }
+        panel.classList.add('translate-x-full');
+        if (o) o.classList.add('hidden');
+    }
+
+    function undockPanel(panel) {
+        panel.classList.remove('docked');
+        panel.classList.remove('translate-x-full');
+        const overlay =
+            panel.id === 'live-console-panel'
+                ? document.getElementById('live-console-overlay')
+                : document.getElementById('ai-chat-overlay');
+        if (overlay) overlay.classList.remove('hidden');
+        panel.dataset.docked = '0';
+        var sum = 0;
+        ['live-console-panel', 'ai-chat-panel'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el && el.classList.contains('docked')) sum += id === 'live-console-panel' ? 520 : 400;
+        });
+        var row = document.querySelector('main')?.parentElement;
+        if (row) row.style.setProperty('padding-right', sum + 'px', 'important');
     }
 
     // ---- Dock helpers ----------------------------------------------------
-function dockPanel(opts){
-    var _p=document.getElementById(opts.panelId); if(!_p)return;
-    var _o=opts.overlayId?document.getElementById(opts.overlayId):null;
-    function _apply(dock){
-        _p.classList.toggle('docked',dock);
-        _p.classList.toggle('translate-x-full',!dock);
-        if(_o) _o.classList.toggle('hidden',dock);
-        _p.dataset.docked=dock?'1':'0';
-        var sum=0;
-        ['live-console-panel','ai-chat-panel'].forEach(function(id){
-            var el=document.getElementById(id); if(el&&el.classList.contains('docked')) sum+=(id==='live-console-panel'?520:400);
+    function dockPanel(opts) {
+        var _p = document.getElementById(opts.panelId);
+        if (!_p) return;
+        var _o = opts.overlayId ? document.getElementById(opts.overlayId) : null;
+        function _apply(dock) {
+            _p.classList.toggle('docked', dock);
+            if (dock) {
+                _p.classList.remove('translate-x-full');
+                if (_o) _o.classList.add('hidden');
+            } else {
+                _p.classList.remove('translate-x-full');
+                if (_o) _o.classList.remove('hidden');
+            }
+            _p.dataset.docked = dock ? '1' : '0';
+            var sum = 0;
+            ['live-console-panel', 'ai-chat-panel'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el && el.classList.contains('docked')) sum += id === 'live-console-panel' ? 520 : 400;
+            });
+            var row = document.querySelector('main')?.parentElement;
+            if (row) row.style.setProperty('padding-right', sum + 'px', 'important');
+        }
+        document.getElementById(opts.panelId + '-dock')?.addEventListener('click', function () {
+            var dock = document.getElementById(opts.panelId).classList.contains('docked') ? false : true;
+            _apply(dock);
+            const icon = this.querySelector('i');
+            if (icon) icon.className = dock ? 'fa-solid fa-arrow-left-to-bracket text-[11px]' : 'fa-solid fa-arrow-right-to-bracket text-[11px]';
+            this.setAttribute('aria-label', dock ? 'Undock' : 'Dock');
         });
-        var row=document.querySelector('main')?.parentElement;
-        if(row) row.style.setProperty('padding-right',sum+'px','important');
+        document.querySelector('#' + opts.closeId)?.addEventListener('click', function () {
+            _closeConsole(undefined, document.getElementById(opts.panelId));
+        });
     }
-    document.getElementById(opts.panelId+'-dock')?.addEventListener('click',function(){
-        var dock=document.getElementById(opts.panelId).classList.contains('docked')?false:true;
-        _apply(dock);
-        const icon=this.querySelector('i');
-        if(icon) icon.className=dock?'fa-solid fa-arrow-left-to-bracket text-[11px]':'fa-solid fa-arrow-right-to-bracket text-[11px]';
-        this.setAttribute('aria-label',dock?'Undock':'Dock');
-    });
-    document.querySelector('#'+opts.closeId)?.addEventListener('click',function(){
-        if(_p.classList.contains('docked')){ _apply(false); return; }
-        _p.classList.add('translate-x-full'); if(_o) _o.classList.add('hidden');
-    });
-}
 
     dockPanel({panelId:'live-console-panel', overlayId:'live-console-overlay', closeId:'live-console-close'});
     document.addEventListener('DOMContentLoaded', initLiveConsoleWidget);
@@ -1502,8 +1539,8 @@ function dockPanel(opts){
         const overlay = document.getElementById('ai-chat-overlay');
 
         btn?.addEventListener('click', _openPanel);
-        overlay?.addEventListener('click', _closePanel);
-        document.getElementById('ai-chat-close')?.addEventListener('click', _closePanel);
+        overlay?.addEventListener('click', _closeConsole);
+        document.getElementById('ai-chat-close')?.addEventListener('click', _closeConsole);
         document.getElementById('ai-chat-clear')?.addEventListener('click', _newConversation);
         document.getElementById('ai-chat-send')?.addEventListener('click', _send);
         document.getElementById('ai-chat-new-conv')?.addEventListener('click', _newConversation);
@@ -1525,7 +1562,7 @@ function dockPanel(opts){
         });
 
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') _closePanel();
+            if (e.key === 'Escape') _closeConsole();
         });
 
         dockPanel({panelId:'ai-chat-panel', overlayId:'ai-chat-overlay', closeId:'ai-chat-close'});
@@ -1533,15 +1570,16 @@ function dockPanel(opts){
 
     // ---- Panel open / close --------------------------------------------------
     async function _openPanel() {
-        document.getElementById('ai-chat-panel').classList.remove('translate-x-full');
-        document.getElementById('ai-chat-overlay').classList.remove('hidden');
+        const panel = document.getElementById('ai-chat-panel');
+        const overlay = document.getElementById('ai-chat-overlay');
+        if (panel) panel.classList.remove('translate-x-full');
+        if (overlay) overlay.classList.remove('hidden');
         document.getElementById('ai-chat-input')?.focus();
         if (!_providersLoaded) await _loadProviders();
     }
 
     function _closePanel() {
-        document.getElementById('ai-chat-panel')?.classList.add('translate-x-full');
-        document.getElementById('ai-chat-overlay')?.classList.add('hidden');
+        _closeConsole('force');
     }
 
     function _newConversation() {
