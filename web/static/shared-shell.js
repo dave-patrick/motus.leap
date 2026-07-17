@@ -134,7 +134,20 @@
   }
 
   function ensureShellLayout() {
-    // Create the off-canvas sidebar if it does not exist on this page.
+    // 1) Header — create if the page has none (shared-shell is the single source).
+    let header = document.querySelector('header');
+    if (!header) {
+      const tmp = document.createElement('template');
+      tmp.innerHTML = shellHeader().trim();
+      header = tmp.content.firstElementChild;
+      header.dataset.shellVersion = SHELL_VERSION;
+      document.body.insertBefore(header, document.body.firstChild);
+    } else if (!header.dataset.shellVersion) {
+      header.innerHTML = shellHeader();
+      header.dataset.shellVersion = SHELL_VERSION;
+    }
+
+    // 2) Sidebar — create if absent.
     let aside = document.getElementById('mobile-sidebar');
     if (!aside) {
       const tmp = document.createElement('template');
@@ -143,23 +156,30 @@
       aside.dataset.shellVersion = SHELL_VERSION;
     }
 
+    // 3) Ensure <main> lives inside a flex shell that also contains the sidebar.
     const main = document.querySelector('main');
     if (!main) return;
 
-    // Wrap header(main) inside a flex-row shell holding [sidebar][main] so the
-    // desktop sidebar and the mobile off-canvas drawer both have a home.
-    if (!main.parentElement || !main.parentElement.classList.contains('shell-row')) {
+    const container = main.parentElement;
+    const containerIsShell = container && (
+      container === aside.parentElement ||
+      container.classList.contains('shell-row') ||
+      /(^|\s)flex(\s|$)/.test(container.className)
+    );
+
+    if (containerIsShell && container !== document.body) {
+      // Existing flex wrapper (e.g. ai-hub): drop the sidebar in as its first child.
+      if (!container.contains(aside)) container.insertBefore(aside, container.firstChild);
+    } else {
+      // No usable shell (e.g. dashboard): build one and move main + sidebar into it.
       const row = document.createElement('div');
       row.className = 'shell-row flex flex-1 min-h-0 overflow-hidden';
       main.parentNode.insertBefore(row, main);
       row.appendChild(aside);
       row.appendChild(main);
-    } else {
-      // shell-row already present — make sure the sidebar lives inside it.
-      if (!main.parentElement.contains(aside)) main.parentElement.insertBefore(aside, main);
     }
 
-    // Mobile hamburger toggle (header, mobile only) + tap overlay.
+    // 4) Mobile hamburger toggle + tap overlay (mobile only).
     if (!document.getElementById('sidebar-toggle')) {
       const tmp = document.createElement('template');
       tmp.innerHTML = shellHamburger().trim();
