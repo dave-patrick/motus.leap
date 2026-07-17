@@ -17,7 +17,7 @@ PROVIDER_BUILTIN_BASE_URLS = {
     "groq": "https://api.groq.com",
     "grok": "https://api.x.ai",
     "google": "https://generativelanguage.googleapis.com",
-    "openrouter": "https://openrouter.ai/api",
+    "openrouter": "https://openrouter.ai/api/v1",
 }
 
 
