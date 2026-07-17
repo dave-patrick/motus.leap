@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260717c';
+  const SHELL_VERSION = '20260717d';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -69,15 +69,43 @@
 
   let _aiPanelInjected = false;
   function injectAISheet() {
+    const existing = document.getElementById('ai-chat-panel');
+    if (existing) {
+      if (window.__aiPanelInjected) return;
+      window.__aiPanelInjected = true;
+
+      const robotBtn = document.getElementById('robot-button');
+      if (robotBtn) {
+        robotBtn.addEventListener('click', () => {
+          existing.classList.remove('translate-x-full');
+          const overlay = document.getElementById('ai-chat-overlay');
+          if (overlay) overlay.classList.remove('hidden');
+        });
+        return;
+      }
+
+      const chatBtn = document.getElementById('ai-chat-btn');
+      if (chatBtn) {
+        const already = chatBtn.dataset.shellWired === '1';
+        chatBtn.addEventListener('click', () => {
+          existing.classList.remove('translate-x-full');
+          const overlay = document.getElementById('ai-chat-overlay');
+          if (overlay) overlay.classList.remove('hidden');
+        });
+        chatBtn.dataset.shellWired = already ? chatBtn.dataset.shellWired : '1';
+      }
+
+      return;
+    }
     if (_aiPanelInjected) return;
     _aiPanelInjected = true;
 
-    const btn = document.getElementById('robot-button');
-    if (!btn) return;
+    const fallbackBtn = document.getElementById('ai-chat-btn') || document.createElement('button');
+    const btn = fallbackBtn;
     btn.setAttribute('data-shell-wired', '1');
 
-    const old = document.getElementById('ai-chat-btn');
-    if (old) old.remove();
+    const oldBtn = document.getElementById('ai-chat-btn');
+    if (oldBtn && oldBtn !== btn) oldBtn.remove();
 
     const panel = document.createElement('div');
     panel.id = 'ai-chat-panel';
@@ -88,16 +116,20 @@
     overlay.className = 'absolute inset-0 bg-black/60 hidden';
 
     const sheet = document.createElement('div');
-    sheet.className = 'absolute right-0 top-0 h-full w-[360px] max-w-[100vw] bg-[#141720] border-l border-[#232834] shadow-2xl translate-x-full transition-transform duration-200';
+    sheet.className = 'absolute right-0 top-0 h-full w-[400px] max-w-[100vw] bg-[#141720] border-l border-[#232834] shadow-2xl translate-x-full transition-transform duration-200';
     sheet.innerHTML = `
       <div class="flex items-center justify-between px-4 py-3 border-b border-[#2a2f3a]">
-        <div class="font-semibold text-sm text-white">Shared AI Chat</div>
+        <div class="font-semibold text-sm text-white">AI Chat</div>
         <div class="flex items-center gap-2">
-          <button id="ai-chat-dock" class="px-2 py-1 text-xs text-gray-400 hover:text-white">Dock</button>
-          <button id="ai-chat-close" class="px-2 py-1 text-xs text-gray-400 hover:text-white">Close</button>
+          <button id="ai-chat-dock" class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Dock">
+            <i class="fa-solid fa-arrow-right-to-bracket text-xs"></i>
+          </button>
+          <button id="ai-chat-close" class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Close">
+            <i class="fa-solid fa-xmark text-xs"></i>
+          </button>
         </div>
       </div>
-      <div id="ai-chat-drop" class="p-3 text-xs text-gray-500">Drop-in AI chat shell.</div>
+      <div id="ai-chat-body" class="p-3 text-xs text-gray-500">Drop-in AI chat shell.</div>
     `;
 
     panel.appendChild(overlay);
@@ -110,25 +142,33 @@
       sheet.classList.toggle('translate-x-full', !dock);
       overlay.classList.toggle('hidden', dock);
       overlay.dataset.docked = dock ? '1' : '0';
+      const dockBtn = document.getElementById('ai-chat-dock');
+      if (dockBtn) {
+        const icon = dockBtn.querySelector('i');
+        if (icon) {
+          icon.className = dock
+            ? 'fa-solid fa-arrow-left-to-bracket text-xs'
+            : 'fa-solid fa-arrow-right-to-bracket text-xs';
+        }
+        dockBtn.setAttribute('aria-label', dock ? 'Undock' : 'Dock');
+      }
       const row = document.querySelector('main')?.parentElement;
-      const sum = 520 + (document.getElementById('live-console-panel')?.classList.contains('docked') ? 520 : 0);
+      const sum =
+        400 +
+        (panel.classList.contains('docked') ? 400 : 0) +
+        (document.getElementById('live-console-panel')?.classList.contains('docked') ? 520 : 0);
       if (row) {
-        row.style.setProperty(
-          'padding-right',
-          sum + 'px',
-          'important'
-        );
+        row.style.setProperty('padding-right', sum + 'px', 'important');
       }
     }
 
     function toggleAIChatDock() {
       const dock = !panel.classList.contains('docked');
       _applyDock(dock);
-      const dockBtn = document.getElementById('ai-chat-dock');
-      if (dockBtn) dockBtn.textContent = dock ? 'Undock' : 'Dock';
     }
 
     function show() {
+      if (open) return;
       open = true;
       overlay.classList.remove('hidden');
       sheet.classList.remove('translate-x-full');
@@ -153,6 +193,9 @@
     sheet
       .querySelector('#ai-chat-dock')
       ?.addEventListener('click', toggleAIChatDock);
+
+    document.getElementById('ai-chat-panel').show = show;
+    document.getElementById('ai-chat-panel').hide = hide;
   }
 
   function shellHamburger() {

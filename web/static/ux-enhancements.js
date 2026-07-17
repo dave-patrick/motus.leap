@@ -1242,7 +1242,9 @@ window.clearLogs = function() {
                 </div>
                 <div class="flex items-center gap-2">
                     <button id="live-console-dock"
-                        class="px-2 py-1 text-[11px] text-gray-400 hover:text-white">Dock</button>
+                        class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Dock">
+                        <i class="fa-solid fa-arrow-right-to-bracket text-[11px]"></i>
+                    </button>
                     <button id="btn-copy-console" title="Copy logs"
                         class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors text-[11px]">
                         <i class="fas fa-copy"></i>
@@ -1314,7 +1316,7 @@ function dockPanel(opts){
         _p.dataset.docked=dock?'1':'0';
         var sum=0;
         ['live-console-panel','ai-chat-panel'].forEach(function(id){
-            var el=document.getElementById(id); if(el&&el.classList.contains('docked')) sum+=(id==='live-console-panel'?520:360);
+            var el=document.getElementById(id); if(el&&el.classList.contains('docked')) sum+=(id==='live-console-panel'?520:400);
         });
         var row=document.querySelector('main')?.parentElement;
         if(row) row.style.setProperty('padding-right',sum+'px','important');
@@ -1322,7 +1324,9 @@ function dockPanel(opts){
     document.getElementById(opts.panelId+'-dock')?.addEventListener('click',function(){
         var dock=document.getElementById(opts.panelId).classList.contains('docked')?false:true;
         _apply(dock);
-        this.textContent=dock?'Undock':'Dock';
+        const icon=this.querySelector('i');
+        if(icon) icon.className=dock?'fa-solid fa-arrow-left-to-bracket text-[11px]':'fa-solid fa-arrow-right-to-bracket text-[11px]';
+        this.setAttribute('aria-label',dock?'Undock':'Dock');
     });
     document.querySelector('#'+opts.closeId)?.addEventListener('click',function(){
         if(_p.classList.contains('docked')){ _apply(false); return; }
@@ -1330,6 +1334,7 @@ function dockPanel(opts){
     });
 }
 
+    dockPanel({panelId:'live-console-panel', overlayId:'live-console-overlay', closeId:'live-console-close'});
     document.addEventListener('DOMContentLoaded', initLiveConsoleWidget);
 })();
 
@@ -1388,140 +1393,132 @@ function dockPanel(opts){
 
     // ---- Inject DOM ----------------------------------------------------------
     function initAIChatWidget() {
-        if (document.getElementById('ai-chat-panel')) return;
-
-        // ---- Floating button (top-right, beside logout) ----
-        let btn = document.getElementById('ai-chat-btn');
-        if (!btn) {
-            btn = document.createElement('button');
-            btn.id = 'ai-chat-btn';
-            btn.title = 'AI Chat';
-            btn.setAttribute('aria-label', 'Open AI Chat');
-            btn.className = [
-                'fixed top-[13px] right-4 z-[60]',
-                'w-10 h-10 rounded-xl',
-                'bg-transparent border border-transparent',
-                'flex items-center justify-center',
-                'shadow-lg shadow-black/40',
-                'transition-all duration-200 hover:scale-105 active:scale-95',
-            ].join(' ');
-            btn.innerHTML = '<img src="/static/images/ai-chat-icon.jpg" alt="AI Chat" class="w-full h-full object-cover rounded-xl">';
-            document.body.appendChild(btn);
+        const panel = document.getElementById('ai-chat-panel');
+        if (!panel) {
+            /* shared-shell not loaded — bail out instead of building a second panel. */
+            console.warn('initAIChatWidget: shared-shell panel #ai-chat-panel not found');
+            return;
         }
 
-        // ---- Backdrop ----
-        const overlay = document.createElement('div');
-        overlay.id = 'ai-chat-overlay';
-        overlay.className = 'fixed inset-0 bg-black/50 z-[65] hidden';
-        document.body.appendChild(overlay);
+        const bodyContainer = document.getElementById('ai-chat-body') || panel;
+        if (!document.getElementById('ai-chat-body')) {
+            const body = document.createElement('div');
+            body.id = 'ai-chat-body';
+            body.className = 'flex-1 overflow-hidden';
+            panel.appendChild(body);
+        }
+        const bodyEl = document.getElementById('ai-chat-body');
+        if (!bodyEl) return;
 
-        // ---- Slide-in panel ----
-        const panel = document.createElement('div');
-        panel.id = 'ai-chat-panel';
-        panel.className = [
-            'fixed top-0 right-0 h-full w-[400px] max-w-[100vw]',
-            'bg-[#1a1d24] border-l border-[#2a2f3a]',
-            'z-[70] flex flex-col',
-            'transform translate-x-full transition-transform duration-300 ease-in-out',
-            'font-sans shadow-2xl shadow-black/60',
-        ].join(' ');
+        const subtitle = document.createElement('div');
+        subtitle.id = 'ai-chat-subtitle';
+        subtitle.className = 'text-[10px] text-gray-500 mt-0.5';
+        subtitle.textContent = 'Loading…';
 
-        panel.innerHTML = `
-            <!-- Header -->
-            <div class="px-5 py-4 border-b border-[#2a2f3a] flex items-center justify-between shrink-0 bg-[#171920]">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
-                        <img src="/static/images/ai-chat-icon.jpg" alt="AI" class="w-full h-full object-cover rounded-xl">
-                    </div>
-                    <div>
-                        <div class="text-sm font-semibold text-white leading-tight">AI Chat</div>
-                        <div id="ai-chat-subtitle" class="text-[10px] text-gray-500 mt-0.5">Loading…</div>
-                    </div>
+        const headerWrap = document.createElement('div');
+        headerWrap.className = 'flex items-center justify-between px-4 py-3 border-b border-[#2a2f3a]';
+        headerWrap.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
+                    <img src="/static/images/ai-chat-icon.jpg" alt="AI" class="w-full h-full object-cover rounded-xl">
                 </div>
-                <div class="flex items-center gap-2">
-                    <button id="ai-chat-clear" title="Start a new session"
-                        class="h-9 px-3 rounded-xl bg-[#20242c]/50 hover:bg-[#20242c] border border-[#2a2f3a] text-[#2f8fc9] hover:text-[#2a7db8] text-xs font-semibold flex items-center gap-1.5 transition-colors">
-                        <i class="fa-solid fa-plus text-[10px]"></i> New Session
-                    </button>
-                    <button id="ai-chat-close"
-                        class="w-9 h-9 rounded-xl bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
+                <div>
+                    <div class="text-sm font-semibold text-white leading-tight">AI Chat</div>
+                    ${subtitle.outerHTML}
                 </div>
             </div>
-
-            <!-- Model selector bar (shown only when models available) -->
-            <div id="ai-chat-model-bar" class="hidden px-4 py-2.5 border-b border-[#2a2f3a]/60 bg-[#13161d] flex items-center gap-2.5 shrink-0">
-                <i class="fa-solid fa-microchip text-[#2f8fc9] text-[10px] shrink-0"></i>
-                <span class="text-[10px] text-gray-500 shrink-0">Model</span>
-                <select id="ai-chat-model-select"
-                    class="flex-1 bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-gray-200 text-[11px] rounded-lg px-2.5 py-1.5 outline-none cursor-pointer transition-colors font-mono">
-                </select>
-                <button id="ai-chat-new-conv" title="New conversation"
-                    class="w-7 h-7 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-[#2f8fc9] flex items-center justify-center transition-colors shrink-0">
-                    <i class="fa-solid fa-rotate-right text-[10px]"></i>
-                </button>
-            </div>
-
-            <!-- No-provider CTA -->
-            <div id="ai-chat-no-provider" class="hidden flex-1 flex flex-col items-center justify-center p-8 text-center gap-5">
-                <div class="w-20 h-20 rounded-3xl bg-[#2f8fc9]/10 border border-[#2f8fc9]/20 flex items-center justify-center">
-                    <i class="fa-solid fa-plug text-[#2f8fc9] text-3xl"></i>
-                </div>
-                <div class="space-y-1.5">
-                    <div class="text-sm font-semibold text-white">No AI Model Configured</div>
-                    <div class="text-[12px] text-gray-400 leading-relaxed max-w-[240px]">
-                        Connect a provider and activate at least one model before you can chat.
-                    </div>
-                </div>
-                <a href="/ai/providers"
-                    class="inline-flex items-center gap-2 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-[#2f8fc9]/20 hover:scale-105">
-                    <i class="fa-solid fa-arrow-right-to-bracket text-[10px]"></i>
-                    Configure Providers
-                </a>
-                <div class="text-[10px] text-gray-600">You'll be redirected to AI Hub → Providers</div>
-            </div>
-
-            <!-- Chat log -->
-            <div id="ai-chat-log" class="hidden flex-1 overflow-y-auto p-4 space-y-3">
-                <!-- Welcome bubble injected by JS -->
-            </div>
-
-            <!-- Input area -->
-            <div id="ai-chat-input-area" class="hidden px-3.5 py-3 border-t border-[#2a2f3a] bg-[#13161d] flex items-end gap-2.5 shrink-0">
-                <textarea id="ai-chat-input" rows="1"
-                    placeholder="Ask anything…"
-                    class="flex-1 bg-[#20242c] border border-[#2a2f3a] focus:border-[#2f8fc9]/50 text-gray-200 text-[12px] rounded-xl px-3.5 py-2.5 outline-none resize-none leading-relaxed transition-colors overflow-hidden"
-                    style="height:42px; min-height:42px; max-height:120px;"></textarea>
-                <button id="ai-chat-send"
-                    class="w-10 h-10 rounded-xl bg-[#2f8fc9] hover:bg-[#2a7db8] text-white flex items-center justify-center shrink-0 transition-all hover:scale-105 active:scale-95 shadow-md shadow-[#2f8fc9]/20 mb-0.5">
-                    <i class="fa-solid fa-paper-plane text-[11px]"></i>
+            <div class="flex items-center gap-2">
+                <button id="ai-chat-clear" title="Start a new session"
+                    class="h-9 px-3 rounded-xl bg-[#20242c]/50 hover:bg-[#20242c] border border-[#2a2f3a] text-[#2f8fc9] hover:text-[#2a7db8] text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                    <i class="fa-solid fa-plus text-[10px]"></i> New Session
                 </button>
             </div>
         `;
+        const headerSlot = document.createElement('div');
+        headerSlot.appendChild(headerWrap);
+        panel.insertBefore(headerSlot, panel.firstChild);
 
-        document.body.appendChild(panel);
+        const modelBar = document.createElement('div');
+        modelBar.id = 'ai-chat-model-bar';
+        modelBar.className = 'hidden px-4 py-2.5 border-b border-[#2a2f3a]/60 bg-[#13161d] flex items-center gap-2.5 shrink-0';
+        modelBar.innerHTML = `
+            <i class="fa-solid fa-microchip text-[#2f8fc9] text-[10px] shrink-0"></i>
+            <span class="text-[10px] text-gray-500 shrink-0">Model</span>
+            <select id="ai-chat-model-select"
+                class="flex-1 bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-gray-200 text-[11px] rounded-lg px-2.5 py-1.5 outline-none cursor-pointer transition-colors font-mono">
+            </select>
+            <button id="ai-chat-new-conv" title="New conversation"
+                class="w-7 h-7 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-[#2f8fc9] flex items-center justify-center transition-colors shrink-0">
+                <i class="fa-solid fa-rotate-right text-[10px]"></i>
+            </button>
+        `;
 
-        // ---- Wire events ----
-        btn.addEventListener('click', _openPanel);
-        overlay.addEventListener('click', _closePanel);
-        document.getElementById('ai-chat-close').addEventListener('click', _closePanel);
-        document.getElementById('ai-chat-clear').addEventListener('click', _newConversation);
-        document.getElementById('ai-chat-send').addEventListener('click', _send);
-        document.getElementById('ai-chat-new-conv').addEventListener('click', _newConversation);
-        document.getElementById('ai-chat-model-select').addEventListener('change', function () {
+        const noProvider = document.createElement('div');
+        noProvider.id = 'ai-chat-no-provider';
+        noProvider.className = 'hidden flex-1 flex flex-col items-center justify-center p-8 text-center gap-5';
+        noProvider.innerHTML = `
+            <div class="w-20 h-20 rounded-3xl bg-[#2f8fc9]/10 border border-[#2f8fc9]/20 flex items-center justify-center">
+                <i class="fa-solid fa-plug text-[#2f8fc9] text-3xl"></i>
+            </div>
+            <div class="space-y-1.5">
+                <div class="text-sm font-semibold text-white">No AI Model Configured</div>
+                <div class="text-[12px] text-gray-400 leading-relaxed max-w-[240px]">
+                    Connect a provider and activate at least one model before you can chat.
+                </div>
+            </div>
+            <a href="/ai/providers"
+                class="inline-flex items-center gap-2 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-[#2f8fc9]/20 hover:scale-105">
+                <i class="fa-solid fa-arrow-right-to-bracket text-[10px]"></i>
+                Configure Providers
+            </a>
+            <div class="text-[10px] text-gray-600">You'll be redirected to AI Hub → Providers</div>
+        `;
+
+        const chatLog = document.createElement('div');
+        chatLog.id = 'ai-chat-log';
+        chatLog.className = 'hidden flex-1 overflow-y-auto p-4 space-y-3';
+
+        const inputArea = document.createElement('div');
+        inputArea.id = 'ai-chat-input-area';
+        inputArea.className = 'hidden px-3.5 py-3 border-t border-[#2a2f3a] bg-[#13161d] flex items-end gap-2.5 shrink-0';
+        inputArea.innerHTML = `
+            <textarea id="ai-chat-input" rows="1"
+                placeholder="Ask anything…"
+                class="flex-1 bg-[#20242c] border border-[#2a2f3a] focus:border-[#2f8fc9]/50 text-gray-200 text-[12px] rounded-xl px-3.5 py-2.5 outline-none resize-none leading-relaxed transition-colors overflow-hidden"
+                style="height:42px; min-height:42px; max-height:120px;"></textarea>
+            <button id="ai-chat-send"
+                class="w-10 h-10 rounded-xl bg-[#2f8fc9] hover:bg-[#2a7db8] text-white flex items-center justify-center shrink-0 transition-all hover:scale-105 active:scale-95 shadow-md shadow-[#2f8fc9]/20 mb-0.5">
+                <i class="fa-solid fa-paper-plane text-[11px]"></i>
+            </button>
+        `;
+
+        bodyEl.appendChild(modelBar);
+        bodyEl.appendChild(noProvider);
+        bodyEl.appendChild(chatLog);
+        bodyEl.appendChild(inputArea);
+
+        const btn = document.getElementById('ai-chat-btn');
+        const overlay = document.getElementById('ai-chat-overlay');
+
+        btn?.addEventListener('click', _openPanel);
+        overlay?.addEventListener('click', _closePanel);
+        document.getElementById('ai-chat-close')?.addEventListener('click', _closePanel);
+        document.getElementById('ai-chat-clear')?.addEventListener('click', _newConversation);
+        document.getElementById('ai-chat-send')?.addEventListener('click', _send);
+        document.getElementById('ai-chat-new-conv')?.addEventListener('click', _newConversation);
+        document.getElementById('ai-chat-model-select')?.addEventListener('change', function () {
             try {
                 _selectedModel = JSON.parse(this.value);
-                _convId = null; // reset conversation when model changes
+                _convId = null;
                 _updateSubtitle();
             } catch (_) {}
         });
 
         const ta = document.getElementById('ai-chat-input');
-        ta.addEventListener('keydown', function (e) {
+        ta?.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _send(); }
         });
-        ta.addEventListener('input', function () {
+        ta?.addEventListener('input', function () {
             this.style.height = '42px';
             this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
@@ -1529,6 +1526,8 @@ function dockPanel(opts){
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') _closePanel();
         });
+
+        dockPanel({panelId:'ai-chat-panel', overlayId:'ai-chat-overlay', closeId:'ai-chat-close'});
     }
 
     // ---- Panel open / close --------------------------------------------------
