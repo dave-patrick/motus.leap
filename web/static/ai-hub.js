@@ -313,7 +313,7 @@
     google: 'Get a Gemini API key at aistudio.google.com — Gemini 2.5 Pro, Flash and more.',
     custom: 'Any OpenAI-compatible endpoint (Ollama, LM Studio, Together AI, Mistral, OpenRouter…). Needs a /v1/models route for automatic discovery.',
   };
-  function updateProvType() {
+  function updateProvType(keepCurrentValues) {
     const typeEl = $('#prov-type');
     if (!typeEl) return;
     const type = typeEl.value;
@@ -323,7 +323,9 @@
     const lockEl = $('#prov-base-lock');
     const keyOptEl = $('#prov-key-optional');
     if (baseEl) {
-      baseEl.value = PROV_URLS[type] || '';
+      if (!keepCurrentValues) {
+        baseEl.value = PROV_URLS[type] || '';
+      }
       if (lockEl) lockEl.textContent = PROV_URLS[type] ? 'pre-filled · override if needed' : 'required';
     }
     if (hintEl) {
@@ -335,7 +337,7 @@
     if (keyOptEl) keyOptEl.classList.toggle('hidden', type !== 'custom');
     const namePh = { openai: 'My OpenAI', anthropic: 'My Claude', groq: 'My Groq', grok: 'My Grok', google: 'My Gemini', custom: 'My LLM' };
     const nameEl = $('#prov-name');
-    if (nameEl) nameEl.placeholder = namePh[type] || 'Provider name';
+    if (nameEl && !keepCurrentValues) nameEl.placeholder = namePh[type] || 'Provider name';
   }
 
   let pendingProviderId = null;
@@ -392,7 +394,7 @@
     $('#prov-key').value = '**********'; // placeholder
     $('#prov-base').value = p.base_url || '';
     $('#prov-step1-msg').textContent = ''; $('#prov-step2-msg').textContent = '';
-    updateProvType();
+    updateProvType(true);
     const m = $('#prov-modal'); m.classList.remove('hidden'); m.classList.add('flex');
   }
   function closeProvModal() { const m = $('#prov-modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
