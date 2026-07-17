@@ -245,7 +245,17 @@
         });
       });
       $all('.prov-rescan').forEach(b => b.addEventListener('click', () => rescanProvider(b.getAttribute('data-id'))));
-      $all('.model-chk').forEach(c => c.addEventListener('change', () => persistModels(c.getAttribute('data-pid'))));
+      $all('.model-chk').forEach(c => {
+        c.addEventListener('change', () => {
+          const pid = c.getAttribute('data-pid');
+          const labelSpan = c.nextElementSibling;
+          if (labelSpan) {
+            labelSpan.classList.toggle('text-gray-200', c.checked);
+            labelSpan.classList.toggle('text-gray-500', !c.checked);
+          }
+          persistModels(pid);
+        });
+      });
       $all('.model-default').forEach(b => b.addEventListener('click', () => setDefault(b.getAttribute('data-pid'), b.getAttribute('data-mid'))));
       $all('.prov-models-toggle').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -530,7 +540,17 @@
     try {
       await api('/api/ai/providers/' + pid + '/models', { method: 'PUT', body: JSON.stringify({ active, default: def }) });
       loadHub();
-      loadProviders();
+      
+      // Update active/total count inline
+      const toggleBtn = document.querySelector('.prov-models-toggle[data-id="' + CSS.escape(pid) + '"]');
+      if (toggleBtn) {
+        const span = toggleBtn.querySelector('span');
+        if (span) {
+          const totalCount = $all('.model-chk[data-pid="' + CSS.escape(pid) + '"]').length;
+          const activeCount = active.length;
+          span.innerHTML = activeCount + ' active &nbsp;·&nbsp; ' + totalCount + ' total';
+        }
+      }
     } catch (e) { toast(e.message, 'error'); }
   }
   async function setDefault(pid, mid) {
@@ -540,7 +560,39 @@
       await api('/api/ai/providers/' + pid + '/models', { method: 'PUT', body: JSON.stringify({ active: arr, default: mid }) });
       toast('Default model set', 'success');
       loadHub();
-      loadProviders();
+      
+      // Update default buttons inline
+      const defButtons = $all('.model-default[data-pid="' + CSS.escape(pid) + '"]');
+      defButtons.forEach(btn => {
+        const btnMid = btn.getAttribute('data-mid');
+        if (btnMid === mid) {
+          btn.className = 'model-default text-[10px] flex-shrink-0 text-[#16a34a] font-bold';
+          btn.textContent = 'DEFAULT ★';
+        } else {
+          btn.className = 'model-default text-[10px] flex-shrink-0 text-[#2f8fc9] hover:underline';
+          btn.textContent = 'Set default';
+        }
+      });
+
+      // Auto-check model checkbox if set default clicked
+      const chk = document.querySelector('.model-chk[data-pid="' + CSS.escape(pid) + '"][value="' + CSS.escape(mid) + '"]');
+      if (chk && !chk.checked) {
+        chk.checked = true;
+        const labelSpan = chk.nextElementSibling;
+        if (labelSpan) {
+          labelSpan.className = 'font-mono truncate text-gray-200';
+        }
+        // Update toggle count inline
+        const toggleBtn = document.querySelector('.prov-models-toggle[data-id="' + CSS.escape(pid) + '"]');
+        if (toggleBtn) {
+          const span = toggleBtn.querySelector('span');
+          if (span) {
+            const totalCount = $all('.model-chk[data-pid="' + CSS.escape(pid) + '"]').length;
+            const activeCount = $all('.model-chk[data-pid="' + CSS.escape(pid) + '"]:checked').length;
+            span.innerHTML = activeCount + ' active &nbsp;·&nbsp; ' + totalCount + ' total';
+          }
+        }
+      }
     } catch (e) { toast(e.message, 'error'); }
   }
 
