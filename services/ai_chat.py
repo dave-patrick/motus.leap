@@ -364,20 +364,57 @@ def _chat_completion(conn: ProviderConnection, model: str,
     api_key = conn.api_key.get_secret_value() if hasattr(conn.api_key, "get_secret_value") else str(conn.api_key)
     endpoint = _resolve_chat_endpoint(conn, model)
     headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
 
-    payload: Dict[str, Any] = {
-        "model": model,
-        "messages": messages,
-        "tools": tools,
-        "tool_choice": "auto",
-    }
-    # google/anthropic are not OpenAI-shaped; we still send tools best-effort but
-    # primarily support openai/groq/custom here (P1 discovery covers the rest).
-    if conn.type in ("google", "anthropic"):
-        payload.pop("tools", None)
-        payload.pop("tool_choice", None)
+    # Set up headers and endpoint based on provider type
+    if conn.type == "google":
+        if api_key:
+            endpoint = f"{endpoint}?key={api_key}"
+    elif conn.type == "anthropic":
+        if api_key:
+            headers["x-api-key"] = api_key
+        headers["anthropic-version"] = "2023-06-01"
+    else:
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+    # Set up payload based on provider type
+    if conn.type == "google":
+        contents = []
+        system_instruction = None
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "system":
+                system_instruction = {"parts": [{"text": content}]}
+            else:
+                gemini_role = "model" if role == "assistant" else "user"
+                contents.append({"role": gemini_role, "parts": [{"text": content}]})
+        payload = {"contents": contents}
+        if system_instruction:
+            payload["systemInstruction"] = system_instruction
+    elif conn.type == "anthropic":
+        system_prompt = ""
+        user_messages = []
+        for msg in messages:
+            if msg.get("role") == "system":
+                system_prompt = msg.get("content", "")
+            else:
+                role = "assistant" if msg.get("role") == "assistant" else "user"
+                user_messages.append({"role": role, "content": msg.get("content", "")})
+        payload = {
+            "model": model,
+            "messages": user_messages,
+            "max_tokens": 4096,
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+    else:
+        payload = {
+            "model": model,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto",
+        }
 
     try:
         with httpx.Client(timeout=30.0) as client:
@@ -389,10 +426,45 @@ def _chat_completion(conn: ProviderConnection, model: str,
         # Do NOT surface raw body (may contain key/error detail). Redact (M3).
         raise RuntimeError(
             f"provider '{conn.name}' returned HTTP {resp.status_code}")
+    
     try:
-        return resp.json()
+        res_json = resp.json()
     except Exception:
         raise RuntimeError(f"provider '{conn.name}' returned non-JSON body")
+
+    # Translate responses to OpenAI format if needed
+    if conn.type == "google":
+        try:
+            text = res_json["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, TypeError):
+            text = "(no response)"
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": text
+                    }
+                }
+            ]
+        }
+    elif conn.type == "anthropic":
+        try:
+            text = res_json["content"][0]["text"]
+        except (KeyError, IndexError, TypeError):
+            text = "(no response)"
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": text
+                    }
+                }
+            ]
+        }
+
+    return res_json
 
 
 def _extract_tool_calls(response: Optional[Dict[str, Any]]) -> Tuple[Optional[str], List[Dict[str, Any]]]:

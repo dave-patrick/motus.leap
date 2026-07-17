@@ -299,3 +299,78 @@ def test_resolve_chat_endpoint_custom_urls():
     )
     url2 = _resolve_chat_endpoint(conn2, "m1")
     assert url2 == "http://localhost:11434/v1/chat/completions"
+
+
+def test_google_anthropic_chat_completion_translation(monkeypatch):
+    import httpx
+    from services.ai_chat import _chat_completion
+    from models.config import ProviderConnection
+    from pydantic import SecretStr
+
+    # 1. Test Google translation
+    conn_google = ProviderConnection(
+        id="g1", name="G1", type="google", base_url="https://generativelanguage.googleapis.com", enabled=True, api_key=SecretStr("gemini-key")
+    )
+
+    class FakeGoogleResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": "Gemini answer"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    google_called = {}
+    def mock_post_google(client, url, headers, json):
+        google_called["url"] = str(url)
+        google_called["json"] = json
+        google_called["headers"] = headers
+        return FakeGoogleResponse()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post_google)
+
+    res_google = _chat_completion(conn_google, "gemini-2.5-flash", [{"role": "system", "content": "sys"}, {"role": "user", "content": "usr"}], [])
+    assert res_google["choices"][0]["message"]["content"] == "Gemini answer"
+    assert "key=gemini-key" in google_called["url"]
+    assert google_called["json"]["contents"][0]["parts"][0]["text"] == "usr"
+    assert google_called["json"]["systemInstruction"]["parts"][0]["text"] == "sys"
+
+    # 2. Test Anthropic translation
+    conn_anthropic = ProviderConnection(
+        id="a1", name="A1", type="anthropic", base_url="https://api.anthropic.com", enabled=True, api_key=SecretStr("claude-key")
+    )
+
+    class FakeAnthropicResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "content": [
+                    {
+                        "text": "Claude answer"
+                    }
+                ]
+            }
+
+    anthropic_called = {}
+    def mock_post_anthropic(client, url, headers, json):
+        anthropic_called["url"] = str(url)
+        anthropic_called["json"] = json
+        anthropic_called["headers"] = headers
+        return FakeAnthropicResponse()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post_anthropic)
+
+    res_anthropic = _chat_completion(conn_anthropic, "claude-3-5-sonnet", [{"role": "system", "content": "sys"}, {"role": "user", "content": "usr"}], [])
+    assert res_anthropic["choices"][0]["message"]["content"] == "Claude answer"
+    assert anthropic_called["headers"]["x-api-key"] == "claude-key"
+    assert anthropic_called["json"]["system"] == "sys"
+    assert anthropic_called["json"]["messages"][0]["content"] == "usr"
