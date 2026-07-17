@@ -101,7 +101,7 @@ def _classify_sync(provider: str, prompt: str, api_key: str, endpoint: str, mode
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 50},
         }
-    elif provider in ("openrouter", "custom"):
+    elif provider in ("openrouter", "z_ai", "custom"):
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         json_body = {
             "model": model or "default",
@@ -414,7 +414,7 @@ async def classify_video(title: str, channel: str, description: str,
         is_google = provider == "google" or "googleapis.com" in (endpoint or "")
         if is_google:
             text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        elif provider in ("openai", "groq", "openrouter", "custom"):
+        elif provider in ("openai", "groq", "openrouter", "z_ai", "custom"):
             text = data["choices"][0]["message"]["content"].strip()
         elif provider == "anthropic":
             text = data["content"][0]["text"].strip()
@@ -466,8 +466,22 @@ def _resolve_endpoint(provider: str, api_key: str,
         return f"{PROVIDER_BUILTIN_BASE_URLS['anthropic']}/v1/messages"
     if provider == "groq":
         return f"{PROVIDER_BUILTIN_BASE_URLS['groq']}/openai/v1/chat/completions"
+    if provider == "z_ai":
+        base = base_url_or_endpoint or PROVIDER_BUILTIN_BASE_URLS['z_ai']
+        base = base.rstrip("/")
+        import re
+        if re.search(r"/v\d+(\.\d+)?$", base) or base.endswith("/chat/completions"):
+            if base.endswith("/chat/completions"):
+                return base
+            return f"{base}/chat/completions"
+        return f"{base}/v1/chat/completions"
     if provider == "custom":
         endpoint = (base_url_or_endpoint or "").rstrip("/")
+        import re
+        if re.search(r"/v\d+(\.\d+)?$", endpoint) or endpoint.endswith("/chat/completions"):
+            if endpoint.endswith("/chat/completions"):
+                return endpoint
+            return f"{endpoint}/chat/completions"
         if "/v1" in endpoint or "/v2" in endpoint:
             return f"{endpoint}/chat/completions"
         return f"{endpoint}/v1/chat/completions"

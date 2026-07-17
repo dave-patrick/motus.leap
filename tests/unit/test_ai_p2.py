@@ -300,6 +300,24 @@ def test_resolve_chat_endpoint_custom_urls():
     url2 = _resolve_chat_endpoint(conn2, "m1")
     assert url2 == "http://localhost:11434/v1/chat/completions"
 
+    conn3 = ProviderConnection(
+        id="c3", name="C3", type="custom", base_url="https://api.z.ai/api/paas/v4", enabled=True
+    )
+    url3 = _resolve_chat_endpoint(conn3, "m1")
+    assert url3 == "https://api.z.ai/api/paas/v4/chat/completions"
+
+    conn4 = ProviderConnection(
+        id="c4", name="C4", type="custom", base_url="https://my-proxy.org/v5.2/chat/completions", enabled=True
+    )
+    url4 = _resolve_chat_endpoint(conn4, "m1")
+    assert url4 == "https://my-proxy.org/v5.2/chat/completions"
+
+    conn5 = ProviderConnection(
+        id="c5", name="C5", type="z_ai", base_url="", enabled=True
+    )
+    url5 = _resolve_chat_endpoint(conn5, "m1")
+    assert url5 == "https://api.z.ai/api/paas/v4/chat/completions"
+
 
 def test_google_anthropic_chat_completion_translation(monkeypatch):
     import httpx

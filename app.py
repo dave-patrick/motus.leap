@@ -2414,10 +2414,17 @@ def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
     if conn.type == "groq":
         models_url = f"{base}/openai/v1/models"
     else:
-        # Some base URLs already include /v1 (e.g. https://openrouter.ai/api/v1).
-        # Strip a trailing /v1 before appending /v1/models to avoid double-v1.
-        base_no_v1 = base[:-3] if base.endswith("/v1") else base
-        models_url = f"{base_no_v1}/v1/models"
+        import re
+        if re.search(r"/v\d+(\.\d+)?$", base):
+            models_url = f"{base}/models"
+        elif base.endswith("/chat/completions"):
+            clean_base = base[:-17]
+            models_url = f"{clean_base}/models"
+        else:
+            # Some base URLs already include /v1 (e.g. https://openrouter.ai/api/v1).
+            # Strip a trailing /v1 before appending /v1/models to avoid double-v1.
+            base_no_v1 = base[:-3] if base.endswith("/v1") else base
+            models_url = f"{base_no_v1}/v1/models"
 
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 

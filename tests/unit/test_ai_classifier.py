@@ -344,5 +344,27 @@ class TestRetryBackoff:
         assert client.post.call_count <= 3
 
 
+@pytest.mark.unit
+class TestResolveEndpoint:
+    def test_classifier_resolve_endpoint_custom_and_versioned(self):
+        from services.ai_classifier import _resolve_endpoint
+
+        # Standard OpenAI base
+        url = _resolve_endpoint("custom", "key", "https://my-proxy.com/api")
+        assert url == "https://my-proxy.com/api/v1/chat/completions"
+
+        # Versioned z.ai endpoint
+        url = _resolve_endpoint("custom", "key", "https://api.z.ai/api/paas/v4")
+        assert url == "https://api.z.ai/api/paas/v4/chat/completions"
+
+        # Suffix-terminated custom base URL
+        url = _resolve_endpoint("custom", "key", "https://api.z.ai/api/paas/v4/chat/completions")
+        assert url == "https://api.z.ai/api/paas/v4/chat/completions"
+
+        # Builtin z_ai endpoint
+        url = _resolve_endpoint("z_ai", "key", "")
+        assert url == "https://api.z.ai/api/paas/v4/chat/completions"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-q"])

@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List
 # Provider type enum for the P1 multi-provider model. openai/groq/grok/custom speak
 # the OpenAI-compatible /v1/models surface (live probe); anthropic/google do NOT
 # and are served a curated catalog / manual-entry (see DESIGN_SPEC §7, Gwen §A.2).
-PROVIDER_TYPES = ["openai", "anthropic", "groq", "grok", "google", "openrouter", "custom"]
+PROVIDER_TYPES = ["openai", "anthropic", "groq", "grok", "google", "openrouter", "z_ai", "custom"]
 
 # Builtin base URLs for known providers (no /v1 suffix; code appends as needed).
 PROVIDER_BUILTIN_BASE_URLS = {
@@ -18,6 +18,7 @@ PROVIDER_BUILTIN_BASE_URLS = {
     "grok": "https://api.x.ai",
     "google": "https://generativelanguage.googleapis.com",
     "openrouter": "https://openrouter.ai/api/v1",
+    "z_ai": "https://api.z.ai/api/paas/v4",
 }
 
 
