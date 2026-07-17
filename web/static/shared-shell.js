@@ -92,7 +92,10 @@
     sheet.innerHTML = `
       <div class="flex items-center justify-between px-4 py-3 border-b border-[#2a2f3a]">
         <div class="font-semibold text-sm text-white">Shared AI Chat</div>
-        <button id="ai-chat-close" class="px-2 py-1 text-xs text-gray-400 hover:text-white">Close</button>
+        <div class="flex items-center gap-2">
+          <button id="ai-chat-dock" class="px-2 py-1 text-xs text-gray-400 hover:text-white">Dock</button>
+          <button id="ai-chat-close" class="px-2 py-1 text-xs text-gray-400 hover:text-white">Close</button>
+        </div>
       </div>
       <div id="ai-chat-drop" class="p-3 text-xs text-gray-500">Drop-in AI chat shell.</div>
     `;
@@ -102,12 +105,38 @@
     document.body.appendChild(panel);
 
     let open = false;
+    function _applyDock(dock) {
+      panel.classList.toggle('docked', dock);
+      sheet.classList.toggle('translate-x-full', !dock);
+      overlay.classList.toggle('hidden', dock);
+      overlay.dataset.docked = dock ? '1' : '0';
+      const row = document.querySelector('main')?.parentElement;
+      const sum = 520 + (document.getElementById('live-console-panel')?.classList.contains('docked') ? 520 : 0);
+      if (row) {
+        row.style.setProperty(
+          'padding-right',
+          sum + 'px',
+          'important'
+        );
+      }
+    }
+
+    function toggleAIChatDock() {
+      const dock = !panel.classList.contains('docked');
+      _applyDock(dock);
+      const dockBtn = document.getElementById('ai-chat-dock');
+      if (dockBtn) dockBtn.textContent = dock ? 'Undock' : 'Dock';
+    }
+
     function show() {
       open = true;
       overlay.classList.remove('hidden');
       sheet.classList.remove('translate-x-full');
     }
     function hide() {
+      if (panel.classList.contains('docked')) {
+        _applyDock(false);
+      }
       open = false;
       overlay.classList.add('hidden');
       sheet.classList.add('translate-x-full');
@@ -118,7 +147,12 @@
       open ? hide() : show();
     });
     overlay.addEventListener('click', hide);
-    sheet.querySelector('#ai-chat-close').addEventListener('click', hide);
+    sheet
+      .querySelector('#ai-chat-close')
+      ?.addEventListener('click', hide);
+    sheet
+      .querySelector('#ai-chat-dock')
+      ?.addEventListener('click', toggleAIChatDock);
   }
 
   function shellHamburger() {

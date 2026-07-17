@@ -1241,6 +1241,8 @@ window.clearLogs = function() {
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button id="live-console-dock"
+                        class="px-2 py-1 text-[11px] text-gray-400 hover:text-white">Dock</button>
                     <button id="btn-copy-console" title="Copy logs"
                         class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors text-[11px]">
                         <i class="fas fa-copy"></i>
@@ -1296,9 +1298,37 @@ window.clearLogs = function() {
     }
 
     function _closeConsole() {
+        if (panel.dataset.docked === '1') return;
         document.getElementById('live-console-panel')?.classList.add('translate-x-full');
         document.getElementById('live-console-overlay')?.classList.add('hidden');
     }
+
+    // ---- Dock helpers ----------------------------------------------------
+function dockPanel(opts){
+    var _p=document.getElementById(opts.panelId); if(!_p)return;
+    var _o=opts.overlayId?document.getElementById(opts.overlayId):null;
+    function _apply(dock){
+        _p.classList.toggle('docked',dock);
+        _p.classList.toggle('translate-x-full',!dock);
+        if(_o) _o.classList.toggle('hidden',dock);
+        _p.dataset.docked=dock?'1':'0';
+        var sum=0;
+        ['live-console-panel','ai-chat-panel'].forEach(function(id){
+            var el=document.getElementById(id); if(el&&el.classList.contains('docked')) sum+=(id==='live-console-panel'?520:360);
+        });
+        var row=document.querySelector('main')?.parentElement;
+        if(row) row.style.setProperty('padding-right',sum+'px','important');
+    }
+    document.getElementById(opts.panelId+'-dock')?.addEventListener('click',function(){
+        var dock=document.getElementById(opts.panelId).classList.contains('docked')?false:true;
+        _apply(dock);
+        this.textContent=dock?'Undock':'Dock';
+    });
+    document.querySelector('#'+opts.closeId)?.addEventListener('click',function(){
+        if(_p.classList.contains('docked')){ _apply(false); return; }
+        _p.classList.add('translate-x-full'); if(_o) _o.classList.add('hidden');
+    });
+}
 
     document.addEventListener('DOMContentLoaded', initLiveConsoleWidget);
 })();
