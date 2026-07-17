@@ -1438,10 +1438,16 @@ function dockPanel(opts){
                         <div id="ai-chat-subtitle" class="text-[10px] text-gray-500 mt-0.5">Loading…</div>
                     </div>
                 </div>
-                <button id="ai-chat-close"
-                    class="w-9 h-9 rounded-xl bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+                <div class="flex items-center gap-2">
+                    <button id="ai-chat-clear" title="Start a new session"
+                        class="h-9 px-3 rounded-xl bg-[#20242c]/50 hover:bg-[#20242c] border border-[#2a2f3a] text-[#2f8fc9] hover:text-[#2a7db8] text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                        <i class="fa-solid fa-plus text-[10px]"></i> New Session
+                    </button>
+                    <button id="ai-chat-close"
+                        class="w-9 h-9 rounded-xl bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Model selector bar (shown only when models available) -->
@@ -1500,6 +1506,7 @@ function dockPanel(opts){
         btn.addEventListener('click', _openPanel);
         overlay.addEventListener('click', _closePanel);
         document.getElementById('ai-chat-close').addEventListener('click', _closePanel);
+        document.getElementById('ai-chat-clear').addEventListener('click', _newConversation);
         document.getElementById('ai-chat-send').addEventListener('click', _send);
         document.getElementById('ai-chat-new-conv').addEventListener('click', _newConversation);
         document.getElementById('ai-chat-model-select').addEventListener('change', function () {
@@ -1541,6 +1548,7 @@ function dockPanel(opts){
         _convId = null;
         const log = document.getElementById('ai-chat-log');
         if (log) { log.innerHTML = ''; _appendWelcome(); }
+        showInfoToast('New chat session started');
     }
 
     // ---- Load providers + build model dropdown --------------------------------
