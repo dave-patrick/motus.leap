@@ -304,6 +304,7 @@
     groq: 'https://api.groq.com',
     grok: 'https://api.x.ai',
     google: 'https://generativelanguage.googleapis.com',
+    openrouter: 'https://openrouter.ai/api',
   };
   const PROV_HINTS = {
     openai: 'Get your API key at platform.openai.com — GPT-4o, o1, o3 and more.',
@@ -311,6 +312,7 @@
     groq: 'Get a free API key at console.groq.com — blazing fast open-source model inference.',
     grok: 'Get your API key at console.x.ai — Grok-3, Grok-2 and beta models.',
     google: 'Get a Gemini API key at aistudio.google.com — Gemini 2.5 Pro, Flash and more.',
+    openrouter: 'Get your API key at openrouter.ai — access Claude, GPT-4, Llama and hundreds of others.',
     custom: 'Any OpenAI-compatible endpoint (Ollama, LM Studio, Together AI, Mistral, OpenRouter…). Needs a /v1/models route for automatic discovery.',
   };
   function updateProvType(keepCurrentValues) {
@@ -335,7 +337,7 @@
     }
     if (presetsEl) presetsEl.classList.toggle('hidden', type !== 'custom');
     if (keyOptEl) keyOptEl.classList.toggle('hidden', type !== 'custom');
-    const namePh = { openai: 'My OpenAI', anthropic: 'My Claude', groq: 'My Groq', grok: 'My Grok', google: 'My Gemini', custom: 'My LLM' };
+    const namePh = { openai: 'My OpenAI', anthropic: 'My Claude', groq: 'My Groq', grok: 'My Grok', google: 'My Gemini', openrouter: 'My OpenRouter', custom: 'My LLM' };
     const nameEl = $('#prov-name');
     if (nameEl && !keepCurrentValues) nameEl.placeholder = namePh[type] || 'Provider name';
   }
