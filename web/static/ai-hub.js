@@ -385,7 +385,7 @@
     const typeEl = $('#prov-type');
     if (typeEl) {
       typeEl.value = p.type;
-      typeEl.disabled = true; // lock type field when editing
+      typeEl.disabled = false; // allow changing type when editing
     }
 
     $('#prov-step1').classList.remove('hidden');
