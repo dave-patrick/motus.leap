@@ -524,6 +524,9 @@
       });
       toast('Provider connected', 'success');
       closeProvModal(); loadProviders(); loadHub();
+      if (typeof window.refreshAIChatModels === 'function') {
+        window.refreshAIChatModels();
+      }
     } catch (e) { $('#prov-step2-msg').textContent = e.message; }
   }
 
@@ -550,6 +553,9 @@
           const activeCount = active.length;
           span.innerHTML = activeCount + ' active &nbsp;·&nbsp; ' + totalCount + ' total';
         }
+      }
+      if (typeof window.refreshAIChatModels === 'function') {
+        window.refreshAIChatModels();
       }
     } catch (e) { toast(e.message, 'error'); }
   }
@@ -592,6 +598,9 @@
             span.innerHTML = activeCount + ' active &nbsp;·&nbsp; ' + totalCount + ' total';
           }
         }
+      }
+      if (typeof window.refreshAIChatModels === 'function') {
+        window.refreshAIChatModels();
       }
     } catch (e) { toast(e.message, 'error'); }
   }
