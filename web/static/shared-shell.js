@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260716h';
+  const SHELL_VERSION = '20260717a';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -38,7 +38,7 @@
     const path = window.location.pathname;
     const active = (href) => path === href ? 'nav-item active' : 'nav-item';
     const subActive = (href) => path === href || (href !== '/ai' && path.startsWith(href)) ? 'ai-sub active' : 'ai-sub';
-    return `<aside id="mobile-sidebar" class="w-60 bg-[#1a1d24] p-3 flex-col border-r border-[#2a2f3a] overflow-y-auto shrink-0 hidden md:flex">
+    return `<aside id="mobile-sidebar" class="w-60 bg-[#1a1d24] p-3 flex-col border-r border-[#2a2f3a] overflow-y-auto shrink-0 fixed md:static inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 flex">
         <nav class="flex flex-col gap-1.5">
           <a href="/dashboard" class="${active('/dashboard')} flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
           <a href="/playlists" class="${active('/playlists')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
@@ -122,6 +122,59 @@
     sheet.querySelector('#ai-chat-close').addEventListener('click', hide);
   }
 
+  function shellHamburger() {
+    return `<button id="sidebar-toggle" aria-label="Open menu" title="Menu"
+      class="md:hidden fixed top-4 left-3 z-40 flex items-center justify-center w-9 h-9 rounded-lg
+             bg-[#1a1d24] border border-[#2a2f3a] text-gray-300 hover:text-white">
+      <i class="fas fa-bars"></i></button>`;
+  }
+
+  function shellOverlay() {
+    return `<div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-30 hidden md:hidden"></div>`;
+  }
+
+  function ensureShellLayout() {
+    // Create the off-canvas sidebar if it does not exist on this page.
+    let aside = document.getElementById('mobile-sidebar');
+    if (!aside) {
+      const tmp = document.createElement('template');
+      tmp.innerHTML = shellSidebar().trim();
+      aside = tmp.content.firstElementChild;
+      aside.dataset.shellVersion = SHELL_VERSION;
+    }
+
+    const main = document.querySelector('main');
+    if (!main) return;
+
+    // Wrap header(main) inside a flex-row shell holding [sidebar][main] so the
+    // desktop sidebar and the mobile off-canvas drawer both have a home.
+    if (!main.parentElement || !main.parentElement.classList.contains('shell-row')) {
+      const row = document.createElement('div');
+      row.className = 'shell-row flex flex-1 min-h-0 overflow-hidden';
+      main.parentNode.insertBefore(row, main);
+      row.appendChild(aside);
+      row.appendChild(main);
+    } else {
+      // shell-row already present — make sure the sidebar lives inside it.
+      if (!main.parentElement.contains(aside)) main.parentElement.insertBefore(aside, main);
+    }
+
+    // Mobile hamburger toggle (header, mobile only) + tap overlay.
+    if (!document.getElementById('sidebar-toggle')) {
+      const tmp = document.createElement('template');
+      tmp.innerHTML = shellHamburger().trim();
+      document.body.appendChild(tmp.content.firstElementChild);
+    }
+    if (!document.getElementById('mobile-overlay')) {
+      const tmp = document.createElement('template');
+      tmp.innerHTML = shellOverlay().trim();
+      document.body.appendChild(tmp.content.firstElementChild);
+    }
+
+    // Default mobile state: sidebar off-screen, overlay hidden.
+    aside.classList.add('-translate-x-full');
+  }
+
   function injectOnce() {
     const header = document.querySelector('header');
     if (header && !header.dataset.shellVersion) {
@@ -129,12 +182,7 @@
       header.dataset.shellVersion = SHELL_VERSION;
     }
 
-    const aside = document.getElementById('mobile-sidebar');
-    if (aside && !aside.dataset.shellVersion) {
-      const tmp = document.createElement('template');
-      tmp.innerHTML = shellSidebar().trim();
-      aside.parentNode.replaceChild(tmp.content.firstElementChild, aside);
-    }
+    ensureShellLayout();
 
     document.querySelectorAll('#shell-footer, footer[data-shell-version]').forEach(el => el.remove());
 
