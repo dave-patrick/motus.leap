@@ -331,7 +331,10 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
 
     if conn.type in ("openai", "groq", "grok", "openrouter"):
         raw = PROVIDER_BUILTIN_BASE_URLS.get(conn.type, conn.base_url)
-        return f"{_normalise(raw)}/v1/chat/completions"
+        norm = _normalise(raw)
+        if conn.type == "groq":
+            return f"{norm}/openai/v1/chat/completions"
+        return f"{norm}/v1/chat/completions"
     if conn.type == "custom":
         base = (conn.base_url or "").rstrip("/")
         if "/v1" in base or "/v2" in base:
@@ -414,10 +417,23 @@ def _chat_completion(conn: ProviderConnection, model: str,
         if system_prompt:
             payload["system"] = system_prompt
     else:
+        # Wrap tools in standard OpenAI format: {"type": "function", "function": {...}}
+        # This is required by strict API gateways/proxies like OpenRouter and Naga.
+        formatted_tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["parameters"],
+                }
+            }
+            for t in tools
+        ]
         payload = {
             "model": model,
             "messages": messages,
-            "tools": tools,
+            "tools": formatted_tools,
             "tool_choice": "auto",
         }
 

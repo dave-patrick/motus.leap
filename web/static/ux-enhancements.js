@@ -272,8 +272,8 @@ function escapeHtml(text) {
  */
 function initKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
-        // Ignore if in input field
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        // Ignore if in input, textarea or select dropdown
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
             return;
         }
 
