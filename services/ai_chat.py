@@ -331,7 +331,10 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
 
     if conn.type in ("openai", "groq", "grok", "openrouter"):
         raw = PROVIDER_BUILTIN_BASE_URLS.get(conn.type, conn.base_url)
-        return f"{_normalise(raw)}/v1/chat/completions"
+        norm = _normalise(raw)
+        if conn.type == "groq":
+            return f"{norm}/openai/v1/chat/completions"
+        return f"{norm}/v1/chat/completions"
     if conn.type == "custom":
         base = (conn.base_url or "").rstrip("/")
         if "/v1" in base or "/v2" in base:
