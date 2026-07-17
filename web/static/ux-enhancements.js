@@ -1499,10 +1499,11 @@ function dockPanel(opts){
         bodyEl.appendChild(inputArea);
 
         const btn = document.getElementById('ai-chat-btn');
-        const overlay = document.getElementById('ai-chat-overlay');
 
-        btn?.addEventListener('click', _openPanel);
-        overlay?.addEventListener('click', _closePanel);
+        btn?.addEventListener('click', async function() {
+            document.getElementById('ai-chat-input')?.focus();
+            if (!_providersLoaded) await _loadProviders();
+        });
         document.getElementById('ai-chat-close')?.addEventListener('click', _closePanel);
         document.getElementById('ai-chat-clear')?.addEventListener('click', _newConversation);
         document.getElementById('ai-chat-send')?.addEventListener('click', _send);
@@ -1533,15 +1534,25 @@ function dockPanel(opts){
 
     // ---- Panel open / close --------------------------------------------------
     async function _openPanel() {
-        document.getElementById('ai-chat-panel').classList.remove('translate-x-full');
-        document.getElementById('ai-chat-overlay').classList.remove('hidden');
+        const p = document.getElementById('ai-chat-panel');
+        if (p && typeof p.show === 'function') {
+            p.show();
+        } else {
+            p?.classList.remove('translate-x-full');
+            document.getElementById('ai-chat-overlay')?.classList.remove('hidden');
+        }
         document.getElementById('ai-chat-input')?.focus();
         if (!_providersLoaded) await _loadProviders();
     }
 
     function _closePanel() {
-        document.getElementById('ai-chat-panel')?.classList.add('translate-x-full');
-        document.getElementById('ai-chat-overlay')?.classList.add('hidden');
+        const p = document.getElementById('ai-chat-panel');
+        if (p && typeof p.hide === 'function') {
+            p.hide();
+        } else {
+            p?.classList.add('translate-x-full');
+            document.getElementById('ai-chat-overlay')?.classList.add('hidden');
+        }
     }
 
     function _newConversation() {
