@@ -1615,14 +1615,32 @@ function dockPanel(opts){
                 return;
             }
 
-            // Set initial selection
-            try { _selectedModel = JSON.parse(modelSelect.value); } catch (_) {}
+            // Preserve selection if possible
+            const oldSelected = _selectedModel;
+            let foundOld = false;
+            if (oldSelected) {
+                for (let i = 0; i < modelSelect.options.length; i++) {
+                    try {
+                        const val = JSON.parse(modelSelect.options[i].value);
+                        if (val.provider_id === oldSelected.provider_id && val.model_id === oldSelected.model_id) {
+                            modelSelect.selectedIndex = i;
+                            foundOld = true;
+                            break;
+                        }
+                    } catch (_) {}
+                }
+            }
+            if (!foundOld) {
+                try { _selectedModel = JSON.parse(modelSelect.value); } catch (_) {}
+            }
             _updateSubtitle();
 
             // Show chat UI
             _showState('chat');
             modelBar.classList.toggle('hidden', totalOptions <= 1);
-            _appendWelcome();
+            if (chatLog && chatLog.children.length === 0) {
+                _appendWelcome();
+            }
 
         } catch (e) {
             subtitle.textContent = 'Error: ' + e.message;
@@ -1736,6 +1754,8 @@ function dockPanel(opts){
             input?.focus();
         }
     }
+
+    window.refreshAIChatModels = _loadProviders;
 
     document.addEventListener('DOMContentLoaded', initAIChatWidget);
 })();
