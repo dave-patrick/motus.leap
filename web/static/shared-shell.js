@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260717e';
+  const SHELL_VERSION = '20260717d';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -291,7 +291,6 @@
     }
 
     ensureShellLayout();
-    injectAISheet();
 
     if (!document.getElementById('shell-nav-styles') && shellStyles()) {
       const tmp = document.createElement('template');
