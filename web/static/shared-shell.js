@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260717b';
+  const SHELL_VERSION = '20260717c';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -61,8 +61,8 @@
   function shellFooter() {
     return `<footer class="fixed inset-x-0 bottom-0 bg-[#121419] border-t border-[#2a2f3a] px-6 py-2 text-[9px] text-gray-500 flex flex-wrap items-center justify-center gap-4 z-10">
       <span>&copy; 2026 motus.leap</span>
-      <a href="/terms" class="hover:text-[#2f8fc9]">Terms of Use</a>
-      <a href="/privacy" class="hover:text-[#2f8fc9]">Privacy Policy</a>
+      <a href="/terms" data-legal="/terms" class="hover:text-[#2f8fc9]">Terms of Use</a>
+      <a href="/privacy" data-legal="/privacy" class="hover:text-[#2f8fc9]">Privacy Policy</a>
       <span>Not affiliated with YouTube or Google.</span>
     </footer>`;
   }
@@ -225,6 +225,63 @@
       document.body.appendChild(footer);
     }
 
+    if (!document.getElementById('legal-modal')) {
+      const modalOverlay = document.createElement('div');
+      modalOverlay.id = 'legal-modal';
+      modalOverlay.className = 'fixed inset-0 z-[70] hidden';
+      modalOverlay.innerHTML = `
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+        <div class="relative z-[71] flex items-center justify-center min-h-screen p-4">
+          <div class="bg-[#13161d] border border-[#2a2f3a] rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-[#2a2f3a]">
+              <div id="legal-modal-title" class="text-sm font-semibold text-white"></div>
+              <button id="legal-modal-close" class="text-gray-400 hover:text-white text-xs px-2 py-1">Close</button>
+            </div>
+            <div id="legal-modal-body" class="p-4 overflow-y-auto max-h-[calc(85vh-48px)] text-xs text-gray-300 space-y-3"></div>
+          </div>
+        </div>`;
+      document.body.appendChild(modalOverlay);
+
+      const close = () => modalOverlay.classList.add('hidden');
+      modalOverlay.querySelector('#legal-modal-close').addEventListener('click', close);
+      modalOverlay.querySelector('.bg-black\\/70').addEventListener('click', close);
+      document.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Escape' && modalOverlay.classList.contains('hidden') === false) close();
+      });
+    }
+
+    document.querySelectorAll('[data-legal]').forEach(link => {
+      if (link.dataset.shellLegalWired) return;
+      link.dataset.shellLegalWired = '1';
+      link.addEventListener('click', async (e) => {
+        const target = link.getAttribute('data-legal');
+        if (!target) return;
+        e.preventDefault();
+        try {
+          const resp = await fetch(target);
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const html = await resp.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const title = (doc.querySelector('h1')?.textContent || doc.title || 'Page').trim();
+          const main = doc.querySelector('main');
+          let bodyHtml = '';
+          if (main) {
+            bodyHtml = main.innerHTML;
+          } else {
+            const body = doc.querySelector('body');
+            bodyHtml = body ? body.innerHTML : html;
+          }
+          const modal = document.getElementById('legal-modal');
+          document.getElementById('legal-modal-title').textContent = title;
+          document.getElementById('legal-modal-body').innerHTML = bodyHtml;
+          modal.classList.remove('hidden');
+        } catch (err) {
+          console.error('legal modal failed', err);
+          window.location.href = target;
+        }
+      });
+    });
   }
   function init() {
     if (document.readyState === 'loading') {

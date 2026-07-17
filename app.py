@@ -3463,6 +3463,45 @@ async def clear_thumbnails():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def _clear_cache() -> dict:
+    """Shared cache-clear logic for cache and clear-all."""
+    import shutil
+    try:
+        if youtube_service is not None:
+            try:
+                await youtube_service._cache.clear()
+            except Exception:
+                pass
+        thumb_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "thumbnails"
+        if thumb_dir.exists():
+            shutil.rmtree(thumb_dir)
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        return {"message": "Cache cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/storage/clear-cache", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def clear_cache_endpoint():
+    """Clear app cache + thumbnail/processed cache."""
+    return await _clear_cache()
+
+
+@app.post("/api/storage/clear-all", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def clear_all_data():
+    """Wipe app cache + thumbnails and reset stored data flags."""
+    try:
+        await _clear_cache()
+        config = TubeManagerConfig()
+        await config_manager.save(config)
+        global youtube_service
+        youtube_service = YouTubeService(config)
+        _sync_worker_youtube_service()
+        return {"message": "All data cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Webhook endpoints
 @app.post("/api/webhook/test", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def test_webhook(body: dict):
