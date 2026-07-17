@@ -1300,8 +1300,9 @@ window.clearLogs = function() {
     }
 
     function _closeConsole() {
-        if (panel.dataset.docked === '1') return;
-        document.getElementById('live-console-panel')?.classList.add('translate-x-full');
+        const p = document.getElementById('live-console-panel');
+        if (p && p.dataset.docked === '1') return;
+        p?.classList.add('translate-x-full');
         document.getElementById('live-console-overlay')?.classList.add('hidden');
     }
 
