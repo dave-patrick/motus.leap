@@ -47,9 +47,13 @@
                     <div class="bento-card p-4">
                         <h3 class="text-xs font-semibold text-gray-300 mb-3">Current</h3>
                         <div class="space-y-2 text-xs text-gray-300">
-                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Playlist sync with OAuth</span></div>
-                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Channel mapping rules</span></div>
-                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Shared shell + defect remediation</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Settings box fixes (Storage rename, cards in row, Clear Cache button, Logging rename, remove empty space)</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Auto-refresh tokens checkbox removal (dead control, no handler)</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Remove checkboxes: auto-sort new videos, dark-mode only</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Scan Interval label → "Storage"</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Bind dead Clear All Data button to a real endpoint + validate it works</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Terms / Privacy / Roadmap open as closeable in-app modal (footer + settings links)</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Dock panels: slide-out AI + console dock to right, resize page so no overlap</span></div>
                         </div>
                     </div>
                     <div class="bento-card p-4">
@@ -57,7 +61,6 @@
                         <div class="space-y-2 text-xs text-gray-300">
                             <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-[#2f8fc9]"></span><span>CSP Phase 0: strict-CSP infra + violation reporting</span></div>
                             <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-[#2f8fc9]"></span><span>Backend hardening: High/Medium/Low bug backlog</span></div>
-                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-[#2f8fc9]"></span><span>Roadmap page as authoritative tracker linked from Settings</span></div>
                         </div>
                     </div>
                     <div class="bento-card p-4">
@@ -66,6 +69,7 @@
                             <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-gray-500"></span><span>Remove Tailwind Play CDN + static CSS build</span></div>
                             <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-gray-500"></span><span>Remove `unsafe-inline` after page-by-page conversion</span></div>
                             <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-gray-500"></span><span>Advanced analytics + multi-user support</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-gray-500"></span><span>Keep Roadmap page in alignment with this todo list</span></div>
                         </div>
                     </div>
                 </div>
@@ -73,6 +77,10 @@
                 <div class="bento-card p-4">
                     <h3 class="text-xs font-semibold text-gray-300 mb-3">Active Workstreams</h3>
                     <div class="space-y-2 text-xs text-gray-400">
+                        <div class="flex items-center justify-between">
+                            <span>Settings and UI backlog</span>
+                            <span class="text-[10px] text-gray-500">Settings box fixes + dead controls + dock panels</span>
+                        </div>
                         <div class="flex items-center justify-between">
                             <span>CSP strictness migration</span>
                             <span class="text-[10px] text-gray-500">Phase 0: infra + meta cleanup</span>
