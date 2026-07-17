@@ -324,9 +324,14 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
     """Build the chat/completions URL for a connection (OpenAI-compatible)."""
     from models.config import PROVIDER_BUILTIN_BASE_URLS
 
+    def _normalise(base: str) -> str:
+        """Strip trailing /v1 so we never get /v1/v1/..."""
+        b = base.rstrip("/")
+        return b[:-3] if b.endswith("/v1") else b
+
     if conn.type in ("openai", "groq", "grok", "openrouter"):
-        base = PROVIDER_BUILTIN_BASE_URLS.get(conn.type, conn.base_url)
-        return f"{base}/v1/chat/completions"
+        raw = PROVIDER_BUILTIN_BASE_URLS.get(conn.type, conn.base_url)
+        return f"{_normalise(raw)}/v1/chat/completions"
     if conn.type == "custom":
         base = (conn.base_url or "").rstrip("/")
         if "/v1" in base or "/v2" in base:
