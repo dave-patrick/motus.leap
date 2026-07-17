@@ -329,6 +329,12 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
         b = base.rstrip("/")
         return b[:-3] if b.endswith("/v1") else b
 
+    is_google = conn.type == "google" or "googleapis.com" in (conn.base_url or "")
+    if is_google:
+        model_name = model or "gemini-2.0-flash"
+        return (f"{PROVIDER_BUILTIN_BASE_URLS['google']}"
+                f"/v1beta/models/{model_name}:generateContent")
+
     if conn.type in ("openai", "groq", "grok", "openrouter"):
         raw = PROVIDER_BUILTIN_BASE_URLS.get(conn.type, conn.base_url)
         norm = _normalise(raw)
@@ -342,9 +348,6 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
         return f"{base}/v1/chat/completions"
     if conn.type == "anthropic":
         return f"{PROVIDER_BUILTIN_BASE_URLS['anthropic']}/v1/messages"
-    if conn.type == "google":
-        return (f"{PROVIDER_BUILTIN_BASE_URLS['google']}"
-                f"/v1beta/models/{model}:generateContent")
     # Fallback: treat as OpenAI-compatible custom.
     base = (conn.base_url or "").rstrip("/")
     if "/v1" in base or "/v2" in base:
@@ -373,9 +376,11 @@ def _chat_completion(conn: ProviderConnection, model: str,
     endpoint = _resolve_chat_endpoint(conn, model)
     headers = {"Content-Type": "application/json"}
 
+    is_google = conn.type == "google" or "googleapis.com" in (conn.base_url or "")
+
     # Set up headers and endpoint based on provider type
-    if conn.type == "google":
-        if api_key:
+    if is_google:
+        if api_key and "?key=" not in endpoint:
             endpoint = f"{endpoint}?key={api_key}"
     elif conn.type == "anthropic":
         if api_key:
@@ -386,7 +391,7 @@ def _chat_completion(conn: ProviderConnection, model: str,
             headers["Authorization"] = f"Bearer {api_key}"
 
     # Set up payload based on provider type
-    if conn.type == "google":
+    if is_google:
         contents = []
         system_instruction = None
         for msg in messages:
@@ -455,7 +460,7 @@ def _chat_completion(conn: ProviderConnection, model: str,
         raise RuntimeError(f"provider '{conn.name}' returned non-JSON body")
 
     # Translate responses to OpenAI format if needed
-    if conn.type == "google":
+    if is_google:
         try:
             text = res_json["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, TypeError):

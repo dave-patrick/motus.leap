@@ -95,7 +95,7 @@ def _classify_sync(provider: str, prompt: str, api_key: str, endpoint: str, mode
             "temperature": 0.1,
             "max_tokens": 50,
         }
-    elif provider == "google":
+    elif provider == "google" or "googleapis.com" in (endpoint or ""):
         headers = {"Content-Type": "application/json"}
         json_body = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -411,12 +411,13 @@ async def classify_video(title: str, channel: str, description: str,
         if data is None:
             return None, "Empty response"
 
-        if provider in ("openai", "groq", "openrouter", "custom"):
+        is_google = provider == "google" or "googleapis.com" in (endpoint or "")
+        if is_google:
+            text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        elif provider in ("openai", "groq", "openrouter", "custom"):
             text = data["choices"][0]["message"]["content"].strip()
         elif provider == "anthropic":
             text = data["content"][0]["text"].strip()
-        elif provider == "google":
-            text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
         else:
             return None, f"Unknown provider: {provider}"
 
@@ -447,20 +448,24 @@ def _resolve_endpoint(provider: str, api_key: str,
     """
     from models.config import PROVIDER_BUILTIN_BASE_URLS
 
+    is_google = provider == "google" or "googleapis.com" in (base_url_or_endpoint or "")
+    if is_google:
+        model = (selected_models or ["gemini-2.0-flash"])[0]
+        base = base_url_or_endpoint or PROVIDER_BUILTIN_BASE_URLS['google']
+        if "generateContent" not in base:
+            base = f"{PROVIDER_BUILTIN_BASE_URLS['google']}/v1beta/models/{model}:generateContent"
+        if "?key=" not in base and api_key:
+            return f"{base}?key={api_key}"
+        return base
+
     if provider == "openai":
         return f"{PROVIDER_BUILTIN_BASE_URLS['openai']}/v1/chat/completions"
     if provider == "openrouter":
-        return f"{PROVIDER_BUILTIN_BASE_URLS['openrouter']}/v1/chat/completions"
+        return f"{PROVIDER_BUILTIN_BASE_URLS['openrouter']}/chat/completions"
     if provider == "anthropic":
         return f"{PROVIDER_BUILTIN_BASE_URLS['anthropic']}/v1/messages"
     if provider == "groq":
         return f"{PROVIDER_BUILTIN_BASE_URLS['groq']}/openai/v1/chat/completions"
-    if provider == "google":
-        # Legacy generateContent URL (selected model appended at call time via
-        # custom_model/selected_models[0]).
-        model = (selected_models or ["gemini-2.0-flash"])[0]
-        return (f"{PROVIDER_BUILTIN_BASE_URLS['google']}"
-                f"/v1beta/models/{model}:generateContent?key={api_key}")
     if provider == "custom":
         endpoint = (base_url_or_endpoint or "").rstrip("/")
         if "/v1" in endpoint or "/v2" in endpoint:
