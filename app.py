@@ -2429,10 +2429,9 @@ def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
         except Exception as e2:
             return {"manual_entry": True, "error": f"Discovery probe failed: {e2}"}
 
-    if resp.status_code in (401, 403):
-        return {"manual_entry": True, "error": "Invalid API key / unauthorized (401/403)"}
-    if resp.status_code == 404:
-        return {"manual_entry": True, "error": "No /v1/models route (404)"}
+    if resp.status_code != 200:
+        body_snippet = resp.text[:120].strip().replace("\n", " ")
+        return {"manual_entry": True, "error": f"HTTP {resp.status_code}: {body_snippet}"}
 
     try:
         payload = resp.json()
