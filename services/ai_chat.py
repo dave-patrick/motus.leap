@@ -417,10 +417,23 @@ def _chat_completion(conn: ProviderConnection, model: str,
         if system_prompt:
             payload["system"] = system_prompt
     else:
+        # Wrap tools in standard OpenAI format: {"type": "function", "function": {...}}
+        # This is required by strict API gateways/proxies like OpenRouter and Naga.
+        formatted_tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["parameters"],
+                }
+            }
+            for t in tools
+        ]
         payload = {
             "model": model,
             "messages": messages,
-            "tools": tools,
+            "tools": formatted_tools,
             "tool_choice": "auto",
         }
 
