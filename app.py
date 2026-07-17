@@ -3448,6 +3448,56 @@ async def system_logs_page():
 </html>""")
 
 
+async def _storage_info() -> dict:
+    data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    cache_size_bytes = 0
+    try:
+        cache_size_bytes = _dir_size(data_dir)
+    except Exception:
+        cache_size_bytes = 0
+    thumb_count = 0
+    thumb_dir = data_dir / "thumbnails"
+    try:
+        thumb_count = sum(1 for _ in thumb_dir.rglob("*") if _.is_file()) if thumb_dir.exists() else 0
+    except Exception:
+        thumb_count = 0
+    return {
+        "cache_size_bytes": cache_size_bytes,
+        "cache_size_human": _human_bytes(cache_size_bytes),
+        "thumb_count": thumb_count,
+        "thumb_dir": str(thumb_dir),
+    }
+
+
+def _dir_size(path: Path) -> int:
+    total = 0
+    for entry in os.scandir(path):
+        try:
+            if entry.is_file(follow_symlinks=True):
+                total += entry.stat().st_size
+            elif entry.is_dir(follow_symlinks=True):
+                total += _dir_size(Path(entry.path))
+        except OSError:
+            continue
+    return total
+
+
+def _human_bytes(n: int) -> str:
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if abs(n) < 1024:
+            return f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} PB"
+
+
+@app.get("/api/storage/info", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def storage_info():
+    try:
+        return _storage_info()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Storage endpoints
 @app.post("/api/storage/clear-thumbnails", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def clear_thumbnails():
