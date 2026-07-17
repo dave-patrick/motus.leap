@@ -71,6 +71,7 @@ CLIENT = TestClient(
 def _reset_providers():
     """Start each test from a clean in-memory config (no providers)."""
     app_module.config_manager._config = TubeManagerConfig()
+    auth_module._cached_users_db = {"p1test": _SEED_USER}
     yield
     app_module.config_manager._config = TubeManagerConfig()
 

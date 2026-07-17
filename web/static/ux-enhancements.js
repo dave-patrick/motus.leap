@@ -1167,43 +1167,49 @@ window.clearLogs = function() {
         if (document.getElementById('live-console-panel')) return;
 
         // ---- Floating terminal button (left of AI Chat button) ----
-        const btn = document.createElement('button');
-        btn.id = 'live-console-btn';
-        btn.title = 'Live Console';
-        btn.setAttribute('aria-label', 'Open Live Console');
-        btn.className = [
-            'fixed top-[13px] right-[60px] z-[60]',
-            'w-10 h-10 rounded-xl',
-            'bg-[#1a1d24] hover:bg-[#20242c]',
-            'border border-[#2a2f3a] hover:border-[#2f8fc9]/40',
-            'text-gray-400 hover:text-[#2f8fc9]',
-            'flex items-center justify-center',
-            'shadow-lg shadow-black/30',
-            'transition-all duration-200 hover:scale-105 active:scale-95',
-        ].join(' ');
-        btn.innerHTML = '<i class="fa-solid fa-terminal text-sm"></i>';
-        document.body.appendChild(btn);
+        let btn = document.getElementById('live-console-btn');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'live-console-btn';
+            btn.title = 'Live Console';
+            btn.setAttribute('aria-label', 'Open Live Console');
+            btn.className = [
+                'fixed top-[13px] right-[60px] z-[60]',
+                'w-10 h-10 rounded-xl',
+                'bg-[#1a1d24] hover:bg-[#20242c]',
+                'border border-[#2a2f3a] hover:border-[#2f8fc9]/40',
+                'text-gray-400 hover:text-[#2f8fc9]',
+                'flex items-center justify-center',
+                'shadow-lg shadow-black/30',
+                'transition-all duration-200 hover:scale-105 active:scale-95',
+            ].join(' ');
+            btn.innerHTML = '<i class="fa-solid fa-terminal text-sm"></i>';
+            document.body.appendChild(btn);
+        }
 
         // ---- Settings gear button (left of Live Console button) ----
         // Kept in the global header (matching the circular >_ and robot buttons)
         // per product decision; the sidebar Settings link is removed on all pages.
-        const settingsBtn = document.createElement('a');
-        settingsBtn.id = 'settings-gear-btn';
-        settingsBtn.href = '/settings';
-        settingsBtn.title = 'Settings';
-        settingsBtn.setAttribute('aria-label', 'Open Settings');
-        settingsBtn.className = [
-            'fixed top-[13px] right-[112px] z-[60]',
-            'w-10 h-10 rounded-xl',
-            'bg-[#1a1d24] hover:bg-[#20242c]',
-            'border border-[#2a2f3a] hover:border-[#2f8fc9]/40',
-            'text-gray-400 hover:text-[#2f8fc9]',
-            'flex items-center justify-center',
-            'shadow-lg shadow-black/30',
-            'transition-all duration-200 hover:scale-105 active:scale-95',
-        ].join(' ');
-        settingsBtn.innerHTML = '<i class="fa-solid fa-gear text-sm"></i>';
-        document.body.appendChild(settingsBtn);
+        let settingsBtn = document.getElementById('settings-gear-btn');
+        if (!settingsBtn) {
+            settingsBtn = document.createElement('a');
+            settingsBtn.id = 'settings-gear-btn';
+            settingsBtn.href = '/settings';
+            settingsBtn.title = 'Settings';
+            settingsBtn.setAttribute('aria-label', 'Open Settings');
+            settingsBtn.className = [
+                'fixed top-[13px] right-[112px] z-[60]',
+                'w-10 h-10 rounded-xl',
+                'bg-[#1a1d24] hover:bg-[#20242c]',
+                'border border-[#2a2f3a] hover:border-[#2f8fc9]/40',
+                'text-gray-400 hover:text-[#2f8fc9]',
+                'flex items-center justify-center',
+                'shadow-lg shadow-black/30',
+                'transition-all duration-200 hover:scale-105 active:scale-95',
+            ].join(' ');
+            settingsBtn.innerHTML = '<i class="fa-solid fa-gear text-sm"></i>';
+            document.body.appendChild(settingsBtn);
+        }
 
         // ---- Backdrop ----
         const overlay = document.createElement('div');
@@ -1355,20 +1361,23 @@ window.clearLogs = function() {
         if (document.getElementById('ai-chat-panel')) return;
 
         // ---- Floating button (top-right, beside logout) ----
-        const btn = document.createElement('button');
-        btn.id = 'ai-chat-btn';
-        btn.title = 'AI Chat';
-        btn.setAttribute('aria-label', 'Open AI Chat');
-        btn.className = [
-            'fixed top-[13px] right-4 z-[60]',
-            'w-10 h-10 rounded-xl',
-            'bg-[#2f8fc9] hover:bg-[#2a7db8]',
-            'text-white flex items-center justify-center',
-            'shadow-lg shadow-[#2f8fc9]/25',
-            'transition-all duration-200 hover:scale-105 active:scale-95',
-        ].join(' ');
-        btn.innerHTML = '<i class="fa-solid fa-robot text-sm"></i>';
-        document.body.appendChild(btn);
+        let btn = document.getElementById('ai-chat-btn');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'ai-chat-btn';
+            btn.title = 'AI Chat';
+            btn.setAttribute('aria-label', 'Open AI Chat');
+            btn.className = [
+                'fixed top-[13px] right-4 z-[60]',
+                'w-10 h-10 rounded-xl',
+                'bg-transparent border border-transparent',
+                'flex items-center justify-center',
+                'shadow-lg shadow-black/40',
+                'transition-all duration-200 hover:scale-105 active:scale-95',
+            ].join(' ');
+            btn.innerHTML = '<img src="/static/images/ai-chat-icon.jpg" alt="AI Chat" class="w-full h-full object-cover rounded-xl">';
+            document.body.appendChild(btn);
+        }
 
         // ---- Backdrop ----
         const overlay = document.createElement('div');
@@ -1391,8 +1400,8 @@ window.clearLogs = function() {
             <!-- Header -->
             <div class="px-5 py-4 border-b border-[#2a2f3a] flex items-center justify-between shrink-0 bg-[#171920]">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-[#2f8fc9]/15 border border-[#2f8fc9]/30 flex items-center justify-center shrink-0">
-                        <i class="fa-solid fa-robot text-[#2f8fc9]"></i>
+                    <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
+                        <img src="/static/images/ai-chat-icon.jpg" alt="AI" class="w-full h-full object-cover rounded-xl">
                     </div>
                     <div>
                         <div class="text-sm font-semibold text-white leading-tight">AI Chat</div>
@@ -1626,8 +1635,8 @@ window.clearLogs = function() {
         } else {
             wrap.className = 'flex items-start gap-2.5';
             wrap.innerHTML = `
-                <div class="w-6 h-6 rounded-full bg-[#2f8fc9]/15 border border-[#2f8fc9]/30 flex items-center justify-center shrink-0 mt-0.5">
-                    <i class="fa-solid fa-robot text-[#2f8fc9] text-[9px]"></i>
+                <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                    <img src="/static/images/ai-chat-icon.jpg" alt="AI" class="w-full h-full object-cover rounded-full">
                 </div>
                 <div class="bg-[#20242c] border border-[#2a2f3a] rounded-2xl rounded-tl-sm px-4 py-2.5 text-[12px] text-gray-200 max-w-[85%] leading-relaxed whitespace-pre-wrap">${isHtml ? content : _esc(content)}</div>
             `;

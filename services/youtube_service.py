@@ -182,7 +182,9 @@ class YouTubeService:
         across re-auths. Single-user instance, so client_id is a safe, constant
         key.
         """
-        cid = (self.config.oauth.client_id or "").strip()
+        oauth = getattr(self.config, 'oauth', None)
+        cid = getattr(oauth, 'client_id', "") if oauth else ""
+        cid = (cid or "").strip()
         if cid:
             return hashlib.sha256(cid.encode()).hexdigest()[:16]
         return "default"

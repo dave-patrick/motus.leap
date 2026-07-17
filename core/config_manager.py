@@ -193,9 +193,25 @@ class ConfigManager:
                         if isinstance(inc_maps, list):
                             from app import _serialize_mappings
                             inc_maps = _serialize_mappings(inc_maps)
-                        # Authoritative: incoming wins. This makes deletions
-                        # persist (set mapping -> clear -> save -> reload == gone).
-                        incoming["channel_mappings"] = inc_maps
+
+                        # Channel mappings: the incoming config is authoritative.
+                        # However, to prevent a stale background scan or default config
+                        # from clobbering concurrent user mapping updates, we merge:
+                        # 1. If incoming is a blank/unloaded config (no client_id and no api_key).
+                        # 2. If incoming is a scan update (last_scan_time has changed).
+                        api_key = config.youtube_api_key.get_secret_value() if hasattr(config.youtube_api_key, 'get_secret_value') else config.youtube_api_key
+                        client_id = config.oauth.client_id if config.oauth else None
+                        is_blank = not api_key and not client_id
+                        is_scan_update = incoming.get("last_scan_time") != existing.get("last_scan_time")
+
+                        if is_blank:
+                            incoming["channel_mappings"] = disk_maps
+                        elif is_scan_update:
+                            merged_maps = dict(disk_maps)
+                            merged_maps.update(inc_maps)
+                            incoming["channel_mappings"] = merged_maps
+                        else:
+                            incoming["channel_mappings"] = inc_maps
                         data = incoming
                     else:
                         data = config.to_dict_for_storage()

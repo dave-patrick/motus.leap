@@ -13,8 +13,9 @@ from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
-# Set temp data dir before importing app modules
+# Set temp data dir and stable secret key before importing app modules
 os.environ.setdefault("TUBE_MANAGER_DATA_DIR", tempfile.mkdtemp(prefix="motus_test_"))
+os.environ.setdefault("TUBE_MANAGER_SECRET_KEY", "test_secret_key_stable_for_this_process")
 
 # Import app and components
 import sys
@@ -128,6 +129,11 @@ def test_client(mock_youtube_service):
     """Create test client with mocked dependencies and authenticated user."""
     # Import app here to avoid module-level initialization
     from app import app as fastapi_app
+    from app import config_manager
+    if config_manager:
+        if not config_manager.config:
+            config_manager.config = TubeManagerConfig()
+        config_manager.config.allow_self_registration = True
 
     # Patch youtube_service globally
     import app
