@@ -12,3 +12,4 @@ data/
 .env.*
 .understand-anything/
 .mcp.json
+node_modules/

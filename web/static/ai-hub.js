@@ -229,11 +229,21 @@
           // Actions row
           '<div class="flex items-center justify-between text-[11px] text-gray-500 pt-1">' +
             '<button class="prov-rescan text-[#2f8fc9] hover:underline" data-id="' + esc(p.id) + '"><i class="fas fa-sync"></i> Rescan</button>' +
-            '<button class="prov-del text-[#dc2626] hover:underline" data-id="' + esc(p.id) + '">Disconnect</button>' +
+            '<div class="flex gap-3">' +
+              '<button class="prov-edit text-gray-400 hover:text-gray-200 hover:underline" data-id="' + esc(p.id) + '">Edit</button>' +
+              '<button class="prov-del text-[#dc2626] hover:underline" data-id="' + esc(p.id) + '">Disconnect</button>' +
+            '</div>' +
           '</div>' +
         '</div>';
       }).join('');
       $all('.prov-del').forEach(b => b.addEventListener('click', () => deleteProvider(b.getAttribute('data-id'))));
+      $all('.prov-edit').forEach(b => {
+        b.addEventListener('click', () => {
+          const id = b.getAttribute('data-id');
+          const p = providers.find(prov => prov.id === id);
+          if (p) openEditProvModal(p);
+        });
+      });
       $all('.prov-rescan').forEach(b => b.addEventListener('click', () => rescanProvider(b.getAttribute('data-id'))));
       $all('.model-chk').forEach(c => c.addEventListener('change', () => persistModels(c.getAttribute('data-pid'))));
       $all('.model-default').forEach(b => b.addEventListener('click', () => setDefault(b.getAttribute('data-pid'), b.getAttribute('data-mid'))));
@@ -294,6 +304,7 @@
     groq: 'https://api.groq.com',
     grok: 'https://api.x.ai',
     google: 'https://generativelanguage.googleapis.com',
+    openrouter: 'https://openrouter.ai/api/v1',
   };
   const PROV_HINTS = {
     openai: 'Get your API key at platform.openai.com — GPT-4o, o1, o3 and more.',
@@ -301,9 +312,10 @@
     groq: 'Get a free API key at console.groq.com — blazing fast open-source model inference.',
     grok: 'Get your API key at console.x.ai — Grok-3, Grok-2 and beta models.',
     google: 'Get a Gemini API key at aistudio.google.com — Gemini 2.5 Pro, Flash and more.',
+    openrouter: 'Get your API key at openrouter.ai — access Claude, GPT-4, Llama and hundreds of others.',
     custom: 'Any OpenAI-compatible endpoint (Ollama, LM Studio, Together AI, Mistral, OpenRouter…). Needs a /v1/models route for automatic discovery.',
   };
-  function updateProvType() {
+  function updateProvType(keepCurrentValues) {
     const typeEl = $('#prov-type');
     if (!typeEl) return;
     const type = typeEl.value;
@@ -313,7 +325,9 @@
     const lockEl = $('#prov-base-lock');
     const keyOptEl = $('#prov-key-optional');
     if (baseEl) {
-      baseEl.value = PROV_URLS[type] || '';
+      if (!keepCurrentValues) {
+        baseEl.value = PROV_URLS[type] || '';
+      }
       if (lockEl) lockEl.textContent = PROV_URLS[type] ? 'pre-filled · override if needed' : 'required';
     }
     if (hintEl) {
@@ -323,12 +337,13 @@
     }
     if (presetsEl) presetsEl.classList.toggle('hidden', type !== 'custom');
     if (keyOptEl) keyOptEl.classList.toggle('hidden', type !== 'custom');
-    const namePh = { openai: 'My OpenAI', anthropic: 'My Claude', groq: 'My Groq', grok: 'My Grok', google: 'My Gemini', custom: 'My LLM' };
+    const namePh = { openai: 'My OpenAI', anthropic: 'My Claude', groq: 'My Groq', grok: 'My Grok', google: 'My Gemini', openrouter: 'My OpenRouter', custom: 'My LLM' };
     const nameEl = $('#prov-name');
-    if (nameEl) nameEl.placeholder = namePh[type] || 'Provider name';
+    if (nameEl && !keepCurrentValues) nameEl.placeholder = namePh[type] || 'Provider name';
   }
 
   let pendingProviderId = null;
+  let editingProviderId = null;
   const expandedProviders = new Set();
   const freeFilters = new Set();
 
@@ -342,6 +357,14 @@
   }
   function openProvModal() {
     pendingProviderId = null;
+    editingProviderId = null;
+    const titleEl = document.querySelector('#prov-modal h3');
+    if (titleEl) titleEl.textContent = 'Connect Provider';
+    const connectBtn = $('#prov-connect');
+    if (connectBtn) connectBtn.textContent = 'Connect & Discover Models';
+    const typeEl = $('#prov-type');
+    if (typeEl) typeEl.disabled = false;
+
     $('#prov-step1').classList.remove('hidden');
     $('#prov-step2').classList.add('hidden');
     $('#prov-step2-dot').className = 'w-2 h-2 rounded-full bg-[#374151]';
@@ -350,6 +373,30 @@
     $('#prov-type').value = 'openai';
     $('#prov-step1-msg').textContent = ''; $('#prov-step2-msg').textContent = '';
     updateProvType(); // apply initial type state
+    const m = $('#prov-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+  }
+  function openEditProvModal(p) {
+    pendingProviderId = null;
+    editingProviderId = p.id;
+    const titleEl = document.querySelector('#prov-modal h3');
+    if (titleEl) titleEl.textContent = 'Edit Provider';
+    const connectBtn = $('#prov-connect');
+    if (connectBtn) connectBtn.textContent = 'Save & Discover Models';
+    const typeEl = $('#prov-type');
+    if (typeEl) {
+      typeEl.value = p.type;
+      typeEl.disabled = true; // lock type field when editing
+    }
+
+    $('#prov-step1').classList.remove('hidden');
+    $('#prov-step2').classList.add('hidden');
+    $('#prov-step2-dot').className = 'w-2 h-2 rounded-full bg-[#374151]';
+    $('#prov-step1-dot').className = 'w-2 h-2 rounded-full bg-[#2f8fc9]';
+    $('#prov-name').value = p.name || '';
+    $('#prov-key').value = '**********'; // placeholder
+    $('#prov-base').value = p.base_url || '';
+    $('#prov-step1-msg').textContent = ''; $('#prov-step2-msg').textContent = '';
+    updateProvType(true);
     const m = $('#prov-modal'); m.classList.remove('hidden'); m.classList.add('flex');
   }
   function closeProvModal() { const m = $('#prov-modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
@@ -361,13 +408,22 @@
     if (!name) { $('#prov-step1-msg').textContent = 'Name is required.'; return; }
     if (!apiKey && type !== 'custom') { $('#prov-step1-msg').textContent = 'API key required for this provider type.'; return; }
     if (type === 'custom' && !baseUrl) { $('#prov-step1-msg').textContent = 'Base URL required for custom providers.'; return; }
-    const btn = $('#prov-connect'); const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner spinner"></i> Connecting…';
+    const btn = $('#prov-connect'); const old = btn.innerHTML; btn.disabled = true;
+    btn.innerHTML = editingProviderId ? '<i class="fas fa-spinner spinner"></i> Saving…' : '<i class="fas fa-spinner spinner"></i> Connecting…';
     try {
-      const res = await api('/api/ai/providers', {
-        method: 'POST',
-        body: JSON.stringify({ name, type, api_key: apiKey, base_url: baseUrl || undefined }),
-      });
-      pendingProviderId = res.id;
+      if (editingProviderId) {
+        await api('/api/ai/providers/' + editingProviderId, {
+          method: 'PUT',
+          body: JSON.stringify({ name, type, api_key: apiKey, base_url: baseUrl || undefined }),
+        });
+        pendingProviderId = editingProviderId;
+      } else {
+        const res = await api('/api/ai/providers', {
+          method: 'POST',
+          body: JSON.stringify({ name, type, api_key: apiKey, base_url: baseUrl || undefined }),
+        });
+        pendingProviderId = res.id;
+      }
       // Step 2: discover + select
       $('#prov-step1').classList.add('hidden');
       $('#prov-step2').classList.remove('hidden');
@@ -827,7 +883,7 @@
     $('#prov-modal-close') && $('#prov-modal-close').addEventListener('click', closeProvModal);
     $('#prov-connect') && $('#prov-connect').addEventListener('click', connectProvider);
     $('#prov-save') && $('#prov-save').addEventListener('click', saveProviderModels);
-    $('#prov-type') && $('#prov-type').addEventListener('change', updateProvType);
+    $('#prov-type') && $('#prov-type').addEventListener('change', () => updateProvType());
     $all('.prov-preset').forEach(btn => {
       btn.addEventListener('click', () => {
         const baseEl = $('#prov-base');

@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List
 # Provider type enum for the P1 multi-provider model. openai/groq/grok/custom speak
 # the OpenAI-compatible /v1/models surface (live probe); anthropic/google do NOT
 # and are served a curated catalog / manual-entry (see DESIGN_SPEC §7, Gwen §A.2).
-PROVIDER_TYPES = ["openai", "anthropic", "groq", "grok", "google", "custom"]
+PROVIDER_TYPES = ["openai", "anthropic", "groq", "grok", "google", "openrouter", "custom"]
 
 # Builtin base URLs for known providers (no /v1 suffix; code appends as needed).
 PROVIDER_BUILTIN_BASE_URLS = {
@@ -17,6 +17,7 @@ PROVIDER_BUILTIN_BASE_URLS = {
     "groq": "https://api.groq.com",
     "grok": "https://api.x.ai",
     "google": "https://generativelanguage.googleapis.com",
+    "openrouter": "https://openrouter.ai/api/v1",
 }
 
 
@@ -162,11 +163,11 @@ class TubeManagerConfig(BaseModel):
         # ConfigManager.save via to_dict_for_storage) works, and so the value
         # round-trips through disk -> from_dict (which re-wraps as SecretStr).
         if self.ai_providers:
-            # mode="json" renders SecretStr.api_key to its raw secret string so
-            # json.dumps (ConfigManager.save) succeeds and round-trips on load.
-            data['ai_providers'] = [
-                p.model_dump(mode="json") for p in self.ai_providers
-            ]
+            data['ai_providers'] = []
+            for p in self.ai_providers:
+                p_dict = p.model_dump(exclude_none=True)
+                p_dict["api_key"] = _secret(p.api_key)
+                data['ai_providers'].append(p_dict)
         data['oauth'] = {
             'client_id': self.oauth.client_id,
             'client_secret': _secret(self.oauth.client_secret) if self.oauth.client_secret else '',

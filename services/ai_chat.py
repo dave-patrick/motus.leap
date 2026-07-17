@@ -297,18 +297,23 @@ def clear_conversations() -> None:
 # Provider resolution + chat-completion call
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _iter_enabled_providers(config: TubeManagerConfig) -> List[ProviderConnection]:
-    """Ordered list of providers to try: active first, then remaining enabled."""
+def _iter_enabled_providers(config: TubeManagerConfig, target_provider_id: Optional[str] = None) -> List[ProviderConnection]:
+    """Ordered list of providers to try: target first if enabled, then active, then remaining enabled."""
+    target = None
     active = None
     rest = []
     for p in config.ai_providers:
         if not p.enabled:
             continue
-        if p.id == config.ai_active_provider_id:
+        if target_provider_id and p.id == target_provider_id:
+            target = p
+        elif p.id == config.ai_active_provider_id:
             active = p
         else:
             rest.append(p)
     ordered = []
+    if target is not None:
+        ordered.append(target)
     if active is not None:
         ordered.append(active)
     ordered.extend(rest)
@@ -319,12 +324,19 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
     """Build the chat/completions URL for a connection (OpenAI-compatible)."""
     from models.config import PROVIDER_BUILTIN_BASE_URLS
 
-    if conn.type in ("openai", "groq", "grok"):
-        base = PROVIDER_BUILTIN_BASE_URLS.get(conn.type, conn.base_url)
-        return f"{base}/v1/chat/completions"
+    def _normalise(base: str) -> str:
+        """Strip trailing /v1 so we never get /v1/v1/..."""
+        b = base.rstrip("/")
+        return b[:-3] if b.endswith("/v1") else b
+
+    if conn.type in ("openai", "groq", "grok", "openrouter"):
+        raw = PROVIDER_BUILTIN_BASE_URLS.get(conn.type, conn.base_url)
+        return f"{_normalise(raw)}/v1/chat/completions"
     if conn.type == "custom":
         base = (conn.base_url or "").rstrip("/")
-        return f"{base}/chat/completions"
+        if "/v1" in base or "/v2" in base:
+            return f"{base}/chat/completions"
+        return f"{base}/v1/chat/completions"
     if conn.type == "anthropic":
         return f"{PROVIDER_BUILTIN_BASE_URLS['anthropic']}/v1/messages"
     if conn.type == "google":
@@ -332,7 +344,9 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
                 f"/v1beta/models/{model}:generateContent")
     # Fallback: treat as OpenAI-compatible custom.
     base = (conn.base_url or "").rstrip("/")
-    return f"{base}/chat/completions"
+    if "/v1" in base or "/v2" in base:
+        return f"{base}/chat/completions"
+    return f"{base}/v1/chat/completions"
 
 
 def _provider_default_model(conn: ProviderConnection) -> Optional[str]:
@@ -355,20 +369,57 @@ def _chat_completion(conn: ProviderConnection, model: str,
     api_key = conn.api_key.get_secret_value() if hasattr(conn.api_key, "get_secret_value") else str(conn.api_key)
     endpoint = _resolve_chat_endpoint(conn, model)
     headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
 
-    payload: Dict[str, Any] = {
-        "model": model,
-        "messages": messages,
-        "tools": tools,
-        "tool_choice": "auto",
-    }
-    # google/anthropic are not OpenAI-shaped; we still send tools best-effort but
-    # primarily support openai/groq/custom here (P1 discovery covers the rest).
-    if conn.type in ("google", "anthropic"):
-        payload.pop("tools", None)
-        payload.pop("tool_choice", None)
+    # Set up headers and endpoint based on provider type
+    if conn.type == "google":
+        if api_key:
+            endpoint = f"{endpoint}?key={api_key}"
+    elif conn.type == "anthropic":
+        if api_key:
+            headers["x-api-key"] = api_key
+        headers["anthropic-version"] = "2023-06-01"
+    else:
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+    # Set up payload based on provider type
+    if conn.type == "google":
+        contents = []
+        system_instruction = None
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "system":
+                system_instruction = {"parts": [{"text": content}]}
+            else:
+                gemini_role = "model" if role == "assistant" else "user"
+                contents.append({"role": gemini_role, "parts": [{"text": content}]})
+        payload = {"contents": contents}
+        if system_instruction:
+            payload["systemInstruction"] = system_instruction
+    elif conn.type == "anthropic":
+        system_prompt = ""
+        user_messages = []
+        for msg in messages:
+            if msg.get("role") == "system":
+                system_prompt = msg.get("content", "")
+            else:
+                role = "assistant" if msg.get("role") == "assistant" else "user"
+                user_messages.append({"role": role, "content": msg.get("content", "")})
+        payload = {
+            "model": model,
+            "messages": user_messages,
+            "max_tokens": 4096,
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+    else:
+        payload = {
+            "model": model,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto",
+        }
 
     try:
         with httpx.Client(timeout=30.0) as client:
@@ -377,13 +428,49 @@ def _chat_completion(conn: ProviderConnection, model: str,
         raise RuntimeError(f"provider '{conn.name}' request failed: {type(e).__name__}") from e
 
     if resp.status_code >= 400:
-        # Do NOT surface raw body (may contain key/error detail). Redact (M3).
+        # Surface status + brief snippet (no raw secrets). Helps diagnose auth/URL issues.
+        snippet = resp.text[:120].strip().replace("\n", " ") if resp.text else ""
         raise RuntimeError(
-            f"provider '{conn.name}' returned HTTP {resp.status_code}")
+            f"provider '{conn.name}' returned HTTP {resp.status_code}" + (f": {snippet}" if snippet else ""))
+    
     try:
-        return resp.json()
+        res_json = resp.json()
     except Exception:
         raise RuntimeError(f"provider '{conn.name}' returned non-JSON body")
+
+    # Translate responses to OpenAI format if needed
+    if conn.type == "google":
+        try:
+            text = res_json["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, TypeError):
+            text = "(no response)"
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": text
+                    }
+                }
+            ]
+        }
+    elif conn.type == "anthropic":
+        try:
+            text = res_json["content"][0]["text"]
+        except (KeyError, IndexError, TypeError):
+            text = "(no response)"
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": text
+                    }
+                }
+            ]
+        }
+
+    return res_json
 
 
 def _extract_tool_calls(response: Optional[Dict[str, Any]]) -> Tuple[Optional[str], List[Dict[str, Any]]]:
@@ -581,6 +668,8 @@ def run_chat(
     youtube_service=None,
     history: Optional[List[Dict[str, Any]]] = None,
     simulate_provider: Any = None,
+    provider_id: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run one chat turn with constrained tool-calling.
 
@@ -631,19 +720,25 @@ def run_chat(
             response, provider_label = simulate_provider(messages, tools)
             result["model_used"] = provider_label or result["model_used"]
         else:
-            for conn in _iter_enabled_providers(config):
-                model = _provider_default_model(conn)
-                if not model:
+            # If the user explicitly targeted a provider, only try that provider (no fallback to other providers).
+            providers_to_try = (
+                [p for p in config.ai_providers if p.id == provider_id and p.enabled]
+                if provider_id
+                else _iter_enabled_providers(config)
+            )
+            for conn in providers_to_try:
+                m = model if (provider_id and conn.id == provider_id and model) else _provider_default_model(conn)
+                if not m:
                     continue
                 try:
-                    response = _chat_completion(conn, model, messages, tools)
-                    provider_label = f"{conn.type}/{model}"
+                    response = _chat_completion(conn, m, messages, tools)
+                    provider_label = f"{conn.type}/{m}"
                     result["model_used"] = provider_label
                     break
                 except Exception as e:  # fallback to next enabled provider (M1/D)
                     last_err = str(e)
                     log.warning("[AI-CHAT] provider %s failed: %s", conn.name, _redact(str(e)))
-                    used_fallback = True
+                    used_fallback = not provider_id
                     response = None
                     continue
             if response is None:

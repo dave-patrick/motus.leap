@@ -45,3 +45,26 @@ def test_from_dict_restores_oauth_tokens():
     assert cfg.oauth.access_token == "ACCESS"
     assert cfg.oauth.refresh_token == "REFRESH"
     assert cfg.channel_mappings == {"UCx": "PLy"}
+
+
+def test_provider_keys_persist_through_storage_roundtrip():
+    from models.config import ProviderConnection
+    from pydantic import SecretStr
+
+    prov = ProviderConnection(
+        id="p1",
+        name="Test Prov",
+        type="custom",
+        base_url="https://test.ai/api",
+        api_key=SecretStr("supersecretkey"),
+        enabled=True,
+    )
+    cfg = TubeManagerConfig(ai_providers=[prov])
+    d = cfg.to_dict_for_storage()
+
+    # The serialized API key must be the raw key, not the asterisks
+    assert d["ai_providers"][0]["api_key"] == "supersecretkey"
+
+    # Verify that deserializing it back wraps it correctly
+    cfg2 = TubeManagerConfig.from_dict(d)
+    assert cfg2.ai_providers[0].api_key.get_secret_value() == "supersecretkey"

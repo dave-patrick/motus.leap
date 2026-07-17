@@ -101,7 +101,7 @@ def _classify_sync(provider: str, prompt: str, api_key: str, endpoint: str, mode
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 50},
         }
-    elif provider == "custom":
+    elif provider in ("openrouter", "custom"):
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         json_body = {
             "model": model or "default",
@@ -411,7 +411,7 @@ async def classify_video(title: str, channel: str, description: str,
         if data is None:
             return None, "Empty response"
 
-        if provider == "openai" or provider == "groq" or provider == "custom":
+        if provider in ("openai", "groq", "openrouter", "custom"):
             text = data["choices"][0]["message"]["content"].strip()
         elif provider == "anthropic":
             text = data["content"][0]["text"].strip()
@@ -449,6 +449,8 @@ def _resolve_endpoint(provider: str, api_key: str,
 
     if provider == "openai":
         return f"{PROVIDER_BUILTIN_BASE_URLS['openai']}/v1/chat/completions"
+    if provider == "openrouter":
+        return f"{PROVIDER_BUILTIN_BASE_URLS['openrouter']}/v1/chat/completions"
     if provider == "anthropic":
         return f"{PROVIDER_BUILTIN_BASE_URLS['anthropic']}/v1/messages"
     if provider == "groq":
@@ -461,5 +463,7 @@ def _resolve_endpoint(provider: str, api_key: str,
                 f"/v1beta/models/{model}:generateContent?key={api_key}")
     if provider == "custom":
         endpoint = (base_url_or_endpoint or "").rstrip("/")
-        return f"{endpoint}/chat/completions"
+        if "/v1" in endpoint or "/v2" in endpoint:
+            return f"{endpoint}/chat/completions"
+        return f"{endpoint}/v1/chat/completions"
     return None

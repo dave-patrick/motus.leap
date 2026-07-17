@@ -211,3 +211,166 @@ def test_chat_rate_limit():
 def test_confirm_unknown_404():
     r = client.post("/api/ai/chat/confirm", headers=H, json={"action_id": "nope"})
     assert r.status_code == 404
+
+
+def test_chat_target_provider_and_model():
+    from models.config import ProviderConnection
+    from pydantic import SecretStr
+    from services.ai_chat import _iter_enabled_providers
+    from core.config_manager import TubeManagerConfig
+
+    provider1 = ProviderConnection(
+        id="prov1",
+        name="Provider 1",
+        type="openai",
+        api_key=SecretStr("key1"),
+        enabled=True,
+        selected_models=["model1a", "model1b"]
+    )
+    provider2 = ProviderConnection(
+        id="prov2",
+        name="Provider 2",
+        type="openai",
+        api_key=SecretStr("key2"),
+        enabled=True,
+        selected_models=["model2a", "model2b"]
+    )
+
+    cfg = TubeManagerConfig()
+    cfg.ai_providers = [provider1, provider2]
+    cfg.ai_active_provider_id = "prov1"
+
+    # With no target, active provider is first
+    ordered = _iter_enabled_providers(cfg)
+    assert ordered[0].id == "prov1"
+
+    # With target prov2, target provider is first
+    ordered_target = _iter_enabled_providers(cfg, target_provider_id="prov2")
+    assert ordered_target[0].id == "prov2"
+    assert ordered_target[1].id == "prov1"
+
+
+def test_chat_no_fallback_when_targeted():
+    from services.ai_chat import run_chat
+    from core.config_manager import TubeManagerConfig
+    from models.config import ProviderConnection
+    from pydantic import SecretStr
+
+    provider1 = ProviderConnection(
+        id="prov1",
+        name="Provider 1",
+        type="openai",
+        api_key=SecretStr("key1"),
+        enabled=True,
+        selected_models=["model1"]
+    )
+    provider2 = ProviderConnection(
+        id="prov2",
+        name="Provider 2",
+        type="openai",
+        api_key=SecretStr("key2"),
+        enabled=True,
+        selected_models=["model2"]
+    )
+
+    cfg = TubeManagerConfig()
+    cfg.ai_providers = [provider1, provider2]
+    cfg.ai_active_provider_id = "prov1"
+
+    from unittest.mock import patch
+    with patch("services.ai_chat._chat_completion", side_effect=Exception("Failed connection")):
+        res = run_chat("hello", cfg, provider_id="prov2", model="model2")
+        assert "Failed connection" in res["error"]
+        assert res["fallback"] is False
+
+
+def test_resolve_chat_endpoint_custom_urls():
+    from services.ai_chat import _resolve_chat_endpoint
+    from models.config import ProviderConnection
+
+    conn1 = ProviderConnection(
+        id="c1", name="C1", type="custom", base_url="https://openrouter.ai/api", enabled=True
+    )
+    url1 = _resolve_chat_endpoint(conn1, "m1")
+    assert url1 == "https://openrouter.ai/api/v1/chat/completions"
+
+    conn2 = ProviderConnection(
+        id="c2", name="C2", type="custom", base_url="http://localhost:11434/v1", enabled=True
+    )
+    url2 = _resolve_chat_endpoint(conn2, "m1")
+    assert url2 == "http://localhost:11434/v1/chat/completions"
+
+
+def test_google_anthropic_chat_completion_translation(monkeypatch):
+    import httpx
+    from services.ai_chat import _chat_completion
+    from models.config import ProviderConnection
+    from pydantic import SecretStr
+
+    # 1. Test Google translation
+    conn_google = ProviderConnection(
+        id="g1", name="G1", type="google", base_url="https://generativelanguage.googleapis.com", enabled=True, api_key=SecretStr("gemini-key")
+    )
+
+    class FakeGoogleResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": "Gemini answer"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    google_called = {}
+    def mock_post_google(client, url, headers, json):
+        google_called["url"] = str(url)
+        google_called["json"] = json
+        google_called["headers"] = headers
+        return FakeGoogleResponse()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post_google)
+
+    res_google = _chat_completion(conn_google, "gemini-2.5-flash", [{"role": "system", "content": "sys"}, {"role": "user", "content": "usr"}], [])
+    assert res_google["choices"][0]["message"]["content"] == "Gemini answer"
+    assert "key=gemini-key" in google_called["url"]
+    assert google_called["json"]["contents"][0]["parts"][0]["text"] == "usr"
+    assert google_called["json"]["systemInstruction"]["parts"][0]["text"] == "sys"
+
+    # 2. Test Anthropic translation
+    conn_anthropic = ProviderConnection(
+        id="a1", name="A1", type="anthropic", base_url="https://api.anthropic.com", enabled=True, api_key=SecretStr("claude-key")
+    )
+
+    class FakeAnthropicResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "content": [
+                    {
+                        "text": "Claude answer"
+                    }
+                ]
+            }
+
+    anthropic_called = {}
+    def mock_post_anthropic(client, url, headers, json):
+        anthropic_called["url"] = str(url)
+        anthropic_called["json"] = json
+        anthropic_called["headers"] = headers
+        return FakeAnthropicResponse()
+
+    monkeypatch.setattr(httpx.Client, "post", mock_post_anthropic)
+
+    res_anthropic = _chat_completion(conn_anthropic, "claude-3-5-sonnet", [{"role": "system", "content": "sys"}, {"role": "user", "content": "usr"}], [])
+    assert res_anthropic["choices"][0]["message"]["content"] == "Claude answer"
+    assert anthropic_called["headers"]["x-api-key"] == "claude-key"
+    assert anthropic_called["json"]["system"] == "sys"
+    assert anthropic_called["json"]["messages"][0]["content"] == "usr"

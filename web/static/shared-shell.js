@@ -14,8 +14,7 @@
 
   function shellHeader() {
     const path = window.location.pathname;
-    const settingsActive = path === '/settings' ? ' text-[#2f8fc9]' : ' text-gray-300';
-    const terminalActive = path === '/dashboard' ? ' text-[#2f8fc9]' : ' text-gray-300';
+    const settingsActive = path === '/settings' ? 'text-[#2f8fc9] border-[#2f8fc9]/40' : 'text-gray-400 border-[#2a2f3a]';
     return `<header class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center justify-between border-b border-[#2a2f3a] shrink-0 z-20">
         <div class="flex items-center gap-4 pl-14 md:pl-0">
           <img src="/static/logo_icon.png?v=3" alt="motus.leap" class="site-logo" style="height:56px;width:auto;object-fit:contain;">
@@ -27,9 +26,9 @@
           </h1>
         </div>
         <div class="flex items-center gap-2">
-          <a href="/settings" aria-label="Settings" title="Settings" class="ml-3 flex items-center justify-center w-9 h-9 rounded-lg border border-[#2a2f3a]${settingsActive} hover:text-white hover:border-[#2f8fc9] transition-colors">&#9881;</a>
-          <a href="/dashboard" aria-label="Terminal" title="Terminal" class="ml-3 flex items-center justify-center w-9 h-9 rounded-lg border border-[#2a2f3a]${terminalActive} hover:text-white hover:border-[#2f8fc9] transition-colors">&gt;_</a>
-          <button id="robot-button" aria-label="Open AI chat" title="Open AI chat" class="ml-3 flex items-center justify-center w-9 h-9 rounded-lg border border-[#2a2f3a] text-gray-300 hover:text-white hover:border-[#2f8fc9] transition-colors">&#129302;</button>
+          <a href="/settings" id="settings-gear-btn" aria-label="Settings" title="Settings" class="ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-[#1a1d24] border ${settingsActive} hover:text-[#2f8fc9] hover:border-[#2f8fc9]/40 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/20"><i class="fa-solid fa-gear text-sm"></i></a>
+          <button id="live-console-btn" aria-label="Live Console" title="Live Console" class="ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-[#2f8fc9] hover:border-[#2f8fc9]/40 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/20"><i class="fa-solid fa-terminal text-sm"></i></button>
+          <button id="ai-chat-btn" aria-label="Open AI chat" title="Open AI chat" class="ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-transparent border border-transparent transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/40"><img src="/static/images/ai-chat-icon.jpg" alt="AI Chat" class="w-full h-full object-cover rounded-xl"></button>
         </div>
       </header>`;
   }
@@ -139,7 +138,20 @@
   }
 
   function ensureShellLayout() {
-    // Create the off-canvas sidebar if it does not exist on this page.
+    // 1) Header — create if the page has none (shared-shell is the single source).
+    let header = document.querySelector('header');
+    if (!header) {
+      const tmp = document.createElement('template');
+      tmp.innerHTML = shellHeader().trim();
+      header = tmp.content.firstElementChild;
+      header.dataset.shellVersion = SHELL_VERSION;
+      document.body.insertBefore(header, document.body.firstChild);
+    } else if (!header.dataset.shellVersion) {
+      header.innerHTML = shellHeader();
+      header.dataset.shellVersion = SHELL_VERSION;
+    }
+
+    // 2) Sidebar — create if absent.
     let aside = document.getElementById('mobile-sidebar');
     if (!aside) {
       const tmp = document.createElement('template');
@@ -148,23 +160,30 @@
       aside.dataset.shellVersion = SHELL_VERSION;
     }
 
+    // 3) Ensure <main> lives inside a flex shell that also contains the sidebar.
     const main = document.querySelector('main');
     if (!main) return;
 
-    // Wrap header(main) inside a flex-row shell holding [sidebar][main] so the
-    // desktop sidebar and the mobile off-canvas drawer both have a home.
-    if (!main.parentElement || !main.parentElement.classList.contains('shell-row')) {
+    const container = main.parentElement;
+    const containerIsShell = container && (
+      container === aside.parentElement ||
+      container.classList.contains('shell-row') ||
+      /(^|\s)flex(\s|$)/.test(container.className)
+    );
+
+    if (containerIsShell && container !== document.body) {
+      // Existing flex wrapper (e.g. ai-hub): drop the sidebar in as its first child.
+      if (!container.contains(aside)) container.insertBefore(aside, container.firstChild);
+    } else {
+      // No usable shell (e.g. dashboard): build one and move main + sidebar into it.
       const row = document.createElement('div');
       row.className = 'shell-row flex flex-1 min-h-0 overflow-hidden';
       main.parentNode.insertBefore(row, main);
       row.appendChild(aside);
       row.appendChild(main);
-    } else {
-      // shell-row already present — make sure the sidebar lives inside it.
-      if (!main.parentElement.contains(aside)) main.parentElement.insertBefore(aside, main);
     }
 
-    // Mobile hamburger toggle (header, mobile only) + tap overlay.
+    // 4) Mobile hamburger toggle + tap overlay (mobile only).
     if (!document.getElementById('sidebar-toggle')) {
       const tmp = document.createElement('template');
       tmp.innerHTML = shellHamburger().trim();
@@ -206,15 +225,6 @@
       document.body.appendChild(footer);
     }
 
-    const btn = document.getElementById('robot-button');
-    if (btn && btn.getAttribute('data-shell-wired') !== '1') {
-      btn.setAttribute('data-shell-wired', '1');
-      btn.addEventListener('click', () => {
-        const drawer = document.getElementById('global-agent-drawer');
-        if (!drawer) return;
-        drawer.classList.toggle('hidden');
-      });
-    }
   }
   function init() {
     if (document.readyState === 'loading') {

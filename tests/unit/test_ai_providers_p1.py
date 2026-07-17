@@ -71,6 +71,7 @@ CLIENT = TestClient(
 def _reset_providers():
     """Start each test from a clean in-memory config (no providers)."""
     app_module.config_manager._config = TubeManagerConfig()
+    auth_module._cached_users_db = {"p1test": _SEED_USER}
     yield
     app_module.config_manager._config = TubeManagerConfig()
 
@@ -366,6 +367,31 @@ class TestDeleteProvider:
         CLIENT.delete(f"/api/ai/providers/{pid}", headers=AUTH)
         cfg = app_module.config_manager.config
         assert cfg.ai_active_provider_id is None or cfg.ai_active_provider_id != pid
+
+    def test_update_provider(self):
+        conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
+            "name": "Original Name", "type": "custom", "api_key": "sk-orig", "base_url": "https://orig.api/v1"})
+        pid = conn.json()["id"]
+
+        resp = CLIENT.put(f"/api/ai/providers/{pid}", headers=AUTH, json={
+            "name": "Updated Name", "type": "custom", "api_key": "sk-new", "base_url": "https://new.api"})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "updated"
+
+        cfg = app_module.config_manager.config
+        updated_p = next(p for p in cfg.ai_providers if p.id == pid)
+        assert updated_p.name == "Updated Name"
+        assert updated_p.base_url == "https://new.api"
+        assert _secret(updated_p.api_key) == "sk-new"
+
+        resp2 = CLIENT.put(f"/api/ai/providers/{pid}", headers=AUTH, json={
+            "name": "Another Name", "type": "custom", "api_key": "**********", "base_url": "https://another.api"})
+        assert resp2.status_code == 200
+
+        cfg = app_module.config_manager.config
+        updated_p2 = next(p for p in cfg.ai_providers if p.id == pid)
+        assert updated_p2.name == "Another Name"
+        assert _secret(updated_p2.api_key) == "sk-new"
 
 
 # ─── legacy scalar migration ───────────────────────────────────────

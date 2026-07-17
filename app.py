@@ -2332,6 +2332,14 @@ class ProviderConnectIn(BaseModel):
     selected_models: list[str] = []
 
 
+class ProviderUpdateIn(BaseModel):
+    """Body for PUT /api/ai/providers/{provider_id} (update an existing connection)."""
+    name: str
+    type: str                          # one of PROVIDER_TYPES
+    api_key: str = ""
+    base_url: str = ""
+
+
 class ProviderSelectModelsIn(BaseModel):
     """Body for PUT /api/ai/providers/{id}/models (select active + default)."""
     active: list[str] = []
@@ -2405,7 +2413,10 @@ def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
     if conn.type == "groq":
         models_url = f"{base}/openai/v1/models"
     else:
-        models_url = f"{base}/v1/models"
+        # Some base URLs already include /v1 (e.g. https://openrouter.ai/api/v1).
+        # Strip a trailing /v1 before appending /v1/models to avoid double-v1.
+        base_no_v1 = base[:-3] if base.endswith("/v1") else base
+        models_url = f"{base_no_v1}/v1/models"
 
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
@@ -2421,10 +2432,9 @@ def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
         except Exception as e2:
             return {"manual_entry": True, "error": f"Discovery probe failed: {e2}"}
 
-    if resp.status_code in (401, 403):
-        return {"manual_entry": True, "error": "Invalid API key / unauthorized (401/403)"}
-    if resp.status_code == 404:
-        return {"manual_entry": True, "error": "No /v1/models route (404)"}
+    if resp.status_code != 200:
+        body_snippet = resp.text[:120].strip().replace("\n", " ")
+        return {"manual_entry": True, "error": f"HTTP {resp.status_code}: {body_snippet}"}
 
     try:
         payload = resp.json()
@@ -2508,6 +2518,39 @@ async def ai_connect_provider(body: ProviderConnectIn):
 
     await config_manager.save(config)
     return {"id": conn.id, "status": "connected"}
+
+
+@app.put("/api/ai/providers/{provider_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_update_provider(provider_id: str, body: ProviderUpdateIn):
+    """Update an existing provider connection."""
+    if body.type not in PROVIDER_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid provider type '{body.type}'")
+    if body.type == "custom" and not body.base_url:
+        raise HTTPException(status_code=400, detail="base_url is required for custom providers")
+
+    config = config_manager.config
+    conn = next((p for p in config.ai_providers if p.id == provider_id), None)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    # Derive base_url for builtins.
+    if body.type == "custom":
+        base_url = body.base_url.rstrip("/")
+    else:
+        base_url = PROVIDER_BUILTIN_BASE_URLS.get(body.type, body.base_url)
+
+    conn.name = body.name
+    conn.type = body.type
+    conn.base_url = base_url
+    conn.is_builtin = (body.type in PROVIDER_BUILTIN_BASE_URLS)
+
+    # Only update API key if provided and not equal to redacted placeholder
+    key_str = body.api_key.strip()
+    if key_str and key_str != "**********" and key_str != "***REDACTED***":
+        conn.api_key = SecretStr(key_str)
+
+    await config_manager.save(config)
+    return {"id": conn.id, "status": "updated"}
 
 
 @app.delete("/api/ai/providers/{provider_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
@@ -2687,6 +2730,8 @@ class ChatIn(BaseModel):
     """Body for POST /api/ai/chat."""
     message: str
     conversation_id: Optional[str] = None
+    provider_id: Optional[str] = None
+    model: Optional[str] = None
 
 
 class ChatConfirmIn(BaseModel):
@@ -2805,6 +2850,7 @@ async def ai_chat(body: ChatIn, request: Request):
     result = chat_mod.run_chat(
         message=body.message, config=config,
         youtube_service=youtube_service, history=history,
+        provider_id=body.provider_id, model=body.model,
     )
     # Persist the turn (with any pending actions) for /history.
     chat_mod.append_turn(key, "user", body.message,

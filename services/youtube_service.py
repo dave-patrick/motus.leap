@@ -182,7 +182,9 @@ class YouTubeService:
         across re-auths. Single-user instance, so client_id is a safe, constant
         key.
         """
-        cid = (self.config.oauth.client_id or "").strip()
+        oauth = getattr(self.config, 'oauth', None)
+        cid = getattr(oauth, 'client_id', "") if oauth else ""
+        cid = (cid or "").strip()
         if cid:
             return hashlib.sha256(cid.encode()).hexdigest()[:16]
         return "default"
@@ -591,7 +593,7 @@ class YouTubeService:
 
         except Exception as e:
             log.warning(f"Failed to check/list playlists: {e}")
-            if disk_playlists_payload: 
+            if disk_playlists_payload and disk_playlists_payload.get("playlists"): 
                 return disk_playlists_payload
             return {"playlists": [], "error": str(e)}
 
@@ -862,7 +864,7 @@ class YouTubeService:
                 raise
             except Exception as e:
                 log.warning(f"_fetch_all_paginated: fetch_fn raised: {e}. Stopping pagination.")
-                break
+                raise
 
             # Reset error counter on successful fetch
             consecutive_errors = 0
