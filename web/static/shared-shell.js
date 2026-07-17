@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260717d';
+  const SHELL_VERSION = '20260717e';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -77,20 +77,27 @@
       const robotBtn = document.getElementById('robot-button');
       if (robotBtn) {
         robotBtn.addEventListener('click', () => {
-          existing.classList.remove('translate-x-full');
-          const overlay = document.getElementById('ai-chat-overlay');
-          if (overlay) overlay.classList.remove('hidden');
+          if (typeof existing.show === 'function') {
+            existing.show();
+          } else {
+            existing.classList.remove('translate-x-full');
+            const overlay = document.getElementById('ai-chat-overlay');
+            if (overlay) overlay.classList.remove('hidden');
+          }
         });
-        return;
       }
 
       const chatBtn = document.getElementById('ai-chat-btn');
       if (chatBtn) {
         const already = chatBtn.dataset.shellWired === '1';
         chatBtn.addEventListener('click', () => {
-          existing.classList.remove('translate-x-full');
-          const overlay = document.getElementById('ai-chat-overlay');
-          if (overlay) overlay.classList.remove('hidden');
+          if (typeof existing.show === 'function') {
+            existing.show();
+          } else {
+            existing.classList.remove('translate-x-full');
+            const overlay = document.getElementById('ai-chat-overlay');
+            if (overlay) overlay.classList.remove('hidden');
+          }
         });
         chatBtn.dataset.shellWired = already ? chatBtn.dataset.shellWired : '1';
       }
@@ -284,6 +291,7 @@
     }
 
     ensureShellLayout();
+    injectAISheet();
 
     if (!document.getElementById('shell-nav-styles') && shellStyles()) {
       const tmp = document.createElement('template');

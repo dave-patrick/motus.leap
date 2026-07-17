@@ -1536,7 +1536,6 @@ window.clearLogs = function() {
         bodyEl.appendChild(inputArea);
 
         const btn = document.getElementById('ai-chat-btn');
-        const overlay = document.getElementById('ai-chat-overlay');
 
         btn?.addEventListener('click', _openPanel);
         overlay?.addEventListener('click', _closeConsole);
@@ -1570,16 +1569,19 @@ window.clearLogs = function() {
 
     // ---- Panel open / close --------------------------------------------------
     async function _openPanel() {
-        const panel = document.getElementById('ai-chat-panel');
-        const overlay = document.getElementById('ai-chat-overlay');
-        if (panel) panel.classList.remove('translate-x-full');
-        if (overlay) overlay.classList.remove('hidden');
+        const p = document.getElementById('ai-chat-panel');
+        if (p && typeof p.show === 'function') {
+            p.show();
+        } else {
+            p?.classList.remove('translate-x-full');
+            document.getElementById('ai-chat-overlay')?.classList.remove('hidden');
+        }
         document.getElementById('ai-chat-input')?.focus();
         if (!_providersLoaded) await _loadProviders();
     }
 
     function _closePanel() {
-        _closeConsole('force');
+        _closeConsole();
     }
 
     function _newConversation() {
