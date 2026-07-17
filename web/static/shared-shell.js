@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260717a';
+  const SHELL_VERSION = '20260717b';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -50,9 +50,9 @@
               <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
             </div>
             <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">
-              <a href="/ai/providers" class="${subActive('/ai/providers')}" data-ai="providers"><i class="fas fa-plug w-5 text-center"></i> Providers</a>
-              <a href="/ai/rules" class="${subActive('/ai/rules')}" data-ai="rules"><i class="fas fa-sliders w-5 text-center"></i> Rules</a>
-              <a href="/ai/jobs" class="${subActive('/ai/jobs')}" data-ai="jobs"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
+              <a href="/ai/providers" class="ai-sub ${subActive('/ai/providers')} flex items-center gap-3 pl-11 pr-4 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200" data-ai="providers"><i class="fas fa-plug w-5 text-center"></i> Providers</a>
+              <a href="/ai/rules" class="ai-sub ${subActive('/ai/rules')} flex items-center gap-3 pl-11 pr-4 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200" data-ai="rules"><i class="fas fa-sliders w-5 text-center"></i> Rules</a>
+              <a href="/ai/jobs" class="ai-sub ${subActive('/ai/jobs')} flex items-center gap-3 pl-11 pr-4 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200" data-ai="jobs"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
             </div>
           </div>
         </nav>
@@ -133,6 +133,11 @@
     return `<div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-30 hidden md:hidden"></div>`;
   }
 
+  function shellStyles() {
+    if (document.getElementById('shell-nav-styles')) return '';
+    return `<style id="shell-nav-styles">#shell-nav-styles .nav-item{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border-radius:.5rem;color:#9ca3af;font-size:.875rem;transition:background-color .2s,color .2s}#shell-nav-styles .nav-item.active{background-color:#2f8fc9;color:#fff;font-weight:600}#shell-nav-styles .nav-item:not(.active):hover{background-color:#2a2f3a;color:#fff}#shell-nav-styles .ai-sub{display:flex;align-items:center;gap:.75rem;padding:.6rem 1rem .6rem 2.75rem;border-radius:.5rem;color:#9ca3af;font-size:.875rem;border-left:2px solid transparent;transition:background-color .2s,color .2s}#shell-nav-styles .ai-sub.active{background-color:#2a2f3a;color:#fff;border-left:2px solid #2f8fc9}#shell-nav-styles .ai-sub:not(.active):hover{background-color:#20242c;color:#fff}#shell-nav-styles .ai-group-toggle{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-radius:.5rem;color:#d1d5db;font-size:.875rem;cursor:pointer;user-select:none}</style>`;
+  }
+
   function ensureShellLayout() {
     // Create the off-canvas sidebar if it does not exist on this page.
     let aside = document.getElementById('mobile-sidebar');
@@ -183,6 +188,12 @@
     }
 
     ensureShellLayout();
+
+    if (!document.getElementById('shell-nav-styles') && shellStyles()) {
+      const tmp = document.createElement('template');
+      tmp.innerHTML = shellStyles().trim();
+      document.head.appendChild(tmp.content.firstElementChild);
+    }
 
     document.querySelectorAll('#shell-footer, footer[data-shell-version]').forEach(el => el.remove());
 
