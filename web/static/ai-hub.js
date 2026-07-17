@@ -304,7 +304,7 @@
     groq: 'https://api.groq.com',
     grok: 'https://api.x.ai',
     google: 'https://generativelanguage.googleapis.com',
-    openrouter: 'https://openrouter.ai/api',
+    openrouter: 'https://openrouter.ai/api/v1',
   };
   const PROV_HINTS = {
     openai: 'Get your API key at platform.openai.com — GPT-4o, o1, o3 and more.',
