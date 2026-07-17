@@ -2687,6 +2687,8 @@ class ChatIn(BaseModel):
     """Body for POST /api/ai/chat."""
     message: str
     conversation_id: Optional[str] = None
+    provider_id: Optional[str] = None
+    model: Optional[str] = None
 
 
 class ChatConfirmIn(BaseModel):
@@ -2805,6 +2807,7 @@ async def ai_chat(body: ChatIn, request: Request):
     result = chat_mod.run_chat(
         message=body.message, config=config,
         youtube_service=youtube_service, history=history,
+        provider_id=body.provider_id, model=body.model,
     )
     # Persist the turn (with any pending actions) for /history.
     chat_mod.append_turn(key, "user", body.message,

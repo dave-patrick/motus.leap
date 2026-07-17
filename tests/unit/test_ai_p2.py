@@ -211,3 +211,40 @@ def test_chat_rate_limit():
 def test_confirm_unknown_404():
     r = client.post("/api/ai/chat/confirm", headers=H, json={"action_id": "nope"})
     assert r.status_code == 404
+
+
+def test_chat_target_provider_and_model():
+    from models.config import ProviderConnection
+    from pydantic import SecretStr
+    from services.ai_chat import _iter_enabled_providers
+    from core.config_manager import TubeManagerConfig
+
+    provider1 = ProviderConnection(
+        id="prov1",
+        name="Provider 1",
+        type="openai",
+        api_key=SecretStr("key1"),
+        enabled=True,
+        selected_models=["model1a", "model1b"]
+    )
+    provider2 = ProviderConnection(
+        id="prov2",
+        name="Provider 2",
+        type="openai",
+        api_key=SecretStr("key2"),
+        enabled=True,
+        selected_models=["model2a", "model2b"]
+    )
+
+    cfg = TubeManagerConfig()
+    cfg.ai_providers = [provider1, provider2]
+    cfg.ai_active_provider_id = "prov1"
+
+    # With no target, active provider is first
+    ordered = _iter_enabled_providers(cfg)
+    assert ordered[0].id == "prov1"
+
+    # With target prov2, target provider is first
+    ordered_target = _iter_enabled_providers(cfg, target_provider_id="prov2")
+    assert ordered_target[0].id == "prov2"
+    assert ordered_target[1].id == "prov1"

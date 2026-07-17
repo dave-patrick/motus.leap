@@ -297,18 +297,23 @@ def clear_conversations() -> None:
 # Provider resolution + chat-completion call
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _iter_enabled_providers(config: TubeManagerConfig) -> List[ProviderConnection]:
-    """Ordered list of providers to try: active first, then remaining enabled."""
+def _iter_enabled_providers(config: TubeManagerConfig, target_provider_id: Optional[str] = None) -> List[ProviderConnection]:
+    """Ordered list of providers to try: target first if enabled, then active, then remaining enabled."""
+    target = None
     active = None
     rest = []
     for p in config.ai_providers:
         if not p.enabled:
             continue
-        if p.id == config.ai_active_provider_id:
+        if target_provider_id and p.id == target_provider_id:
+            target = p
+        elif p.id == config.ai_active_provider_id:
             active = p
         else:
             rest.append(p)
     ordered = []
+    if target is not None:
+        ordered.append(target)
     if active is not None:
         ordered.append(active)
     ordered.extend(rest)
@@ -581,6 +586,8 @@ def run_chat(
     youtube_service=None,
     history: Optional[List[Dict[str, Any]]] = None,
     simulate_provider: Any = None,
+    provider_id: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run one chat turn with constrained tool-calling.
 
@@ -631,13 +638,13 @@ def run_chat(
             response, provider_label = simulate_provider(messages, tools)
             result["model_used"] = provider_label or result["model_used"]
         else:
-            for conn in _iter_enabled_providers(config):
-                model = _provider_default_model(conn)
-                if not model:
+            for conn in _iter_enabled_providers(config, provider_id):
+                m = model if (provider_id and conn.id == provider_id and model) else _provider_default_model(conn)
+                if not m:
                     continue
                 try:
-                    response = _chat_completion(conn, model, messages, tools)
-                    provider_label = f"{conn.type}/{model}"
+                    response = _chat_completion(conn, m, messages, tools)
+                    provider_label = f"{conn.type}/{m}"
                     result["model_used"] = provider_label
                     break
                 except Exception as e:  # fallback to next enabled provider (M1/D)
