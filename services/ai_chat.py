@@ -656,7 +656,7 @@ def run_chat(
                 except Exception as e:  # fallback to next enabled provider (M1/D)
                     last_err = str(e)
                     log.warning("[AI-CHAT] provider %s failed: %s", conn.name, _redact(str(e)))
-                    used_fallback = True
+                    used_fallback = not provider_id
                     response = None
                     continue
             if response is None:

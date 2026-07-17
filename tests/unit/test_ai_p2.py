@@ -248,3 +248,37 @@ def test_chat_target_provider_and_model():
     ordered_target = _iter_enabled_providers(cfg, target_provider_id="prov2")
     assert ordered_target[0].id == "prov2"
     assert ordered_target[1].id == "prov1"
+
+
+def test_chat_no_fallback_when_targeted():
+    from services.ai_chat import run_chat
+    from core.config_manager import TubeManagerConfig
+    from models.config import ProviderConnection
+    from pydantic import SecretStr
+
+    provider1 = ProviderConnection(
+        id="prov1",
+        name="Provider 1",
+        type="openai",
+        api_key=SecretStr("key1"),
+        enabled=True,
+        selected_models=["model1"]
+    )
+    provider2 = ProviderConnection(
+        id="prov2",
+        name="Provider 2",
+        type="openai",
+        api_key=SecretStr("key2"),
+        enabled=True,
+        selected_models=["model2"]
+    )
+
+    cfg = TubeManagerConfig()
+    cfg.ai_providers = [provider1, provider2]
+    cfg.ai_active_provider_id = "prov1"
+
+    from unittest.mock import patch
+    with patch("services.ai_chat._chat_completion", side_effect=Exception("Failed connection")):
+        res = run_chat("hello", cfg, provider_id="prov2", model="model2")
+        assert "Failed connection" in res["error"]
+        assert res["fallback"] is False
