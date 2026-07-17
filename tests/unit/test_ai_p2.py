@@ -282,3 +282,20 @@ def test_chat_no_fallback_when_targeted():
         res = run_chat("hello", cfg, provider_id="prov2", model="model2")
         assert "Failed connection" in res["error"]
         assert res["fallback"] is False
+
+
+def test_resolve_chat_endpoint_custom_urls():
+    from services.ai_chat import _resolve_chat_endpoint
+    from models.config import ProviderConnection
+
+    conn1 = ProviderConnection(
+        id="c1", name="C1", type="custom", base_url="https://openrouter.ai/api", enabled=True
+    )
+    url1 = _resolve_chat_endpoint(conn1, "m1")
+    assert url1 == "https://openrouter.ai/api/v1/chat/completions"
+
+    conn2 = ProviderConnection(
+        id="c2", name="C2", type="custom", base_url="http://localhost:11434/v1", enabled=True
+    )
+    url2 = _resolve_chat_endpoint(conn2, "m1")
+    assert url2 == "http://localhost:11434/v1/chat/completions"

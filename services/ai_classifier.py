@@ -461,5 +461,7 @@ def _resolve_endpoint(provider: str, api_key: str,
                 f"/v1beta/models/{model}:generateContent?key={api_key}")
     if provider == "custom":
         endpoint = (base_url_or_endpoint or "").rstrip("/")
-        return f"{endpoint}/chat/completions"
+        if "/v1" in endpoint or "/v2" in endpoint:
+            return f"{endpoint}/chat/completions"
+        return f"{endpoint}/v1/chat/completions"
     return None

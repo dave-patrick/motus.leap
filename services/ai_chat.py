@@ -329,7 +329,9 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
         return f"{base}/v1/chat/completions"
     if conn.type == "custom":
         base = (conn.base_url or "").rstrip("/")
-        return f"{base}/chat/completions"
+        if "/v1" in base or "/v2" in base:
+            return f"{base}/chat/completions"
+        return f"{base}/v1/chat/completions"
     if conn.type == "anthropic":
         return f"{PROVIDER_BUILTIN_BASE_URLS['anthropic']}/v1/messages"
     if conn.type == "google":
@@ -337,7 +339,9 @@ def _resolve_chat_endpoint(conn: ProviderConnection, model: str) -> str:
                 f"/v1beta/models/{model}:generateContent")
     # Fallback: treat as OpenAI-compatible custom.
     base = (conn.base_url or "").rstrip("/")
-    return f"{base}/chat/completions"
+    if "/v1" in base or "/v2" in base:
+        return f"{base}/chat/completions"
+    return f"{base}/v1/chat/completions"
 
 
 def _provider_default_model(conn: ProviderConnection) -> Optional[str]:
