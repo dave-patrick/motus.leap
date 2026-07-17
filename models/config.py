@@ -162,11 +162,11 @@ class TubeManagerConfig(BaseModel):
         # ConfigManager.save via to_dict_for_storage) works, and so the value
         # round-trips through disk -> from_dict (which re-wraps as SecretStr).
         if self.ai_providers:
-            # mode="json" renders SecretStr.api_key to its raw secret string so
-            # json.dumps (ConfigManager.save) succeeds and round-trips on load.
-            data['ai_providers'] = [
-                p.model_dump(mode="json") for p in self.ai_providers
-            ]
+            data['ai_providers'] = []
+            for p in self.ai_providers:
+                p_dict = p.model_dump(exclude_none=True)
+                p_dict["api_key"] = _secret(p.api_key)
+                data['ai_providers'].append(p_dict)
         data['oauth'] = {
             'client_id': self.oauth.client_id,
             'client_secret': _secret(self.oauth.client_secret) if self.oauth.client_secret else '',
