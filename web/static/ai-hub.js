@@ -216,7 +216,12 @@
           '<div class="prov-models-body ' + (isOpen ? '' : 'hidden') + ' border border-[#2a2f3a] rounded-lg mt-0.5 bg-[#13151b] overflow-hidden" data-id="' + esc(p.id) + '">' +
             // Filter sub-header
             '<div class="flex items-center justify-between px-3 py-1.5 border-b border-[#2a2f3a]/40 bg-[#161920]/60">' +
-              '<span class="text-[9px] text-gray-500 uppercase tracking-wider font-semibold">Available Models</span>' +
+              '<div class="flex items-center gap-2">' +
+                '<span class="text-[9px] text-gray-500 uppercase tracking-wider font-semibold mr-1">Available Models</span>' +
+                '<button type="button" class="model-select-all text-[9px] text-[#2f8fc9] hover:underline" data-pid="' + esc(p.id) + '">Select all</button>' +
+                '<span class="text-gray-600 text-[9px] select-none">|</span>' +
+                '<button type="button" class="model-deselect-all text-[9px] text-gray-500 hover:underline" data-pid="' + esc(p.id) + '">Deselect all</button>' +
+              '</div>' +
               '<label class="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-200 cursor-pointer select-none">' +
                 '<input type="checkbox" class="prov-free-filter accent-[#2f8fc9] scale-90" data-id="' + esc(p.id) + '"' + (freeFilters.has(p.id) ? ' checked' : '') + '>' +
                 '<span>Free only</span>' +
@@ -285,6 +290,42 @@
             const isFree = r.getAttribute('data-free') === 'true';
             r.classList.toggle('hidden', chk.checked && !isFree);
           });
+        });
+      });
+      $all('.model-select-all').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const pid = btn.getAttribute('data-pid');
+          const checkboxes = $all('.model-chk[data-pid="' + CSS.escape(pid) + '"]');
+          checkboxes.forEach(cb => {
+            const row = cb.closest('.model-item-row');
+            if (row && !row.classList.contains('hidden')) {
+              cb.checked = true;
+              const labelSpan = cb.nextElementSibling;
+              if (labelSpan) {
+                labelSpan.className = 'font-mono truncate text-gray-200';
+              }
+            }
+          });
+          persistModels(pid);
+        });
+      });
+      $all('.model-deselect-all').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const pid = btn.getAttribute('data-pid');
+          const checkboxes = $all('.model-chk[data-pid="' + CSS.escape(pid) + '"]');
+          checkboxes.forEach(cb => {
+            const row = cb.closest('.model-item-row');
+            if (row && !row.classList.contains('hidden')) {
+              cb.checked = false;
+              const labelSpan = cb.nextElementSibling;
+              if (labelSpan) {
+                labelSpan.className = 'font-mono truncate text-gray-500';
+              }
+            }
+          });
+          persistModels(pid);
         });
       });
     } catch (e) {
@@ -542,7 +583,6 @@
     const { active, default: def } = collectModels(pid);
     try {
       await api('/api/ai/providers/' + pid + '/models', { method: 'PUT', body: JSON.stringify({ active, default: def }) });
-      loadHub();
       
       // Update active/total count inline
       const toggleBtn = document.querySelector('.prov-models-toggle[data-id="' + CSS.escape(pid) + '"]');
@@ -565,7 +605,6 @@
     try {
       await api('/api/ai/providers/' + pid + '/models', { method: 'PUT', body: JSON.stringify({ active: arr, default: mid }) });
       toast('Default model set', 'success');
-      loadHub();
       
       // Update default buttons inline
       const defButtons = $all('.model-default[data-pid="' + CSS.escape(pid) + '"]');

@@ -2399,7 +2399,8 @@ def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
     if conn.type == "anthropic":
         return {"models": ANTHROPIC_CATALOG, "manual_entry": True}
 
-    if conn.type == "google":
+    is_google = conn.type == "google" or "googleapis.com" in (conn.base_url or "")
+    if is_google:
         return {"models": GOOGLE_CATALOG, "manual_entry": True}
 
     # ------------------------------------------------------------------ #
