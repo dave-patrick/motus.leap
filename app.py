@@ -3461,11 +3461,22 @@ async def _storage_info() -> dict:
         thumb_count = sum(1 for _ in thumb_dir.rglob("*") if _.is_file()) if thumb_dir.exists() else 0
     except Exception:
         thumb_count = 0
+    db_size_bytes = 0
+    try:
+        db_size_bytes = sum(
+            f.stat().st_size
+            for f in data_dir.iterdir()
+            if f.is_file() and f.suffix in {".db", ".sqlite", ".sqlite3", ".json", ".log"}
+        )
+    except Exception:
+        db_size_bytes = 0
     return {
         "cache_size_bytes": cache_size_bytes,
         "cache_size_human": _human_bytes(cache_size_bytes),
         "thumb_count": thumb_count,
         "thumb_dir": str(thumb_dir),
+        "db_size_bytes": db_size_bytes,
+        "db_size_human": _human_bytes(db_size_bytes),
     }
 
 

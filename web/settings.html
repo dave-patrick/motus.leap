@@ -557,6 +557,7 @@ window.open('/system/logs', '_blank');
                 const resp = await fetch('/api/storage/clear-thumbnails', {method: 'POST'});
                 const data = await resp.json();
                 toast(data.message || 'Cache cleared', 'success');
+                refreshStorage();
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
 
@@ -566,6 +567,7 @@ window.open('/system/logs', '_blank');
                 const resp = await fetch('/api/storage/clear-cache', {method: 'POST'});
                 const data = await resp.json();
                 toast(data.message || 'Cache cleared', 'success');
+                refreshStorage();
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
 
@@ -575,6 +577,7 @@ window.open('/system/logs', '_blank');
                 const resp = await fetch('/api/storage/clear-all', {method: 'POST'});
                 const data = await resp.json();
                 toast(data.message || 'All data cleared', 'success');
+                refreshStorage();
                 window.location.reload();
             } catch (e) { toast('Failed: ' + e.message, 'error'); }
         }
@@ -1148,6 +1151,9 @@ function initSettingsPage() {
 
             setInterval(loadDashboardStats, 30000);
         }
+
+// Storage tab live populate
+function getCookie(n){const v="; "+document.cookie,parts=v.split("; "+n+"="); return parts.length===2?parts.pop().split(";").shift():null;} async function authHeaders(){const tok=getCookie("token")||(typeof localStorage!=="undefined"?localStorage.getItem("token"):null); return tok?{"Authorization":"Bearer "+tok}:{};} async function refreshStorage(){try{const r=await fetch("/api/storage/info",{headers: await authHeaders()}); if(!r.ok) throw new Error("status="+r.status); const d=await r.json(); const db=document.getElementById("db-size"); const cs=document.getElementById("cache-size"); const tc=document.getElementById("thumb-count"); if(db) db.textContent=d.db_size_human||"—"; if(cs) cs.textContent=d.cache_size_human||"—"; if(tc) tc.textContent=(typeof d.thumb_count!=="undefined"?d.thumb_count:0)+" files";}catch(e){console.warn("storage info fetch failed:",e); ["db-size","cache-size","thumb-count"].forEach(id=>{const el=document.getElementById(id); if(el) el.textContent="—";});}} document.addEventListener("DOMContentLoaded", refreshStorage); setTimeout(refreshStorage, 500);
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initSettingsPage);
