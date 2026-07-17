@@ -423,9 +423,10 @@ def _chat_completion(conn: ProviderConnection, model: str,
         raise RuntimeError(f"provider '{conn.name}' request failed: {type(e).__name__}") from e
 
     if resp.status_code >= 400:
-        # Do NOT surface raw body (may contain key/error detail). Redact (M3).
+        # Surface status + brief snippet (no raw secrets). Helps diagnose auth/URL issues.
+        snippet = resp.text[:120].strip().replace("\n", " ") if resp.text else ""
         raise RuntimeError(
-            f"provider '{conn.name}' returned HTTP {resp.status_code}")
+            f"provider '{conn.name}' returned HTTP {resp.status_code}" + (f": {snippet}" if snippet else ""))
     
     try:
         res_json = resp.json()
