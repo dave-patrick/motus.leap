@@ -229,11 +229,21 @@
           // Actions row
           '<div class="flex items-center justify-between text-[11px] text-gray-500 pt-1">' +
             '<button class="prov-rescan text-[#2f8fc9] hover:underline" data-id="' + esc(p.id) + '"><i class="fas fa-sync"></i> Rescan</button>' +
-            '<button class="prov-del text-[#dc2626] hover:underline" data-id="' + esc(p.id) + '">Disconnect</button>' +
+            '<div class="flex gap-3">' +
+              '<button class="prov-edit text-gray-400 hover:text-gray-200 hover:underline" data-id="' + esc(p.id) + '">Edit</button>' +
+              '<button class="prov-del text-[#dc2626] hover:underline" data-id="' + esc(p.id) + '">Disconnect</button>' +
+            '</div>' +
           '</div>' +
         '</div>';
       }).join('');
       $all('.prov-del').forEach(b => b.addEventListener('click', () => deleteProvider(b.getAttribute('data-id'))));
+      $all('.prov-edit').forEach(b => {
+        b.addEventListener('click', () => {
+          const id = b.getAttribute('data-id');
+          const p = providers.find(prov => prov.id === id);
+          if (p) openEditProvModal(p);
+        });
+      });
       $all('.prov-rescan').forEach(b => b.addEventListener('click', () => rescanProvider(b.getAttribute('data-id'))));
       $all('.model-chk').forEach(c => c.addEventListener('change', () => persistModels(c.getAttribute('data-pid'))));
       $all('.model-default').forEach(b => b.addEventListener('click', () => setDefault(b.getAttribute('data-pid'), b.getAttribute('data-mid'))));
@@ -329,6 +339,7 @@
   }
 
   let pendingProviderId = null;
+  let editingProviderId = null;
   const expandedProviders = new Set();
   const freeFilters = new Set();
 
@@ -342,6 +353,14 @@
   }
   function openProvModal() {
     pendingProviderId = null;
+    editingProviderId = null;
+    const titleEl = document.querySelector('#prov-modal h3');
+    if (titleEl) titleEl.textContent = 'Connect Provider';
+    const connectBtn = $('#prov-connect');
+    if (connectBtn) connectBtn.textContent = 'Connect & Discover Models';
+    const typeEl = $('#prov-type');
+    if (typeEl) typeEl.disabled = false;
+
     $('#prov-step1').classList.remove('hidden');
     $('#prov-step2').classList.add('hidden');
     $('#prov-step2-dot').className = 'w-2 h-2 rounded-full bg-[#374151]';
@@ -350,6 +369,30 @@
     $('#prov-type').value = 'openai';
     $('#prov-step1-msg').textContent = ''; $('#prov-step2-msg').textContent = '';
     updateProvType(); // apply initial type state
+    const m = $('#prov-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+  }
+  function openEditProvModal(p) {
+    pendingProviderId = null;
+    editingProviderId = p.id;
+    const titleEl = document.querySelector('#prov-modal h3');
+    if (titleEl) titleEl.textContent = 'Edit Provider';
+    const connectBtn = $('#prov-connect');
+    if (connectBtn) connectBtn.textContent = 'Save & Discover Models';
+    const typeEl = $('#prov-type');
+    if (typeEl) {
+      typeEl.value = p.type;
+      typeEl.disabled = true; // lock type field when editing
+    }
+
+    $('#prov-step1').classList.remove('hidden');
+    $('#prov-step2').classList.add('hidden');
+    $('#prov-step2-dot').className = 'w-2 h-2 rounded-full bg-[#374151]';
+    $('#prov-step1-dot').className = 'w-2 h-2 rounded-full bg-[#2f8fc9]';
+    $('#prov-name').value = p.name || '';
+    $('#prov-key').value = '**********'; // placeholder
+    $('#prov-base').value = p.base_url || '';
+    $('#prov-step1-msg').textContent = ''; $('#prov-step2-msg').textContent = '';
+    updateProvType();
     const m = $('#prov-modal'); m.classList.remove('hidden'); m.classList.add('flex');
   }
   function closeProvModal() { const m = $('#prov-modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
@@ -361,13 +404,22 @@
     if (!name) { $('#prov-step1-msg').textContent = 'Name is required.'; return; }
     if (!apiKey && type !== 'custom') { $('#prov-step1-msg').textContent = 'API key required for this provider type.'; return; }
     if (type === 'custom' && !baseUrl) { $('#prov-step1-msg').textContent = 'Base URL required for custom providers.'; return; }
-    const btn = $('#prov-connect'); const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner spinner"></i> Connecting…';
+    const btn = $('#prov-connect'); const old = btn.innerHTML; btn.disabled = true;
+    btn.innerHTML = editingProviderId ? '<i class="fas fa-spinner spinner"></i> Saving…' : '<i class="fas fa-spinner spinner"></i> Connecting…';
     try {
-      const res = await api('/api/ai/providers', {
-        method: 'POST',
-        body: JSON.stringify({ name, type, api_key: apiKey, base_url: baseUrl || undefined }),
-      });
-      pendingProviderId = res.id;
+      if (editingProviderId) {
+        await api('/api/ai/providers/' + editingProviderId, {
+          method: 'PUT',
+          body: JSON.stringify({ name, type, api_key: apiKey, base_url: baseUrl || undefined }),
+        });
+        pendingProviderId = editingProviderId;
+      } else {
+        const res = await api('/api/ai/providers', {
+          method: 'POST',
+          body: JSON.stringify({ name, type, api_key: apiKey, base_url: baseUrl || undefined }),
+        });
+        pendingProviderId = res.id;
+      }
       // Step 2: discover + select
       $('#prov-step1').classList.add('hidden');
       $('#prov-step2').classList.remove('hidden');

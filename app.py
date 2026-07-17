@@ -2332,6 +2332,14 @@ class ProviderConnectIn(BaseModel):
     selected_models: list[str] = []
 
 
+class ProviderUpdateIn(BaseModel):
+    """Body for PUT /api/ai/providers/{provider_id} (update an existing connection)."""
+    name: str
+    type: str                          # one of PROVIDER_TYPES
+    api_key: str = ""
+    base_url: str = ""
+
+
 class ProviderSelectModelsIn(BaseModel):
     """Body for PUT /api/ai/providers/{id}/models (select active + default)."""
     active: list[str] = []
@@ -2508,6 +2516,39 @@ async def ai_connect_provider(body: ProviderConnectIn):
 
     await config_manager.save(config)
     return {"id": conn.id, "status": "connected"}
+
+
+@app.put("/api/ai/providers/{provider_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def ai_update_provider(provider_id: str, body: ProviderUpdateIn):
+    """Update an existing provider connection."""
+    if body.type not in PROVIDER_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid provider type '{body.type}'")
+    if body.type == "custom" and not body.base_url:
+        raise HTTPException(status_code=400, detail="base_url is required for custom providers")
+
+    config = config_manager.config
+    conn = next((p for p in config.ai_providers if p.id == provider_id), None)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    # Derive base_url for builtins.
+    if body.type == "custom":
+        base_url = body.base_url.rstrip("/")
+    else:
+        base_url = PROVIDER_BUILTIN_BASE_URLS.get(body.type, body.base_url)
+
+    conn.name = body.name
+    conn.type = body.type
+    conn.base_url = base_url
+    conn.is_builtin = (body.type in PROVIDER_BUILTIN_BASE_URLS)
+
+    # Only update API key if provided and not equal to redacted placeholder
+    key_str = body.api_key.strip()
+    if key_str and key_str != "**********" and key_str != "***REDACTED***":
+        conn.api_key = SecretStr(key_str)
+
+    await config_manager.save(config)
+    return {"id": conn.id, "status": "updated"}
 
 
 @app.delete("/api/ai/providers/{provider_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
