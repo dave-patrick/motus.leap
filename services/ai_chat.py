@@ -638,7 +638,13 @@ def run_chat(
             response, provider_label = simulate_provider(messages, tools)
             result["model_used"] = provider_label or result["model_used"]
         else:
-            for conn in _iter_enabled_providers(config, provider_id):
+            # If the user explicitly targeted a provider, only try that provider (no fallback to other providers).
+            providers_to_try = (
+                [p for p in config.ai_providers if p.id == provider_id and p.enabled]
+                if provider_id
+                else _iter_enabled_providers(config)
+            )
+            for conn in providers_to_try:
                 m = model if (provider_id and conn.id == provider_id and model) else _provider_default_model(conn)
                 if not m:
                     continue
