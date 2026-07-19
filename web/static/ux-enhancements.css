@@ -189,11 +189,8 @@ button, a, input, select, textarea {
 /* Docked state styling for AI Chat and Live Console panels */
 #ai-chat-panel.docked,
 #live-console-panel.docked {
-    top: 80px !important;
-    height: calc(100vh - 80px - 28px) !important;
     z-index: 15 !important;
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15) !important;
-    border-top: 1px solid #2a2f3a !important;
     transform: none !important;
     transition: right 0.2s ease-in-out, width 0.2s ease-in-out !important;
 }
