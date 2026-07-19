@@ -3245,7 +3245,7 @@ async def cancel_action():
 
 
 # Diagnostic endpoints
-@app.get("/api/diagnostics/youtube", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN]))])
+@app.get("/api/diagnostics/youtube", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def diagnostics_youtube() -> dict[str, Any]:
     """Check YouTube OAuth status and test API connectivity."""
     if not youtube_service:
@@ -3365,7 +3365,7 @@ async def diagnostics_oauth_user() -> dict[str, Any]:
 
 
 
-@app.get("/api/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN]))])
+@app.get("/api/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def get_system_logs():
     """Get recent system logs from the log file."""
     log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
@@ -3392,7 +3392,7 @@ async def get_system_logs():
         }
 
 
-@app.get("/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN]))])
+@app.get("/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def system_logs_page():
     """System logs viewer page."""
     log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
