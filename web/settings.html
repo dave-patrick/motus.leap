@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
     <link rel="manifest" href="/static/manifest.json">
-        <script src="/static/shared-shell.js?v=20260719h"></script>
+        <script src="/static/shared-shell.js?v=20260719i"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 async function viewSystemLogs() {
@@ -17,7 +17,7 @@ window.open('/system/logs', '_blank');
 
 </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260719h">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260719i">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
@@ -40,7 +40,7 @@ window.open('/system/logs', '_blank');
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/global_scripts.js?v=1781919149"></script>
-    <script src="/static/ux-enhancements.js?v=20260719h"></script>
+    <script src="/static/ux-enhancements.js?v=20260719i"></script>
 </head>
 <body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <!-- ===== FULL-WIDTH TOP HEADER ===== -->
@@ -275,7 +275,11 @@ window.open('/system/logs', '_blank');
                 activeBtn.className = "text-sm font-bold tracking-wide text-white border-b-2 border-[#2f8fc9] pb-2 px-1 focus:outline-none transition-colors";
             }
 
-            window.location.hash = tabId;
+            if (history.replaceState) {
+                history.replaceState(null, '', window.location.pathname + '#' + tabId);
+            } else {
+                window.location.hash = tabId;
+            }
         }
 
         // Toast notification system
@@ -1154,9 +1158,8 @@ function initSettingsPage() {
                 console.error('Tab wiring error:', err);
             }
 
-            const pathMap = {'/rules': 'rules', '/settings': 'general'};
             const hash = window.location.hash.replace('#', '');
-            const initialTab = pathMap[window.location.pathname] || (hash === 'rules' || hash === 'general' ? hash : 'general');
+            const initialTab = (hash === 'rules' || hash === 'general') ? hash : (window.location.pathname === '/rules' ? 'rules' : 'general');
             switchTab(initialTab);
 
             const log = document.getElementById('ai-log');
