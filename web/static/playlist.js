@@ -347,10 +347,7 @@ async function scanForDuplicates() {
             btn.disabled = false;
             btn.innerHTML = origHTML;
         }
-    }
-}
-
-async function scanForMisplaced() {
+    }async function scanForMisplaced() {
     const btn = document.getElementById('btn-scan-mis');
     const origHTML = btn ? btn.innerHTML : '';
     if (btn) {
@@ -359,31 +356,73 @@ async function scanForMisplaced() {
     }
     
     try {
-        const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
-        const result = await resp.json();
+        let misplacedList = [];
 
-        if (!resp.ok) {
-            throw new Error(result.error || result.detail || 'Misplaced API failed');
+        // 1. Try server maintenance cache first
+        try {
+            const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
+            if (resp.ok) {
+                const result = await resp.json();
+                if (Array.isArray(result.misplaced) && result.misplaced.length > 0) {
+                    misplacedList = result.misplaced.map(v => ({
+                        video_id: v.video_id || '',
+                        title: v.video_title || v.title || 'Untitled Video',
+                        channel: v.channel || '',
+                        thumbnail: v.video_id ? `https://i.ytimg.com/vi/${v.video_id}/hqdefault.jpg` : '',
+                        reason: v.reason || 'Misplaced channel',
+                        type: 'misplaced',
+                        current_playlist_id: playlistId,
+                        current_playlist_title: document.getElementById('playlist-title')?.textContent || playlistId,
+                        mapped_playlist_id: v.mapped_playlist_id || '',
+                        mapped_playlist_title: v.mapped_playlist_title || v.mapped_playlist_id || ''
+                    }));
+                }
+            }
+        } catch (err) {
+            console.warn('Server misplaced cache fetch warning:', err);
         }
-        
-        currentScanResults.misplaced = (result.misplaced || []).map(v => ({
-            video_id: v.video_id,
-            title: v.video_title,
-            channel: v.channel || '',
-            thumbnail: v.video_id ? `https://i.ytimg.com/vi/${v.video_id}/hqdefault.jpg` : (v.thumbnail || ''),
-            reason: v.reason || 'Misplaced channel',
-            type: 'misplaced',
-            current_playlist_id: playlistId,
-            current_playlist_title: document.getElementById('playlist-title')?.textContent || playlistId,
-            mapped_playlist_id: v.mapped_playlist_id,
-            mapped_playlist_title: v.mapped_playlist_title
-        }));
 
+        // 2. Client-side fallback check against Channel Mappings if server cache yielded no items
+        if (misplacedList.length === 0 && allVideos.length > 0) {
+            try {
+                const mapResp = await fetch('/api/mappings');
+                if (mapResp.ok) {
+                    const mapData = await mapResp.json();
+                    const mappings = mapData.mappings || {};
+                    const titles = mapData.playlist_titles || {};
+
+                    allVideos.forEach(v => {
+                        const channelId = v.channel_id;
+                        if (channelId && mappings[channelId]) {
+                            const targetPlId = mappings[channelId];
+                            if (targetPlId && targetPlId !== playlistId) {
+                                misplacedList.push({
+                                    video_id: v.video_id || '',
+                                    title: v.title || 'Untitled Video',
+                                    channel: v.channel_title || '',
+                                    thumbnail: v.thumbnail || '',
+                                    reason: `Channel mapped to another playlist`,
+                                    type: 'misplaced',
+                                    current_playlist_id: playlistId,
+                                    current_playlist_title: document.getElementById('playlist-title')?.textContent || playlistId,
+                                    mapped_playlist_id: targetPlId,
+                                    mapped_playlist_title: titles[targetPlId] || targetPlId
+                                });
+                            }
+                        }
+                    });
+                }
+            } catch (err) {
+                console.warn('Live mappings fallback check warning:', err);
+            }
+        }
+
+        currentScanResults.misplaced = misplacedList;
         toast(`Scan complete - ${currentScanResults.misplaced.length} misplaced video(s) found in this playlist`, 'success');
         showScanBox('misplaced');
     } catch (e) {
         console.error('Error fetching misplaced videos:', e);
-        toast(`Failed to fetch misplaced videos: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+        toast(`Failed to fetch misplaced videos: ${e.message || 'Error'}`, 'error');
         currentScanResults.misplaced = [];
     } finally {
         if (btn) {
@@ -395,20 +434,19 @@ async function scanForMisplaced() {
 
 function showScanBox(defaultFilter) {
     const box = document.getElementById('scan-results-box');
+    if (!box) return;
     box.classList.remove('hidden');
-    
+
     const filterSelect = document.getElementById('scan-filter');
-    filterSelect.value = defaultFilter || 'all';
+    if (filterSelect) filterSelect.value = defaultFilter || 'all';
     
     updateScanSummary();
     filterScanResults();
 
-    // Show/hide the delete duplicates button
     const deleteBtn = document.getElementById('delete-duplicates-btn');
     if (deleteBtn) {
         deleteBtn.classList.toggle('hidden', currentScanResults.duplicates.length === 0);
     }
-    // Show/hide the move misplaced button
     const moveMisplacedBtn = document.getElementById('move-misplaced-btn');
     if (moveMisplacedBtn) {
         moveMisplacedBtn.classList.toggle('hidden', currentScanResults.misplaced.length === 0);
@@ -417,14 +455,17 @@ function showScanBox(defaultFilter) {
 
 function updateScanSummary() {
     const summary = document.getElementById('scan-results-summary');
+    if (!summary) return;
     const dupCount = currentScanResults.duplicates.length;
     const misCount = currentScanResults.misplaced.length;
     summary.textContent = `${dupCount} Duplicates • ${misCount} Misplaced`;
 }
 
 function filterScanResults() {
-    const filterValue = document.getElementById('scan-filter').value;
+    const filterSelect = document.getElementById('scan-filter');
     const listEl = document.getElementById('scan-results-list');
+    if (!listEl) return;
+    const filterValue = filterSelect ? filterSelect.value : 'all';
     
     let displayList = [];
     if (filterValue === 'all') {
@@ -445,26 +486,31 @@ function filterScanResults() {
         const badgeColor = isDup ? 'bg-[#2f8fc9]/10 text-[#2f8fc9] border-[#2f8fc9]/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
         const badgeLabel = isDup ? 'DUPLICATE' : 'MISPLACED';
         const icon = isDup ? 'fa-copy' : 'fa-triangle-exclamation';
-        
+
+        const safeTitle = DOMPurify.sanitize(String(item.title || 'Untitled Video'));
+        const safeChannel = item.channel ? DOMPurify.sanitize(String(item.channel)) + ' • ' : '';
+        const safeReason = DOMPurify.sanitize(String(item.reason || 'Misplaced channel'));
+        const safeTargetPl = DOMPurify.sanitize(String(item.mapped_playlist_title || item.mapped_playlist_id || 'Other Playlist'));
+
         let additionalInfo = '';
         if (item.type === 'misplaced') {
             additionalInfo = `\n<div class="text-[9px] text-gray-500 mt-1.5 flex items-center gap-1.5">
                 <i class="fa-solid fa-arrow-right-long"></i> 
-                Move to: <span class="font-medium text-[#5ba5d6]">${DOMPurify.sanitize(item.mapped_playlist_title || item.mapped_playlist_id)}</span>
+                Move to: <span class="font-medium text-[#5ba5d6]">${safeTargetPl}</span>
             </div>`;
         }
 
         return `
-            <div class="flex items-start gap-3 p-2 bg-[#1a1d24] border border-[#2a2f3a] rounded-lg">
+            <div class="relative flex items-start gap-3 p-2 bg-[#1a1d24] border border-[#2a2f3a] rounded-lg">
                 <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${badgeColor}"><i class="fa-solid ${icon} mr-1"></i>${badgeLabel}</span>
-                <div class="flex-1 min-w-0">
-                    <div class="font-semibold text-white truncate text-[11px]">${DOMPurify.sanitize(item.title)}</div>
-                    <div class="text-[10px] text-gray-400 truncate">${item.channel ? DOMPurify.sanitize(item.channel) + ' • ' : ''}ID: ${item.video_id}</div>
-                    <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-[#2f8fc9]' : 'bg-yellow-500'}"></span><span>Reason: ${DOMPurify.sanitize(item.reason)}</span></div>
+                <div class="flex-1 min-w-0 pr-8">
+                    <div class="font-semibold text-white truncate text-[11px]">${safeTitle}</div>
+                    <div class="text-[10px] text-gray-400 truncate">${safeChannel}ID: ${item.video_id || ''}</div>
+                    <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-[#2f8fc9]' : 'bg-yellow-500'}"></span><span>Reason: ${safeReason}</span></div>
                     ${additionalInfo}
+                </div>
                 <button onclick="openYouTubeModal('${item.video_id}')" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
             </div>
-        `;
     }).join('');
 
     // Enable/disable action buttons based on displayed results

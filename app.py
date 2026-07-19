@@ -772,6 +772,8 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
         if maintenance_file.exists():
             maintenance = json.loads(await asyncio.to_thread(maintenance_file.read_text))
             mis_videos = maintenance.get("misplaced_videos", [])
+            if playlist_id:
+                mis_videos = [v for v in mis_videos if v.get("current_playlist_id") == playlist_id]
             return {"misplaced": mis_videos, "count": len(mis_videos)}
     except Exception:
         pass
