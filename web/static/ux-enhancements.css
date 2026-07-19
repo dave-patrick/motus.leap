@@ -185,3 +185,25 @@ button, a, input, select, textarea {
     --warning-color: #f59e0b;
     --info-color: #2f8fc9;
 }
+
+/* Docked state styling for AI Chat and Live Console panels */
+#ai-chat-panel.docked,
+#live-console-panel.docked {
+    top: 80px !important;
+    height: calc(100vh - 80px - 28px) !important;
+    z-index: 15 !important;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15) !important;
+    border-top: 1px solid #2a2f3a !important;
+    transform: none !important;
+    transition: right 0.2s ease-in-out, width 0.2s ease-in-out !important;
+}
+
+@media (max-width: 1024px) {
+    #ai-chat-panel.docked,
+    #live-console-panel.docked {
+        top: 0 !important;
+        height: 100% !important;
+        z-index: 70 !important;
+        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5) !important;
+    }
+}

@@ -1299,6 +1299,35 @@ window.clearLogs = function() {
         if (o) o.classList.remove('hidden');
     }
 
+    function updateDockedLayout() {
+        var rightOffset = 0;
+        // Dock order: ai-chat-panel closest to right, then live-console-panel to its left
+        const panelsOrder = ['ai-chat-panel', 'live-console-panel'];
+        panelsOrder.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) {
+                if (el.classList.contains('docked') && window.innerWidth > 1024) {
+                    el.style.setProperty('right', rightOffset + 'px', 'important');
+                    rightOffset += id === 'live-console-panel' ? 520 : 400;
+                } else {
+                    el.style.removeProperty('right');
+                }
+            }
+        });
+
+        var row = document.querySelector('main')?.parentElement;
+        if (row) {
+            if (window.innerWidth > 1024) {
+                row.style.setProperty('padding-right', rightOffset + 'px', 'important');
+            } else {
+                row.style.setProperty('padding-right', '0px', 'important');
+            }
+        }
+    }
+
+    // Keep layout in sync on resize
+    window.addEventListener('resize', updateDockedLayout);
+
     function _closeConsole(force, panel) {
         panel = panel || document.getElementById('live-console-panel');
         if (panel instanceof Event) {
@@ -1324,14 +1353,7 @@ window.clearLogs = function() {
             dockBtn.setAttribute('aria-label', 'Dock to right');
         }
 
-        // Recalculate right padding for remaining docked panels
-        var sum = 0;
-        ['live-console-panel', 'ai-chat-panel'].forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el && el.classList.contains('docked')) sum += id === 'live-console-panel' ? 520 : 400;
-        });
-        var row = document.querySelector('main')?.parentElement;
-        if (row) row.style.setProperty('padding-right', sum + 'px', 'important');
+        updateDockedLayout();
     }
 
     // ---- Dock helpers ----------------------------------------------------
@@ -1349,13 +1371,7 @@ window.clearLogs = function() {
                 if (_o) _o.classList.remove('hidden');
             }
             _p.dataset.docked = dock ? '1' : '0';
-            var sum = 0;
-            ['live-console-panel', 'ai-chat-panel'].forEach(function (id) {
-                var el = document.getElementById(id);
-                if (el && el.classList.contains('docked')) sum += id === 'live-console-panel' ? 520 : 400;
-            });
-            var row = document.querySelector('main')?.parentElement;
-            if (row) row.style.setProperty('padding-right', sum + 'px', 'important');
+            updateDockedLayout();
         }
         document.getElementById(opts.panelId + '-dock')?.addEventListener('click', function () {
             var dock = document.getElementById(opts.panelId).classList.contains('docked') ? false : true;
@@ -1442,6 +1458,24 @@ if (document.readyState === 'loading') {
             /* shared-shell not loaded — bail out instead of building a second panel. */
             console.warn('initAIChatWidget: shared-shell panel #ai-chat-panel not found');
             return;
+        }
+
+        // Overwrite panel.show and panel.hide to sync side-by-side docking
+        if (panel && typeof panel.hide === 'function' && !panel.hide._wired) {
+            const originalHide = panel.hide;
+            panel.hide = function() {
+                originalHide.apply(this, arguments);
+                updateDockedLayout();
+            };
+            panel.hide._wired = true;
+        }
+        if (panel && typeof panel.show === 'function' && !panel.show._wired) {
+            const originalShow = panel.show;
+            panel.show = function() {
+                originalShow.apply(this, arguments);
+                updateDockedLayout();
+            };
+            panel.show._wired = true;
         }
 
         const bodyContainer = document.getElementById('ai-chat-body') || panel;
