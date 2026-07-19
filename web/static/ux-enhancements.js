@@ -1167,6 +1167,9 @@ function getSavedPanelWidth(panelId, defaultWidth, storageKey) {
 
 function updateDockedLayout() {
     var rightOffset = 0;
+    const header = document.querySelector('header');
+    const headerHeight = header ? header.offsetHeight : 80;
+
     // Dock order: ai-chat-panel closest to right, then live-console-panel to its left
     const panelsOrder = ['ai-chat-panel', 'live-console-panel'];
     panelsOrder.forEach(function (id) {
@@ -1179,10 +1182,14 @@ function updateDockedLayout() {
                 
                 el.style.setProperty('width', savedWidth + 'px', 'important');
                 el.style.setProperty('right', rightOffset + 'px', 'important');
+                el.style.setProperty('top', headerHeight + 'px', 'important');
+                el.style.setProperty('height', 'calc(100vh - ' + headerHeight + 'px - 28px)', 'important');
                 rightOffset += savedWidth;
             } else {
                 el.style.removeProperty('right');
                 el.style.removeProperty('width');
+                el.style.removeProperty('top');
+                el.style.removeProperty('height');
             }
         }
     });
@@ -1250,11 +1257,14 @@ function makeResizable(panelId, minWidth, maxWidth, storageKey) {
     });
 }
 
-function _closeConsole(force, panel) {
-    panel = panel || document.getElementById('live-console-panel');
-    if (panel instanceof Event) {
-        panel = document.getElementById('live-console-panel');
+function _closeConsole(arg1, arg2) {
+    let panel = null;
+    if (arg1 && !(arg1 instanceof Event) && typeof arg1 === 'object' && arg1.nodeType) {
+        panel = arg1;
+    } else if (arg2 && !(arg2 instanceof Event) && typeof arg2 === 'object' && arg2.nodeType) {
+        panel = arg2;
     }
+    panel = panel || document.getElementById('live-console-panel');
     if (!panel) return;
 
     const o = panel.id === 'live-console-panel'
@@ -1537,6 +1547,7 @@ if (document.readyState === 'loading') {
     // ---- Inject DOM ----------------------------------------------------------
     function initAIChatWidget() {
         const panel = document.getElementById('ai-chat-panel');
+        const overlay = document.getElementById('ai-chat-overlay');
         if (!panel) {
             /* shared-shell not loaded — bail out instead of building a second panel. */
             console.warn('initAIChatWidget: shared-shell panel #ai-chat-panel not found');
