@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260717f';
+  const SHELL_VERSION = '20260719a';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -44,8 +44,8 @@
           <a href="/subscriptions" class="${active('/subscriptions')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
           <a href="/maintenance" class="${active('/maintenance')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
           <div class="mt-1.5 pt-1.5 border-t border-[#2a2f3a]/40">
-            <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-gray-300 text-sm cursor-pointer select-none" data-group="aihub" onclick="toggleAiGroup('aihub')">
-              <a href="/ai" class="${subActive('/ai')}" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
+            <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-sm cursor-pointer select-none transition-colors duration-200 ${path.startsWith('/ai') ? 'bg-[#2f8fc9]/10 text-white font-semibold' : 'text-gray-300 hover:text-white hover:bg-[#2a2f3a]'}" data-group="aihub" onclick="toggleAiGroup('aihub')">
+              <a href="/ai" class="flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
               <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
             </div>
             <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">

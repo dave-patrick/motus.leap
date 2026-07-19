@@ -660,7 +660,11 @@ function initUXEnhancements() {
 }
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', initUXEnhancements);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initUXEnhancements);
+} else {
+    initUXEnhancements();
+}
 
 
 // ============================================
@@ -818,7 +822,11 @@ function initSystemActivityController() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', initSystemActivityController);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSystemActivityController);
+} else {
+    initSystemActivityController();
+}
 
 
 // ============================================
@@ -1367,7 +1375,11 @@ window.clearLogs = function() {
     }
 
     dockPanel({panelId:'live-console-panel', overlayId:'live-console-overlay', closeId:'live-console-close'});
-    document.addEventListener('DOMContentLoaded', initLiveConsoleWidget);
+if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initLiveConsoleWidget);
+    } else {
+        initLiveConsoleWidget();
+    }
 })();
 
 
@@ -1803,6 +1815,10 @@ window.clearLogs = function() {
 
     window.refreshAIChatModels = _loadProviders;
 
-    document.addEventListener('DOMContentLoaded', initAIChatWidget);
+if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAIChatWidget);
+    } else {
+        initAIChatWidget();
+    }
 })();
 
