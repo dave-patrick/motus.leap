@@ -836,76 +836,65 @@ async function navigateSPA(url) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
 
-        const currentAside = document.querySelector('aside');
-        const currentHeader = document.querySelector('header');
-        const newAside = doc.querySelector('aside');
-        const newHeader = doc.querySelector('header');
-
         // Update body class if different
         document.body.className = doc.body.className;
 
-        // 1. Keep current aside, header, and global agent drawer; remove all other body children
-        const globalDrawer = document.getElementById('global-agent-drawer');
-        Array.from(document.body.children).forEach(child => {
-            if (child !== currentAside && child !== currentHeader && child !== globalDrawer && child.tagName !== 'SCRIPT') {
-                document.body.removeChild(child);
-            }
-        });
+        // Update document title
+        document.title = doc.title;
 
-        // 2. Add all new body children except its ASIDE, HEADER, and global drawer
-        const scriptsToRun = [];
-        Array.from(doc.body.children).forEach(child => {
-            if (child.tagName !== 'ASIDE' && child.tagName !== 'HEADER' && child.id !== 'global-agent-drawer') {
-                // Find scripts inside the child
-                child.querySelectorAll('script').forEach(s => {
-                    scriptsToRun.push(s);
-                    s.remove(); // Remove from markup so we don't double append
-                });
-                document.body.appendChild(child);
-            }
-        });
+        const currentMain = document.querySelector('main');
+        const newMain = doc.querySelector('main');
 
-        // 3. Re-insert preserved header at the top of body (where new header would have been)
-        if (currentHeader) {
-            document.body.insertBefore(currentHeader, document.body.firstChild);
+        if (currentMain && newMain) {
+            // Replace main content
+            currentMain.innerHTML = newMain.innerHTML;
+            currentMain.className = newMain.className;
+            if (newMain.id) currentMain.id = newMain.id;
+
+            // Execute scripts inside the main tag
+            const scripts = currentMain.querySelectorAll('script');
+            scripts.forEach(oldScript => {
+                // Skip global scripts that are already loaded in the parent document
+                if (oldScript.src && (
+                    oldScript.src.includes('shared-shell.js') || 
+                    oldScript.src.includes('ux-enhancements.js') || 
+                    oldScript.src.includes('auth-check.js') || 
+                    oldScript.src.includes('dompurify.min.js') || 
+                    oldScript.src.includes('tailwindcss')
+                )) {
+                    return;
+                }
+                const newScript = document.createElement('script');
+                Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                if (oldScript.innerHTML) {
+                    newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                }
+                oldScript.parentNode.replaceChild(newScript, oldScript);
+            });
         }
 
-        if (currentAside) {
-            const flexWrapper = document.querySelector('.flex.flex-1');
-            const mainEl = document.querySelector('main');
-            if (flexWrapper && mainEl) {
-                flexWrapper.insertBefore(currentAside, mainEl);
-            } else {
-                document.body.appendChild(currentAside);
-            }
-        }
-
-        // 4. Update the active sidebar link highlighting
-        if (currentAside) {
-            currentAside.querySelectorAll('nav a').forEach(a => {
+        // Highlight the active sidebar menu link
+        const aside = document.getElementById('mobile-sidebar');
+        if (aside) {
+            aside.querySelectorAll('a').forEach(a => {
                 const path = a.getAttribute('href');
-                if (path === url || (path === '/' && url === '/dashboard') || (url.startsWith('/playlist') && path === '/playlists')) {
-                    a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#2f8fc9]/20 text-[#2f8fc9] text-xs font-semibold border border-[#2f8fc9]/30";
+                if (!path) return;
+                const isSub = a.classList.contains('ai-sub');
+                const active = (path === url || (path === '/' && url === '/dashboard') || (url.startsWith('/playlist') && path === '/playlists'));
+                if (isSub) {
+                    a.className = `ai-sub ${active ? 'active' : ''} flex items-center gap-3 pl-11 pr-4 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200`;
                 } else {
-                    a.className = "flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a] text-xs font-medium transition-colors";
+                    a.className = `nav-item ${active ? 'active' : ''} flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors duration-200`;
                 }
             });
         }
 
-        // 5. Run scripts in order
-        scriptsToRun.forEach(oldScript => {
-            const newScript = document.createElement('script');
-            Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-            if (oldScript.innerHTML) {
-                newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-            }
-            document.body.appendChild(newScript);
-        });
-
-        // 6. Fire DOMContentLoaded to trigger page initializations
-        setTimeout(() => {
-            document.dispatchEvent(new Event('DOMContentLoaded'));
-        }, 50);
+        // Also update settings gear active state
+        const settingsGear = document.getElementById('settings-gear-btn');
+        if (settingsGear) {
+            const isSettings = url === '/settings';
+            settingsGear.className = `ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-[#1a1d24] border ${isSettings ? 'text-[#2f8fc9] border-[#2f8fc9]/40' : 'text-gray-400 border-[#2a2f3a]'} hover:text-[#2f8fc9] hover:border-[#2f8fc9]/40 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/20`;
+        }
 
     } catch (e) {
         console.error('SPA Navigation error:', e);
@@ -914,28 +903,26 @@ async function navigateSPA(url) {
 }
 
 // Intercept clicks on links or button navigation
-// DISABLED: SPA body-rebuild caused duplicate <aside> navs and skeleton-stuck
-// races on cold load. Full-page navigation is reliable (verified on reload).
-// document.addEventListener('click', (e) => {
-//     const closestButton = e.target.closest('button');
-//     const closestLink = e.target.closest('a');
-//     if (closestLink && closestLink.getAttribute('href')) {
-//         const href = closestLink.getAttribute('href');
-//         const isNavLink = closestLink.classList.contains('nav-item') ||
-//                           closestLink.closest('nav') ||
-//                           closestLink.closest('aside');
-//         if (isNavLink && href.startsWith('/') && !href.startsWith('/auth') && !href.startsWith('/oauth') && !href.startsWith('/api')) {
-//             e.preventDefault();
-//             window.history.pushState(null, '', href);
-//             navigateSPA(href);
-//             return;
-//         }
-//     }
-// }, true); // Capture phase to run before inline handlers
-//
-// window.addEventListener('popstate', () => {
-//     navigateSPA(window.location.pathname);
-// });
+document.addEventListener('click', (e) => {
+    const closestLink = e.target.closest('a');
+    if (closestLink) {
+        const href = closestLink.getAttribute('href');
+        if (href && href.startsWith('/') && 
+            !href.startsWith('/auth') && 
+            !href.startsWith('/oauth') && 
+            !href.startsWith('/api') && 
+            !href.startsWith('/terms') && 
+            !href.startsWith('/privacy')) {
+            e.preventDefault();
+            window.history.pushState(null, '', href);
+            navigateSPA(href);
+        }
+    }
+}, true); // Capture phase to run before inline handlers
+
+window.addEventListener('popstate', () => {
+    navigateSPA(window.location.pathname + window.location.hash);
+});
 
 
 // ============================================

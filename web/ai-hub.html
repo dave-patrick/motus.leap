@@ -60,12 +60,12 @@
                 <!-- Stat strip -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="hub-stats"></div>
                 <!-- Provider health -->
-                <div class="bento-card p-4">
+                <div class="bento-card p-4 max-w-3xl">
                     <h3 class="text-xs font-semibold text-gray-300 mb-3">Provider Health</h3>
                     <div id="hub-providers" class="space-y-2"></div>
                 </div>
                 <!-- Recent jobs -->
-                <div class="bento-card p-4">
+                <div class="bento-card p-4 max-w-3xl">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="text-xs font-semibold text-gray-300">Recent Scheduled Jobs</h3>
                         <button class="ai-tab text-xs text-[#2f8fc9] hover:underline" data-ai="jobs">View all →</button>
@@ -97,12 +97,12 @@
             </section>
 
             <section id="panel-jobs" class="ai-panel space-y-4 hidden">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between max-w-3xl">
                     <h1 class="text-xl font-bold text-white">Scheduled Jobs</h1>
                     <button id="job-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Job</button>
                 </div>
-                <div id="jobs-list" class="space-y-3"></div>
-                <div class="bento-card p-4 hidden" id="job-form">
+                <div id="jobs-list" class="space-y-3 max-w-3xl"></div>
+                <div class="bento-card p-4 hidden max-w-3xl" id="job-form">
                     <h3 class="text-xs font-semibold text-gray-300 mb-3">New Scheduled Job</h3>
                     <div class="space-y-3">
                         <div>
@@ -148,162 +148,151 @@
                 </div>
             </section>
         </div>
-        <!-- Slim footer -->
         <footer class="py-8 text-[10px] text-gray-500 text-center"> motus.leap — lower footprint shell. </footer>
+
+        <div id="prov-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+            <div class="bento-card p-5 w-full max-w-xl space-y-3 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-white">Connect Provider</h3>
+                    <button id="prov-modal-close" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="flex items-center gap-2 text-[10px] text-gray-500">
+                    <span id="prov-step1-dot" class="w-2 h-2 rounded-full bg-[#2f8fc9]"></span> Step 1: Connect
+                    <span class="mx-1">→</span>
+                    <span id="prov-step2-dot" class="w-2 h-2 rounded-full bg-[#374151]"></span> Step 2: Select models
+                </div>
+                <div id="prov-step1">
+                    <div class="space-y-3">
+                        <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label>
+                            <input id="prov-name" placeholder="My Groq" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                        </div>
+                        <div><label class="text-[10px] text-gray-400 mb-1 block">Provider Type</label>
+                            <select id="prov-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                                <optgroup label="Hosted (managed API key)">
+                                    <option value="openai">OpenAI — GPT-4o, o1, o3…</option>
+                                    <option value="anthropic">Anthropic — Claude 3.5 / 4…</option>
+                                    <option value="groq">Groq — ultra-fast inference</option>
+                                    <option value="grok">Grok (xAI) — Grok-3…</option>
+                                    <option value="google">Google — Gemini 2.5…</option>
+                                    <option value="openrouter">OpenRouter — access many models</option>
+                                    <option value="z_ai">z.ai — GLM models</option>
+                                </optgroup>
+                                <optgroup label="OpenAI-compatible (custom endpoint)">
+                                    <option value="custom">Custom / Self-hosted…</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div id="prov-type-hint" class="text-[10px] text-gray-500 bg-[#20242c] rounded px-3 py-2 border border-[#2a2f3a] hidden"></div>
+                        <div id="prov-base-wrap">
+                            <label class="text-[10px] text-gray-400 mb-1 flex items-center justify-between">
+                                <span>Base URL</span>
+                                <span id="prov-base-lock" class="text-[9px] text-gray-600">pre-filled · override if needed</span>
+                            </label>
+                            <input id="prov-base" placeholder="https://api.example.com" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                        </div>
+                        <div id="prov-presets" class="hidden">
+                            <div class="text-[10px] text-gray-400 mb-2">Quick presets — click to fill:</div>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                                    data-url="http://localhost:11434" data-name="Ollama" data-key="">
+                                    <div class="font-medium">Ollama</div>
+                                    <div class="text-[9px] text-gray-500">localhost:11434</div>
+                                </button>
+                                <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                                    data-url="http://localhost:1234" data-name="LM Studio" data-key="lm-studio">
+                                    <div class="font-medium">LM Studio</div>
+                                    <div class="text-[9px] text-gray-500">localhost:1234</div>
+                                </button>
+                                <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                                    data-url="https://api.together.xyz" data-name="Together AI" data-key="">
+                                    <div class="font-medium">Together AI</div>
+                                    <div class="text-[9px] text-gray-500">together.xyz</div>
+                                </button>
+                                <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                                    data-url="https://api.mistral.ai" data-name="Mistral" data-key="">
+                                    <div class="font-medium">Mistral AI</div>
+                                    <div class="text-[9px] text-gray-500">mistral.ai</div>
+                                </button>
+                                <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                                    data-url="https://openrouter.ai/api/v1" data-name="OpenRouter" data-key="">
+                                    <div class="font-medium">OpenRouter</div>
+                                    <div class="text-[9px] text-gray-500">openrouter.ai</div>
+                                </button>
+                                <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                                    data-url="https://api.perplexity.ai" data-name="Perplexity" data-key="">
+                                    <div class="font-medium">Perplexity</div>
+                                    <div class="text-[9px] text-gray-500">perplexity.ai</div>
+                                </button>
+                                <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                                    data-url="https://api.fireworks.ai/inference" data-name="Fireworks AI" data-key="">
+                                    <div class="font-medium">Fireworks AI</div>
+                                    <div class="text-[9px] text-gray-500">fireworks.ai</div>
+                                </button>
+                                <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                                    data-url="https://api.deepseek.com" data-name="DeepSeek" data-key="">
+                                    <div class="font-medium">DeepSeek</div>
+                                    <div class="text-[9px] text-gray-500">deepseek.com</div>
+                                </button>
+                                <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
+                                    data-url="https://api.cerebras.ai" data-name="Cerebras" data-key="">
+                                    <div class="font-medium">Cerebras</div>
+                                    <div class="text-[9px] text-gray-500">cerebras.ai</div>
+                                </button>
+                            </div>
+                        </div>
+                        <div><label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="prov-key-optional" class="text-gray-600">(optional for local)</span></label>
+                            <input id="prov-key" type="password" placeholder="sk-…" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                        </div>
+                        <button id="prov-connect" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Connect &amp; Discover Models</button>
+                        <div id="prov-step1-msg" class="text-[11px]"></div>
+                    </div>
+                </div>
+                <div id="prov-step2" class="hidden space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] text-gray-400">Select models to activate:</span>
+                            <div id="prov-bulk-actions" class="hidden flex items-center gap-2 ml-2 border-l border-[#2a2f3a] pl-2">
+                                <button id="prov-select-all" class="text-[10px] text-[#2f8fc9] hover:underline" type="button">Select all</button>
+                                <span class="text-[9px] text-gray-600">•</span>
+                                <button id="prov-deselect-all" class="text-[10px] text-gray-500 hover:underline" type="button">Deselect all</button>
+                            </div>
+                        </div>
+                        <label id="prov-step2-free-wrap" class="flex items-center gap-1.5 text-[10px] text-gray-400 hover:text-gray-300 cursor-pointer select-none hidden">
+                            <input type="checkbox" id="prov-step2-free" class="accent-[#2f8fc9] scale-90">
+                            <span>Free only</span>
+                        </label>
+                    </div>
+                    <div id="prov-models-checklist" class="space-y-1 max-h-64 overflow-y-auto"></div>
+                    <button id="prov-save" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Save Selection</button>
+                    <div id="prov-step2-msg" class="text-[11px]"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="rule-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+            <div class="bento-card p-5 w-full max-w-lg space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-white" id="rule-modal-title">New Rule</h3>
+                    <button id="rule-modal-close" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="space-y-3">
+                    <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label><input id="rule-name" placeholder="Synthwave rule" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+                    <div><label class="text-[10px] text-gray-400 mb-1 block">Target Playlist ID</label><input id="rule-playlist" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+                    <div><label class="text-[10px] text-gray-400 mb-1 block">Role Description</label><textarea id="rule-desc" rows="3" placeholder="Route synthwave music videos to the Synthwave playlist." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-[11px] rounded px-3 py-2 outline-none resize-none"></textarea></div>
+                    <div><label class="text-[10px] text-gray-400 mb-1 block">Model (optional — uses default if blank)</label><input id="rule-model" placeholder="llama-3.3-70b-versatile" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+                    <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="rule-enabled" class="accent-[#2f8fc9]" checked> Enabled</label>
+                    <div id="rule-conflict" class="hidden text-[11px] text-[#dc2626] bg-[#dc2626]/10 border border-[#dc2626]/30 rounded p-2"></div>
+                    <div class="flex gap-2">
+                        <button id="rule-save" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Save Rule</button>
+                        <button id="rule-modal-cancel" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded-lg">Cancel</button>
+                    </div>
+                    <div id="rule-form-msg" class="text-[11px]"></div>
+                </div>
+            </div>
+        </div>
+
+        <script src="/static/ai-hub.js?v=20260718c"></script>
     </main>
 </div>
-
-<!-- Add Provider modal -->
-<div id="prov-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
-    <div class="bento-card p-5 w-full max-w-xl space-y-3 max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-white">Connect Provider</h3>
-            <button id="prov-modal-close" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="flex items-center gap-2 text-[10px] text-gray-500">
-            <span id="prov-step1-dot" class="w-2 h-2 rounded-full bg-[#2f8fc9]"></span> Step 1: Connect
-            <span class="mx-1">→</span>
-            <span id="prov-step2-dot" class="w-2 h-2 rounded-full bg-[#374151]"></span> Step 2: Select models
-        </div>
-        <div id="prov-step1">
-            <div class="space-y-3">
-                <!-- Name -->
-                <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label>
-                    <input id="prov-name" placeholder="My Groq" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                </div>
-                <!-- Type -->
-                <div><label class="text-[10px] text-gray-400 mb-1 block">Provider Type</label>
-                    <select id="prov-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                        <optgroup label="Hosted (managed API key)">
-                            <option value="openai">OpenAI — GPT-4o, o1, o3…</option>
-                            <option value="anthropic">Anthropic — Claude 3.5 / 4…</option>
-                            <option value="groq">Groq — ultra-fast inference</option>
-                            <option value="grok">Grok (xAI) — Grok-3…</option>
-                            <option value="google">Google — Gemini 2.5…</option>
-                            <option value="openrouter">OpenRouter — access many models</option>
-                            <option value="z_ai">z.ai — GLM models</option>
-                        </optgroup>
-                        <optgroup label="OpenAI-compatible (custom endpoint)">
-                            <option value="custom">Custom / Self-hosted…</option>
-                        </optgroup>
-                    </select>
-                </div>
-                <!-- Type hint -->
-                <div id="prov-type-hint" class="text-[10px] text-gray-500 bg-[#20242c] rounded px-3 py-2 border border-[#2a2f3a] hidden"></div>
-                <!-- Base URL (shown for all types, pre-filled for builtins) -->
-                <div id="prov-base-wrap">
-                    <label class="text-[10px] text-gray-400 mb-1 flex items-center justify-between">
-                        <span>Base URL</span>
-                        <span id="prov-base-lock" class="text-[9px] text-gray-600">pre-filled · override if needed</span>
-                    </label>
-                    <input id="prov-base" placeholder="https://api.example.com" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                </div>
-                <!-- Quick presets grid (custom only) -->
-                <div id="prov-presets" class="hidden">
-                    <div class="text-[10px] text-gray-400 mb-2">Quick presets — click to fill:</div>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
-                            data-url="http://localhost:11434" data-name="Ollama" data-key="">
-                            <div class="font-medium">Ollama</div>
-                            <div class="text-[9px] text-gray-500">localhost:11434</div>
-                        </button>
-                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
-                            data-url="http://localhost:1234" data-name="LM Studio" data-key="lm-studio">
-                            <div class="font-medium">LM Studio</div>
-                            <div class="text-[9px] text-gray-500">localhost:1234</div>
-                        </button>
-                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
-                            data-url="https://api.together.xyz" data-name="Together AI" data-key="">
-                            <div class="font-medium">Together AI</div>
-                            <div class="text-[9px] text-gray-500">together.xyz</div>
-                        </button>
-                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
-                            data-url="https://api.mistral.ai" data-name="Mistral" data-key="">
-                            <div class="font-medium">Mistral AI</div>
-                            <div class="text-[9px] text-gray-500">mistral.ai</div>
-                        </button>
-                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
-                            data-url="https://openrouter.ai/api/v1" data-name="OpenRouter" data-key="">
-                            <div class="font-medium">OpenRouter</div>
-                            <div class="text-[9px] text-gray-500">openrouter.ai</div>
-                        </button>
-                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
-                            data-url="https://api.perplexity.ai" data-name="Perplexity" data-key="">
-                            <div class="font-medium">Perplexity</div>
-                            <div class="text-[9px] text-gray-500">perplexity.ai</div>
-                        </button>
-                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
-                            data-url="https://api.fireworks.ai/inference" data-name="Fireworks AI" data-key="">
-                            <div class="font-medium">Fireworks AI</div>
-                            <div class="text-[9px] text-gray-500">fireworks.ai</div>
-                        </button>
-                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
-                            data-url="https://api.deepseek.com" data-name="DeepSeek" data-key="">
-                            <div class="font-medium">DeepSeek</div>
-                            <div class="text-[9px] text-gray-500">deepseek.com</div>
-                        </button>
-                        <button class="prov-preset text-left px-3 py-2 rounded-lg bg-[#20242c] border border-[#2a2f3a] hover:border-[#2f8fc9]/50 text-xs text-gray-300 transition-colors"
-                            data-url="https://api.cerebras.ai" data-name="Cerebras" data-key="">
-                            <div class="font-medium">Cerebras</div>
-                            <div class="text-[9px] text-gray-500">cerebras.ai</div>
-                        </button>
-                    </div>
-                </div>
-                <!-- API Key -->
-                <div><label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="prov-key-optional" class="text-gray-600">(optional for local)</span></label>
-                    <input id="prov-key" type="password" placeholder="sk-…" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
-                </div>
-                <button id="prov-connect" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Connect &amp; Discover Models</button>
-                <div id="prov-step1-msg" class="text-[11px]"></div>
-            </div>
-        </div>
-        <div id="prov-step2" class="hidden space-y-3">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <span class="text-[10px] text-gray-400">Select models to activate:</span>
-                    <div id="prov-bulk-actions" class="hidden flex items-center gap-2 ml-2 border-l border-[#2a2f3a] pl-2">
-                        <button id="prov-select-all" class="text-[10px] text-[#2f8fc9] hover:underline" type="button">Select all</button>
-                        <span class="text-[9px] text-gray-600">•</span>
-                        <button id="prov-deselect-all" class="text-[10px] text-gray-500 hover:underline" type="button">Deselect all</button>
-                    </div>
-                </div>
-                <label id="prov-step2-free-wrap" class="flex items-center gap-1.5 text-[10px] text-gray-400 hover:text-gray-300 cursor-pointer select-none hidden">
-                    <input type="checkbox" id="prov-step2-free" class="accent-[#2f8fc9] scale-90">
-                    <span>Free only</span>
-                </label>
-            </div>
-            <div id="prov-models-checklist" class="space-y-1 max-h-64 overflow-y-auto"></div>
-            <button id="prov-save" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Save Selection</button>
-            <div id="prov-step2-msg" class="text-[11px]"></div>
-        </div>
-    </div>
-</div>
-
-
-
-<!-- New/Edit Rule modal -->
-<div id="rule-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
-    <div class="bento-card p-5 w-full max-w-lg space-y-3">
-        <div class="flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-white" id="rule-modal-title">New Rule</h3>
-            <button id="rule-modal-close" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="space-y-3">
-            <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label><input id="rule-name" placeholder="Synthwave rule" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
-            <div><label class="text-[10px] text-gray-400 mb-1 block">Target Playlist ID</label><input id="rule-playlist" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
-            <div><label class="text-[10px] text-gray-400 mb-1 block">Role Description</label><textarea id="rule-desc" rows="3" placeholder="Route synthwave music videos to the Synthwave playlist." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-[11px] rounded px-3 py-2 outline-none resize-none"></textarea></div>
-            <div><label class="text-[10px] text-gray-400 mb-1 block">Model (optional — uses default if blank)</label><input id="rule-model" placeholder="llama-3.3-70b-versatile" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
-            <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="rule-enabled" class="accent-[#2f8fc9]" checked> Enabled</label>
-            <div id="rule-conflict" class="hidden text-[11px] text-[#dc2626] bg-[#dc2626]/10 border border-[#dc2626]/30 rounded p-2"></div>
-            <div class="flex gap-2">
-                <button id="rule-save" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Save Rule</button>
-                <button id="rule-modal-cancel" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-4 py-2 rounded-lg">Cancel</button>
-            </div>
-            <div id="rule-form-msg" class="text-[11px]"></div>
-        </div>
-    </div>
-</div>
-
-<script src="/static/ai-hub.js?v=20260718c"></script>
 </body>
 </html>

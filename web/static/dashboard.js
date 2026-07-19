@@ -265,11 +265,16 @@ document.getElementById('scan-cancel-btn')?.addEventListener('click', async () =
     }
 });
 
-document.addEventListener('DOMContentLoaded', function() {
+function initDashboardPage() {
     loadStats();
     connectWebSocket();
     loadScanDetails();
-});
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDashboardPage);
+} else {
+    initDashboardPage();
+}
 
 // Scan Details — fetch duplicate/misplaced scan results + worker status
 async function loadScanDetails() {
