@@ -1250,6 +1250,71 @@ function makeResizable(panelId, minWidth, maxWidth, storageKey) {
     });
 }
 
+function _closeConsole(force, panel) {
+    panel = panel || document.getElementById('live-console-panel');
+    if (panel instanceof Event) {
+        panel = document.getElementById('live-console-panel');
+    }
+    if (!panel) return;
+
+    const o = panel.id === 'live-console-panel'
+        ? document.getElementById('live-console-overlay')
+        : document.getElementById('ai-chat-overlay');
+
+    panel.classList.remove('docked');
+    panel.dataset.docked = '0';
+    localStorage.setItem(panel.id + '-docked', '0');
+    panel.classList.add('translate-x-full');
+    if (o) o.classList.add('hidden');
+
+    // Reset the dock icon if applicable
+    const dockBtn = document.getElementById(panel.id + '-dock');
+    if (dockBtn) {
+        const icon = dockBtn.querySelector('i');
+        if (icon) icon.className = 'fa-solid fa-table-columns text-[11px]';
+        dockBtn.setAttribute('title', 'Dock to right');
+        dockBtn.setAttribute('aria-label', 'Dock to right');
+    }
+
+    updateDockedLayout();
+}
+window._closeConsole = _closeConsole;
+
+function dockPanel(opts) {
+    var _p = document.getElementById(opts.panelId);
+    if (!_p) return;
+    var _o = opts.overlayId ? document.getElementById(opts.overlayId) : null;
+    function _apply(dock) {
+        _p.classList.toggle('docked', dock);
+        if (dock) {
+            _p.classList.remove('translate-x-full');
+            if (_o) _o.classList.add('hidden');
+        } else {
+            _p.classList.remove('translate-x-full');
+            if (_o) _o.classList.remove('hidden');
+        }
+        _p.dataset.docked = dock ? '1' : '0';
+        localStorage.setItem(opts.panelId + '-docked', dock ? '1' : '0');
+        updateDockedLayout();
+    }
+    document.getElementById(opts.panelId + '-dock')?.addEventListener('click', function () {
+        var dock = document.getElementById(opts.panelId).classList.contains('docked') ? false : true;
+        _apply(dock);
+        const icon = this.querySelector('i');
+        if (icon) {
+            icon.className = dock 
+                ? 'fa-solid fa-window-restore text-[11px] text-[#2f8fc9]' 
+                : 'fa-solid fa-table-columns text-[11px]';
+        }
+        this.setAttribute('title', dock ? 'Undock' : 'Dock to right');
+        this.setAttribute('aria-label', dock ? 'Undock' : 'Dock');
+    });
+    document.querySelector('#' + opts.closeId)?.addEventListener('click', function () {
+        _closeConsole(undefined, document.getElementById(opts.panelId));
+    });
+}
+window.dockPanel = dockPanel;
+
 // ============================================================
 // Global Live Console Widget — terminal button + slide-in panel
 // ============================================================
@@ -1409,69 +1474,6 @@ function makeResizable(panelId, minWidth, maxWidth, storageKey) {
     }
 
 
-    function _closeConsole(force, panel) {
-        panel = panel || document.getElementById('live-console-panel');
-        if (panel instanceof Event) {
-            panel = document.getElementById('live-console-panel');
-        }
-        if (!panel) return;
-
-        const o = panel.id === 'live-console-panel'
-            ? document.getElementById('live-console-overlay')
-            : document.getElementById('ai-chat-overlay');
-
-        panel.classList.remove('docked');
-        panel.dataset.docked = '0';
-        localStorage.setItem(panel.id + '-docked', '0');
-        panel.classList.add('translate-x-full');
-        if (o) o.classList.add('hidden');
-
-        // Reset the dock icon if applicable
-        const dockBtn = document.getElementById(panel.id + '-dock');
-        if (dockBtn) {
-            const icon = dockBtn.querySelector('i');
-            if (icon) icon.className = 'fa-solid fa-table-columns text-[11px]';
-            dockBtn.setAttribute('title', 'Dock to right');
-            dockBtn.setAttribute('aria-label', 'Dock to right');
-        }
-
-        updateDockedLayout();
-    }
-
-    // ---- Dock helpers ----------------------------------------------------
-    function dockPanel(opts) {
-        var _p = document.getElementById(opts.panelId);
-        if (!_p) return;
-        var _o = opts.overlayId ? document.getElementById(opts.overlayId) : null;
-        function _apply(dock) {
-            _p.classList.toggle('docked', dock);
-            if (dock) {
-                _p.classList.remove('translate-x-full');
-                if (_o) _o.classList.add('hidden');
-            } else {
-                _p.classList.remove('translate-x-full');
-                if (_o) _o.classList.remove('hidden');
-            }
-            _p.dataset.docked = dock ? '1' : '0';
-            localStorage.setItem(opts.panelId + '-docked', dock ? '1' : '0');
-            updateDockedLayout();
-        }
-        document.getElementById(opts.panelId + '-dock')?.addEventListener('click', function () {
-            var dock = document.getElementById(opts.panelId).classList.contains('docked') ? false : true;
-            _apply(dock);
-            const icon = this.querySelector('i');
-            if (icon) {
-                icon.className = dock 
-                    ? 'fa-solid fa-window-restore text-[11px] text-[#2f8fc9]' 
-                    : 'fa-solid fa-table-columns text-[11px]';
-            }
-            this.setAttribute('title', dock ? 'Undock' : 'Dock to right');
-            this.setAttribute('aria-label', dock ? 'Undock' : 'Dock');
-        });
-        document.querySelector('#' + opts.closeId)?.addEventListener('click', function () {
-            _closeConsole(undefined, document.getElementById(opts.panelId));
-        });
-    }
 if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initLiveConsoleWidget);
     } else {

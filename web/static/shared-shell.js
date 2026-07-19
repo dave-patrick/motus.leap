@@ -255,8 +255,11 @@
       header.dataset.shellVersion = SHELL_VERSION;
       document.body.insertBefore(header, document.body.firstChild);
     } else if (!header.dataset.shellVersion) {
-      header.innerHTML = shellHeader();
-      header.dataset.shellVersion = SHELL_VERSION;
+      const tmp = document.createElement('template');
+      tmp.innerHTML = shellHeader().trim();
+      const newHeader = tmp.content.firstElementChild;
+      newHeader.dataset.shellVersion = SHELL_VERSION;
+      header.parentNode.replaceChild(newHeader, header);
     }
 
     // 2) Sidebar — create if absent.

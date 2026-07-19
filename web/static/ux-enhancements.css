@@ -212,3 +212,20 @@ button, a, input, select, textarea {
         box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5) !important;
     }
 }
+
+/* Resize handle styling */
+.panel-resize-handle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: ew-resize;
+    z-index: 100;
+    background: transparent;
+    transition: background 0.2s ease;
+}
+.panel-resize-handle:hover,
+.panel-resize-handle.dragging {
+    background: rgba(47, 143, 201, 0.3) !important;
+}

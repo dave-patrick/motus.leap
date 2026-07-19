@@ -120,6 +120,7 @@ def compute_duplicate_groups(
             "playlist_title": pl_title,
             "thumbnail": v.get("thumbnail") or "",
             "duration_seconds": v.get("duration_seconds"),
+            "playlist_item_id": v.get("playlist_item_id", ""),
         }
         exact.setdefault(fp_exact, []).append(copy)
         loose.setdefault(fp_loose, set()).add(fp_exact)
@@ -157,7 +158,12 @@ def compute_duplicate_groups(
             pl_id = c["playlist_id"]
             if pl_id and pl_id not in seen_pls:
                 seen_pls.add(pl_id)
-                playlists.append({"id": pl_id, "title": c["playlist_title"]})
+                playlists.append({
+                    "id": pl_id,
+                    "title": c["playlist_title"],
+                    "video_id": c["video_id"],
+                    "playlist_item_id": c.get("playlist_item_id", "")
+                })
 
         # Canonical = the longest title (most complete metadata), else first.
         canonical = max(copies, key=lambda c: (len(c["title"] or ""), c["video_id"]))

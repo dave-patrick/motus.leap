@@ -565,6 +565,7 @@ class BackgroundWorker:
                             "playlist_id": pl_id,
                             "playlist_title": pl_title,
                             "thumbnail": _best_thumbnail_local(snip.get("thumbnails")),
+                            "playlist_item_id": item.get("id", ""),
                         })
                         
                         # Misplaced video check

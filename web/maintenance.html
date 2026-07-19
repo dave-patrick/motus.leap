@@ -164,13 +164,16 @@
                     : '';
                 // For a duplicate, remove the second (non-primary) copy by default.
                 const _pls = Array.isArray(item.playlists) ? item.playlists : [];
-                const _removePlId = (_pls[1] || _pls[0] || {}).id || '';
+                const _removePl = _pls[1] || _pls[0] || {};
+                const _removePlId = _removePl.id || '';
+                const _removeVid = _removePl.video_id || item.video_id || '';
+                const _removePli = _removePl.playlist_item_id || '';
                 let _controls = '';
                 if (type === 'move') {
                     _controls = `<select id="${_selId}" class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option value="${DOMPurify.sanitize(_toId)}">${_to || 'Move from X to Y'}</option></select>` +
                         `<button onclick="maintMove('${item.video_id}', '${item.source_playlist_id}', 'move', '${_selId}', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Move</button>`;
                 } else if (type === 'dup') {
-                    _controls = `<div class="flex gap-1"><button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Keep</button><button onclick="maintRemove('${item.video_id}', '${_removePlId}', 'dup', this)" class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>`;
+                    _controls = `<div class="flex gap-1"><button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Keep</button><button onclick="maintRemove('${_removeVid}', '${_removePlId}', 'dup', this, '${_removePli}')" class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>`;
                 } else if (type === 'misplaced') {
                     _controls = `<select id="${_selId}" class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option value="${DOMPurify.sanitize(_toId)}">Move to ${_to || 'Correct Playlist'}</option></select>` +
                         `<button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Move</button>`;
@@ -216,8 +219,8 @@
         function maintKeep(vid, type, btn) {
             maintPost({ action: 'keep', type: type, video_id: vid }, btn);
         }
-        function maintRemove(vid, plId, type, btn) {
-            maintPost({ action: 'remove', type: type, video_id: vid, playlist_id: plId }, btn);
+        function maintRemove(vid, plId, type, btn, pliId) {
+            maintPost({ action: 'remove', type: type, video_id: vid, playlist_id: plId, playlist_item_id: pliId || null }, btn);
         }
         function maintMove(vid, curId, type, selId, btn) {
             const sel = document.getElementById(selId);
