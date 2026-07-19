@@ -198,6 +198,11 @@ button, a, input, select, textarea {
     transition: right 0.2s ease-in-out, width 0.2s ease-in-out !important;
 }
 
+#ai-chat-panel.resizing,
+#live-console-panel.resizing {
+    transition: none !important;
+}
+
 @media (max-width: 1024px) {
     #ai-chat-panel.docked,
     #live-console-panel.docked {

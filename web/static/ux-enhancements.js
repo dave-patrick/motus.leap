@@ -904,6 +904,11 @@ async function navigateSPA(url) {
             settingsGear.className = `ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-[#1a1d24] border ${isSettings ? 'text-[#2f8fc9] border-[#2f8fc9]/40' : 'text-gray-400 border-[#2a2f3a]'} hover:text-[#2f8fc9] hover:border-[#2f8fc9]/40 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/20`;
         }
 
+        // Refresh docked panels layout/padding on navigation
+        if (typeof updateDockedLayout === 'function') {
+            updateDockedLayout();
+        }
+
     } catch (e) {
         console.error('SPA Navigation error:', e);
         window.location.href = url; // Fallback
@@ -1153,6 +1158,99 @@ window.clearLogs = function() {
 };
 
 // ============================================================
+// Global Docking and Resizable Panel Manager
+// ============================================================
+function getSavedPanelWidth(panelId, defaultWidth, storageKey) {
+    const saved = localStorage.getItem(storageKey);
+    return saved ? parseInt(saved, 10) : defaultWidth;
+}
+
+function updateDockedLayout() {
+    var rightOffset = 0;
+    // Dock order: ai-chat-panel closest to right, then live-console-panel to its left
+    const panelsOrder = ['ai-chat-panel', 'live-console-panel'];
+    panelsOrder.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+            if (el.classList.contains('docked') && window.innerWidth > 1024) {
+                const widthKey = id === 'live-console-panel' ? 'live-console-width' : 'ai-chat-width';
+                const defaultWidth = id === 'live-console-panel' ? 520 : 400;
+                const savedWidth = getSavedPanelWidth(id, defaultWidth, widthKey);
+                
+                el.style.setProperty('width', savedWidth + 'px', 'important');
+                el.style.setProperty('right', rightOffset + 'px', 'important');
+                rightOffset += savedWidth;
+            } else {
+                el.style.removeProperty('right');
+                el.style.removeProperty('width');
+            }
+        }
+    });
+
+    var row = document.querySelector('main')?.parentElement;
+    if (row) {
+        if (window.innerWidth > 1024) {
+            row.style.setProperty('padding-right', rightOffset + 'px', 'important');
+        } else {
+            row.style.setProperty('padding-right', '0px', 'important');
+        }
+    }
+}
+
+// Keep layout in sync on resize
+window.addEventListener('resize', updateDockedLayout);
+window.updateDockedLayout = updateDockedLayout;
+
+function makeResizable(panelId, minWidth, maxWidth, storageKey) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    let handle = panel.querySelector('.panel-resize-handle');
+    if (!handle) {
+        handle = document.createElement('div');
+        handle.className = 'panel-resize-handle';
+        panel.appendChild(handle);
+    }
+
+    let isDragging = false;
+    let startX, startWidth;
+
+    handle.addEventListener('mousedown', function (e) {
+        if (!panel.classList.contains('docked')) return;
+        isDragging = true;
+        startX = e.clientX;
+        startWidth = parseInt(document.defaultView.getComputedStyle(panel).width, 10);
+        handle.classList.add('dragging');
+        panel.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+        if (!isDragging) return;
+        const deltaX = startX - e.clientX;
+        let newWidth = startWidth + deltaX;
+        if (newWidth < minWidth) newWidth = minWidth;
+        if (newWidth > maxWidth) newWidth = maxWidth;
+        
+        panel.style.setProperty('width', newWidth + 'px', 'important');
+        localStorage.setItem(storageKey, newWidth);
+        updateDockedLayout();
+    });
+
+    document.addEventListener('mouseup', function () {
+        if (isDragging) {
+            isDragging = false;
+            handle.classList.remove('dragging');
+            panel.classList.remove('resizing');
+            document.body.style.cursor = '';
+            document.body.style.removeProperty('user-select');
+        }
+    });
+}
+
+// ============================================================
 // Global Live Console Widget — terminal button + slide-in panel
 // ============================================================
 (function () {
@@ -1290,6 +1388,17 @@ window.clearLogs = function() {
                 if (liveP && !liveP.classList.contains('translate-x-full')) _closeConsole(liveP);
             }
         });
+
+        dockPanel({panelId:'live-console-panel', overlayId:'live-console-overlay', closeId:'live-console-close'});
+        makeResizable('live-console-panel', 350, 900, 'live-console-width');
+
+        const wasDocked = localStorage.getItem('live-console-panel-docked') === '1';
+        if (wasDocked && window.innerWidth > 1024) {
+            // Use setTimeout to ensure all DOM elements are fully initialized before click
+            setTimeout(() => {
+                document.getElementById('live-console-panel-dock')?.click();
+            }, 50);
+        }
     }
 
     function _openConsole() {
@@ -1299,34 +1408,6 @@ window.clearLogs = function() {
         if (o) o.classList.remove('hidden');
     }
 
-    function updateDockedLayout() {
-        var rightOffset = 0;
-        // Dock order: ai-chat-panel closest to right, then live-console-panel to its left
-        const panelsOrder = ['ai-chat-panel', 'live-console-panel'];
-        panelsOrder.forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el) {
-                if (el.classList.contains('docked') && window.innerWidth > 1024) {
-                    el.style.setProperty('right', rightOffset + 'px', 'important');
-                    rightOffset += id === 'live-console-panel' ? 520 : 400;
-                } else {
-                    el.style.removeProperty('right');
-                }
-            }
-        });
-
-        var row = document.querySelector('main')?.parentElement;
-        if (row) {
-            if (window.innerWidth > 1024) {
-                row.style.setProperty('padding-right', rightOffset + 'px', 'important');
-            } else {
-                row.style.setProperty('padding-right', '0px', 'important');
-            }
-        }
-    }
-
-    // Keep layout in sync on resize
-    window.addEventListener('resize', updateDockedLayout);
 
     function _closeConsole(force, panel) {
         panel = panel || document.getElementById('live-console-panel');
@@ -1341,6 +1422,7 @@ window.clearLogs = function() {
 
         panel.classList.remove('docked');
         panel.dataset.docked = '0';
+        localStorage.setItem(panel.id + '-docked', '0');
         panel.classList.add('translate-x-full');
         if (o) o.classList.add('hidden');
 
@@ -1371,6 +1453,7 @@ window.clearLogs = function() {
                 if (_o) _o.classList.remove('hidden');
             }
             _p.dataset.docked = dock ? '1' : '0';
+            localStorage.setItem(opts.panelId + '-docked', dock ? '1' : '0');
             updateDockedLayout();
         }
         document.getElementById(opts.panelId + '-dock')?.addEventListener('click', function () {
@@ -1389,8 +1472,6 @@ window.clearLogs = function() {
             _closeConsole(undefined, document.getElementById(opts.panelId));
         });
     }
-
-    dockPanel({panelId:'live-console-panel', overlayId:'live-console-overlay', closeId:'live-console-close'});
 if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initLiveConsoleWidget);
     } else {
@@ -1617,6 +1698,15 @@ if (document.readyState === 'loading') {
         });
 
         dockPanel({panelId:'ai-chat-panel', overlayId:'ai-chat-overlay', closeId:'ai-chat-close'});
+        makeResizable('ai-chat-panel', 300, 900, 'ai-chat-width');
+
+        const wasDocked = localStorage.getItem('ai-chat-panel-docked') === '1';
+        if (wasDocked && window.innerWidth > 1024) {
+            // Use setTimeout to ensure all DOM elements are fully initialized before click
+            setTimeout(() => {
+                document.getElementById('ai-chat-panel-dock')?.click();
+            }, 50);
+        }
     }
 
     // ---- Panel open / close --------------------------------------------------
