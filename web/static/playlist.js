@@ -511,6 +511,7 @@ function filterScanResults() {
                 </div>
                 <button onclick="openYouTubeModal('${item.video_id}')" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
             </div>
+        `;
     }).join('');
 
     // Enable/disable action buttons based on displayed results
