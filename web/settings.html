@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
     <link rel="manifest" href="/static/manifest.json">
-        <script src="/static/shared-shell.js?v=20260719f"></script>
+        <script src="/static/shared-shell.js?v=20260719g"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 async function viewSystemLogs() {
@@ -17,7 +17,7 @@ window.open('/system/logs', '_blank');
 
 </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260719f">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260719g">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
@@ -40,7 +40,7 @@ window.open('/system/logs', '_blank');
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/global_scripts.js?v=1781919149"></script>
-    <script src="/static/ux-enhancements.js?v=20260719f"></script>
+    <script src="/static/ux-enhancements.js?v=20260719g"></script>
 </head>
 <body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <!-- ===== FULL-WIDTH TOP HEADER ===== -->
@@ -65,6 +65,37 @@ window.open('/system/logs', '_blank');
                     <!-- TAB 1: GENERAL & API -->
                     <div id="tab-content-general" class="tab-pane space-y-4">
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                            <div class="bento-card p-4">
+                                <h3 class="text-xs font-semibold text-gray-300 mb-4">General</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Default Playlist Privacy</label>
+                                        <select id="default-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                            <option value="private">Private</option>
+                                            <option value="unlisted">Unlisted</option>
+                                            <option value="public">Public</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Storage</label>
+                                        <select id="scan-interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                            <option value="15min">Every 15 minutes</option>
+                                            <option value="hourly" selected>Every hour</option>
+                                            <option value="6hour">Every 6 hours</option>
+                                            <option value="daily">Daily</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-400 mb-1 block">Max Concurrent Operations</label>
+                                        <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                    </div>
+
+                                    <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
+                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="notify-failures" class="accent-[#2f8fc9]"> Notify on failures</label>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="bento-card p-4">
                                 <h3 class="text-xs font-semibold text-gray-300 mb-4">YouTube API</h3>
                                 <div class="space-y-4">
@@ -109,37 +140,6 @@ window.open('/system/logs', '_blank');
                                         <button id="connect-youtube-btn" onclick="connectYouTube()" class="w-full bg-[#FF0000] hover:bg-[#cc0000] text-white text-xs py-2 rounded flex items-center justify-center gap-2" style="min-height:44px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="#FFFFFF" class="w-5 h-5" aria-hidden="true"><path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.518 3.545 12 3.545 12 3.545s-7.518 0-9.388.507a3.003 3.003 0 0 0-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.87.507 9.388.507 9.388.507s7.518 0 9.388-.507a3.003 3.003 0 0 0 2.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837z"/><path d="M9.545 8.432v7.136L15.818 12l-6.273-3.568z" fill="#FFFFFF"/></svg> Connect YouTube Account (OAuth)</button>
                                         <button id="disconnect-youtube-btn" onclick="disconnectYouTube()" class="w-full bg-[#2a2f3a] hover:bg-red-600/20 border border-[#374151] text-gray-300 hover:text-red-400 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-unlink"></i> Disconnect YouTube</button>
                                         <div id="yt-status" class="text-[10px] text-gray-400 text-center"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="bento-card p-4">
-                                <h3 class="text-xs font-semibold text-gray-300 mb-4">General</h3>
-                                <div class="space-y-4">
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Default Playlist Privacy</label>
-                                        <select id="default-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                            <option value="private">Private</option>
-                                            <option value="unlisted">Unlisted</option>
-                                            <option value="public">Public</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Storage</label>
-                                        <select id="scan-interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                            <option value="15min">Every 15 minutes</option>
-                                            <option value="hourly" selected>Every hour</option>
-                                            <option value="6hour">Every 6 hours</option>
-                                            <option value="daily">Daily</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="text-[10px] text-gray-400 mb-1 block">Max Concurrent Operations</label>
-                                        <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
-                                    </div>
-
-                                    <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
-                                        <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="notify-failures" class="accent-[#2f8fc9]"> Notify on failures</label>
                                     </div>
                                 </div>
                             </div>
