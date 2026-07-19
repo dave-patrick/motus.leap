@@ -3447,11 +3447,38 @@ async def system_logs_page():
     </div>
     <div class="controls">
         <button onclick="location.reload()">🔄 Refresh</button>
+        <button onclick="copyLogs(this)">📋 Copy Logs</button>
         <button onclick="document.getElementById('log-container').scrollTop = document.getElementById('log-container').scrollHeight">⬇ Bottom</button>
         <button onclick="document.getElementById('log-container').scrollTop = 0">⬆ Top</button>
     </div>
     <div class="log-container" id="log-container">{logs_html}</div>
-    <script>document.getElementById('log-container').scrollTop = document.getElementById('log-container').scrollHeight;</script>
+    <script>
+        document.getElementById('log-container').scrollTop = document.getElementById('log-container').scrollHeight;
+        function copyLogs(btn) {{
+            const container = document.getElementById('log-container');
+            const text = container.innerText || container.textContent;
+            navigator.clipboard.writeText(text).then(() => {{
+                const orig = btn.innerText;
+                btn.innerText = '✅ Copied!';
+                setTimeout(() => btn.innerText = orig, 2000);
+            }}).catch(err => {{
+                console.error('Copy failed:', err);
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {{
+                    document.execCommand('copy');
+                    const orig = btn.innerText;
+                    btn.innerText = '✅ Copied!';
+                    setTimeout(() => btn.innerText = orig, 2000);
+                }} catch (e) {{
+                    alert('Copy failed');
+                }}
+                document.body.removeChild(textArea);
+            }});
+        }}
+    </script>
 </body>
 </html>""")
 
@@ -3509,10 +3536,10 @@ def _human_bytes(n: int) -> str:
     return f"{n:.1f} PB"
 
 
-@app.get("/api/storage/info", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@app.get("/api/storage/info", dependencies=[Depends(get_current_user)])
 async def storage_info():
     try:
-        return _storage_info()
+        return await _storage_info()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
