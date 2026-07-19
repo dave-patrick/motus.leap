@@ -347,7 +347,10 @@ async function scanForDuplicates() {
             btn.disabled = false;
             btn.innerHTML = origHTML;
         }
-    }async function scanForMisplaced() {
+    }
+}
+
+async function scanForMisplaced() {
     const btn = document.getElementById('btn-scan-mis');
     const origHTML = btn ? btn.innerHTML : '';
     if (btn) {
