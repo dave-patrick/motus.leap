@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260719d';
+  const SHELL_VERSION = '20260719e';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -17,8 +17,8 @@
     const settingsActive = path === '/settings' ? 'text-[#2f8fc9] border-[#2f8fc9]/40' : 'text-gray-400 border-[#2a2f3a]';
     return `<header class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center justify-between border-b border-[#2a2f3a] shrink-0 z-20">
         <div class="flex items-center gap-4 pl-14 md:pl-0">
-          <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="site-logo" style="height:56px;width:auto;object-fit:contain;">
-          <h1 class="text-3xl md:text-5xl font-semibold tracking-tight flex items-baseline leading-none site-title">
+          <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="site-logo" style="height:62px;width:auto;object-fit:contain;">
+          <h1 class="text-[27px] md:text-[43px] font-semibold tracking-tight flex items-baseline leading-none site-title">
             <span class="text-white">m</span><span class="text-white">o</span><span class="text-white">t</span>
             <span class="text-[#2f8fc9]">u</span><span class="text-white">s</span>
             <span class="text-gray-500">.</span>
