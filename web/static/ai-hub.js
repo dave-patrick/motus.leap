@@ -900,17 +900,27 @@
   async function parseJobNL() {
     const text = $('#job-nl').value.trim();
     if (!text) return;
+    const btn = $('#job-parse');
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Parsing...';
     try {
       const res = await api('/api/ai/jobs/parse', { method: 'POST', body: JSON.stringify({ text }) });
       if (res.cron) $('#job-cron').value = res.cron;
+      if (res.name) $('#job-name').value = res.name;
       if (res.task && res.task.type) {
         const sel = $('#job-task');
         for (const o of sel.options) { if (o.value === res.task.type) { o.selected = true; break; } }
       }
       if (res.task && res.task.payload && res.task.payload.playlist_id) $('#job-playlist').value = res.task.payload.playlist_id;
       updateJobPrivWarn();
-      toast('Parsed', 'success');
-    } catch (e) { toast(e.message, 'error'); }
+      toast('Parsed successfully', 'success');
+    } catch (e) { 
+      toast(e.message, 'error'); 
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = oldHtml;
+    }
   }
   function updateJobPrivWarn() {
     const t = $('#job-task').value;

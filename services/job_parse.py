@@ -89,9 +89,14 @@ def parse_schedule_nl(
         resp = _call_provider(config, messages)
 
     content = _extract_content(resp)
-    # The model is told to return bare JSON; tolerate ``` fences just in case.
+    # The model is told to return bare JSON; extract content between first '{' and last '}'
+    # to tolerate markdown fences and conversational filler robustly.
     content = content.strip()
-    if content.startswith("```"):
+    start = content.find('{')
+    end = content.rfind('}')
+    if start != -1 and end != -1:
+        content = content[start:end+1]
+    elif content.startswith("```"):
         content = content.strip("`")
         content = content.split("\n", 1)[-1] if "\n" in content else content
     try:

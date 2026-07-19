@@ -248,6 +248,28 @@ def test_parse_rejects_invalid_model_output(monkeypatch):
     assert r.status_code == 400
 
 
+def test_parse_tolerates_filler_and_markdown(monkeypatch):
+    import services.job_parse as jp
+    orig = jp.parse_schedule_nl
+
+    def fake_sim(messages, system):
+        return {"choices": [{"message": {
+            "role": "assistant",
+            "content": 'Here is the requested schedule:\n\n```json\n{\n  "cron": "0 3 * * *",\n  "name": "Daily Duplicate Sort",\n  "task": {"type": "scan_duplicates", "payload": {"playlist_id": "PL1"}},\n  "explain": "every day at 3am"\n}\n```\nHope that helps!'}}]}
+
+    monkeypatch.setattr(
+        jp, "parse_schedule_nl",
+        lambda text, config, simulate_provider=None: orig(text, config, simulate_provider=fake_sim))
+    r = client.post("/api/ai/jobs/parse", headers=H, json={
+        "text": "every day at 3am scan playlist PL1 for duplicates"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["cron"] == "0 3 * * *"
+    assert body["name"] == "Daily Duplicate Sort"
+    assert body["task"]["type"] == "scan_duplicates"
+    assert body["task"]["payload"]["playlist_id"] == "PL1"
+
+
 # ── scheduler ticker (real loop, job due in the past) ───────────────────
 def test_scheduler_fires_non_destructive(monkeypatch):
     from services import job_store
