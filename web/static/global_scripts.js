@@ -38,6 +38,15 @@ function getAuthToken() {
     return getCookie('token') || localStorage.getItem('token');
 }
 
+async function authHeaders() {
+    const token = getAuthToken();
+    const headers = { 'Content-Type': 'application/json', 'X-CSRF-Protect': '1' };
+    if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
+    }
+    return headers;
+}
+
 async function authFetch(url, options = {}) {
     const token = getAuthToken();
     const headers = {};

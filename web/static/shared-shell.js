@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260719o';
+  const SHELL_VERSION = '20260719p';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 

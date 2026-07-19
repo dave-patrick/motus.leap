@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
     <link rel="manifest" href="/static/manifest.json">
-        <script src="/static/shared-shell.js?v=20260719o"></script>
+        <script src="/static/shared-shell.js?v=20260719p"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 async function viewSystemLogs() {
@@ -17,7 +17,7 @@ window.open('/system/logs', '_blank');
 
 </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260719o">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260719p">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
@@ -40,7 +40,7 @@ window.open('/system/logs', '_blank');
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/global_scripts.js?v=1781919149"></script>
-    <script src="/static/ux-enhancements.js?v=20260719o"></script>
+    <script src="/static/ux-enhancements.js?v=20260719p"></script>
 </head>
 <body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <!-- ===== FULL-WIDTH TOP HEADER ===== -->
@@ -113,26 +113,6 @@ window.open('/system/logs', '_blank');
                                         </div>
                                     </div>
                                 </div>
-
-                                <!-- Logging Card -->
-                                <div class="bento-card p-4">
-                                    <h3 class="text-xs font-semibold text-gray-300 mb-3">Logging</h3>
-                                    <div class="space-y-3">
-                                        <div>
-                                            <label class="text-[10px] text-gray-400 mb-1 block">Log Level</label>
-                                            <select id="log-level" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none min-h-[38px]">
-                                                <option value="DEBUG">DEBUG</option>
-                                                <option value="INFO" selected>INFO</option>
-                                                <option value="WARNING">WARNING</option>
-                                                <option value="ERROR">ERROR</option>
-                                            </select>
-                                        </div>
-                                        <div class="pt-2 border-t border-[#2a2f3a] grid grid-cols-2 gap-2">
-                                            <button id="view-system-logs-btn" onclick="viewSystemLogs()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded flex items-center justify-center gap-1.5 transition-colors"><i class="fa-solid fa-file-lines text-[#2f8fc9]"></i> View Logs</button>
-                                            <button id="clear-system-logs-btn" onclick="clearSystemLogs()" class="w-full bg-[#20242c] hover:bg-red-950/30 border border-[#2a2f3a] hover:border-red-500/30 text-gray-300 hover:text-red-300 text-xs py-2 rounded flex items-center justify-center gap-1.5 transition-colors"><i class="fa-solid fa-trash-can text-red-400"></i> Clear Logs</button>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
 
                             <!-- Right Column: YouTube API -->
@@ -186,8 +166,12 @@ window.open('/system/logs', '_blank');
                                 </div>
                             </div>
 
-                            <!-- Bottom Action Buttons: Reset All Settings & Sign Out -->
-                            <div class="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                            <!-- Bottom Action Buttons: View System Logs, Reset All Settings & Sign Out -->
+                            <div class="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                                <button id="view-system-logs-btn" onclick="viewSystemLogs()"
+                                    class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2.5 rounded transition-colors flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-file-lines text-[#2f8fc9]"></i> View System Logs
+                                </button>
                                 <button id="reset-all-settings-btn" onclick="resetAllSettings()"
                                     class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2.5 rounded transition-colors flex items-center justify-center gap-2">
                                     <i class="fa-solid fa-rotate-left text-[11px]"></i> Reset All Settings

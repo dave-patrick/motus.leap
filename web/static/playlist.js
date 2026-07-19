@@ -296,48 +296,74 @@ async function moveSelectedVideos() {
 }
 
 // Scan functions
-async function performFullScan() {
-    toast('Initiating full scan...', 'info');
-    // 1. Client-side duplicate detection
-    const videoIdToItems = {};
-    allVideos.forEach(v => {
-        if (!videoIdToItems[v.video_id]) {
-            videoIdToItems[v.video_id] = [];
-        }
-        videoIdToItems[v.video_id].push({
-            playlist_item_id: v.playlist_item_id,
-            title: v.title,
-            channel: v.channel_title,
-            thumbnail: v.thumbnail
-        });
-    });
-
-    currentScanResults.duplicates = [];
-    for (const video_id in videoIdToItems) {
-        const items = videoIdToItems[video_id];
-        if (items.length > 1) {
-            const itemsToDelete = items.slice(1); // Keep the first, mark others for deletion
-            itemsToDelete.forEach(item => {
-                currentScanResults.duplicates.push({
-                    video_id: video_id,
-                    playlist_item_id: item.playlist_item_id,
-                    title: item.title,
-                    channel: item.channel,
-                    thumbnail: item.thumbnail,
-                    reason: `Duplicate entry (${items.length} occurrences)`,
-                    type: 'duplicate'
-                });
+async function scanForDuplicates() {
+    const btn = document.getElementById('btn-scan-dup');
+    const origHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Scanning...';
+    }
+    
+    try {
+        const videoIdToItems = {};
+        allVideos.forEach(v => {
+            if (!videoIdToItems[v.video_id]) {
+                videoIdToItems[v.video_id] = [];
+            }
+            videoIdToItems[v.video_id].push({
+                playlist_item_id: v.playlist_item_id,
+                title: v.title,
+                channel: v.channel_title,
+                thumbnail: v.thumbnail
             });
+        });
+
+        currentScanResults.duplicates = [];
+        for (const video_id in videoIdToItems) {
+            const items = videoIdToItems[video_id];
+            if (items.length > 1) {
+                const itemsToDelete = items.slice(1);
+                itemsToDelete.forEach(item => {
+                    currentScanResults.duplicates.push({
+                        video_id: video_id,
+                        playlist_item_id: item.playlist_item_id,
+                        title: item.title,
+                        channel: item.channel,
+                        thumbnail: item.thumbnail,
+                        reason: `Duplicate entry (${items.length} occurrences)`,
+                        type: 'duplicate'
+                    });
+                });
+            }
+        }
+
+        toast(`Scan complete - ${currentScanResults.duplicates.length} duplicate video(s) found in this playlist`, 'success');
+        showScanBox('duplicates');
+    } catch (e) {
+        toast('Scan failed: ' + e.message, 'error');
+        console.error(e);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
         }
     }
+}
 
-    // 2. Misplaced detection via API
+async function scanForMisplaced() {
+    const btn = document.getElementById('btn-scan-mis');
+    const origHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-yellow-500"></i> Scanning...';
+    }
+    
     try {
         const resp = await fetch(`/api/youtube/misplaced?playlist_id=${playlistId}`);
         const result = await resp.json();
 
         if (!resp.ok) {
-            throw new Error(result.error || 'Misplaced API failed');
+            throw new Error(result.error || result.detail || 'Misplaced API failed');
         }
         
         currentScanResults.misplaced = (result.misplaced || []).map(v => ({
@@ -347,53 +373,23 @@ async function performFullScan() {
             thumbnail: v.video_id ? `https://i.ytimg.com/vi/${v.video_id}/hqdefault.jpg` : (v.thumbnail || ''),
             reason: v.reason || 'Misplaced channel',
             type: 'misplaced',
-            current_playlist_id: playlistId, // Assuming current playlist is the source
-            current_playlist_title: document.getElementById('playlist-title').textContent || playlistId,
+            current_playlist_id: playlistId,
+            current_playlist_title: document.getElementById('playlist-title')?.textContent || playlistId,
             mapped_playlist_id: v.mapped_playlist_id,
             mapped_playlist_title: v.mapped_playlist_title
         }));
+
+        toast(`Scan complete - ${currentScanResults.misplaced.length} misplaced video(s) found in this playlist`, 'success');
+        showScanBox('misplaced');
     } catch (e) {
         console.error('Error fetching misplaced videos:', e);
         toast(`Failed to fetch misplaced videos: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
         currentScanResults.misplaced = [];
-    }
-
-    toast(`Scan complete - ${currentScanResults.duplicates.length} duplicates, ${currentScanResults.misplaced.length} misplaced found`, 'success');
-}
-
-async function scanForDuplicates() {
-    const btn = document.getElementById('btn-scan-dup');
-    const origHTML = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Scanning...';
-    
-    try {
-        await performFullScan();
-        showScanBox('duplicates');
-    } catch (e) {
-        toast('Scan failed', 'error');
-        console.error(e);
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = origHTML;
-    }
-}
-
-async function scanForMisplaced() {
-    const btn = document.getElementById('btn-scan-mis');
-    const origHTML = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-yellow-500"></i> Scanning...';
-    
-    try {
-        await performFullScan();
-        showScanBox('misplaced');
-    } catch (e) {
-        toast('Scan failed', 'error');
-        console.error(e);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = origHTML;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
+        }
     }
 }
 
