@@ -55,8 +55,8 @@
     const color = kind === 'error' ? '#dc2626' : (kind === 'success' ? '#16a34a' : '#2f8fc9');
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;background:#1a1d24;border:1px solid ' +
-      color + ';color:' + color + ';padding:10px 14px;border-radius:10px;font-size:12px;max-width:320px;box-shadow:0 4px 10px rgba(0,0,0,.4)';
-    el.innerHTML = sanitize(msg);
+      color + ';color:' + color + ';padding:10px 14px;border-radius:10px;font-size:12px;max-width:320px;box-shadow:0 4px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:space-between;gap:8px';
+    el.innerHTML = '<span>' + sanitize(msg) + '</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:inherit;cursor:pointer;opacity:0.7;padding:0 2px" title="Close">✕</button>';
     document.body.appendChild(el);
     setTimeout(() => { el.remove(); }, 3500);
   }

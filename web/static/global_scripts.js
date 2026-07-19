@@ -5,9 +5,9 @@ function toast(message, type = 'info', duration = 4000) {
     const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
     const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-[#2f8fc9]' };
     el.className = 'flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium animate-slide-in ' + (colors[type] || colors.info);
-    el.innerHTML = '<i class="fa-solid ' + (icons[type] || icons.info) + '"></i><span>' + DOMPurify.sanitize(message, {USE_PROFILES: {html: true}}) + '</span>';
+    el.innerHTML = '<i class="fa-solid ' + (icons[type] || icons.info) + '"></i><span class="flex-1">' + DOMPurify.sanitize(message, {USE_PROFILES: {html: true}}) + '</span><button onclick="this.parentElement.remove()" class="ml-2 text-white/70 hover:text-white focus:outline-none p-0.5 cursor-pointer" title="Close"><i class="fa-solid fa-xmark text-xs"></i></button>';
     container.appendChild(el);
-    setTimeout(() => { el.classList.add('animate-slide-out'); setTimeout(() => el.remove(), 300); }, duration);
+    setTimeout(() => { if (el.parentNode) { el.classList.add('animate-slide-out'); setTimeout(() => el.remove(), 300); } }, duration);
 }
 
 function createToastContainer() {

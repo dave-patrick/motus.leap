@@ -176,6 +176,7 @@ function renderVideos() {
                     <div class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <input type="checkbox" class="video-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''} onclick="event.stopPropagation()">
                     </div>
+                    <button onclick="deleteSingleVideo('${v.video_id}', event)" class="absolute top-1.5 right-1.5 bg-red-950/80 hover:bg-red-900 border border-red-500/40 text-red-300 hover:text-white text-[10px] w-6 h-6 rounded flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md z-10 cursor-pointer" title="Remove video from playlist"><i class="fa-solid fa-trash-can text-[10px]"></i></button>
                     ${selectedVideos.has(v.video_id) ? '<div class="absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none"></div>' : ''}
                 </div>
                 <!-- Info -->
@@ -670,4 +671,30 @@ function openYouTubeModal(videoId) {
     };
     
     document.body.appendChild(youtubeModal);
+}
+
+async function deleteSingleVideo(videoId, event) {
+    if (event) event.stopPropagation();
+    if (!confirm('Remove this video from the playlist?')) return;
+    toast('Removing video...', 'info');
+    try {
+        const resp = await fetch('/api/bulk/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Protect': '1'
+            },
+            body: JSON.stringify({ playlist_id: playlistId, video_ids: [videoId] })
+        });
+        const data = await resp.json();
+        if (resp.ok && (data.success || data.deleted_count > 0 || data.status === 'ok')) {
+            toast('Video removed successfully', 'success');
+            allVideos = allVideos.filter(v => v.video_id !== videoId);
+            renderVideos();
+        } else {
+            toast('Failed to remove video: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (e) {
+        toast('Failed to remove video: ' + e.message, 'error');
+    }
 }
