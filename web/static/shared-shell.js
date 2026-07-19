@@ -169,7 +169,6 @@
     panel.show = show;
     panel.hide = hide;
   }
-  }
 
   function shellHamburger() {
     return `<button id="sidebar-toggle" aria-label="Open menu" title="Menu"
