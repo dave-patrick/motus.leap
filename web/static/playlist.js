@@ -160,32 +160,33 @@ function renderVideos() {
                     Select all
                 </label>
             </div>
-            <select id="target-playlist" onchange="updateMoveButton()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1.5 outline-none min-h-[28px]">
+            <select id="target-playlist" onchange="updateMoveButton()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1.5 outline-none min-h-[28px] cursor-pointer">
                 <option value="">Move to...</option>
             </select>
+            <button id="move-btn" onclick="moveSelectedVideos()" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i> Move
+            </button>
             <span id="selected-count" class="text-[10px] text-gray-500 whitespace-nowrap"></span>
         </div>
         <!-- Video grid -->
         <div class="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="video-grid">
             ${allVideos.map((v, i) => `
-            <div class="video-card group relative bg-[#16191f] border border-[#2a2f3a] hover:border-[#3a4a5a] rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-black/20" data-video-id="${v.video_id}" data-title="${DOMPurify.sanitize(v.title || '').toLowerCase()}" data-channel="${DOMPurify.sanitize(v.channel_title || '').toLowerCase()}">
-                <!-- Thumbnail with overlay -->
-                <div class="relative aspect-video bg-[#1a1d24] overflow-hidden">
-                    <img src="${upgradeThumb(v.thumbnail) || '/static/logo_icon.png'}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onerror="this.src='/static/logo_icon.png'">
-                    <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium">${formatDuration(v.duration)}</span>
-                    <div class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <input type="checkbox" class="video-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''} onclick="event.stopPropagation()">
+                <div class="video-card bg-[#16191f] border border-[#2a2f3a] rounded-xl overflow-hidden hover:border-[#2f8fc9]/50 transition-all flex flex-col group relative" data-video-id="${v.video_id}" data-title="${DOMPurify.sanitize(v.title || '').toLowerCase()}" data-channel="${DOMPurify.sanitize(v.channel_title || '').toLowerCase()}">
+                    <div class="relative aspect-video bg-[#0a0c10] overflow-hidden cursor-pointer" onclick="openYouTubeModal('${v.video_id}')">
+                        <img src="${v.thumbnail || 'https://i.ytimg.com/vi/' + v.video_id + '/hqdefault.jpg'}" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/${v.video_id}/hqdefault.jpg'">
+                        <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[9px] font-mono px-1.5 py-0.5 rounded font-medium">${v.duration || '0:00'}</span>
+                        <div class="absolute top-1.5 left-1.5 z-10" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="video-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''} onclick="event.stopPropagation()">
+                        </div>
+                        <button onclick="deleteSingleVideo('${v.video_id}', event)" class="absolute top-1.5 right-1.5 bg-red-950/80 hover:bg-red-900 border border-red-500/40 text-red-300 hover:text-white text-[10px] w-6 h-6 rounded flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md z-10 cursor-pointer" title="Remove video from playlist"><i class="fa-solid fa-trash-can text-[10px]"></i></button>
+                        ${selectedVideos.has(v.video_id) ? '<div class="absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none"></div>' : ''}
                     </div>
-                    <button onclick="deleteSingleVideo('${v.video_id}', event)" class="absolute top-1.5 right-1.5 bg-red-950/80 hover:bg-red-900 border border-red-500/40 text-red-300 hover:text-white text-[10px] w-6 h-6 rounded flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md z-10 cursor-pointer" title="Remove video from playlist"><i class="fa-solid fa-trash-can text-[10px]"></i></button>
-                    ${selectedVideos.has(v.video_id) ? '<div class="absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none"></div>' : ''}
+                    <div class="p-3 flex flex-col flex-1 relative">
+                        <h4 class="text-xs font-semibold text-white line-clamp-2 mb-1.5 leading-snug cursor-pointer hover:text-[#2f8fc9] transition-colors pr-6" onclick="openYouTubeModal('${v.video_id}')" title="${DOMPurify.sanitize(v.title || '')}">${DOMPurify.sanitize(v.title || 'Unknown title')}</h4>
+                        <p class="text-[10px] text-gray-400 mt-auto truncate">${v.channel_title ? DOMPurify.sanitize(v.channel_title) : ''}</p>
+                        <button onclick="openYouTubeModal('${v.video_id}')" class="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
+                    </div>
                 </div>
-                <!-- Info -->
-                <div class="p-2.5 relative">
-                    <div class="text-[12px] text-white font-medium leading-tight line-clamp-2 mb-1 pr-16" title="${DOMPurify.sanitize(v.title || '')}">${DOMPurify.sanitize(v.title || 'Unknown title')}</div>
-                    <div class="text-[10px] text-gray-400 truncate pr-16">${DOMPurify.sanitize(v.channel_title || 'Unknown channel')}</div>
-                    <button onclick="openYouTubeModal('${v.video_id}')" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
-                </div>
-            </div>
             `).join('')}
         </div>
     `;
