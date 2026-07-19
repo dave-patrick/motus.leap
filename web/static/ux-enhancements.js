@@ -1249,7 +1249,11 @@ window.clearLogs = function() {
                         class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-red-400 flex items-center justify-center transition-colors text-[11px]">
                         <i class="fas fa-trash"></i>
                     </button>
-                    <button id="live-console-close"
+                    <button id="live-console-panel-dock" title="Dock to right"
+                        class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors">
+                        <i class="fa-solid fa-table-columns text-[11px]"></i>
+                    </button>
+                    <button id="live-console-close" title="Close console"
                         class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors">
                         <i class="fa-solid fa-xmark text-xs"></i>
                     </button>
@@ -1265,8 +1269,8 @@ window.clearLogs = function() {
 
         // ---- Events ----
         btn.addEventListener('click', _openConsole);
-        overlay.addEventListener('click', _closeConsole);
-        panel.querySelector('#live-console-close').addEventListener('click', _closeConsole);
+        overlay.addEventListener('click', () => _closeConsole(panel));
+        panel.querySelector('#live-console-close').addEventListener('click', () => _closeConsole(panel));
 
         // Copy button
         panel.querySelector('#btn-copy-console').addEventListener('click', function () {
@@ -1286,7 +1290,10 @@ window.clearLogs = function() {
         });
 
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') _closeConsole();
+            if (e.key === 'Escape') {
+                const liveP = document.getElementById('live-console-panel');
+                if (liveP && !liveP.classList.contains('translate-x-full')) _closeConsole(liveP);
+            }
         });
     }
 
@@ -1299,31 +1306,30 @@ window.clearLogs = function() {
 
     function _closeConsole(force, panel) {
         panel = panel || document.getElementById('live-console-panel');
+        if (panel instanceof Event) {
+            panel = document.getElementById('live-console-panel');
+        }
+        if (!panel) return;
+
         const o = panel.id === 'live-console-panel'
             ? document.getElementById('live-console-overlay')
             : document.getElementById('ai-chat-overlay');
-        if (!panel) return;
-        if (force === undefined && panel.dataset.docked === '1') {
-            undockPanel(panel);
-            return;
-        }
-        if (panel.classList.contains('docked')) {
-            undockPanel(panel);
-            return;
-        }
+
+        panel.classList.remove('docked');
+        panel.dataset.docked = '0';
         panel.classList.add('translate-x-full');
         if (o) o.classList.add('hidden');
-    }
 
-    function undockPanel(panel) {
-        panel.classList.remove('docked');
-        panel.classList.remove('translate-x-full');
-        const overlay =
-            panel.id === 'live-console-panel'
-                ? document.getElementById('live-console-overlay')
-                : document.getElementById('ai-chat-overlay');
-        if (overlay) overlay.classList.remove('hidden');
-        panel.dataset.docked = '0';
+        // Reset the dock icon if applicable
+        const dockBtn = document.getElementById(panel.id + '-dock');
+        if (dockBtn) {
+            const icon = dockBtn.querySelector('i');
+            if (icon) icon.className = 'fa-solid fa-table-columns text-[11px]';
+            dockBtn.setAttribute('title', 'Dock to right');
+            dockBtn.setAttribute('aria-label', 'Dock to right');
+        }
+
+        // Recalculate right padding for remaining docked panels
         var sum = 0;
         ['live-console-panel', 'ai-chat-panel'].forEach(function (id) {
             var el = document.getElementById(id);
@@ -1360,7 +1366,12 @@ window.clearLogs = function() {
             var dock = document.getElementById(opts.panelId).classList.contains('docked') ? false : true;
             _apply(dock);
             const icon = this.querySelector('i');
-            if (icon) icon.className = dock ? 'fa-solid fa-arrow-left-to-bracket text-[11px]' : 'fa-solid fa-arrow-right-to-bracket text-[11px]';
+            if (icon) {
+                icon.className = dock 
+                    ? 'fa-solid fa-window-restore text-[11px] text-[#2f8fc9]' 
+                    : 'fa-solid fa-table-columns text-[11px]';
+            }
+            this.setAttribute('title', dock ? 'Undock' : 'Dock to right');
             this.setAttribute('aria-label', dock ? 'Undock' : 'Dock');
         });
         document.querySelector('#' + opts.closeId)?.addEventListener('click', function () {
@@ -1450,7 +1461,7 @@ window.clearLogs = function() {
         subtitle.textContent = 'Loading…';
 
         const headerWrap = document.createElement('div');
-        headerWrap.className = 'flex items-center justify-between px-4 py-3 border-b border-[#2a2f3a]';
+        headerWrap.className = 'flex items-center justify-between px-4 py-3 border-b border-[#2a2f3a] shrink-0 bg-[#171920]';
         headerWrap.innerHTML = `
             <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
@@ -1463,12 +1474,21 @@ window.clearLogs = function() {
             </div>
             <div class="flex items-center gap-2">
                 <button id="ai-chat-clear" title="Start a new session"
-                    class="h-9 px-3 rounded-xl bg-[#20242c]/50 hover:bg-[#20242c] border border-[#2a2f3a] text-[#2f8fc9] hover:text-[#2a7db8] text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                    class="h-8 px-2.5 rounded-lg bg-[#20242c]/50 hover:bg-[#20242c] border border-[#2a2f3a] text-[#2f8fc9] hover:text-[#2a7db8] text-[11px] font-semibold flex items-center gap-1 transition-colors">
                     <i class="fa-solid fa-plus text-[10px]"></i> New Session
+                </button>
+                <button id="ai-chat-panel-dock" title="Dock to right"
+                    class="w-8 h-8 rounded-lg bg-[#20242c]/50 hover:bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-table-columns text-[11px]"></i>
+                </button>
+                <button id="ai-chat-close" title="Close chat"
+                    class="w-8 h-8 rounded-lg bg-[#20242c]/50 hover:bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-xmark text-xs"></i>
                 </button>
             </div>
         `;
         const headerSlot = document.createElement('div');
+        headerSlot.className = 'shrink-0';
         headerSlot.appendChild(headerWrap);
         panel.insertBefore(headerSlot, panel.firstChild);
 
@@ -1534,8 +1554,8 @@ window.clearLogs = function() {
         const btn = document.getElementById('ai-chat-btn');
 
         btn?.addEventListener('click', _openPanel);
-        overlay?.addEventListener('click', _closeConsole);
-        document.getElementById('ai-chat-close')?.addEventListener('click', _closeConsole);
+        overlay?.addEventListener('click', () => _closeConsole(panel));
+        document.getElementById('ai-chat-close')?.addEventListener('click', () => _closeConsole(panel));
         document.getElementById('ai-chat-clear')?.addEventListener('click', _newConversation);
         document.getElementById('ai-chat-send')?.addEventListener('click', _send);
         document.getElementById('ai-chat-new-conv')?.addEventListener('click', _newConversation);
@@ -1557,7 +1577,10 @@ window.clearLogs = function() {
         });
 
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') _closeConsole();
+            if (e.key === 'Escape') {
+                const aiP = document.getElementById('ai-chat-panel');
+                if (aiP && !aiP.classList.contains('translate-x-full')) _closeConsole(aiP);
+            }
         });
 
         dockPanel({panelId:'ai-chat-panel', overlayId:'ai-chat-overlay', closeId:'ai-chat-close'});

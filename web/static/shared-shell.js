@@ -112,12 +112,7 @@
     panel.className = 'fixed top-0 right-0 h-full w-[400px] max-w-[100vw] bg-[#1a1d24] border-l border-[#2a2f3a] z-[70] flex flex-col transform translate-x-full transition-transform duration-200 ease-in-out font-sans shadow-2xl shadow-black/60';
     
     panel.innerHTML = `
-      <div class="absolute right-4 top-3.5 flex items-center gap-2 z-10">
-        <button id="ai-chat-close" class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Close">
-          <i class="fa-solid fa-xmark text-xs"></i>
-        </button>
-      </div>
-      <div id="ai-chat-body" class="flex-1 overflow-hidden flex flex-col"></div>
+      <div id="ai-chat-body" class="flex-1 overflow-hidden flex flex-col font-sans"></div>
     `;
     document.body.appendChild(panel);
 
@@ -180,7 +175,74 @@
 
   function shellStyles() {
     if (document.getElementById('shell-nav-styles')) return '';
-    return `<style id="shell-nav-styles">#shell-nav-styles .nav-item{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border-radius:.5rem;color:#9ca3af;font-size:.875rem;transition:background-color .2s,color .2s}#shell-nav-styles .nav-item.active{background-color:#2f8fc9;color:#fff;font-weight:600}#shell-nav-styles .nav-item:not(.active):hover{background-color:#2a2f3a;color:#fff}#shell-nav-styles .ai-sub{display:flex;align-items:center;gap:.75rem;padding:.6rem 1rem .6rem 2.75rem;border-radius:.5rem;color:#9ca3af;font-size:.875rem;border-left:2px solid transparent;transition:background-color .2s,color .2s}#shell-nav-styles .ai-sub.active{background-color:#2a2f3a;color:#fff;border-left:2px solid #2f8fc9}#shell-nav-styles .ai-sub:not(.active):hover{background-color:#20242c;color:#fff}#shell-nav-styles .ai-group-toggle{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-radius:.5rem;color:#d1d5db;font-size:.875rem;cursor:pointer;user-select:none}</style>`;
+    return `<style id="shell-nav-styles">
+      @font-face {
+        font-family: 'Deltha';
+        src: url('/static/Deltha.otf') format('opentype');
+        font-weight: normal;
+        font-style: normal;
+        font-display: swap;
+      }
+      html, body, input, select, textarea, button {
+        font-family: 'Inter', sans-serif;
+      }
+      .site-title, .site-title * {
+        font-family: 'Deltha', serif !important;
+      }
+      .font-mono, .font-mono * {
+        font-family: 'JetBrains Mono', monospace !important;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        padding: .75rem 1rem;
+        border-radius: .5rem;
+        color: #9ca3af;
+        font-size: .875rem;
+        transition: background-color .2s, color .2s;
+      }
+      .nav-item.active {
+        background-color: #2f8fc9;
+        color: #fff;
+        font-weight: 600;
+      }
+      .nav-item:not(.active):hover {
+        background-color: #2a2f3a;
+        color: #fff;
+      }
+      .ai-sub {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        padding: .6rem 1rem .6rem 2.75rem;
+        border-radius: .5rem;
+        color: #9ca3af;
+        font-size: .875rem;
+        border-left: 2px solid transparent;
+        transition: background-color .2s, color .2s;
+      }
+      .ai-sub.active {
+        background-color: #2a2f3a;
+        color: #fff;
+        border-left: 2px solid #2f8fc9;
+      }
+      .ai-sub:not(.active):hover {
+        background-color: #20242c;
+        color: #fff;
+      }
+      .ai-group-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .75rem 1rem;
+        border-radius: .5rem;
+        color: #d1d5db;
+        font-size: .875rem;
+        cursor: pointer;
+        user-select: none;
+      }
+    </style>`;
   }
 
   function ensureShellLayout() {
