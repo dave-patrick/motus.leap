@@ -113,9 +113,6 @@
     
     panel.innerHTML = `
       <div class="absolute right-4 top-3.5 flex items-center gap-2 z-10">
-        <button id="ai-chat-panel-dock" class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Dock">
-          <i class="fa-solid fa-arrow-right-to-bracket text-[11px]"></i>
-        </button>
         <button id="ai-chat-close" class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Close">
           <i class="fa-solid fa-xmark text-xs"></i>
         </button>

@@ -1241,10 +1241,6 @@ window.clearLogs = function() {
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button id="live-console-dock"
-                        class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Dock">
-                        <i class="fa-solid fa-arrow-right-to-bracket text-[11px]"></i>
-                    </button>
                     <button id="btn-copy-console" title="Copy logs"
                         class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors text-[11px]">
                         <i class="fas fa-copy"></i>
