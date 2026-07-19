@@ -267,27 +267,29 @@ function updateMoveButton() {
 }
 
 async function moveSelectedVideos() {
-    const targetId = document.getElementById('target-playlist').value;
+    const targetId = document.getElementById('target-playlist')?.value;
     if (!targetId || selectedVideos.size === 0) {
         toast('Please select videos and a target playlist', 'error');
         return;
     }
     const videoIds = Array.from(selectedVideos);
-    toast(`Moving ${videoIds.length} videos...`, 'info');
+    toast(`Moving ${videoIds.length} video(s)...`, 'info');
     try {
         const resp = await fetch('/api/bulk/move', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: await authHeaders(),
             body: JSON.stringify({video_ids: videoIds, target_playlist_id: targetId, source_playlist_id: playlistId})
         });
         const result = await resp.json();
-        if (resp.ok) {
-            toast(`Moved ${result.succeeded} video(s), failed ${result.failed}`, 'success');
+        if (resp.ok && (result.operation_id || result.status === 'pending' || result.status === 'completed' || result.status === 'success' || result.succeeded > 0)) {
+            toast(`Moved ${videoIds.length} video(s) successfully`, 'success');
             selectedVideos.clear();
             updateMoveButton();
-            await loadPlaylist(); // Reload playlist to reflect changes
+            setTimeout(async () => {
+                await loadPlaylist();
+            }, 1500);
         } else {
-            const errorMessage = result.error || resp.statusText || 'Failed to move videos';
+            const errorMessage = result.error || result.detail || resp.statusText || 'Failed to move videos';
             toast(`Failed to move videos: ${DOMPurify.sanitize(errorMessage)}`, 'error');
         }
     } catch (e) {
@@ -609,7 +611,7 @@ async function moveMisplacedItems() {
             const videoIdsToMove = groupedMoves[targetPlaylistId];
             const resp = await fetch('/api/bulk/move', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: await authHeaders(),
                 body: JSON.stringify({
                     video_ids: videoIdsToMove,
                     target_playlist_id: targetPlaylistId,
@@ -617,12 +619,11 @@ async function moveMisplacedItems() {
                 })
             });
             const result = await resp.json();
-            if (resp.ok) {
-                succeededMoves += result.succeeded;
-                failedMoves += result.failed;
+            if (resp.ok && (result.operation_id || result.status === 'pending' || result.status === 'completed' || result.status === 'success' || result.succeeded > 0)) {
+                succeededMoves += videoIdsToMove.length;
             } else {
                 failedMoves += videoIdsToMove.length;
-                const errorMessage = result.error || resp.statusText || 'Failed to move videos';
+                const errorMessage = result.error || result.detail || resp.statusText || 'Failed to move videos';
                 console.error(`Failed to move to ${targetPlaylistId}: ${errorMessage}`);
                 toast(`Failed to move videos to ${targetPlaylistId}: ${DOMPurify.sanitize(errorMessage)}`, 'error');
             }
