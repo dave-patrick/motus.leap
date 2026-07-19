@@ -11,11 +11,11 @@
     <title>motus.leap</title>
     <link rel="manifest" href="/static/manifest.json">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
-        <script src="/static/shared-shell.js?v=20260719n"></script>
+        <script src="/static/shared-shell.js?v=20260719o"></script>
 <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260719n">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260719o">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -73,18 +73,18 @@
                     </div>
                 </div>
 
-                <!-- Agent Control Center -->
-                <div class="bento-card p-5 max-w-3xl">
-                    <h4 class="text-xs font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fas fa-robot accent"></i> Agent Control Center</h4>
-                    <div class="flex flex-wrap items-center justify-start gap-3">
-                        <button id="btn-fetch-all" data-refresh="stats" class="px-4 py-2.5 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fa-solid fa-arrows-rotate text-[#2f8fc9]"></i> Full Playlist Sync</button>
-                        <button id="btn-maintenance" data-refresh="stats" class="px-4 py-2.5 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-wrench text-[#2f8fc9]"></i> Run Maintenance</button>
+                <div class="max-w-3xl space-y-6">
+                    <!-- Agent Control Center -->
+                    <div class="bento-card p-5">
+                        <h4 class="text-xs font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fas fa-robot accent"></i> Agent Control Center</h4>
+                        <div class="flex flex-wrap items-center justify-start gap-3">
+                            <button id="btn-fetch-all" data-refresh="stats" class="px-4 py-2.5 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fa-solid fa-arrows-rotate text-[#2f8fc9]"></i> Full Playlist Sync</button>
+                            <button id="btn-maintenance" data-refresh="stats" class="px-4 py-2.5 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors"><i class="fas fa-wrench text-[#2f8fc9]"></i> Run Maintenance</button>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Scan Details -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="bento-card p-5 lg:col-span-1 flex flex-col">
+                    <!-- Scan Details -->
+                    <div class="bento-card p-5 flex flex-col">
                         <h4 class="text-xs font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fas fa-radar accent"></i> Scan Details</h4>
                         <div class="space-y-3 text-xs text-gray-400">
                             <div class="flex justify-between border-b border-[#2a2f3a] pb-2"><span>Last Scan</span><span id="last-scan" class="text-gray-300 font-mono">--</span></div>
@@ -92,13 +92,13 @@
                             <div class="flex justify-between border-b border-[#2a2f3a] pb-2"><span>Queued Tasks</span><span id="queued-tasks" class="text-gray-300 font-mono">0</span></div>
                             <div class="flex justify-between"><span>Active Workers</span><span id="active-workers" class="text-gray-300 font-mono">0</span></div>
                         </div>
-                        <div class="pt-3 border-t border-[#2a2f3a]">
+                        <div class="pt-3 border-t border-[#2a2f3a] mt-3">
                             <div class="flex justify-between mb-1.5"><span class="text-gray-400">System Activity</span><span id="activity-pct" class="text-gray-300 font-mono">0%</span></div>
                             <div class="w-full bg-[#20242c] rounded-full h-2 overflow-hidden">
                                 <div id="activity-bar" class="bg-[#2f8fc9] h-2 rounded-full transition-all duration-500" style="width:0%"></div>
                             </div>
                         </div>
-                        <button id="btn-run-scan" class="w-full mt-auto px-3 py-2 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-[11px] font-bold flex items-center justify-center gap-2 transition-colors">
+                        <button id="btn-run-scan" class="w-full mt-4 px-3 py-2.5 rounded-lg accent-bg hover:bg-[#2a7db8] text-white text-[11px] font-bold flex items-center justify-center gap-2 transition-colors">
                             <i class="fas fa-search"></i> Run Scan
                         </button>
                         <button id="scan-cancel-btn" class="hidden w-full mt-2 px-3 py-2 rounded-lg bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[11px] font-bold flex items-center justify-center gap-2 transition-colors">
@@ -114,7 +114,7 @@
             </div>
             
         <script src="/static/dashboard.js?v=3"></script>
-        <script src="/static/ux-enhancements.js?v=20260719n"></script>
+        <script src="/static/ux-enhancements.js?v=20260719o"></script>
         <script src="/static/mobile-nav.js?v=20260715f"></script>
         <script>
             if ('serviceWorker' in navigator) {

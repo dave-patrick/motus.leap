@@ -85,7 +85,7 @@ async function loadDashboardStats() {
         const s = (statsResp && statsResp.ok) ? await statsResp.json().catch(() => ({})) : {};
         if (s.last_scan) {
             const lastScanEl = document.getElementById('last-scan');
-            if (lastScanEl) lastScanEl.textContent = new Date(s.last_scan).toLocaleTimeString();
+            if (lastScanEl) lastScanEl.textContent = new Date(s.last_scan).toLocaleTimeString(undefined, { timeZoneName: 'short' });
         }
         const dupJson = (dupResp && dupResp.ok) ? await dupResp.json().catch(() => ({})) : {};
         const misJson = (misResp && misResp.ok) ? await misResp.json().catch(() => ({})) : {};
@@ -303,7 +303,7 @@ async function loadScanDetails() {
         const lastScan = statsData.last_scan || 'Never';
         const lastScanEl = document.getElementById('last-scan');
         if (lastScanEl) {
-            lastScanEl.textContent = lastScan === 'Never' ? 'Never' : new Date(lastScan).toLocaleTimeString();
+            lastScanEl.textContent = lastScan === 'Never' ? 'Never' : new Date(lastScan).toLocaleTimeString(undefined, { timeZoneName: 'short' });
         }
 
         // Status — show scan result severity with a clear, meaningful label.

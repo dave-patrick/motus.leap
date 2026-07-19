@@ -1060,12 +1060,14 @@ async def duplicate_playlist_endpoint(payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/youtube/playlistitems/delete", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@app.post("/api/youtube/playlistitems/delete", dependencies=[Depends(get_current_user)])
 async def delete_playlist_item_endpoint(payload: dict):
     playlist_item_id = payload.get("playlist_item_id")
     playlist_id = payload.get("playlist_id")
-    if not playlist_item_id:
-        raise HTTPException(status_code=400, detail="Missing playlist_item_id")
+    video_id = payload.get("video_id")
+    
+    if not playlist_item_id and not video_id:
+        raise HTTPException(status_code=400, detail="Missing playlist_item_id or video_id")
     if not youtube_service:
         raise HTTPException(status_code=500, detail="YouTube service not initialized")
     
@@ -1074,12 +1076,25 @@ async def delete_playlist_item_endpoint(payload: dict):
         raise HTTPException(status_code=401, detail="OAuth client not available")
     
     try:
+        # If playlist_item_id is not provided, look it up by video_id in the playlist
+        if not playlist_item_id and video_id and playlist_id:
+            items = yt_client.list_playlist_items(playlist_id=playlist_id, max_results=50)
+            for item in items.get("items", []):
+                snippet = item.get("snippet", {})
+                if snippet.get("resourceId", {}).get("videoId") == video_id:
+                    playlist_item_id = item.get("id")
+                    break
+
+        if not playlist_item_id:
+            raise HTTPException(status_code=404, detail="Playlist item ID not found for this video")
+
         yt_client.remove_video_from_playlist(playlist_item_id)
         if playlist_id:
-            # Invalidate the specific playlist's cache key so the change is shown immediately
             await youtube_service._cache_invalidate_playlist(playlist_id)
             
         return {"status": "success", "message": "Video removed from playlist"}
+    except HTTPException:
+        raise
     except Exception as e:
         log.error(f"Error removing video from playlist: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -3392,6 +3407,18 @@ async def get_system_logs():
         }
 
 
+@app.post("/api/system/logs/clear", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
+async def clear_system_logs():
+    """Clear system log file."""
+    log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
+    try:
+        if log_file.exists():
+            await asyncio.to_thread(log_file.write_text, "")
+        return {"status": "success", "message": "System logs cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear logs: {e}")
+
+
 @app.get("/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def system_logs_page():
     """System logs viewer page."""
@@ -3404,16 +3431,21 @@ async def system_logs_page():
             last_200 = lines[-200:] if len(lines) > 200 else lines
             for line in last_200:
                 escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                level = "OTHER"
+                style = ""
                 if "ERROR" in line or "CRITICAL" in line:
-                    logs_html += f'<div style="color:#ff6b6b">{escaped}</div>'
+                    level = "ERROR"
+                    style = 'style="color:#ff6b6b"'
                 elif "WARNING" in line:
-                    logs_html += f'<div style="color:#ffa94d">{escaped}</div>'
+                    level = "WARNING"
+                    style = 'style="color:#ffa94d"'
                 elif "INFO" in line:
-                    logs_html += f'<div style="color:#69db7c">{escaped}</div>'
+                    level = "INFO"
+                    style = 'style="color:#69db7c"'
                 elif "DEBUG" in line:
-                    logs_html += f'<div style="color:#74c0fc">{escaped}</div>'
-                else:
-                    logs_html += f'<div>{escaped}</div>'
+                    level = "DEBUG"
+                    style = 'style="color:#74c0fc"'
+                logs_html += f'<div class="log-line" data-level="{level}" {style}>{escaped}</div>'
         except Exception as e:
             logs_html = f'<div style="color:#ff6b6b">Error reading logs: {e}</div>'
     else:
@@ -3428,16 +3460,16 @@ async def system_logs_page():
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
         body {{ font-family: 'JetBrains Mono', monospace; background: #0a0c10; color: #e5e5e5; margin: 0; padding: 0; }}
-        .header {{ background: #16191f; border-bottom: 1px solid #2a2f3a; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }}
+        .header {{ background: #16191f; border-bottom: 1px solid #2a2f3a; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 20; }}
         .header h1 {{ font-size: 14px; margin: 0; color: #e5e5e5; }}
         .header a {{ color: #60a5fa; text-decoration: none; font-size: 12px; }}
         .header a:hover {{ text-decoration: underline; }}
-        .log-container {{ padding: 16px 20px; font-size: 11px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; }}
-        .log-container div {{ border-bottom: 1px solid #1a1d24; padding: 2px 0; }}
-        .controls {{ padding: 8px 20px; background: #16191f; border-bottom: 1px solid #2a2f3a; display: flex; gap: 8px; }}
-        .controls button {{ background: #20242c; border: 1px solid #2a2f3a; color: #9ca3af; font-size: 10px; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; }}
+        .controls {{ padding: 8px 20px; background: #16191f; border-bottom: 1px solid #2a2f3a; display: flex; gap: 8px; position: sticky; top: 43px; z-index: 10; flex-wrap: wrap; align-items: center; }}
+        .controls button {{ background: #20242c; border: 1px solid #2a2f3a; color: #9ca3af; font-size: 10px; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; transition: all 0.15s; }}
         .controls button:hover {{ background: #2a2f3a; color: #e5e5e5; }}
         .filter-active {{ background: #3b82f6 !important; color: white !important; border-color: #3b82f6 !important; }}
+        .log-container {{ padding: 16px 20px; font-size: 11px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; }}
+        .log-container div {{ border-bottom: 1px solid #1a1d24; padding: 2px 0; }}
     </style>
 </head>
 <body>
@@ -3448,12 +3480,56 @@ async def system_logs_page():
     <div class="controls">
         <button onclick="location.reload()">🔄 Refresh</button>
         <button onclick="copyLogs(this)">📋 Copy Logs</button>
-        <button onclick="document.getElementById('log-container').scrollTop = document.getElementById('log-container').scrollHeight">⬇ Bottom</button>
-        <button onclick="document.getElementById('log-container').scrollTop = 0">⬆ Top</button>
+        <button onclick="clearLogs(this)" style="color:#ef4444;border-color:rgba(239,68,68,0.3)">🗑️ Clear Logs</button>
+        <button onclick="scrollToBottom()">⬇ Bottom</button>
+        <button onclick="scrollToTop()">⬆ Top</button>
+        <div style="display:flex;gap:4px;margin-left:auto;align-items:center;">
+            <span style="font-size:10px;color:#9ca3af;margin-right:4px;">Filter:</span>
+            <button class="filter-btn filter-active" onclick="filterLogs('ALL', this)">ALL</button>
+            <button class="filter-btn" onclick="filterLogs('DEBUG', this)">DEBUG</button>
+            <button class="filter-btn" onclick="filterLogs('INFO', this)">INFO</button>
+            <button class="filter-btn" onclick="filterLogs('WARNING', this)">WARNING</button>
+            <button class="filter-btn" onclick="filterLogs('ERROR', this)">ERROR</button>
+        </div>
     </div>
     <div class="log-container" id="log-container">{logs_html}</div>
     <script>
-        document.getElementById('log-container').scrollTop = document.getElementById('log-container').scrollHeight;
+        window.scrollTo({{ top: document.body.scrollHeight, behavior: 'instant' }});
+
+        function scrollToBottom() {{
+            window.scrollTo({{ top: document.body.scrollHeight, behavior: 'smooth' }});
+        }}
+
+        function scrollToTop() {{
+            window.scrollTo({{ top: 0, behavior: 'smooth' }});
+        }}
+
+        function filterLogs(level, btn) {{
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('filter-active'));
+            btn.classList.add('filter-active');
+            document.querySelectorAll('.log-line').forEach(line => {{
+                if (level === 'ALL' || line.dataset.level === level) {{
+                    line.style.display = '';
+                }} else {{
+                    line.style.display = 'none';
+                }}
+            }});
+        }}
+
+        async function clearLogs(btn) {{
+            if (!confirm('Clear all system logs?')) return;
+            try {{
+                const resp = await fetch('/api/system/logs/clear', {{ method: 'POST' }});
+                if (resp.ok) {{
+                    document.getElementById('log-container').innerHTML = '<div style="color:#868e96">Logs cleared.</div>';
+                }} else {{
+                    alert('Failed to clear logs');
+                }}
+            }} catch (e) {{
+                alert('Failed to clear logs: ' + e.message);
+            }}
+        }}
+
         function copyLogs(btn) {{
             const container = document.getElementById('log-container');
             const text = container.innerText || container.textContent;

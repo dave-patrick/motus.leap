@@ -678,21 +678,20 @@ async function deleteSingleVideo(videoId, event) {
     if (!confirm('Remove this video from the playlist?')) return;
     toast('Removing video...', 'info');
     try {
-        const resp = await fetch('/api/bulk/delete', {
+        const targetVideo = allVideos.find(v => v.video_id === videoId);
+        const playlistItemId = targetVideo ? targetVideo.playlist_item_id : null;
+        const resp = await fetch('/api/youtube/playlistitems/delete', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Protect': '1'
-            },
-            body: JSON.stringify({ playlist_id: playlistId, video_ids: [videoId] })
+            headers: await authHeaders(),
+            body: JSON.stringify({ playlist_id: playlistId, video_id: videoId, playlist_item_id: playlistItemId })
         });
         const data = await resp.json();
-        if (resp.ok && (data.success || data.deleted_count > 0 || data.status === 'ok')) {
+        if (resp.ok && (data.status === 'success' || data.success)) {
             toast('Video removed successfully', 'success');
             allVideos = allVideos.filter(v => v.video_id !== videoId);
             renderVideos();
         } else {
-            toast('Failed to remove video: ' + (data.error || 'Unknown error'), 'error');
+            toast('Failed to remove video: ' + (data.detail || data.error || 'Unknown error'), 'error');
         }
     } catch (e) {
         toast('Failed to remove video: ' + e.message, 'error');
