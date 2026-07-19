@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260717d';
+  const SHELL_VERSION = '20260717f';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -74,16 +74,11 @@
       if (window.__aiPanelInjected) return;
       window.__aiPanelInjected = true;
 
+      // Wire up buttons if the panel already exists (e.g. page transition)
       const robotBtn = document.getElementById('robot-button');
       if (robotBtn) {
         robotBtn.addEventListener('click', () => {
-          if (typeof existing.show === 'function') {
-            existing.show();
-          } else {
-            existing.classList.remove('translate-x-full');
-            const overlay = document.getElementById('ai-chat-overlay');
-            if (overlay) overlay.classList.remove('hidden');
-          }
+          if (typeof existing.show === 'function') existing.show();
         });
       }
 
@@ -91,118 +86,89 @@
       if (chatBtn) {
         const already = chatBtn.dataset.shellWired === '1';
         chatBtn.addEventListener('click', () => {
-          if (typeof existing.show === 'function') {
-            existing.show();
-          } else {
-            existing.classList.remove('translate-x-full');
-            const overlay = document.getElementById('ai-chat-overlay');
-            if (overlay) overlay.classList.remove('hidden');
-          }
+          if (typeof existing.show === 'function') existing.show();
         });
         chatBtn.dataset.shellWired = already ? chatBtn.dataset.shellWired : '1';
       }
 
       return;
     }
+
     if (_aiPanelInjected) return;
     _aiPanelInjected = true;
 
-    const fallbackBtn = document.getElementById('ai-chat-btn') || document.createElement('button');
-    const btn = fallbackBtn;
-    btn.setAttribute('data-shell-wired', '1');
+    // 1) Create overlay sibling if absent
+    let overlay = document.getElementById('ai-chat-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'ai-chat-overlay';
+      overlay.className = 'fixed inset-0 bg-black/40 z-[65] hidden';
+      document.body.appendChild(overlay);
+    }
 
-    const oldBtn = document.getElementById('ai-chat-btn');
-    if (oldBtn && oldBtn !== btn) oldBtn.remove();
-
+    // 2) Create panel sheet if absent
     const panel = document.createElement('div');
     panel.id = 'ai-chat-panel';
-    panel.className = 'fixed inset-0 z-[60]';
-
-    const overlay = document.createElement('div');
-    overlay.id = 'ai-chat-overlay';
-    overlay.className = 'absolute inset-0 bg-black/60 hidden';
-
-    const sheet = document.createElement('div');
-    sheet.className = 'absolute right-0 top-0 h-full w-[400px] max-w-[100vw] bg-[#141720] border-l border-[#232834] shadow-2xl translate-x-full transition-transform duration-200';
-    sheet.innerHTML = `
-      <div class="flex items-center justify-between px-4 py-3 border-b border-[#2a2f3a]">
-        <div class="font-semibold text-sm text-white">AI Chat</div>
-        <div class="flex items-center gap-2">
-          <button id="ai-chat-dock" class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Dock">
-            <i class="fa-solid fa-arrow-right-to-bracket text-xs"></i>
-          </button>
-          <button id="ai-chat-close" class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Close">
-            <i class="fa-solid fa-xmark text-xs"></i>
-          </button>
-        </div>
+    panel.className = 'fixed top-0 right-0 h-full w-[400px] max-w-[100vw] bg-[#1a1d24] border-l border-[#2a2f3a] z-[70] flex flex-col transform translate-x-full transition-transform duration-200 ease-in-out font-sans shadow-2xl shadow-black/60';
+    
+    panel.innerHTML = `
+      <div class="absolute right-4 top-3.5 flex items-center gap-2 z-10">
+        <button id="ai-chat-panel-dock" class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Dock">
+          <i class="fa-solid fa-arrow-right-to-bracket text-[11px]"></i>
+        </button>
+        <button id="ai-chat-close" class="w-8 h-8 rounded-lg bg-[#20242c] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" aria-label="Close">
+          <i class="fa-solid fa-xmark text-xs"></i>
+        </button>
       </div>
-      <div id="ai-chat-body" class="p-3 text-xs text-gray-500">Drop-in AI chat shell.</div>
+      <div id="ai-chat-body" class="flex-1 overflow-hidden flex flex-col"></div>
     `;
-
-    panel.appendChild(overlay);
-    panel.appendChild(sheet);
     document.body.appendChild(panel);
 
-    let open = false;
-    function _applyDock(dock) {
-      panel.classList.toggle('docked', dock);
-      sheet.classList.toggle('translate-x-full', !dock);
-      overlay.classList.toggle('hidden', dock);
-      overlay.dataset.docked = dock ? '1' : '0';
-      const dockBtn = document.getElementById('ai-chat-dock');
-      if (dockBtn) {
-        const icon = dockBtn.querySelector('i');
-        if (icon) {
-          icon.className = dock
-            ? 'fa-solid fa-arrow-left-to-bracket text-xs'
-            : 'fa-solid fa-arrow-right-to-bracket text-xs';
-        }
-        dockBtn.setAttribute('aria-label', dock ? 'Undock' : 'Dock');
-      }
-      const row = document.querySelector('main')?.parentElement;
-      const sum =
-        400 +
-        (panel.classList.contains('docked') ? 400 : 0) +
-        (document.getElementById('live-console-panel')?.classList.contains('docked') ? 520 : 0);
-      if (row) {
-        row.style.setProperty('padding-right', sum + 'px', 'important');
-      }
-    }
-
-    function toggleAIChatDock() {
-      const dock = !panel.classList.contains('docked');
-      _applyDock(dock);
-    }
-
     function show() {
-      if (open) return;
-      open = true;
       overlay.classList.remove('hidden');
-      sheet.classList.remove('translate-x-full');
+      panel.classList.remove('translate-x-full');
     }
+
     function hide() {
       if (panel.classList.contains('docked')) {
-        _applyDock(false);
+        panel.classList.remove('docked');
+        const row = document.querySelector('main')?.parentElement;
+        if (row) row.style.setProperty('padding-right', '0px', 'important');
       }
-      open = false;
       overlay.classList.add('hidden');
-      sheet.classList.add('translate-x-full');
+      panel.classList.add('translate-x-full');
     }
 
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      open ? hide() : show();
-    });
-    overlay.addEventListener('click', hide);
-    sheet
-      .querySelector('#ai-chat-close')
-      ?.addEventListener('click', hide);
-    sheet
-      .querySelector('#ai-chat-dock')
-      ?.addEventListener('click', toggleAIChatDock);
+    const chatBtn = document.getElementById('ai-chat-btn');
+    if (chatBtn) {
+      chatBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (panel.classList.contains('translate-x-full')) {
+          show();
+        } else {
+          hide();
+        }
+      });
+      chatBtn.setAttribute('data-shell-wired', '1');
+    }
 
-    document.getElementById('ai-chat-panel').show = show;
-    document.getElementById('ai-chat-panel').hide = hide;
+    const robotBtn = document.getElementById('robot-button');
+    if (robotBtn) {
+      robotBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (panel.classList.contains('translate-x-full')) {
+          show();
+        } else {
+          hide();
+        }
+      });
+    }
+
+    overlay.addEventListener('click', hide);
+
+    panel.show = show;
+    panel.hide = hide;
+  }
   }
 
   function shellHamburger() {
@@ -291,6 +257,7 @@
     }
 
     ensureShellLayout();
+    injectAISheet();
 
     if (!document.getElementById('shell-nav-styles') && shellStyles()) {
       const tmp = document.createElement('template');
