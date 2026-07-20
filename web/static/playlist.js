@@ -514,24 +514,33 @@ function filterScanResults() {
 
         const safeTitle = DOMPurify.sanitize(String(item.title || 'Untitled Video'));
         const safeChannel = item.channel ? DOMPurify.sanitize(String(item.channel)) + ' • ' : '';
-        const safeReason = DOMPurify.sanitize(String(item.reason || 'Misplaced channel'));
         const safeTargetPl = DOMPurify.sanitize(String(resolvePlaylistName(item.mapped_playlist_id, item.mapped_playlist_title)));
+
+        // For misplaced cards: compact layout — title with "Move to:" inline on
+        // the right, no separate Reason/ID rows (they're redundant for misplaced).
+        // Duplicates keep their reason + id.
+        const moveToInline = item.type === 'misplaced'
+            ? `<span class="text-[9px] text-gray-500 shrink-0">→ <span class="font-medium text-[#5ba5d6]">${safeTargetPl}</span></span>`
+            : '';
+        const subLine = item.type === 'misplaced'
+            ? ''
+            : `<div class="text-[10px] text-gray-400 truncate">${safeChannel}ID: ${item.video_id || ''}</div>
+               <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-[#2f8fc9]' : 'bg-yellow-500'}"></span><span>Reason: ${safeReason}</span></div>`;
 
         let additionalInfo = '';
         if (item.type === 'misplaced') {
-            additionalInfo = `\n<div class="text-[9px] text-gray-500 mt-1.5 flex items-center gap-1.5">
-                <i class="fa-solid fa-arrow-right-long"></i> 
-                Move to: <span class="font-medium text-[#5ba5d6]">${safeTargetPl}</span>
-            </div>`;
+            additionalInfo = '';
         }
 
         return `
             <div class="relative flex items-start gap-3 p-2 bg-[#1a1d24] border border-[#2a2f3a] rounded-lg">
                 <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${badgeColor}"><i class="fa-solid ${icon} mr-1"></i>${badgeLabel}</span>
                 <div class="flex-1 min-w-0 pr-8">
-                    <div class="font-semibold text-white truncate text-[11px]">${safeTitle}</div>
-                    <div class="text-[10px] text-gray-400 truncate">${safeChannel}ID: ${item.video_id || ''}</div>
-                    <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-[#2f8fc9]' : 'bg-yellow-500'}"></span><span>Reason: ${safeReason}</span></div>
+                    <div class="font-semibold text-white truncate text-[11px] flex items-center gap-2">
+                        <span class="truncate">${safeTitle}</span>
+                        ${moveToInline}
+                    </div>
+                    ${subLine}
                     ${additionalInfo}
                 </div>
                 <button onclick="openYouTubeModal('${item.video_id}')" class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
