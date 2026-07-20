@@ -344,11 +344,15 @@ async function moveSelectedVideos() {
 // (allPlaylists, loaded by loadPlaylist) so misplaced "Move to:" shows the
 // name, not the raw id. Falls back to the API-provided title, then the id.
 function resolvePlaylistName(id, fallbackTitle) {
-    if (fallbackTitle) return fallbackTitle;
+    // Only trust the stored title if it's an actual name, NOT the id itself
+    // (the API may echo the id as "title" when resolution failed). Otherwise
+    // prefer the live playlist list we already loaded (allPlaylists).
+    if (fallbackTitle && fallbackTitle !== id) return fallbackTitle;
     if (id && Array.isArray(allPlaylists)) {
         const found = allPlaylists.find(p => p.id === id);
         if (found && found.title) return found.title;
     }
+    if (fallbackTitle) return fallbackTitle;
     return id || 'Other Playlist';
 }
 

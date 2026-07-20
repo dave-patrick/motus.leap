@@ -791,10 +791,14 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             for _v in mis_videos:
                 _mid = _v.get("mapped_playlist_id") or ""
                 _stored_title = _v.get("mapped_playlist_title") or ""
-                if not _stored_title or _stored_title == _mid:
-                    _resolved = _title_map.get(_mid) or _stored_title or _mid
-                    if _resolved:
-                        _v["mapped_playlist_title"] = _resolved
+                # Only enrich when we have a real name — never stamp the raw id
+                # as the "title" (it would mask the client-side allPlaylists
+                # lookup and force the id to display).
+                _resolved = _title_map.get(_mid)
+                if not _resolved and _stored_title and _stored_title != _mid:
+                    _resolved = _stored_title
+                if _resolved:
+                    _v["mapped_playlist_title"] = _resolved
             return {"misplaced": mis_videos, "count": len(mis_videos)}
     except Exception:
         pass
