@@ -307,6 +307,17 @@ async function moveSelectedVideos() {
 }
 
 // Scan functions
+// Resolve a playlist id to its display name using the known playlist list
+// (allPlaylists, loaded by loadPlaylist) so misplaced "Move to:" shows the
+// name, not the raw id. Falls back to the API-provided title, then the id.
+function resolvePlaylistName(id, fallbackTitle) {
+    if (fallbackTitle) return fallbackTitle;
+    if (id && Array.isArray(allPlaylists)) {
+        const found = allPlaylists.find(p => p.id === id);
+        if (found && found.title) return found.title;
+    }
+    return id || 'Other Playlist';
+}
 async function scanForDuplicates() {
     const btn = document.getElementById('btn-scan-dup');
     const origHTML = btn ? btn.innerHTML : '';
@@ -388,7 +399,7 @@ async function scanForMisplaced() {
                         current_playlist_id: playlistId,
                         current_playlist_title: document.getElementById('playlist-title')?.textContent || playlistId,
                         mapped_playlist_id: v.mapped_playlist_id || '',
-                        mapped_playlist_title: v.mapped_playlist_title || v.mapped_playlist_id || ''
+                        mapped_playlist_title: resolvePlaylistName(v.mapped_playlist_id, v.mapped_playlist_title)
                     }));
                 }
             }
@@ -504,7 +515,7 @@ function filterScanResults() {
         const safeTitle = DOMPurify.sanitize(String(item.title || 'Untitled Video'));
         const safeChannel = item.channel ? DOMPurify.sanitize(String(item.channel)) + ' • ' : '';
         const safeReason = DOMPurify.sanitize(String(item.reason || 'Misplaced channel'));
-        const safeTargetPl = DOMPurify.sanitize(String(item.mapped_playlist_title || item.mapped_playlist_id || 'Other Playlist'));
+        const safeTargetPl = DOMPurify.sanitize(String(resolvePlaylistName(item.mapped_playlist_id, item.mapped_playlist_title)));
 
         let additionalInfo = '';
         if (item.type === 'misplaced') {

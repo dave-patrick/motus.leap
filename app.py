@@ -774,6 +774,21 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             mis_videos = maintenance.get("misplaced_videos", [])
             if playlist_id:
                 mis_videos = [v for v in mis_videos if v.get("current_playlist_id") == playlist_id]
+            # Enrich each item with the target playlist's display name so the
+            # UI shows the title instead of the raw id. Resolve from the live
+            # playlist list; fall back to the stored title, then the id itself.
+            try:
+                _pls = await youtube_service.list_playlists()
+                _title_map = {p.get("id"): p.get("title") for p in (_pls.get("playlists") or []) if p.get("id")}
+            except Exception:
+                _title_map = {}
+            for _v in mis_videos:
+                _mid = _v.get("mapped_playlist_id") or ""
+                _stored_title = _v.get("mapped_playlist_title") or ""
+                if not _stored_title or _stored_title == _mid:
+                    _resolved = _title_map.get(_mid) or _stored_title or _mid
+                    if _resolved:
+                        _v["mapped_playlist_title"] = _resolved
             return {"misplaced": mis_videos, "count": len(mis_videos)}
     except Exception:
         pass
