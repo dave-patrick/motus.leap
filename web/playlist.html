@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
     <link rel="manifest" href="/static/manifest.json">
-        <script src="/static/shared-shell.js?v=20260720a"></script>
+        <script src="/static/shared-shell.js?v=20260720b"></script>
 <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -43,8 +43,8 @@
         .nav-item.active { background-color: #2f8fc9; color: #ffffff; }
         .nav-item:not(.active):hover { background-color: rgba(255, 255, 255, 0.1); }
 </style>
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720a">
-    <script src="/static/ux-enhancements.js?v=20260720a"></script>
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720b">
+    <script src="/static/ux-enhancements.js?v=20260720b"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/global_scripts.js?v=1781919149"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
@@ -62,45 +62,53 @@
     <main class="flex-1 overflow-y-auto p-4 bg-[#121419]">
             <div class="flex flex-col gap-3  max-w-[1600px] mx-auto w-full">
                 
-                <!-- Operations Panel (Scan Buttons and Results Box) -->
-                <div class="bento-card p-4 flex flex-col gap-3 shrink-0">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-xs font-semibold text-white">Playlist Operations</h3>
-                            <p class="text-[10px] text-gray-400">Rescan videos, scan for duplicate entries, or detect misplaced videos based on your rules.</p>
+                <!-- Sticky Operations & Control Bar Container -->
+                <div class="sticky top-0 z-30 bg-[#121419] pb-2 space-y-3 shadow-xl" style="position: sticky; top: -16px; z-index: 40; background-color: #121419;">
+                    <!-- Operations Panel (Scan Buttons and Results Box) -->
+                    <div class="bento-card p-4 flex flex-col gap-3 shrink-0">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-xs font-semibold text-white">Playlist Operations</h3>
+                                <p class="text-[10px] text-gray-400">Rescan videos, scan for duplicate entries, or detect misplaced videos based on your rules.</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="rescan-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-arrows-rotate text-[#2f8fc9]"></i> Rescan Playlist</button>
+                                <button id="btn-scan-dup" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-copy text-[#2f8fc9]"></i> Scan for Duplicates</button>
+                                <button id="btn-scan-mis" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-triangle-exclamation text-yellow-500"></i> Scan for Misplaced</button>
+                            </div>
                         </div>
-                        <div class="flex gap-2">
-                            <button id="rescan-playlist-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors"><i class="fa-solid fa-arrows-rotate text-[#2f8fc9]"></i> Rescan Playlist</button>
-                            <button id="btn-scan-dup" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-copy text-[#2f8fc9]"></i> Scan for Duplicates</button>
-                            <button id="btn-scan-mis" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[11px] font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all"><i class="fa-solid fa-triangle-exclamation text-yellow-500"></i> Scan for Misplaced</button>
+                        
+                        <!-- Scan Results Box (hidden initially) -->
+                        <div id="scan-results-box" class="hidden border border-[#2a2f3a] bg-[#16191f] rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-[#2a2f3a]">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-[#2f8fc9]"></i> Scan Results</span>
+                                    <span id="scan-results-summary" class="text-[9px] text-gray-400 px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button id="delete-duplicates-btn" class="hidden bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
+                                        <i class="fa-solid fa-trash-can"></i> Delete Duplicates
+                                    </button>
+                                    <button id="move-misplaced-btn" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
+                                        <i class="fa-solid fa-share-from-square"></i> Move Misplaced
+                                    </button>
+                                    <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>
+                                    <select id="scan-filter" onchange="filterScanResults()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2.5 py-1 outline-none font-semibold cursor-pointer">
+                                        <option value="all">All Issues</option>
+                                        <option value="duplicates">Duplicates only</option>
+                                        <option value="misplaced">Misplaced only</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="scan-results-list" class="space-y-1.5 max-h-48 overflow-y-auto font-mono text-[11px] text-gray-300">
+                                <!-- Populated dynamically -->
+                            </div>
                         </div>
                     </div>
-                    
-                    <!-- Scan Results Box (hidden initially) -->
-                    <div id="scan-results-box" class="hidden border border-[#2a2f3a] bg-[#16191f] rounded-lg p-3">
-                        <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-[#2a2f3a]">
-                            <div class="flex items-center gap-2">
-                                <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-[#2f8fc9]"></i> Scan Results</span>
-                                <span id="scan-results-summary" class="text-[9px] text-gray-400 px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <button id="delete-duplicates-btn" class="hidden bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
-                                    <i class="fa-solid fa-trash-can"></i> Delete Duplicates
-                                </button>
-                                <button id="move-misplaced-btn" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
-                                    <i class="fa-solid fa-share-from-square"></i> Move Misplaced
-                                </button>
-                                <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>
-                                <select id="scan-filter" onchange="filterScanResults()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2.5 py-1 outline-none font-semibold cursor-pointer">
-                                    <option value="all">All Issues</option>
-                                    <option value="duplicates">Duplicates only</option>
-                                    <option value="misplaced">Misplaced only</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div id="scan-results-list" class="space-y-1.5 max-h-48 overflow-y-auto font-mono text-[11px] text-gray-300">
-                            <!-- Populated dynamically -->
-                        </div>
+
+                    <!-- Sticky Control Bar Card (Toolbar) -->
+                    <div id="playlist-toolbar-card" class="bento-card p-3 flex flex-wrap items-center gap-2 hidden">
+                        <!-- Populated dynamically by playlist.js -->
                     </div>
                 </div>
 

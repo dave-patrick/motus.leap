@@ -137,18 +137,13 @@ async function loadPlaylist() {
 }
 
 function renderVideos() {
-    const container = document.getElementById('videos-container');
-    if (!container) {
-        console.error('Videos container not found');
-        return;
-    }
-    if (!allVideos.length) {
-        container.innerHTML = '<div class="text-center p-8 text-gray-400">No videos in this playlist</div>';
-        return;
-    }
-    container.innerHTML = `
-        <!-- Toolbar (Sticky Control Bar) -->
-        <div class="p-3 border-b border-[#2a2f3a] flex flex-wrap items-center gap-2 rounded-t-xl shadow-xl" style="position: sticky; top: -16px; z-index: 40; background-color: #16191f;">
+    const container = document.getElementById('videos-list');
+    const toolbarCard = document.getElementById('playlist-toolbar-card');
+    if (!container) return;
+    
+    if (toolbarCard) {
+        toolbarCard.classList.remove('hidden');
+        toolbarCard.innerHTML = `
             <div class="flex items-center gap-2 flex-1 min-w-0">
                 <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap">${allVideos.length} videos</span>
                 <div class="relative flex-1 max-w-sm">
@@ -167,7 +162,14 @@ function renderVideos() {
                 <i class="fa-solid fa-arrow-right-to-bracket"></i> Move
             </button>
             <span id="selected-count" class="text-[10px] text-gray-500 whitespace-nowrap"></span>
-        </div>
+        `;
+    }
+
+    if (!allVideos.length) {
+        container.innerHTML = '<div class="text-center p-8 text-gray-400">No videos in this playlist</div>';
+        return;
+    }
+    container.innerHTML = `
         <!-- Video grid -->
         <div class="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="video-grid">
             ${allVideos.map((v, i) => `
@@ -190,6 +192,7 @@ function renderVideos() {
             `).join('')}
         </div>
     `;
+
     loadPlaylistsDropdown();
     updateMoveButton();
 }
