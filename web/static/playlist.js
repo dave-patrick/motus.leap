@@ -139,8 +139,13 @@ async function loadPlaylist() {
 function renderVideos() {
     const container = document.getElementById('videos-list');
     const toolbarCard = document.getElementById('playlist-toolbar-card');
+    const skeleton = document.getElementById('videos-skeleton');
     if (!container) return;
-    
+
+    // loadPlaylist() hides #videos-list behind the skeleton; reveal it and drop the skeleton now that we're rendering.
+    container.classList.remove('hidden');
+    if (skeleton) skeleton.classList.add('hidden');
+
     if (toolbarCard) {
         toolbarCard.classList.remove('hidden');
         toolbarCard.innerHTML = `
