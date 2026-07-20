@@ -740,14 +740,18 @@ async function deleteDuplicateItems() {
 }
 
 async function moveMisplacedItems() {
-    if (!confirm(`Are you sure you want to move ${currentScanResults.misplaced.length} misplaced videos to their mapped playlists? This action cannot be undone.`)) return;
+    const itemsToMove = (selectedMisplaced.size > 0)
+        ? currentScanResults.misplaced.filter(it => selectedMisplaced.has(it.video_id))
+        : currentScanResults.misplaced;
+    if (!confirm(`Are you sure you want to move ${itemsToMove.length} misplaced videos to their mapped playlists? This action cannot be undone.`)) return;
 
-    toast(`Moving ${currentScanResults.misplaced.length} misplaced videos...`, 'info');
-    const moveOperations = currentScanResults.misplaced.map(item => ({
+    toast(`Moving ${itemsToMove.length} misplaced videos...`, 'info');
+    const moveOperations = itemsToMove.map(item => ({
         video_id: item.video_id,
         target_playlist_id: item.mapped_playlist_id,
         source_playlist_id: playlistId // Current playlist is the source
     }));
+    const movedIds = itemsToMove.map(it => it.video_id);
 
     try {
         // Bulk move API expects individual video_ids and a single target_playlist_id.
@@ -786,7 +790,11 @@ async function moveMisplacedItems() {
         }
 
         toast(`Moved ${succeededMoves} video(s), failed ${failedMoves}`, 'success');
-        currentScanResults.misplaced = []; // Clear misplaced after successful moves
+        currentScanResults.misplaced = currentScanResults.misplaced.filter(it => !movedIds.includes(it.video_id));
+        selectedMisplaced.clear();
+        updateMisplacedActions();
+        filterScanResults();
+        updateScanSummary();
         await loadPlaylist(); // Refresh playlist and re-run scan to update UI
     } catch (e) {
         toast(`Network error: Failed to move misplaced videos: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
