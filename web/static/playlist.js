@@ -376,6 +376,26 @@ function updateMisplacedActions() {
     if (label) label.textContent = n > 0 ? `${n} selected` : '';
 }
 
+async function clearScanResults() {
+    currentScanResults = { duplicates: [], misplaced: [] };
+    selectedMisplaced.clear();
+
+    const listEl = document.getElementById('scan-results-list');
+    if (listEl) listEl.innerHTML = '';
+
+    const sumEl = document.getElementById('scan-results-summary');
+    if (sumEl) sumEl.textContent = '';
+
+    const box = document.getElementById('scan-results-box');
+    if (box) box.classList.add('hidden');
+
+    const filterEl = document.getElementById('scan-filter');
+    if (filterEl) filterEl.value = 'all';
+
+    updateMisplacedActions();
+    toast('Scan results cleared', 'info');
+}
+
 async function excludeSelectedMisplaced() {
     if (selectedMisplaced.size === 0) return;
     const videoIds = Array.from(selectedMisplaced);
@@ -845,6 +865,9 @@ async function initPlaylistPage() {
     document.getElementById('keep-misplaced-btn')?.addEventListener('click', excludeSelectedMisplaced);
     document.getElementById('fix-mapping-btn')?.addEventListener('click', correctMappingForSelected);
     document.getElementById('scan-filter')?.addEventListener('change', filterScanResults);
+
+    const clearBtn = document.getElementById('clear-results-btn');
+    if (clearBtn) clearBtn.addEventListener('click', clearScanResults);
 
     // Back to playlists button
     document.querySelector('.back-to-playlists-btn')?.addEventListener('click', () => {
