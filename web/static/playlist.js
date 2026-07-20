@@ -764,8 +764,9 @@ async function moveMisplacedItems() {
             groupedMoves[op.target_playlist_id].push(op.video_id);
         });
 
-        let succeededMoves = 0;
-        let failedMoves = 0;
+        let submittedOk = 0;
+        let immediateFailed = 0;
+        const operationIds = [];
 
         for (const targetPlaylistId in groupedMoves) {
             const videoIdsToMove = groupedMoves[targetPlaylistId];
@@ -778,18 +779,41 @@ async function moveMisplacedItems() {
                     source_playlist_id: playlistId
                 })
             });
-            const result = await resp.json();
-            if (resp.ok && (result.operation_id || result.status === 'pending' || result.status === 'completed' || result.status === 'success' || result.succeeded > 0)) {
-                succeededMoves += videoIdsToMove.length;
+            let result = {};
+            try { result = await resp.json(); } catch (_) {}
+            if (resp.ok && result.operation_id) {
+                operationIds.push(result.operation_id);
+                submittedOk += videoIdsToMove.length;
+            } else if (resp.ok && (result.status === 'completed' || result.status === 'success' || result.succeeded > 0)) {
+                // Synchronously completed
+                submittedOk += videoIdsToMove.length;
             } else {
-                failedMoves += videoIdsToMove.length;
+                immediateFailed += videoIdsToMove.length;
                 const errorMessage = result.error || result.detail || resp.statusText || 'Failed to move videos';
-                console.error(`Failed to move to ${targetPlaylistId}: ${errorMessage}`);
+                console.error(`Failed to submit move to ${targetPlaylistId}: ${errorMessage}`);
                 toast(`Failed to move videos to ${targetPlaylistId}: ${DOMPurify.sanitize(errorMessage)}`, 'error');
             }
         }
 
-        toast(`Moved ${succeededMoves} video(s), failed ${failedMoves}`, 'success');
+        // Poll every background operation to completion BEFORE refreshing the
+        // playlist view, so loadPlaylist() reads the post-move (real) YouTube
+        // state instead of the stale pre-move state. Fixes "moved but page
+        // didn't update until rescan".
+        let completedMoves = 0;
+        let failedMoves = 0;
+        for (const opId of operationIds) {
+            const status = await pollOperation(opId);
+            completedMoves += (status.succeeded || 0);
+            failedMoves += (status.failed || 0);
+        }
+
+        const moved = completedMoves || submittedOk;
+        const failed = failedMoves || immediateFailed;
+        if (failed > 0) {
+            toast(`Moved ${moved} video(s), ${failed} failed — playlist refreshed`, 'warning');
+        } else {
+            toast(`Moved ${moved} video(s) successfully`, 'success');
+        }
         currentScanResults.misplaced = currentScanResults.misplaced.filter(it => !movedIds.includes(it.video_id));
         selectedMisplaced.clear();
         updateMisplacedActions();
