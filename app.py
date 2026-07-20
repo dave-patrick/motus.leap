@@ -774,6 +774,12 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             mis_videos = maintenance.get("misplaced_videos", [])
             if playlist_id:
                 mis_videos = [v for v in mis_videos if v.get("current_playlist_id") == playlist_id]
+            # Drop per-playlist "not misplaced" overrides the user has taught us.
+            excluded = {(e.get("video_id"), e.get("playlist_id"))
+                        for e in (maintenance.get("not_misplaced") or [])}
+            if excluded:
+                mis_videos = [v for v in mis_videos
+                              if (v.get("video_id"), v.get("current_playlist_id")) not in excluded]
             # Enrich each item with the target playlist's display name so the
             # UI shows the title instead of the raw id. Resolve from the live
             # playlist list; fall back to the stored title, then the id itself.
@@ -802,6 +808,88 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
         "count": 0,
         "status": "not_ready",
     }
+
+
+def _load_maintenance() -> dict:
+    """Load maintenance.json (worker analysis cache) or return an empty scaffold."""
+    _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    maintenance_file = _data_dir / "maintenance.json"
+    if maintenance_file.exists():
+        try:
+            return json.loads(maintenance_file.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def _save_maintenance(maintenance: dict) -> None:
+    _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    _data_dir.mkdir(parents=True, exist_ok=True)
+    ( _data_dir / "maintenance.json").write_text(json.dumps(maintenance, indent=2))
+
+
+@app.post("/api/youtube/misplaced/exclude", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@limiter.limit("30/minute")
+async def exclude_misplaced_videos(request: Request):
+    """Mark specific videos as 'not misplaced' for a given playlist (per-playlist).
+
+    Body: {"playlist_id": str, "video_ids": [str, ...]}
+    Persisted under maintenance.json -> not_misplaced as {video_id, playlist_id}.
+    Future scans of that playlist will skip these videos. Does NOT touch the
+    channel->playlist mapping (use /correct-mapping for that).
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid JSON body")
+    playlist_id = body.get("playlist_id") or ""
+    video_ids = body.get("video_ids") or []
+    if not playlist_id or not isinstance(video_ids, list):
+        raise HTTPException(status_code=422, detail="playlist_id and video_ids[] required")
+    video_ids = [str(v) for v in video_ids if v]
+
+    maintenance = _load_maintenance()
+    excluded = maintenance.get("not_misplaced") or []
+    seen = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
+    added = 0
+    for vid in video_ids:
+        key = (vid, playlist_id)
+        if key not in seen:
+            excluded.append({"video_id": vid, "playlist_id": playlist_id})
+            seen.add(key)
+            added += 1
+    maintenance["not_misplaced"] = excluded
+    _save_maintenance(maintenance)
+    return {"status": "success", "added": added, "total_excluded": len(excluded)}
+
+
+@app.post("/api/youtube/misplaced/correct-mapping", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@limiter.limit("30/minute")
+async def correct_misplaced_mapping(request: Request):
+    """Correct the system channel->playlist mapping for misplaced videos.
+
+    Body: {"playlist_id": str, "channel_ids": [str, ...]}
+    Sets config.channel_mappings[channel_id] = playlist_id for each channel, so
+    those channels are thereafter considered to BELONG in this playlist and are
+    no longer flagged as misplaced anywhere. Persisted via config_manager.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid JSON body")
+    playlist_id = body.get("playlist_id") or ""
+    channel_ids = body.get("channel_ids") or []
+    if not playlist_id or not isinstance(channel_ids, list):
+        raise HTTPException(status_code=422, detail="playlist_id and channel_ids[] required")
+    channel_ids = [str(c) for c in channel_ids if c]
+
+    config = config_manager.config
+    mappings = dict(config.channel_mappings or {})
+    for cid in channel_ids:
+        mappings[cid] = playlist_id
+    config.channel_mappings = mappings
+    await config_manager.save(config)
+    return {"status": "success", "mappings": mappings}
 
 
 # Stats endpoint

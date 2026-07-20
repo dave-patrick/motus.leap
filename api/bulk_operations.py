@@ -1,5 +1,6 @@
 """Bulk operations API endpoints."""
-
+import asyncio
+import glob
 import logging
 import os
 from pathlib import Path
@@ -12,15 +13,40 @@ import csv
 import io
 from datetime import datetime
 import base64
-import asyncio
 import threading
-
 from api.auth import get_current_user, verify_origin
 from api.bulk_operations_impl import BulkOperationsService
 from core.config_manager import ConfigManager
 from models.config import TubeManagerConfig
 
 log = logging.getLogger(__name__)
+
+
+def _invalidate_playlist_caches(playlist_ids: set):
+    """Delete stale on-disk video caches for the given playlists so a reload
+    after a move/delete reflects the real YouTube state.
+
+    get_videos() caches each playlist's videos to
+    '<data_dir>/users/<uid>/playlist_videos_<id>.json' and the combined
+    all_data.json. We glob those under TUBE_MANAGER_DATA_DIR and remove them.
+    Safe no-ops if files are absent.
+    """
+    if not playlist_ids:
+        return
+    data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    patterns = [str(data_dir / "**" / "all_data.json")]
+    for pid in playlist_ids:
+        patterns.append(str(data_dir / "**" / f"playlist_videos_{pid}.json"))
+    removed = 0
+    for pat in patterns:
+        for f in glob.glob(pat, recursive=True):
+            try:
+                os.remove(f)
+                removed += 1
+            except OSError:
+                pass
+    if removed:
+        log.info(f"Invalidated {removed} stale cache file(s) for playlists {playlist_ids}")
 
 router = APIRouter(
     prefix="/api/bulk",
@@ -484,6 +510,10 @@ async def process_bulk_move(
             if i % 10 == 0 or i == len(video_ids) - 1:
                 await ops_storage.update_and_save(operation)
 
+        # Invalidate stale on-disk caches for affected playlists so a reload
+        # reflects the real (post-move) YouTube state instead of cached data.
+        _invalidate_playlist_caches({target_playlist_id, source_playlist_id})
+
         if operation.status != "cancelled": # Don't change status if cancelled
             operation.status = "completed"
     except Exception as e:
@@ -543,6 +573,9 @@ async def process_bulk_delete(
             operation.processed += 1
             if i % 10 == 0 or i == len(video_ids) - 1:
                 await ops_storage.update_and_save(operation)
+
+        # Invalidate stale on-disk cache for the affected playlist.
+        _invalidate_playlist_caches({playlist_id})
 
         if operation.status != "cancelled": # Don't change status if cancelled
             operation.status = "completed"

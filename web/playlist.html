@@ -92,6 +92,13 @@
                                     <button id="move-misplaced-btn" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
                                         <i class="fa-solid fa-share-from-square"></i> Move Misplaced
                                     </button>
+                                    <button id="keep-misplaced-btn" disabled class="opacity-40 bg-[#2a2f3a] hover:bg-[#363c47] text-gray-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
+                                        <i class="fa-solid fa-thumbtack"></i> Keep selected here
+                                    </button>
+                                    <button id="fix-mapping-btn" disabled class="opacity-40 bg-[#2a2f3a] hover:bg-[#363c47] text-gray-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
+                                        <i class="fa-solid fa-map-pin"></i> Fix mapping
+                                    </button>
+                                    <span id="misplaced-selected-count" class="text-[10px] text-[#5ba5d6] font-medium"></span>
                                     <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>
                                     <select id="scan-filter" onchange="filterScanResults()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2.5 py-1 outline-none font-semibold cursor-pointer">
                                         <option value="all">All Issues</option>

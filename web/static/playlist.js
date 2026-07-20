@@ -9,6 +9,7 @@ function upgradeThumb(url) {
 
 var allVideos = [];
 var selectedVideos = new Set();
+var selectedMisplaced = new Set();
 var playlistId = window.location.pathname.split('/').pop();
 var allPlaylists = []; // To populate the dropdown, fetched on load
 var currentScanResults = {
@@ -181,7 +182,7 @@ function renderVideos() {
                 <div class="video-card bg-[#16191f] border border-[#2a2f3a] rounded-xl overflow-hidden hover:border-[#2f8fc9]/50 transition-all flex flex-col group relative" data-video-id="${v.video_id}" data-title="${DOMPurify.sanitize(v.title || '').toLowerCase()}" data-channel="${DOMPurify.sanitize(v.channel_title || '').toLowerCase()}">
                     <div class="relative aspect-video bg-[#0a0c10] overflow-hidden cursor-pointer" onclick="openYouTubeModal('${v.video_id}')">
                         <img src="${v.thumbnail || 'https://i.ytimg.com/vi/' + v.video_id + '/hqdefault.jpg'}" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/${v.video_id}/hqdefault.jpg'">
-                        <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[9px] font-mono px-1.5 py-0.5 rounded font-medium">${v.duration || '0:00'}</span>
+                        <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[9px] font-mono px-1.5 py-0.5 rounded font-medium">${v.duration_formatted || formatDuration(v.duration_seconds) || '0:00'}</span>
                         <div class="absolute top-1.5 left-1.5 z-10" onclick="event.stopPropagation()">
                             <input type="checkbox" class="video-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''} onclick="event.stopPropagation()">
                         </div>
@@ -274,6 +275,23 @@ function updateMoveButton() {
     }
 }
 
+async function pollOperation(operationId, timeoutMs = 60000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        try {
+            const r = await fetch(`/api/bulk/operations/${operationId}`, { headers: await authHeaders() });
+            if (r.ok) {
+                const s = await r.json();
+                if (s.status === 'completed' || s.status === 'failed' || s.status === 'cancelled') {
+                    return s;
+                }
+            }
+        } catch (_) { /* transient, keep polling */ }
+        await new Promise(res => setTimeout(res, 1500));
+    }
+    return { status: 'timeout' };
+}
+
 async function moveSelectedVideos() {
     const targetId = document.getElementById('target-playlist')?.value;
     if (!targetId || selectedVideos.size === 0) {
@@ -289,16 +307,31 @@ async function moveSelectedVideos() {
             body: JSON.stringify({video_ids: videoIds, target_playlist_id: targetId, source_playlist_id: playlistId})
         });
         const result = await resp.json();
-        if (resp.ok && (result.operation_id || result.status === 'pending' || result.status === 'completed' || result.status === 'success' || result.succeeded > 0)) {
-            toast(`Moved ${videoIds.length} video(s) successfully`, 'success');
-            selectedVideos.clear();
-            updateMoveButton();
-            setTimeout(async () => {
-                await loadPlaylist();
-            }, 1500);
-        } else {
+        if (!resp.ok || !result.operation_id) {
             const errorMessage = result.error || result.detail || resp.statusText || 'Failed to move videos';
             toast(`Failed to move videos: ${DOMPurify.sanitize(errorMessage)}`, 'error');
+            return;
+        }
+        // Poll until the background operation actually completes (don't claim
+        // success on 'pending' — the YouTube write may still fail).
+        toast('Moving… waiting for YouTube to apply', 'info');
+        const status = await pollOperation(result.operation_id);
+        if (status.status === 'completed') {
+            const ok = status.succeeded || 0;
+            const failed = status.failed || 0;
+            if (failed > 0) {
+                toast(`Moved ${ok}, ${failed} failed`, failed === ok ? 'success' : 'error');
+            } else {
+                toast(`Moved ${ok} video(s) successfully`, 'success');
+            }
+            selectedVideos.clear();
+            updateMoveButton();
+            await loadPlaylist();
+        } else if (status.status === 'failed') {
+            toast(`Move failed: ${(status.errors || []).slice(0, 2).join('; ') || 'Unknown error'}`, 'error');
+        } else {
+            toast('Move timed out — check back shortly', 'error');
+            await loadPlaylist();
         }
     } catch (e) {
         toast(`Network error: Failed to move videos: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
@@ -317,6 +350,91 @@ function resolvePlaylistName(id, fallbackTitle) {
         if (found && found.title) return found.title;
     }
     return id || 'Other Playlist';
+}
+
+// --- Misplaced feedback: per-video "keep here" + mapping correction ---
+function toggleMisplaced(videoId, checkbox) {
+    if (checkbox.checked) selectedMisplaced.add(videoId);
+    else selectedMisplaced.delete(videoId);
+    // Reflect selection highlight without a full re-render.
+    const card = checkbox.closest('[data-video-id]');
+    if (card) card.classList.toggle('border-[#2f8fc9]', checkbox.checked);
+    updateMisplacedActions();
+}
+
+function updateMisplacedActions() {
+    const n = selectedMisplaced.size;
+    const keepBtn = document.getElementById('keep-misplaced-btn');
+    const fixBtn = document.getElementById('fix-mapping-btn');
+    if (keepBtn) { keepBtn.disabled = n === 0; keepBtn.classList.toggle('opacity-40', n === 0); }
+    if (fixBtn) { fixBtn.disabled = n === 0; fixBtn.classList.toggle('opacity-40', n === 0); }
+    const label = document.getElementById('misplaced-selected-count');
+    if (label) label.textContent = n > 0 ? `${n} selected` : '';
+}
+
+async function excludeSelectedMisplaced() {
+    if (selectedMisplaced.size === 0) return;
+    const videoIds = Array.from(selectedMisplaced);
+    toast(`Marking ${videoIds.length} video(s) as not misplaced here…`, 'info');
+    try {
+        const resp = await fetch('/api/youtube/misplaced/exclude', {
+            method: 'POST',
+            headers: await authHeaders(),
+            body: JSON.stringify({ playlist_id: playlistId, video_ids: videoIds })
+        });
+        const result = await resp.json();
+        if (resp.ok && result.status === 'success') {
+            toast(`Saved ${result.added} override(s) — they won't be flagged here again`, 'success');
+            // Remove the excluded items from the current scan results.
+            currentScanResults.misplaced = currentScanResults.misplaced.filter(v => !videoIds.includes(v.video_id));
+            selectedMisplaced.clear();
+            filterScanResults();
+            updateScanSummary();
+            updateMisplacedActions();
+        } else {
+            toast(`Failed: ${DOMPurify.sanitize(result.error || result.detail || 'Unknown error')}`, 'error');
+        }
+    } catch (e) {
+        toast(`Network error: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
+    }
+}
+
+async function correctMappingForSelected() {
+    if (selectedMisplaced.size === 0) return;
+    // Derive each video's owner channel from the loaded playlist.
+    const channelIds = [];
+    for (const vid of selectedMisplaced) {
+        const v = allVideos.find(x => x.video_id === vid);
+        if (v && v.channel_id && !channelIds.includes(v.channel_id)) channelIds.push(v.channel_id);
+    }
+    if (channelIds.length === 0) {
+        toast('Could not resolve channel(s) for the selected videos', 'error');
+        return;
+    }
+    toast(`Teaching system: ${channelIds.length} channel(s) belong in this playlist…`, 'info');
+    try {
+        const resp = await fetch('/api/youtube/misplaced/correct-mapping', {
+            method: 'POST',
+            headers: await authHeaders(),
+            body: JSON.stringify({ playlist_id: playlistId, channel_ids: channelIds })
+        });
+        const result = await resp.json();
+        if (resp.ok && result.status === 'success') {
+            toast('Mapping corrected — these channels now belong here', 'success');
+            currentScanResults.misplaced = currentScanResults.misplaced.filter(mv => {
+                const src = allVideos.find(x => x.video_id === mv.video_id);
+                return !(src && channelIds.includes(src.channel_id));
+            });
+            selectedMisplaced.clear();
+            filterScanResults();
+            updateScanSummary();
+            updateMisplacedActions();
+        } else {
+            toast(`Failed: ${DOMPurify.sanitize(result.error || result.detail || 'Unknown error')}`, 'error');
+        }
+    } catch (e) {
+        toast(`Network error: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
+    }
 }
 async function scanForDuplicates() {
     const btn = document.getElementById('btn-scan-dup');
@@ -532,8 +650,14 @@ function filterScanResults() {
             additionalInfo = '';
         }
 
+        const isSel = item.type === 'misplaced' && selectedMisplaced.has(item.video_id);
+        const checkbox = item.type === 'misplaced'
+            ? `<input type="checkbox" class="misplaced-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer shrink-0 mt-0.5" ${isSel ? 'checked' : ''} onchange="toggleMisplaced('${item.video_id}', this)">`
+            : '';
+
         return `
-            <div class="relative flex items-start gap-3 p-2 bg-[#1a1d24] border border-[#2a2f3a] rounded-lg">
+            <div class="relative flex items-start gap-3 p-2 bg-[#1a1d24] border rounded-lg ${isSel ? 'border-[#2f8fc9]' : 'border-[#2a2f3a]'}" data-video-id="${item.video_id || ''}" data-channel="${DOMPurify.sanitize(item.channel_id || item.channel || '')}">
+                ${checkbox}
                 <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${badgeColor}"><i class="fa-solid ${icon} mr-1"></i>${badgeLabel}</span>
                 <div class="flex-1 min-w-0 pr-8">
                     <div class="font-semibold text-white truncate text-[11px] flex items-center gap-2">
@@ -682,6 +806,8 @@ async function initPlaylistPage() {
     document.getElementById('btn-scan-mis')?.addEventListener('click', scanForMisplaced);
     document.getElementById('delete-duplicates-btn')?.addEventListener('click', deleteDuplicateItems);
     document.getElementById('move-misplaced-btn')?.addEventListener('click', moveMisplacedItems);
+    document.getElementById('keep-misplaced-btn')?.addEventListener('click', excludeSelectedMisplaced);
+    document.getElementById('fix-mapping-btn')?.addEventListener('click', correctMappingForSelected);
     document.getElementById('scan-filter')?.addEventListener('change', filterScanResults);
 
     // Back to playlists button
