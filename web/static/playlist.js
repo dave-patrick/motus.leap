@@ -147,8 +147,8 @@ function renderVideos() {
         return;
     }
     container.innerHTML = `
-        <!-- Toolbar -->
-        <div class="p-3 border-b border-[#2a2f3a] flex flex-wrap items-center gap-2 sticky top-[72px] z-10 bg-[#16191f]/95 backdrop-blur-md rounded-t-xl">
+        <!-- Toolbar (Sticky Control Bar) -->
+        <div class="p-3 border-b border-[#2a2f3a] flex flex-wrap items-center gap-2 sticky top-0 z-30 bg-[#16191f] shadow-lg rounded-t-xl">
             <div class="flex items-center gap-2 flex-1 min-w-0">
                 <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap">${allVideos.length} videos</span>
                 <div class="relative flex-1 max-w-sm">
