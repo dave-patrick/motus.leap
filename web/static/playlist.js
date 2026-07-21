@@ -667,7 +667,7 @@ function filterScanResults() {
         const subLine = item.type === 'misplaced'
             ? ''
             : `<div class="text-[10px] text-gray-400 truncate">${safeChannel}ID: ${item.video_id || ''}</div>
-               <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-[#2f8fc9]' : 'bg-yellow-500'}"></span><span>Reason: ${safeReason}</span></div>`;
+               <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full ${isDup ? 'bg-[#2f8fc9]' : 'bg-yellow-500'}"></span><span>Reason: ${DOMPurify.sanitize(String(item.reason || ''))}</span></div>`;
 
         let additionalInfo = '';
         if (item.type === 'misplaced') {
