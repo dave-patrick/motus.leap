@@ -16,7 +16,7 @@
     const path = window.location.pathname;
     const settingsActive = path === '/settings' ? 'text-[#2f8fc9] border-[#2f8fc9]/40' : 'text-gray-400 border-[#2a2f3a]';
     return `<header class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center justify-between border-b border-[#2a2f3a] shrink-0 z-20">
-        <div class="flex items-center gap-4 pl-14 md:pl-0">
+        <div class="flex-1 flex items-center gap-4 pl-14 md:pl-0">
           <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="site-logo" style="height:62px;width:auto;object-fit:contain;">
           <h1 class="text-[27px] md:text-[43px] font-semibold tracking-tight flex items-baseline leading-none site-title">
             <span class="text-white">m</span><span class="text-white">o</span><span class="text-white">t</span>
