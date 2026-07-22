@@ -208,7 +208,7 @@ class TestMaintenanceActionEndpoint:
         fake_client.remove_video_from_playlist_item.assert_called_once_with("src_item")
         fake_client.add_video_to_playlist.assert_called_once_with("PL_DSTaaaaaaaaa", "abc123XYZ_9")
 
-    # --- remove with no item id found -> error, no delete -----------------
+    # --- remove with no item id found -> gracefully dismiss from queue ---
 
     def test_remove_item_not_found(self, monkeypatch):
         fake_client = Mock()
@@ -227,7 +227,8 @@ class TestMaintenanceActionEndpoint:
         )
         assert r.status_code == 200
         body = r.json()
-        assert body["status"] == "error"
+        # Item not in playlist (already removed) — dismissed from queue as success.
+        assert body["status"] == "success"
         fake_client.remove_video_from_playlist_item.assert_not_called()
 
     # --- fix_all aggregates per-record results ----------------------------

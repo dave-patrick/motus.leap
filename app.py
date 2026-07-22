@@ -1280,6 +1280,22 @@ async def _maintenance_resolve_item_id(
     return yt_client.find_playlist_item_id(playlist_id, video_id)
 
 
+def _maintenance_drop_record(video_id: str, item_type: str) -> None:
+    """Remove a record from maintenance.json by video_id and type."""
+    if not video_id:
+        return
+    maintenance = _load_maintenance()
+    key_map = {"dup": "duplicated_videos", "misplaced": "misplaced_videos", "move": "move_from_x_to_y"}
+    list_key = key_map.get(item_type)
+    if not list_key:
+        return
+    items = maintenance.get(list_key, [])
+    before = len(items)
+    maintenance[list_key] = [r for r in items if r.get("video_id") != video_id]
+    if len(maintenance[list_key]) < before:
+        _save_maintenance(maintenance)
+
+
 async def _maintenance_apply_one(
     yt_client,
     action: str,
@@ -1306,10 +1322,10 @@ async def _maintenance_apply_one(
                 playlist_id = (_pls[0].get("id") if isinstance(_pls[0], dict) else None) or _pls[0]
 
     if action == "keep":
-        # No-op. Optionally could prune the record from maintenance.json, but
-        # keeping it simple: mark resolved, delete nothing.
+        # Dismiss the item from the maintenance queue.
+        _maintenance_drop_record(video_id, item_type)
         return {"status": "ok", "action": "keep", "video_id": video_id,
-                "message": "No-op: item kept"}
+                "message": "Item dismissed from queue"}
 
     if not video_id:
         return {"status": "error", "action": action, "error": "missing video_id"}
@@ -1321,14 +1337,17 @@ async def _maintenance_apply_one(
             yt_client, playlist_id, video_id, playlist_item_id
         )
         if not item_id:
-            return {"status": "error", "action": "remove",
-                    "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
+            # Item likely already removed from the playlist — dismiss from queue.
+            _maintenance_drop_record(video_id, item_type)
+            return {"status": "ok", "action": "remove", "video_id": video_id,
+                    "message": "Item not found in playlist (already removed), dismissed from queue"}
         yt_client.remove_video_from_playlist_item(item_id)
         # Invalidate cache so the change shows immediately.
         try:
             await youtube_service._cache_invalidate_playlist(playlist_id)
         except Exception:
             pass
+        _maintenance_drop_record(video_id, item_type)
         return {"status": "ok", "action": "remove", "video_id": video_id,
                 "playlist_item_id": item_id}
 

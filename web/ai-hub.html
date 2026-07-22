@@ -83,17 +83,16 @@
                     <button id="prov-rescan-all" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-sync"></i> Rescan Models</button>
                     <button id="prov-add-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> Add Provider</button>
                 </div>
-                <div id="prov-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+                <div id="prov-list" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
             </section>
 
             <!-- section id="panel-models" merged into providers -->
 
             <section id="panel-rules" class="ai-panel space-y-4 hidden">
-                <div class="flex items-center justify-between">
-                    <h1 class="text-xl font-bold text-white">Rules</h1>
-                    <div class="flex gap-2">
-                        <button id="rule-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Rule</button>
-                    </div>
+                <h1 class="text-xl font-bold text-white">Rules</h1>
+                <div class="flex items-center justify-between max-w-3xl">
+                    <span class="text-xs text-gray-400">Manage AI classification rules for automatic playlist routing.</span>
+                    <button id="rule-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Rule</button>
                 </div>
                 <div id="rules-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
             </section>

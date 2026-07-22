@@ -13,3 +13,4 @@ data/
 .understand-anything/
 .mcp.json
 node_modules/
+.worktrees/

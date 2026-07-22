@@ -144,15 +144,11 @@ window.open('/system/logs', '_blank');
                                 </div>
                             </div>
 
-                            <!-- Bottom Action Buttons: View System Logs, Reset All Settings & Sign Out -->
-                            <div class="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                            <!-- Bottom Action Buttons: View System Logs & Sign Out -->
+                            <div class="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                                 <button id="view-system-logs-btn" onclick="viewSystemLogs()"
                                     class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2.5 rounded transition-colors flex items-center justify-center gap-2">
                                     <i class="fa-solid fa-file-lines text-[#2f8fc9]"></i> View System Logs
-                                </button>
-                                <button id="reset-all-settings-btn" onclick="resetAllSettings()"
-                                    class="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-xs py-2.5 rounded transition-colors flex items-center justify-center gap-2">
-                                    <i class="fa-solid fa-rotate-left text-[11px]"></i> Reset All Settings
                                 </button>
                                 <button id="signout-btn" onclick="if (typeof window.logout === 'function') window.logout();"
                                     class="w-full bg-[#2a2f3a] hover:bg-red-600/20 border border-[#374151] text-gray-300 hover:text-red-400 text-xs py-2.5 rounded transition-colors flex items-center justify-center gap-2">
