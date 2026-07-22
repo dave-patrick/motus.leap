@@ -14,17 +14,19 @@
         body { font-family: 'Inter', sans-serif; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
-<body class="bg-[#0f1115] min-h-screen flex items-center justify-center selection:bg-[#2f8fc9]/30">
-    <div class="w-full max-w-sm mx-auto px-4">
-        <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-2xl p-8 text-center shadow-xl">
-            <div class="mb-6">
-                <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="w-16 h-16 mx-auto object-contain mb-4">
+<body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
+    <div class="flex-1 flex items-center justify-center">
+        <div class="w-full max-w-sm mx-auto px-4">
+            <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-2xl p-8 text-center shadow-xl">
+                <div class="mb-6">
+                    <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="w-16 h-16 mx-auto object-contain mb-4">
+                </div>
+                <div class="text-4xl mb-4" id="status-icon"></div>
+                <h1 class="text-xl font-semibold text-white mb-2" id="status-title"></h1>
+                <p class="text-gray-400 text-sm mb-6" id="status-message"></p>
+                <div class="text-gray-500 text-xs" id="redirect-msg"></div>
+                <a id="back-link" href="/dashboard" class="hidden mt-4 inline-block bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors min-h-[44px] flex items-center justify-center">Go to Dashboard</a>
             </div>
-            <div class="text-4xl mb-4" id="status-icon"></div>
-            <h1 class="text-xl font-semibold text-white mb-2" id="status-title"></h1>
-            <p class="text-gray-400 text-sm mb-6" id="status-message"></p>
-            <div class="text-gray-500 text-xs" id="redirect-msg"></div>
-            <a id="back-link" href="/dashboard" class="hidden mt-4 inline-block bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-sm font-medium px-6 py-3 rounded-lg transition-colors min-h-[44px] flex items-center justify-center">Go to Dashboard</a>
         </div>
     </div>
 
@@ -66,10 +68,10 @@
             }
         })();
     </script>
-    <div class="mt-6 pt-4 border-t border-[#2a2f3a] text-center">
+    <footer class="pb-6 pt-4 text-center">
         <a href="/terms" class="text-xs text-gray-400 hover:text-[#2f8fc9] transition-colors">Terms of Use</a>
         <span class="mx-2 text-gray-600">·</span>
         <a href="/privacy" class="text-xs text-gray-400 hover:text-[#2f8fc9] transition-colors">Privacy Policy</a>
-    </div>
+    </footer>
 </body>
 </html>
