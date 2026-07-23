@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260720c';
+  const SHELL_VERSION = '20260723d';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -242,6 +242,12 @@
         cursor: pointer;
         user-select: none;
       }
+      @media (min-width: 768px) {
+        #mobile-sidebar {
+          transform: none !important;
+          display: flex !important;
+        }
+      }
     </style>`;
   }
 
@@ -271,8 +277,8 @@
       aside.dataset.shellVersion = SHELL_VERSION;
     }
 
-    // 3) Ensure <main> lives inside a flex shell that also contains the sidebar.
-    const main = document.querySelector('main');
+    // 3) Ensure <main> or content container lives inside a flex shell that also contains the sidebar.
+    const main = document.querySelector('main') || document.querySelector('.container') || document.getElementById('app-container');
     if (!main) return;
 
     const container = main.parentElement;
@@ -311,12 +317,6 @@
   }
 
   function injectOnce() {
-    const header = document.querySelector('header');
-    if (header && !header.dataset.shellVersion) {
-      header.innerHTML = shellHeader();
-      header.dataset.shellVersion = SHELL_VERSION;
-    }
-
     ensureShellLayout();
     injectAISheet();
 
