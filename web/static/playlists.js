@@ -50,11 +50,11 @@ async function loadPlaylists() {
         const response = await authFetch("/api/playlists");
         const data = await response.json();
 
-        if (!response.ok || (data && data.error)) {
+        const rawList = Array.isArray(data) ? data : ((data && data.playlists) || []);
+        if (!response.ok || (data && data.error && !rawList.length)) {
             throw new Error((data && data.error) || "Failed to load playlists");
         }
 
-        const rawList = Array.isArray(data) ? data : ((data && data.playlists) || []);
         allPlaylists = rawList.map(p => ({
             id: p.id || (p.url ? (p.url.split('list=')[1] || '').split('&')[0] : ''),
             title: p.title || p.name || 'Untitled',
@@ -69,7 +69,12 @@ async function loadPlaylists() {
         // If we already painted a cached grid, keep it instead of erroring over it
         const hasContent = playlistsList && playlistsList.children.length > 0;
         if (!hasContent) {
-            playlistsList.innerHTML = `<div class="col-span-full bento-card p-8 text-center text-red-400">Error: ${DOMPurify.sanitize(e.message || "Failed to load playlists due to a network error.")}</div>`;
+            const isAuthErr = e.message && (e.message.includes("OAuth") || e.message.includes("connected") || e.message.includes("auth"));
+            playlistsList.innerHTML = `
+                <div class="col-span-full bento-card p-12 text-center flex flex-col items-center justify-center gap-4">
+                    <p class="text-amber-400 text-base font-medium">${DOMPurify.sanitize(e.message || "Failed to load playlists due to a network error.")}</p>
+                    ${isAuthErr ? `<a href="/settings" class="px-5 py-2.5 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white font-medium rounded-xl text-sm transition-all duration-200 hover:scale-105 shadow-md">Connect YouTube Account</a>` : `<button onclick="loadPlaylists()" class="px-4 py-2 bg-[#2a2f3a] hover:bg-[#374151] text-gray-200 rounded-lg text-xs transition-colors"><i class="fa-solid fa-arrows-rotate mr-2"></i>Retry</button>`}
+                </div>`;
             toast(`Error: ${e.message}`, "error");
         }
     } finally {

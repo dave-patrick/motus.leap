@@ -463,25 +463,17 @@ class YouTubeService:
     async def list_playlists(self, force_refresh: bool = False) -> Dict[str, Any]:
         """List user's playlists with lightweight change detection (renames/removals force a sync)."""
         
-        # 1. Try persistent disk cache first for fast initial load
-        disk_playlists_payload = await self._load_from_disk("playlists", max_age_days=30)
-        if disk_playlists_payload and not force_refresh:
-            # If the dedicated playlists cache is present but empty (e.g. a scan
-            # wrote all_data.json but the playlists.json cache is stale/empty),
-            # fall back to deriving from all_data so the Playlists page never
-            # shows "no playlists" while the Dashboard (which reads all_data)
-            # reports real counts. See 2026-07-15 regression: dashboard showed
-            # playlists but /api/playlists returned empty.
-            pls = disk_playlists_payload.get("playlists") if isinstance(disk_playlists_payload, dict) else None
-            if not pls:
-                all_data = await self._load_from_disk("all_data", max_age_days=30)
-                if all_data and all_data.get("playlists"):
-                    log.info("list_playlists: playlists.json empty, deriving from all_data cache")
-                    return {"playlists": all_data["playlists"],
-                            "stats": disk_playlists_payload.get("stats") if isinstance(disk_playlists_payload, dict) else None,
-                            "cached": True}
-            log.info("list_playlists: returning from disk cache for instant load.")
-            return disk_playlists_payload
+        # 1. Try persistent disk caches first for fast initial load
+        if not force_refresh:
+            for cache_key in ["playlists", "all_data", "playlists_report", "categorized_playlists"]:
+                disk_payload = await self._load_from_disk(cache_key, max_age_days=30)
+                if disk_payload:
+                    if isinstance(disk_payload, dict) and disk_payload.get("playlists"):
+                        log.info(f"list_playlists: returning from {cache_key}.json disk cache.")
+                        return disk_payload
+                    elif isinstance(disk_payload, list) and len(disk_payload) > 0:
+                        log.info(f"list_playlists: returning from {cache_key}.json disk list cache.")
+                        return {"playlists": disk_payload, "cached": True}
 
         client = self.get_client(require_oauth=True)
         if not client:
