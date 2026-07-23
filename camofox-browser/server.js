@@ -946,9 +946,14 @@ async function launchBrowserInstance() {
 
     try {
       if (os.platform() === 'linux') {
-        localVirtualDisplay = pluginCtx.createVirtualDisplay();
-        vdDisplay = await localVirtualDisplay.get();
-        log('info', 'xvfb virtual display started', { display: vdDisplay, attempt });
+        if (process.env.DISPLAY) {
+          vdDisplay = process.env.DISPLAY;
+          log('info', 'using existing DISPLAY from environment', { display: vdDisplay });
+        } else {
+          localVirtualDisplay = pluginCtx.createVirtualDisplay();
+          vdDisplay = await localVirtualDisplay.get();
+          log('info', 'xvfb virtual display started', { display: vdDisplay, attempt });
+        }
       }
     } catch (err) {
       log('warn', 'xvfb not available, falling back to headless', { error: err.message, attempt });
@@ -1111,7 +1116,9 @@ async function closeSession(userId, session, {
   }
 
   await session.context.close().catch(() => {});
-  sessions.delete(key);
+  if (sessions.get(key) === session) {
+    sessions.delete(key);
+  }
   await pluginEvents.emitAsync('session:destroyed', { userId: key, reason });
 
   refreshActiveTabsGauge();
@@ -2880,6 +2887,11 @@ app.post('/tabs/:tabId/navigate', async (req, res) => {
 
         if (isGoogleSearch && await isGoogleSearchBlocked(tabState.page)) {
           return { ok: false, tabId, url: tabState.page.url(), refsAvailable: false, googleBlocked: true };
+        }
+        
+        if (req.body.skipRefs) {
+          tabState.refs = new Map();
+          return { ok: true, tabId, url: tabState.page.url(), refsAvailable: false };
         }
         
         tabState.refs = await buildRefs(tabState.page);

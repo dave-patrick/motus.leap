@@ -128,7 +128,7 @@ fun ConfigScreen(currentUrl: String, onSave: (String) -> Unit) {
             ) {
                 // Header
                 Text(
-                    text = "YT Playlist Manager",
+                    text = "motus.leap",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -136,7 +136,7 @@ fun ConfigScreen(currentUrl: String, onSave: (String) -> Unit) {
                 )
                 
                 Text(
-                    text = "Enter your YouTube Playlist Agent server endpoint below.",
+                    text = "Enter your motus.leap server endpoint below.",
                     fontSize = 14.sp,
                     color = Color(0xFFA5B4FC),
                     textAlign = TextAlign.Center
@@ -218,7 +218,7 @@ fun DashboardWebView(url: String, onOpenSettings: () -> Unit) {
                         loadWithOverviewMode = false
                         useWideViewPort = false
                         cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
-                        userAgentString = "YTPlaylistManagerAndroid/1.0"
+                        userAgentString = "motus.leap/1.0"
                     }
                     clearCache(true)
                     val cacheBustedUrl = if (url.contains("?")) "$url&t=${System.currentTimeMillis()}" else "$url?t=${System.currentTimeMillis()}"

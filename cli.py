@@ -1,10 +1,11 @@
 import json
 import os
 import re
+import time
 import typer
 from core import add_video_to_playlist, remove_video_from_playlist, create_playlist, list_videos_in_playlist, get_all_playlists, move_video, get_browser
 
-app = typer.Typer(help="YT Playlist Agent CLI")
+app = typer.Typer(help="motus.leap CLI")
 
 @app.command()
 def add(url: str, playlist: str):
@@ -207,7 +208,7 @@ def parse_rules():
     return channel_map, category_to_id
 
 @app.command()
-def auto_sort(input_file: str = None):
+def auto_sort(input_file: str = None, limit: int = 20):
     """Scan Watch Later (or use input file) and move videos based on rules."""
     from core import get_browser
     channel_map, category_to_id = parse_rules()
@@ -253,7 +254,11 @@ def auto_sort(input_file: str = None):
                         return True
             return False
 
+        moved_count = 0
         for v in videos:
+            if limit and moved_count >= limit:
+                typer.secho(f"\nReached execution limit of {limit} moves to prevent Google session invalidation. Run again later or increase --limit.", fg=typer.colors.YELLOW, bold=True)
+                break
             title = v.get("title", "")
             channel = v.get("channel", "")
             url = v.get("url", "")
@@ -346,6 +351,11 @@ def auto_sort(input_file: str = None):
                 typer.echo(f"Moving '{title}' to {target_cat}...")
                 try:
                     move_video(url, "Watch Later", target_cat, driver=driver)
+                    moved_count += 1
+                    import random
+                    sleep_time = random.randint(30, 60)
+                    typer.echo(f"  Move successful. Sleeping {sleep_time}s to mimic human behavior...")
+                    time.sleep(sleep_time)
                 except Exception as e:
                     typer.secho(f"  Failed: {e}", fg=typer.colors.RED)
             else:

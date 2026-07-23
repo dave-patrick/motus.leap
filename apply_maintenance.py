@@ -70,7 +70,7 @@ def send_discord_history_report(applied_actions):
             })
             
         payload = {
-            "content": f"🔔 **YT Playlist Agent Maintenance Report**\nSuccessfully applied {len(applied_actions)} sorting actions.",
+            "content": f"🔔 **motus.leap Maintenance Report**\nSuccessfully applied {len(applied_actions)} sorting actions.",
             "embeds": embeds
         }
         

@@ -1,6 +1,7 @@
 import os
 import json
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -12,11 +13,18 @@ from core.utils import (
     is_oauth_configured,
     get_user_file_path,
     extract_video_id,
-    get_current_user
+    get_current_user,
+    append_agent_log
 )
 from routers import auth, playlists, maintenance, rules
 
-app = FastAPI(title="YT Playlist Manager API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.start_scheduler()
+    print("FastAPI: Background scheduler successfully initialized.")
+    yield
+
+app = FastAPI(title="motus.leap API", lifespan=lifespan)
 
 # Register routers
 app.include_router(auth.router)
@@ -29,13 +37,6 @@ class SettingsRequest(BaseModel):
     gemini_api_key: str
     notification_webhook: str
 
-
-# Start the background scheduler thread on startup
-@app.on_event("startup")
-def startup_event():
-    scheduler.start_scheduler()
-    print("FastAPI: Background scheduler successfully initialized.")
-
 # Serve SPA
 @app.get("/")
 def read_root():
@@ -47,6 +48,24 @@ def read_root():
     base_dir = os.path.dirname(__file__)
     return FileResponse(os.path.join(base_dir, "static", "index.html"), headers=headers)
 
+_STATUS_METRICS_CACHE = {}
+
+def get_cached_file_json(filepath):
+    if not os.path.exists(filepath):
+        return None, 0
+    mtime = os.path.getmtime(filepath)
+    cached = _STATUS_METRICS_CACHE.get(filepath)
+    if cached and cached.get("mtime") == mtime:
+        return cached["data"], mtime
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        _STATUS_METRICS_CACHE[filepath] = {"mtime": mtime, "data": data}
+        return data, mtime
+    except Exception as e:
+        append_agent_log(f"Warning: Failed reading JSON file {filepath}: {e}")
+        return None, 0
+
 @app.get("/api/status")
 def get_status(user=Depends(get_current_user)):
     total_playlists = 0
@@ -56,49 +75,38 @@ def get_status(user=Depends(get_current_user)):
     
     # 1. Total Playlists & Videos
     report_path = get_user_file_path("playlists_report.json", user)
-    if os.path.exists(report_path):
-        try:
-            with open(report_path, "r", encoding="utf-8") as f:
-                report = json.load(f)
-                total_playlists = len(report)
-                total_videos = sum(p.get("video_count", 0) for p in report)
-        except: pass
+    report, _ = get_cached_file_json(report_path)
+    if report and isinstance(report, list):
+        total_playlists = len(report)
+        total_videos = sum(p.get("video_count", 0) for p in report if isinstance(p, dict))
         
     # 2. Pending Actions
     maint_path = get_user_file_path("maintenance_actions.json", user)
-    if os.path.exists(maint_path):
-        try:
-            with open(maint_path, "r", encoding="utf-8") as f:
-                actions = json.load(f)
-                pending_actions = len(actions)
-        except: pass
+    actions, _ = get_cached_file_json(maint_path)
+    if actions and isinstance(actions, list):
+        pending_actions = len(actions)
         
     # 3. AI Cache Hits
     ai_pending = 0
     ai_reviewed = 0
     ai_total = 0
     class_path = get_user_file_path("ai_classifications.json", user)
-    if os.path.exists(class_path):
-        try:
-            with open(class_path, "r", encoding="utf-8") as f:
-                classifications = json.load(f)
-                
-            vid_to_playlist = {}
-            if os.path.exists(report_path):
-                try:
-                    with open(report_path, "r", encoding="utf-8") as rf:
-                        report = json.load(rf)
-                    for p in report:
-                        playlist_name = p.get("name")
-                        for v in p.get("videos", []):
+    classifications, _ = get_cached_file_json(class_path)
+    if classifications and isinstance(classifications, list):
+        vid_to_playlist = {}
+        if report and isinstance(report, list):
+            for p in report:
+                if isinstance(p, dict):
+                    playlist_name = p.get("name")
+                    for v in p.get("videos", []):
+                        if isinstance(v, dict):
                             vid = extract_video_id(v.get("url", ""))
                             if vid:
                                 vid_to_playlist[vid] = playlist_name
-                except:
-                    pass
 
-            filtered_classifications = []
-            for c in classifications:
+        filtered_classifications = []
+        for c in classifications:
+            if isinstance(c, dict):
                 status = c.get("status")
                 if status == 'pending':
                     curr_pl = vid_to_playlist.get(c.get("vid"))
@@ -107,11 +115,10 @@ def get_status(user=Depends(get_current_user)):
                         continue
                 filtered_classifications.append(c)
 
-            ai_total = len(filtered_classifications)
-            ai_pending = sum(1 for c in filtered_classifications if c.get("status") == "pending")
-            ai_reviewed = ai_total - ai_pending
-            ai_cache_hits = ai_total
-        except: pass
+        ai_total = len(filtered_classifications)
+        ai_pending = sum(1 for c in filtered_classifications if c.get("status") == "pending")
+        ai_reviewed = ai_total - ai_pending
+        ai_cache_hits = ai_total
         
     if ai_total == 0:
         cache_path = get_user_file_path("ai_cache_hits.txt", user)
@@ -120,7 +127,8 @@ def get_status(user=Depends(get_current_user)):
                 with open(cache_path, "r") as f:
                     ai_cache_hits = int(f.read().strip() or "0")
                     ai_total = ai_cache_hits
-            except: pass
+            except Exception as e:
+                append_agent_log(f"Warning: Failed reading ai_cache_hits.txt: {e}")
         
     # 4. Last run
     last_run = "--:--"
@@ -332,9 +340,10 @@ def import_yt_cookies(req: ImportCookiesRequest, user=Depends(get_current_user))
         raise HTTPException(status_code=400, detail="No YouTube/Google cookies found. Make sure to export cookies from youtube.com.")
     
     # Import into Camofox
-    camofox_url = "http://localhost:9377"
-    camofox_user_id = "yt_playlist_agent_default"
-    headers = {"Authorization": "Bearer my_secret_cookie_key", "Content-Type": "application/json"}
+    camofox_url = os.getenv("CAMOFOX_URL", "http://localhost:9377")
+    camofox_user_id = os.getenv("CAMOFOX_USER_ID", "motus_leap_default")
+    api_key = os.getenv("CAMOFOX_API_KEY", "my_secret_cookie_key")
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     
     try:
         resp = req_lib.post(

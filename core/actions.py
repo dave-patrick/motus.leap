@@ -17,6 +17,21 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
+def wait_for_condition(predicate, max_wait=5.0, poll_interval=0.2):
+    """
+    Polls predicate() every poll_interval seconds up to max_wait seconds.
+    Returns True as soon as predicate() evaluates to truthy, otherwise False.
+    """
+    start_time = time.time()
+    while time.time() - start_time < max_wait:
+        try:
+            if predicate():
+                return True
+        except Exception:
+            pass
+        time.sleep(poll_interval)
+    return False
+
 class PlaywrightDriverWrapper:
     def __init__(self, playwright_ctx, context, page):
         self.playwright_ctx = playwright_ctx
@@ -33,15 +48,19 @@ class PlaywrightDriverWrapper:
             
     def get(self, url):
         try:
-            self.page.goto(url, wait_until="load", timeout=30000)
+            self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
         except Exception as e:
-            # retry once on timeout
-            print(f"Playwright goto timeout, retrying: {e}")
-            self.page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            # retry once on timeout with commit and wait for the page to settle
+            print(f"Playwright goto timeout, retrying with commit: {e}")
+            try:
+                self.page.goto(url, wait_until="commit", timeout=30000)
+                time.sleep(5) # Give JavaScript redirects time to execute and settle
+            except Exception as e2:
+                print(f"Playwright retry failed: {e2}")
             
-    def save_screenshot(self, path):
+    def save_screenshot(self, path, timeout=10000):
         try:
-            self.page.screenshot(path=path)
+            self.page.screenshot(path=path, timeout=timeout)
         except Exception as e:
             print(f"Failed to capture screenshot: {e}")
             
@@ -186,14 +205,47 @@ def get_playwright_browser():
         browser_context = pw.chromium.launch_persistent_context(
             user_data_dir=PLAYWRIGHT_USER_DATA_DIR,
             headless=False,
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             args=[
                 "--window-position=-10000,0",
                 "--window-size=1920,1080",
                 "--disable-backgrounding-occluded-windows",
                 "--disable-renderer-backgrounding",
-                "--mute-audio"
+                "--mute-audio",
+                "--disable-gpu",
+                "--disable-software-rasterizer",
+                "--disable-dev-shm-usage"
             ]
         )
+        # Load and inject cookies if they exist
+        try:
+            cookies_path = os.path.expanduser("~/.camofox/cookies/cookies.json")
+            if os.path.exists(cookies_path):
+                print("  Playwright: Loading cookies from cookies.json...")
+                with open(cookies_path, "r", encoding="utf-8") as f:
+                    cookies = json.load(f)
+                if cookies:
+                    pw_cookies = []
+                    for c in cookies:
+                        clean = {
+                            "name": c["name"],
+                            "value": c["value"],
+                            "domain": c["domain"],
+                            "path": c.get("path", "/"),
+                        }
+                        if "secure" in c: clean["secure"] = c["secure"]
+                        if "httpOnly" in c: clean["httpOnly"] = c["httpOnly"]
+                        if "expires" in c and c["expires"] > 0:
+                            clean["expires"] = int(c["expires"])
+                        pw_cookies.append(clean)
+                    
+                    # Clear existing cookies to avoid pollution
+                    browser_context.clear_cookies()
+                    browser_context.add_cookies(pw_cookies)
+                    print(f"  Playwright: Injected {len(pw_cookies)} cookies successfully.")
+        except Exception as ce:
+            print(f"  Playwright: Warning: Failed to inject cookies: {ce}")
+
         page = browser_context.pages[0] if browser_context.pages else browser_context.new_page()
         
         def force_mute():
@@ -277,15 +329,16 @@ def _make_chrome_options():
     return opt
 
 class CamofoxDriverWrapper:
-    def __init__(self, base_url="http://localhost:9377", user_id="yt_playlist_agent_default", session_key="main_session"):
-        self.base_url = base_url
-        self.user_id = user_id
+    def __init__(self, base_url=None, user_id=None, session_key="main_session"):
+        self.base_url = base_url or os.getenv("CAMOFOX_URL", "http://localhost:9377")
+        self.user_id = user_id or os.getenv("CAMOFOX_USER_ID", "motus_leap_default")
         self.session_key = session_key
         self.tab_id = None
         self.title = "YT"
         self.session = requests.Session()
+        api_key = os.getenv("CAMOFOX_API_KEY", "my_secret_cookie_key")
         self.session.headers.update({
-            "Authorization": "Bearer my_secret_cookie_key"
+            "Authorization": f"Bearer {api_key}"
         })
         self._ensure_tab()
         
@@ -293,7 +346,7 @@ class CamofoxDriverWrapper:
         # Validate if existing tab_id is still active on the server
         if self.tab_id:
             try:
-                r = self.session.get(f"{self.base_url}/tabs?userId={self.user_id}", timeout=10)
+                r = self.session.get(f"{self.base_url}/tabs?userId={self.user_id}", timeout=30)
                 if r.status_code == 200:
                     data = r.json()
                     tabs = data.get("tabs", [])
@@ -303,18 +356,19 @@ class CamofoxDriverWrapper:
                 print(f"  Camofox error verifying active tab: {e}")
             self.tab_id = None
 
-        # Try to list existing tabs to see if there's one for this user
+        # Close any existing tabs to ensure a completely fresh session state
         try:
-            r = self.session.get(f"{self.base_url}/tabs?userId={self.user_id}", timeout=10)
+            r = self.session.get(f"{self.base_url}/tabs?userId={self.user_id}", timeout=30)
             if r.status_code == 200:
                 data = r.json()
                 tabs = data.get("tabs", [])
-                if tabs:
-                    self.tab_id = tabs[0]["tabId"]
-                    print(f"  Camofox: Reusing existing tab {self.tab_id}")
-                    return
+                for t in tabs:
+                    try:
+                        self.session.delete(f"{self.base_url}/tabs/{t['tabId']}", timeout=10)
+                    except:
+                        pass
         except Exception as e:
-            print(f"  Camofox error checking existing tabs: {e}")
+            print(f"  Camofox error cleaning up existing tabs: {e}")
             
         # Create a new tab
         try:
@@ -383,9 +437,10 @@ class CamofoxDriverWrapper:
         print(f"  Camofox: Navigating to {url}")
         payload = {
             "userId": self.user_id,
-            "url": url
+            "url": url,
+            "skipRefs": True
         }
-        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/navigate", json=payload, timeout=120)
+        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/navigate", json=payload, timeout=240)
         if r.status_code != 200:
             print(f"  Camofox navigate failed: {r.status_code} {r.text}")
         self.force_mute()
@@ -393,7 +448,7 @@ class CamofoxDriverWrapper:
     def save_screenshot(self, path):
         self._ensure_tab()
         try:
-            r = self.session.get(f"{self.base_url}/tabs/{self.tab_id}/screenshot?userId={self.user_id}", timeout=20)
+            r = self.session.get(f"{self.base_url}/tabs/{self.tab_id}/screenshot?userId={self.user_id}", timeout=120)
             if r.status_code == 200:
                 with open(path, "wb") as f:
                     f.write(r.content)
@@ -435,7 +490,7 @@ class CamofoxDriverWrapper:
             "userId": self.user_id,
             "expression": expr
         }
-        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=60)
+        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=240)
         if r.status_code == 200:
             data = r.json()
             if data.get("ok"):
@@ -464,7 +519,7 @@ class CamofoxDriverWrapper:
             "userId": self.user_id,
             "expression": expr
         }
-        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=60)
+        r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=240)
         if r.status_code == 200:
             data = r.json()
             if data.get("ok"):
@@ -503,7 +558,7 @@ class CamofoxDriverWrapper:
             "expression": find_expr
         }
         try:
-            r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=15)
+            r = self.session.post(f"{self.base_url}/tabs/{self.tab_id}/evaluate", json=payload, timeout=240)
             if r.status_code == 200:
                 data = r.json()
                 if data.get("ok") and isinstance(data.get("result"), list):
@@ -590,7 +645,7 @@ class CamofoxElementWrapper:
             "expression": find_expr
         }
         try:
-            r = self.driver.session.post(f"{self.driver.base_url}/tabs/{self.driver.tab_id}/evaluate", json=payload, timeout=15)
+            r = self.driver.session.post(f"{self.driver.base_url}/tabs/{self.driver.tab_id}/evaluate", json=payload, timeout=240)
             if r.status_code == 200:
                 data = r.json()
                 if data.get("ok") and isinstance(data.get("result"), list):
@@ -613,11 +668,18 @@ def get_browser():
             def save_screenshot(self, p): pass
         return MockDriver()
         
-    try:
-        print("  Attempting to initialize Camofox stealth browser wrapper...")
-        return CamofoxDriverWrapper()
-    except Exception as e:
-        print(f"  Camofox initialization failed, falling back to undetected_chromedriver/Playwright: {e}")
+    if os.environ.get("DISABLE_CAMOFOX") != "1":
+        try:
+            print("  Attempting to initialize Camofox stealth browser wrapper...")
+            return CamofoxDriverWrapper()
+        except Exception as e:
+            print(f"  Camofox initialization failed, falling back to Playwright/Chromedriver: {e}")
+
+    print("  Attempting to initialize Playwright Chromium stealth browser...")
+    pw_driver = get_playwright_browser()
+    if pw_driver:
+        return pw_driver
+    print("  Playwright Chromium failed, falling back to undetected_chromedriver...")
 
     if uc is None:
         print("  undetected_chromedriver is not installed. Falling back to Playwright...")
@@ -696,6 +758,22 @@ def get_browser():
     return None
 
 
+def _wait_for_watch_page_load(driver, timeout=120):
+    """Wait until the watch page is fully loaded and no longer in skeleton state."""
+    try:
+        WebDriverWait(driver, timeout).until(lambda d: d.execute_script("""
+            let channel = document.querySelector('ytd-channel-name, #channel-name');
+            if (!channel || !channel.innerText.trim()) return false;
+            let container = document.querySelector('ytd-watch-metadata, #top-row, ytd-video-primary-info-renderer') || document;
+            let buttons = container.querySelectorAll('button');
+            return buttons.length > 3;
+        """))
+        time.sleep(2) # brief settle time
+    except Exception as e:
+        print(f"  Warning: Timeout/error waiting for watch page elements to load: {e}")
+        time.sleep(5)
+
+
 def _open_save_dialog(driver):
     """Helper to open the 'Save to playlist' dialog on a video page."""
     # Force mute immediately
@@ -708,11 +786,14 @@ def _open_save_dialog(driver):
         is_kids = driver.execute_script("""
             let isKids = Array.from(document.querySelectorAll('*')).some(el => el.textContent && el.textContent.includes("Choices for families"));
             let container = document.querySelector('ytd-watch-metadata, #top-row, ytd-video-primary-info-renderer') || document;
-            let saveBtn = Array.from(container.querySelectorAll('button')).find(b => 
-                b.getAttribute('aria-label') === 'Save to playlist' || 
-                b.innerText.trim() === 'Save' ||
-                (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save')
-            );
+            let saveBtn = Array.from(container.querySelectorAll('button')).find(b => {
+                let match = b.getAttribute('aria-label') === 'Save to playlist' || 
+                            b.innerText.trim() === 'Save' ||
+                            (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save');
+                if (!match) return false;
+                let rect = b.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0 && window.getComputedStyle(b).display !== 'none';
+            });
             return isKids || (saveBtn && (saveBtn.hasAttribute('disabled') || saveBtn.disabled || saveBtn.getAttribute('aria-disabled') === 'true'));
         """)
     except Exception as e:
@@ -767,11 +848,14 @@ def _open_save_dialog(driver):
         print("    Attempting JS click fallback for Save button...")
         try:
             driver.execute_script("""
-                let saveBtn = Array.from(document.querySelectorAll('button')).find(b => 
-                    b.getAttribute('aria-label') === 'Save to playlist' || 
-                    b.innerText.trim() === 'Save' ||
-                    (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save')
-                );
+                let saveBtn = Array.from(document.querySelectorAll('button')).find(b => {
+                    let match = b.getAttribute('aria-label') === 'Save to playlist' || 
+                                b.innerText.trim() === 'Save' ||
+                                (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save');
+                    if (!match) return false;
+                    let rect = b.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && window.getComputedStyle(b).display !== 'none';
+                });
                 if (saveBtn) {
                     saveBtn.scrollIntoView({block: 'center'});
                     saveBtn.click();
@@ -903,12 +987,7 @@ def add_video_to_playlist(video_url: str, playlist_name: str, driver=None) -> bo
             video_url = "https://www.youtube.com" + video_url
         print(f"  Navigating to {video_url}...")
         driver.get(video_url)
-        try:
-            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "video")))
-            time.sleep(2)
-        except Exception as e:
-            print(f"  Warning: Video element not found. Using fallback wait: {e}")
-            time.sleep(5)
+        _wait_for_watch_page_load(driver)
         
         result = driver.execute_async_script(f"""
             const done = arguments[arguments.length - 1];
@@ -919,13 +998,25 @@ def add_video_to_playlist(video_url: str, playlist_name: str, driver=None) -> bo
                     v.pause();
                 }});
 
+                // 0.5. Detect bot-check wall or sign-in requirement
+                let pageText = document.body ? document.body.innerText : '';
+                if (pageText.includes("Sign in to confirm you're not a bot") || 
+                    pageText.includes("Sign in to add this video to a playlist") ||
+                    document.querySelector('ytd-enforcement-message-view-model') ||
+                    document.querySelector('[data-layer-name="sign-in-to-add-to-playlist-confirmation"]')) {{
+                    return "Browser not logged in: YouTube is showing a sign-in wall. Import YouTube cookies via Settings > Admin Tools.";
+                }}
+
                 let isKids = Array.from(document.querySelectorAll('*')).some(el => el.textContent && el.textContent.includes("Choices for families"));
                 let container = document.querySelector('ytd-watch-metadata, #top-row, ytd-video-primary-info-renderer') || document;
-                let saveBtn = Array.from(container.querySelectorAll('button')).find(b => 
-                    b.getAttribute('aria-label') === 'Save to playlist' || 
-                    b.innerText.trim() === 'Save' ||
-                    (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save')
-                );
+                let saveBtn = Array.from(container.querySelectorAll('button')).find(b => {{
+                    let match = b.getAttribute('aria-label') === 'Save to playlist' || 
+                                b.innerText.trim() === 'Save' ||
+                                (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save');
+                    if (!match) return false;
+                    let rect = b.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && window.getComputedStyle(b).display !== 'none';
+                }});
                 
                 if (isKids || (saveBtn && (saveBtn.hasAttribute('disabled') || saveBtn.disabled || saveBtn.getAttribute('aria-disabled') === 'true'))) {{
                     return "Video is marked 'Made for Kids' (Save button is disabled) - YT disables saving these to playlists";
@@ -945,15 +1036,18 @@ def add_video_to_playlist(video_url: str, playlist_name: str, driver=None) -> bo
                 
                 // 2. Wait for dialog items to appear (with retries)
                 let items = [];
-                for (let i = 0; i < 10; i++) {{
+                for (let i = 0; i < 30; i++) {{
                     await new Promise(r => setTimeout(r, 1000));
-                    items = Array.from(document.querySelectorAll('ytd-playlist-add-to-option-renderer, yt-list-item-view-model, tp-yt-paper-item, [role="checkbox"], [role="menuitemcheckbox"], .ytd-add-to-playlist-renderer, #playlists-list > *'));
-                    if (items.length > 3) break; 
+                    let dialog = document.querySelector('ytd-add-to-playlist-renderer, yt-sheet-view-model, yt-action-sheet-view-model, #playlists-list, #playlists');
+                    if (dialog) {{
+                        items = Array.from(dialog.querySelectorAll('ytd-playlist-add-to-option-renderer, yt-list-item-view-model, tp-yt-paper-item, [role="checkbox"], [role="menuitemcheckbox"], .ytd-add-to-playlist-renderer, #playlists-list > *'));
+                        if (items.length > 3) break;
+                    }}
                 }}
                 
                 let foundNames = items.map(i => (i.innerText || i.textContent || "").split("\\n")[0].trim()).filter(n => n).join(", ");
                 if (items.length === 0) {{
-                    let dialog = document.querySelector('ytd-add-to-playlist-renderer, #playlists-list');
+                    let dialog = document.querySelector('ytd-add-to-playlist-renderer, yt-sheet-view-model, yt-action-sheet-view-model, #playlists-list, #playlists');
                     return "No items found. Dialog HTML: " + (dialog ? dialog.innerHTML.substring(0, 500) : "Dialog not found");
                 }}
                 
@@ -1015,12 +1109,7 @@ def remove_video_from_playlist(video_url: str, playlist_name: str, driver=None) 
             video_url = "https://www.youtube.com" + video_url
         print(f"  Navigating to {video_url}...")
         driver.get(video_url)
-        try:
-            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "video")))
-            time.sleep(2)
-        except Exception as e:
-            print(f"  Warning: Video element not found. Using fallback wait: {e}")
-            time.sleep(5)
+        _wait_for_watch_page_load(driver)
         
         result = driver.execute_async_script(f"""
             const done = arguments[arguments.length - 1];
@@ -1031,13 +1120,25 @@ def remove_video_from_playlist(video_url: str, playlist_name: str, driver=None) 
                     v.pause();
                 }});
 
+                // 0.5. Detect bot-check wall or sign-in requirement
+                let pageText = document.body ? document.body.innerText : '';
+                if (pageText.includes("Sign in to confirm you're not a bot") || 
+                    pageText.includes("Sign in to add this video to a playlist") ||
+                    document.querySelector('ytd-enforcement-message-view-model') ||
+                    document.querySelector('[data-layer-name="sign-in-to-add-to-playlist-confirmation"]')) {{
+                    return "Browser not logged in: YouTube is showing a sign-in wall. Import YouTube cookies via Settings > Admin Tools.";
+                }}
+
                 let isKids = Array.from(document.querySelectorAll('*')).some(el => el.textContent && el.textContent.includes("Choices for families"));
                 let container = document.querySelector('ytd-watch-metadata, #top-row, ytd-video-primary-info-renderer') || document;
-                let saveBtn = Array.from(container.querySelectorAll('button')).find(b => 
-                    b.getAttribute('aria-label') === 'Save to playlist' || 
-                    b.innerText.trim() === 'Save' ||
-                    (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save')
-                );
+                let saveBtn = Array.from(container.querySelectorAll('button')).find(b => {{
+                    let match = b.getAttribute('aria-label') === 'Save to playlist' || 
+                                b.innerText.trim() === 'Save' ||
+                                (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save');
+                    if (!match) return false;
+                    let rect = b.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && window.getComputedStyle(b).display !== 'none';
+                }});
                 
                 if (isKids || (saveBtn && (saveBtn.hasAttribute('disabled') || saveBtn.disabled || saveBtn.getAttribute('aria-disabled') === 'true'))) {{
                     return "Video is marked 'Made for Kids' (Save button is disabled) - YT disables saving these to playlists";
@@ -1057,15 +1158,18 @@ def remove_video_from_playlist(video_url: str, playlist_name: str, driver=None) 
                 
                 // 2. Wait for dialog items to appear (with retries)
                 let items = [];
-                for (let i = 0; i < 10; i++) {{
+                for (let i = 0; i < 30; i++) {{
                     await new Promise(r => setTimeout(r, 1000));
-                    items = Array.from(document.querySelectorAll('ytd-playlist-add-to-option-renderer, yt-list-item-view-model, tp-yt-paper-item, [role="checkbox"], [role="menuitemcheckbox"], .ytd-add-to-playlist-renderer, #playlists-list > *'));
-                    if (items.length > 3) break; 
+                    let dialog = document.querySelector('ytd-add-to-playlist-renderer, yt-sheet-view-model, yt-action-sheet-view-model, #playlists-list, #playlists');
+                    if (dialog) {{
+                        items = Array.from(dialog.querySelectorAll('ytd-playlist-add-to-option-renderer, yt-list-item-view-model, tp-yt-paper-item, [role="checkbox"], [role="menuitemcheckbox"], .ytd-add-to-playlist-renderer, #playlists-list > *'));
+                        if (items.length > 3) break;
+                    }}
                 }}
                 
                 let foundNames = items.map(i => (i.innerText || i.textContent || "").split("\\n")[0].trim()).filter(n => n).join(", ");
                 if (items.length === 0) {{
-                    let dialog = document.querySelector('ytd-add-to-playlist-renderer, #playlists-list');
+                    let dialog = document.querySelector('ytd-add-to-playlist-renderer, yt-sheet-view-model, yt-action-sheet-view-model, #playlists-list, #playlists');
                     return "No items found. Dialog HTML: " + (dialog ? dialog.innerHTML.substring(0, 500) : "Dialog not found");
                 }}
                 
@@ -1124,14 +1228,134 @@ def move_video(video_url: str, source_playlist_name: str, target_playlist_name: 
     try:
         if video_url.startswith("/"):
             video_url = "https://www.youtube.com" + video_url
+
+        # Attempt direct move on current page first to bypass bot-check walls on watch pages
+        import re
+        video_id = None
+        m = re.search(r"[?&]v=([^&#]+)", video_url)
+        if m:
+            video_id = m.group(1)
+        elif "youtu.be/" in video_url:
+            video_id = video_url.split("youtu.be/")[-1].split("?")[0]
+        elif "/watch?v=" in video_url:
+            video_id = video_url.split("v=")[-1].split("&")[0]
+
+        if video_id:
+            try:
+                print(f"  Attempting direct move on current page for video {video_id}...")
+                result = driver.execute_async_script(f"""
+                    const done = arguments[arguments.length - 1];
+                    async function moveDirectly() {{
+                        try {{
+                            let videoId = "{video_id}";
+                            let row = Array.from(document.querySelectorAll('ytd-playlist-video-renderer')).find(r => {{
+                                let link = r.querySelector('a[href*="' + videoId + '"]');
+                                return link !== null;
+                            }});
+                            if (!row) return "Row not found";
+                            
+                            let menuBtn = row.querySelector('button[aria-label="Action menu"], yt-icon-button#button, #menu button, ytd-menu-renderer button');
+                            if (!menuBtn) return "Menu button not found";
+                            menuBtn.click();
+                            
+                            let savePlaylistItem = null;
+                            for (let i = 0; i < 15; i++) {{
+                                await new Promise(r => setTimeout(r, 200));
+                                let menuItems = Array.from(document.querySelectorAll('tp-yt-paper-item, yt-list-item-view-model, ytd-menu-service-item-renderer, ytd-menu-navigation-item-renderer'));
+                                savePlaylistItem = menuItems.find(item => item.textContent.includes("Save to playlist"));
+                                if (savePlaylistItem) break;
+                            }}
+                            if (!savePlaylistItem) {{
+                                document.body.click();
+                                return "Save to playlist option not found";
+                            }}
+                            savePlaylistItem.click();
+                            
+                            let items = [];
+                            for (let i = 0; i < 20; i++) {{
+                                await new Promise(r => setTimeout(r, 250));
+                                let dialog = document.querySelector('ytd-add-to-playlist-renderer, #playlists-list');
+                                if (dialog) {{
+                                    items = Array.from(dialog.querySelectorAll('ytd-playlist-add-to-option-renderer, yt-list-item-view-model, tp-yt-paper-item, [role="checkbox"], [role="menuitemcheckbox"], .ytd-add-to-playlist-renderer, #playlists-list > *'));
+                                    if (items.length > 3) break;
+                                }}
+                            }}
+                            
+                            let foundNames = items.map(i => (i.innerText || i.textContent || "").split("\\\\n")[0].trim()).filter(n => n).join(", ");
+                            if (items.length === 0) {{
+                                return "Playlist dialog items not found";
+                            }}
+                            
+                            function isChecked(el) {{
+                                if (el.getAttribute('aria-pressed') === 'true') return true;
+                                let label = el.getAttribute('aria-label') || '';
+                                if (label.includes(', Selected') || (label.includes('Selected') && !label.includes('Not selected'))) return true;
+                                let btn = el.querySelector('button[aria-pressed="true"]');
+                                if (btn) return true;
+                                if (el.getAttribute('aria-checked') === 'true') return true;
+                                let cb = el.querySelector('tp-yt-paper-checkbox, input[type="checkbox"], [role="checkbox"]');
+                                if (cb && cb.getAttribute('aria-checked') === 'true') return true;
+                                if (cb && cb.checked) return true;
+                                if (el.querySelector('[aria-checked="true"]') !== null) return true;
+                                return false;
+                            }}
+                            
+                            function clickItem(el) {{
+                                let btn = el.querySelector('button, .yt-list-item-view-model-wiz__checkbox, tp-yt-paper-checkbox');
+                                if (btn) btn.click(); else el.click();
+                            }}
+                            
+                            let targetItem = items.find(o => o.textContent.toLowerCase().includes("{target_playlist_name.lower()}"));
+                            let sourceItem = items.find(o => o.textContent.toLowerCase().includes("{source_playlist_name.lower()}"));
+                            
+                            let status = [];
+                            
+                            if (targetItem) {{
+                                if (!isChecked(targetItem)) {{
+                                    clickItem(targetItem);
+                                    status.push("Added to target");
+                                }} else {{
+                                    status.push("Already in target");
+                                }}
+                            }} else {{
+                                status.push("Target '{target_playlist_name}' not found");
+                            }}
+                            
+                            await new Promise(r => setTimeout(r, 1000));
+                            
+                            if (sourceItem) {{
+                                if (isChecked(sourceItem)) {{
+                                    clickItem(sourceItem);
+                                    status.push("Removed from source");
+                                }} else {{
+                                    status.push("Already removed from source");
+                                }}
+                            }} else {{
+                                status.push("Source '{source_playlist_name}' not found");
+                            }}
+                            
+                            let closeBtn = document.querySelector('ytd-add-to-playlist-renderer button[aria-label="Close"], #playlists-list button[aria-label="Close"], ytd-add-to-playlist-renderer #close-button button');
+                            if (closeBtn) closeBtn.click(); else document.body.click();
+                            
+                            return status.join(", ") + " | Items found: " + items.length + " | Names: " + foundNames;
+                        }} catch (err) {{
+                            return "Error: " + err;
+                        }}
+                    }}
+                    moveDirectly().then(done).catch(err => done("Error: " + err));
+                """)
+                print(f"  Direct move attempt result: {result}")
+                if result and "not found" not in result and "Error" not in result and "Row not found" not in result:
+                    print(f"  Direct move succeeded without navigating watch page!")
+                    return True
+                else:
+                    print(f"  Direct move not possible ({result}). Falling back to watch page navigation...")
+            except Exception as de:
+                print(f"  Direct move failed with exception: {de}. Falling back to watch page navigation...")
+
         print(f"  Navigating to {video_url}...")
         driver.get(video_url)
-        try:
-            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "video")))
-            time.sleep(2)
-        except Exception as e:
-            print(f"  Warning: Video element not found. Using fallback wait: {e}")
-            time.sleep(5)
+        _wait_for_watch_page_load(driver)
         
         # Save a debug screenshot of the page before opening dialog
         driver.save_screenshot("move_debug_pre.png")
@@ -1159,11 +1383,14 @@ def move_video(video_url: str, source_playlist_name: str, target_playlist_name: 
                 // Check if the video is "Made for Kids" or if the Save button is disabled
                 let isKids = Array.from(document.querySelectorAll('*')).some(el => el.textContent && el.textContent.includes("Choices for families"));
                 let container = document.querySelector('ytd-watch-metadata, #top-row, ytd-video-primary-info-renderer') || document;
-                let saveBtn = Array.from(container.querySelectorAll('button')).find(b => 
-                    b.getAttribute('aria-label') === 'Save to playlist' || 
-                    b.innerText.trim() === 'Save' ||
-                    (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save')
-                );
+                let saveBtn = Array.from(container.querySelectorAll('button')).find(b => {{
+                    let match = b.getAttribute('aria-label') === 'Save to playlist' || 
+                                b.innerText.trim() === 'Save' ||
+                                (b.querySelector('span') && b.querySelector('span').innerText.trim() === 'Save');
+                    if (!match) return false;
+                    let rect = b.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && window.getComputedStyle(b).display !== 'none';
+                }});
                 
                 if (isKids || (saveBtn && (saveBtn.hasAttribute('disabled') || saveBtn.disabled || saveBtn.getAttribute('aria-disabled') === 'true'))) {{
                     return "Video is marked 'Made for Kids' (Save button is disabled) - YT disables saving these to playlists";
@@ -1183,15 +1410,18 @@ def move_video(video_url: str, source_playlist_name: str, target_playlist_name: 
                 
                 // 2. Wait for dialog items to appear (with retries)
                 let items = [];
-                for (let i = 0; i < 10; i++) {{
+                for (let i = 0; i < 30; i++) {{
                     await new Promise(r => setTimeout(r, 1000));
-                    items = Array.from(document.querySelectorAll('ytd-playlist-add-to-option-renderer, yt-list-item-view-model, tp-yt-paper-item, [role="checkbox"], [role="menuitemcheckbox"], .ytd-add-to-playlist-renderer, #playlists-list > *'));
-                    if (items.length > 3) break; 
+                    let dialog = document.querySelector('ytd-add-to-playlist-renderer, yt-sheet-view-model, yt-action-sheet-view-model, #playlists-list, #playlists');
+                    if (dialog) {{
+                        items = Array.from(dialog.querySelectorAll('ytd-playlist-add-to-option-renderer, yt-list-item-view-model, tp-yt-paper-item, [role="checkbox"], [role="menuitemcheckbox"], .ytd-add-to-playlist-renderer, #playlists-list > *'));
+                        if (items.length > 3) break;
+                    }}
                 }}
                 
                 let foundNames = items.map(i => (i.innerText || i.textContent || "").split("\\n")[0].trim()).filter(n => n).join(", ");
                 if (items.length === 0) {{
-                    let dialog = document.querySelector('ytd-add-to-playlist-renderer, #playlists-list');
+                    let dialog = document.querySelector('ytd-add-to-playlist-renderer, yt-sheet-view-model, yt-action-sheet-view-model, #playlists-list, #playlists');
                     return "No items found. Dialog HTML: " + (dialog ? dialog.innerHTML.substring(0, 500) : "Dialog not found");
                 }}
                 
@@ -1457,12 +1687,20 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
             except TimeoutException:
                 raise Exception(f"Playlist '{playlist_name_or_url}' not found in the sidebar menu. Try providing the direct playlist URL instead.")
             
+        # Give page some extra time to settle before querying
+        time.sleep(10)
+        
         # Wait for initial load
         try:
-            WebDriverWait(driver, 15).until(
+            WebDriverWait(driver, 90).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "ytd-playlist-video-renderer"))
             )
         except TimeoutException:
+            print("Timeout waiting for playlist video elements. Saving screenshot to debug_timeout_wl.png...")
+            try:
+                driver.save_screenshot("debug_timeout_wl.png")
+            except Exception as se:
+                print(f"Failed to capture debug screenshot: {se}")
             return []
 
         # Get initial count of loaded videos
@@ -1492,14 +1730,11 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
                 driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
                 time.sleep(3)
                 
-                # Force a paint to trigger IntersectionObserver in hidden/offscreen windows
+                # Force layout calculation to trigger IntersectionObserver in hidden/offscreen windows without software screenshot rendering
                 try:
-                    if hasattr(driver, 'get_screenshot_as_png'):
-                        driver.get_screenshot_as_png()
-                    elif hasattr(driver, 'page') and hasattr(driver.page, 'screenshot'):
-                        driver.page.screenshot()
+                    driver.execute_script("window.dispatchEvent(new Event('resize')); document.body.offsetHeight;")
                 except Exception as pe:
-                    print(f"  Warning: failed to force paint: {pe}")
+                    print(f"  Warning: failed to force layout: {pe}")
                 time.sleep(2)
                 
                 new_video_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")

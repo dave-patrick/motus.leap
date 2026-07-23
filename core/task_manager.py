@@ -967,8 +967,8 @@ def execute_remove_duplicates_background(playlist_name: str, user_id=None):
             with scheduler.job_lock:
                 scheduler.active_job = None
 
-def execute_apply_maintenance_background(user_id, force=False):
-    append_agent_log(f"Starting API-based maintenance queue execution (user_id={user_id}).")
+def execute_apply_maintenance_background(user_id, force=False, limit=20):
+    append_agent_log(f"Starting API-based maintenance queue execution (user_id={user_id}, limit={limit}).")
     base_dir = os.path.dirname(os.path.dirname(__file__))
     
     import yt_api
@@ -994,6 +994,9 @@ def execute_apply_maintenance_background(user_id, force=False):
         applied_actions = []
         
         while actions:
+            if limit is not None and success_count >= limit:
+                append_agent_log(f"Reached execution limit of {limit} actions to prevent API quota exhaustion. Stopping batch.")
+                break
             a = actions[0]
             vid = a.get("vid")
             url = f"https://www.youtube.com/watch?v={vid}"
@@ -1006,6 +1009,7 @@ def execute_apply_maintenance_background(user_id, force=False):
                 task_manager.active_job = current_job_name
                 
             success = False
+            use_fallback = False
             
             if use_fallback:
                 try:

@@ -1,6 +1,6 @@
-# YT Playlist Agent
+# motus.leap
 
-An automated agent for managing YT playlists using browser automation. This is specifically designed to bypass YT API quota limitations and can be easily integrated into other AI systems.
+An automated agent for managing YT playlists using browser automation and OAuth APIs. This is part of the motus.leap suite and can be easily integrated into other AI systems.
 
 ## Prerequisites
 

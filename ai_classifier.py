@@ -4,26 +4,35 @@ import re
 import requests
 from datetime import datetime
 
+_CATEGORIES_CACHE = {"mtime": 0, "categories": []}
+_CLASSIFICATIONS_CACHE = {}
+
 def get_valid_categories():
-    categories = []
+    global _CATEGORIES_CACHE
     rules_path = os.path.join(os.path.dirname(__file__), "yt_rules.promptinclude.md")
-    if not os.path.exists(rules_path):
-        return categories
-        
-    try:
-        with open(rules_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip().startswith("|") and "`PL" in line:
-                    parts = [p.strip() for p in line.split("|")]
-                    if len(parts) >= 4:
-                        cat_name = parts[2].strip()
-                        if cat_name not in categories:
-                            categories.append(cat_name)
-    except Exception as e:
-        print(f"Error parsing categories from rules: {e}")
-        
-    # Also load from playlists_urls.json if it exists
     urls_path = os.path.join(os.path.dirname(__file__), "playlists_urls.json")
+    
+    rules_mtime = os.path.getmtime(rules_path) if os.path.exists(rules_path) else 0
+    urls_mtime = os.path.getmtime(urls_path) if os.path.exists(urls_path) else 0
+    combined_mtime = max(rules_mtime, urls_mtime)
+    
+    if _CATEGORIES_CACHE["categories"] and _CATEGORIES_CACHE["mtime"] == combined_mtime:
+        return _CATEGORIES_CACHE["categories"]
+        
+    categories = []
+    if os.path.exists(rules_path):
+        try:
+            with open(rules_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip().startswith("|") and "`PL" in line:
+                        parts = [p.strip() for p in line.split("|")]
+                        if len(parts) >= 4:
+                            cat_name = parts[2].strip()
+                            if cat_name not in categories:
+                                categories.append(cat_name)
+        except Exception as e:
+            print(f"Error parsing categories from rules: {e}")
+            
     if os.path.exists(urls_path):
         try:
             with open(urls_path, "r", encoding="utf-8") as f:
@@ -35,12 +44,14 @@ def get_valid_categories():
         except Exception as e:
             print(f"Error parsing categories from playlists_urls.json: {e}")
             
+    _CATEGORIES_CACHE["mtime"] = combined_mtime
+    _CATEGORIES_CACHE["categories"] = categories
     return categories
 
 AI_DISABLED = False
 
 def classify_video_with_ai(title: str, channel: str, description: str = "", vid: str = None, user_id: str = None) -> str:
-    global AI_DISABLED
+    global AI_DISABLED, _CLASSIFICATIONS_CACHE
     if AI_DISABLED:
         return None
         
@@ -50,15 +61,22 @@ def classify_video_with_ai(title: str, channel: str, description: str = "", vid:
         class_path = os.path.join(os.path.dirname(__file__), filename)
         if os.path.exists(class_path):
             try:
-                with open(class_path, "r", encoding="utf-8") as f:
-                    history = json.load(f)
-                for item in history:
-                    if item.get("vid") == vid:
-                        status = item.get("status")
-                        category = item.get("category")
-                        if status in ["approved", "corrected", "pending"] and category:
-                            print(f"AI Classifier Cache Hit: vid={vid} status={status} category={category}")
-                            return category
+                mtime = os.path.getmtime(class_path)
+                cached = _CLASSIFICATIONS_CACHE.get(class_path)
+                if not cached or cached.get("mtime") != mtime:
+                    with open(class_path, "r", encoding="utf-8") as f:
+                        history = json.load(f)
+                    by_vid = {item["vid"]: item for item in history if isinstance(item, dict) and "vid" in item}
+                    cached = {"mtime": mtime, "by_vid": by_vid}
+                    _CLASSIFICATIONS_CACHE[class_path] = cached
+                
+                item = cached["by_vid"].get(vid)
+                if item:
+                    status = item.get("status")
+                    category = item.get("category")
+                    if status in ["approved", "corrected", "pending"] and category:
+                        print(f"AI Classifier Cache Hit: vid={vid} status={status} category={category}")
+                        return category
             except Exception as cache_err:
                 print(f"AI Classifier: Failed to read classifications cache: {cache_err}")
 

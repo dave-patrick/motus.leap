@@ -202,6 +202,19 @@ async function loadStatus() {
                 loadPlaylists();
             }
         }
+        if (isRunningNow) {
+            currentPollingDelay = 3000;
+            if (!logInterval) {
+                fetchLogs();
+                logInterval = setInterval(fetchLogs, 2500);
+            }
+        } else {
+            currentPollingDelay = 10000; // Backoff to 10s when engine is idle
+            if (logInterval) {
+                clearInterval(logInterval);
+                logInterval = null;
+            }
+        }
         wasRunning = isRunningNow;
         
         // Update last run
@@ -222,11 +235,20 @@ async function loadStatus() {
     }
 }
 
+let currentPollingDelay = 4000;
+function scheduleNextStatusPoll() {
+    if (statusInterval) clearTimeout(statusInterval);
+    statusInterval = setTimeout(async () => {
+        await loadStatus();
+        scheduleNextStatusPoll();
+    }, currentPollingDelay);
+}
+
 // Log Polling
 function startLogPolling() {
     if (logInterval) clearInterval(logInterval);
     fetchLogs();
-    logInterval = setInterval(fetchLogs, 2000);
+    logInterval = setInterval(fetchLogs, 2500);
 }
 
 let lastLogLinesCount = 0;
@@ -269,7 +291,7 @@ function downloadLogs() {
     
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     link.href = url;
-    link.download = `yt_playlist_agent_logs_${timestamp}.txt`;
+    link.download = `motus_leap_logs_${timestamp}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -3430,9 +3452,9 @@ async function saveChannelMapping() {
 window.addEventListener('load', async () => {
     const authenticated = await checkSession();
     if (authenticated) {
-        loadStatus();
+        await loadStatus();
         loadSettings();
-        statusInterval = setInterval(loadStatus, 4000);
+        scheduleNextStatusPoll();
         
         const select = document.getElementById('target-playlist-select');
         if (select) {

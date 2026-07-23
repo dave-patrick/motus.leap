@@ -217,12 +217,13 @@ def generate_maintenance():
         pass
         
     for idx, (vid, p_list) in enumerate(vid_to_playlists.items()):
-        # Write progress
-        try:
-            with open(progress_file, "w") as f:
-                json.dump({"current": idx + 1, "total": total_vids}, f)
-        except:
-            pass
+        # Write progress (throttled every 10 items or on final item)
+        if (idx + 1) % 10 == 0 or (idx + 1) == total_vids:
+            try:
+                with open(progress_file, "w") as f:
+                    json.dump({"current": idx + 1, "total": total_vids}, f)
+            except:
+                pass
             
         v = vid_to_info[vid]
         title = v['title']
