@@ -378,13 +378,33 @@ async function pollOperation(operationId, timeoutMs = 60000) {
 }
 
 async function moveSelectedVideos() {
-    const targetId = document.getElementById('target-playlist')?.value;
+    const targetSelect = document.getElementById('target-playlist');
+    const targetId = targetSelect?.value;
+    const targetName = targetSelect?.options[targetSelect.selectedIndex]?.text || 'target playlist';
+
     if (!targetId || selectedVideos.size === 0) {
         toast('Please select videos and a target playlist', 'error');
         return;
     }
-    const videoIds = Array.from(selectedVideos);
-    toast(`Moving ${videoIds.length} video(s)...`, 'info');
+
+    const query = document.getElementById('video-search')?.value?.trim() || '';
+    let videoIds = Array.from(selectedVideos);
+    if (query) {
+        const visibleIds = new Set(
+            Array.from(document.querySelectorAll('.video-card'))
+                .filter(card => isCardVisible(card))
+                .map(card => card.dataset.videoId)
+                .filter(Boolean)
+        );
+        videoIds = videoIds.filter(id => visibleIds.has(id));
+    }
+
+    if (videoIds.length === 0) {
+        toast('No matching selected videos found to move', 'error');
+        return;
+    }
+
+    toast(`Moving ${videoIds.length} video(s) to "${DOMPurify.sanitize(targetName)}"...`, 'info');
     try {
         const resp = await fetch('/api/bulk/move', {
             method: 'POST',
@@ -397,21 +417,30 @@ async function moveSelectedVideos() {
             toast(`Failed to move videos: ${DOMPurify.sanitize(errorMessage)}`, 'error');
             return;
         }
-        // Poll until the background operation actually completes (don't claim
-        // success on 'pending' — the YouTube write may still fail).
+        
         toast('Moving… waiting for YouTube to apply', 'info');
         const status = await pollOperation(result.operation_id);
         if (status.status === 'completed') {
-            const ok = status.succeeded || 0;
+            const ok = status.succeeded || videoIds.length;
             const failed = status.failed || 0;
             if (failed > 0) {
-                toast(`Moved ${ok}, ${failed} failed`, failed === ok ? 'success' : 'error');
+                toast(`Moved ${ok} video(s) to "${DOMPurify.sanitize(targetName)}" (${failed} failed)`, 'warning', 6000);
             } else {
-                toast(`Moved ${ok} video(s) successfully`, 'success');
+                toast(`Successfully moved all ${ok} selected video(s) to "${DOMPurify.sanitize(targetName)}"!`, 'success', 6000);
             }
+
+            // Immediately remove moved videos from in-memory list and DOM
+            const movedSet = new Set(videoIds);
+            allVideos = allVideos.filter(v => !movedSet.has(v.video_id));
+            document.querySelectorAll('.video-card').forEach(card => {
+                if (movedSet.has(card.dataset.videoId)) {
+                    card.remove();
+                }
+            });
+
             selectedVideos.clear();
+            filterVideoList();
             updateMoveButton();
-            await loadPlaylist();
         } else if (status.status === 'failed') {
             toast(`Move failed: ${(status.errors || []).slice(0, 2).join('; ') || 'Unknown error'}`, 'error');
         } else {
