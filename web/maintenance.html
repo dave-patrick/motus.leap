@@ -47,8 +47,20 @@
 
         <main class="flex-1 overflow-y-auto p-6 pb-4 bg-[#0f1115]">
             <div class="flex flex-col gap-4 max-w-[1600px] w-full">
-                <h2 class="text-xl font-bold text-white">Maintenance Queue</h2>
-                <div class="flex items-center gap-2"><a href="/bulk" class="px-3 py-2 rounded-lg bg-[#2f8fc9] text-white text-xs font-semibold">Bulk Operations</a></div>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h2 class="text-xl font-bold text-white">Maintenance Queue</h2>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="removeDeletedVideos()" id="btn-remove-deleted" class="px-3.5 py-2 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
+                            <i class="fa-solid fa-trash-can"></i> Remove Deleted Videos
+                        </button>
+                        <button onclick="movePrivateVideos()" id="btn-move-private" class="px-3.5 py-2 rounded-lg bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
+                            <i class="fa-solid fa-box-archive"></i> Move Private Videos to "Check Later"
+                        </button>
+                        <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors">
+                            <i class="fa-solid fa-layer-group"></i> Bulk Operations
+                        </a>
+                    </div>
+                </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div class="bento-card flex flex-col overflow-hidden">
@@ -230,6 +242,60 @@
         // Fix All / Resolve All / Apply All buttons: fix_all with the section's type.
         async function applyMaintenance(type) {
             await maintPost({ action: 'fix_all', type: type });
+        }
+
+        async function removeDeletedVideos() {
+            const btn = document.getElementById("btn-remove-deleted");
+            if (!confirm("Are you sure you want to scan all playlists and remove deleted videos?")) return;
+            
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Removing Deleted...`;
+            }
+            toast("Scanning playlists for deleted videos...", "info", 6000);
+
+            try {
+                const resp = await authFetch("/api/maintenance/remove-deleted", { credentials: "omit", method: "POST" });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || data.error || "Failed to remove deleted videos");
+                
+                toast(data.message || "Successfully removed deleted videos", "success", 6000);
+                loadMaintenance();
+            } catch (err) {
+                toast(`Error: ${err.message}`, "error", 6000);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-trash-can"></i> Remove Deleted Videos`;
+                }
+            }
+        }
+
+        async function movePrivateVideos() {
+            const btn = document.getElementById("btn-move-private");
+            if (!confirm("Are you sure you want to scan all playlists and move private videos to 'Check Later'?")) return;
+            
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Moving Private...`;
+            }
+            toast("Scanning playlists for private videos...", "info", 6000);
+
+            try {
+                const resp = await authFetch("/api/maintenance/move-private", { credentials: "omit", method: "POST" });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || data.error || "Failed to move private videos");
+                
+                toast(data.message || "Successfully moved private videos", "success", 6000);
+                loadMaintenance();
+            } catch (err) {
+                toast(`Error: ${err.message}`, "error", 6000);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-box-archive"></i> Move Private Videos to "Check Later"`;
+                }
+            }
         }
         
         

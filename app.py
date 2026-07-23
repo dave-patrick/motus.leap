@@ -1239,6 +1239,185 @@ async def api_maintenance() -> dict[str, Any]:
     }
 
 
+@app.post("/api/maintenance/remove-deleted", dependencies=[Depends(get_current_user)])
+async def api_maintenance_remove_deleted():
+    """Remove deleted/unavailable videos from all playlists."""
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    google_client = yt_client._get_client(require_oauth=True)
+    if not google_client:
+        raise HTTPException(status_code=401, detail="Authenticated Google API client unavailable")
+
+    removed_count = 0
+    errors = []
+
+    try:
+        pl_resp = await asyncio.to_thread(lambda: google_client.playlists().list(
+            part="snippet", mine=True, maxResults=50
+        ).execute())
+        playlists = pl_resp.get("items", [])
+        
+        for pl in playlists:
+            pl_id = pl.get("id")
+            if not pl_id:
+                continue
+            
+            page_token = None
+            while True:
+                items_resp = await asyncio.to_thread(lambda: google_client.playlistItems().list(
+                    part="snippet,status", playlistId=pl_id, maxResults=50, pageToken=page_token
+                ).execute())
+                
+                items = items_resp.get("items", [])
+                for item in items:
+                    item_id = item.get("id")
+                    snippet = item.get("snippet", {})
+                    title = (snippet.get("title") or "").strip().lower()
+                    desc = (snippet.get("description") or "").strip().lower()
+                    
+                    if title in ["[deleted video]", "deleted video"] or "this video is unavailable" in desc or not snippet.get("resourceId", {}).get("videoId"):
+                        if item_id:
+                            try:
+                                await asyncio.to_thread(lambda: google_client.playlistItems().delete(id=item_id).execute())
+                                removed_count += 1
+                                log.info(f"[REMOVE DELETED] Deleted item {item_id} from playlist {pl_id}")
+                            except Exception as del_err:
+                                errors.append(f"Failed item {item_id} in {pl_id}: {del_err}")
+                
+                page_token = items_resp.get("nextPageToken")
+                if not page_token:
+                    break
+
+        if youtube_service:
+            try:
+                await youtube_service.list_playlists(force_refresh=True)
+            except Exception:
+                pass
+
+        return {
+            "status": "success",
+            "removed_count": removed_count,
+            "message": f"Successfully removed {removed_count} deleted video(s) across all playlists."
+        }
+    except Exception as e:
+        log.error(f"Error in remove_deleted: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/maintenance/move-private", dependencies=[Depends(get_current_user)])
+async def api_maintenance_move_private():
+    """Move all private videos to a new or existing playlist 'Check Later'."""
+    if not youtube_service:
+        raise HTTPException(status_code=500, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=401, detail="OAuth client not available")
+    
+    google_client = yt_client._get_client(require_oauth=True)
+    if not google_client:
+        raise HTTPException(status_code=401, detail="Authenticated Google API client unavailable")
+
+    moved_count = 0
+    try:
+        pl_resp = await asyncio.to_thread(lambda: google_client.playlists().list(
+            part="snippet,status", mine=True, maxResults=50
+        ).execute())
+        playlists = pl_resp.get("items", [])
+        
+        check_later_id = None
+        for pl in playlists:
+            snippet = pl.get("snippet", {})
+            if (snippet.get("title") or "").strip().lower() == "check later":
+                check_later_id = pl.get("id")
+                break
+
+        if not check_later_id:
+            new_pl = await asyncio.to_thread(lambda: google_client.playlists().insert(
+                part="snippet,status",
+                body={
+                    "snippet": {
+                        "title": "Check Later",
+                        "description": "Private videos moved from other playlists for review"
+                    },
+                    "status": {
+                        "privacyStatus": "private"
+                    }
+                }
+            ).execute())
+            check_later_id = new_pl.get("id")
+            log.info(f"[MOVE PRIVATE] Created 'Check Later' playlist with ID {check_later_id}")
+
+        for pl in playlists:
+            pl_id = pl.get("id")
+            if not pl_id or pl_id == check_later_id:
+                continue
+            
+            page_token = None
+            while True:
+                items_resp = await asyncio.to_thread(lambda: google_client.playlistItems().list(
+                    part="snippet,status", playlistId=pl_id, maxResults=50, pageToken=page_token
+                ).execute())
+                
+                items = items_resp.get("items", [])
+                for item in items:
+                    item_id = item.get("id")
+                    snippet = item.get("snippet", {})
+                    status = item.get("status", {})
+                    title = (snippet.get("title") or "").strip().lower()
+                    privacy = (status.get("privacyStatus") or "").strip().lower()
+                    video_id = snippet.get("resourceId", {}).get("videoId")
+                    
+                    if title in ["[private video]", "private video"] or privacy == "private":
+                        if video_id and check_later_id:
+                            try:
+                                await asyncio.to_thread(lambda: google_client.playlistItems().insert(
+                                    part="snippet",
+                                    body={
+                                        "snippet": {
+                                            "playlistId": check_later_id,
+                                            "resourceId": {
+                                                "kind": "youtube#video",
+                                                "videoId": video_id
+                                            }
+                                        }
+                                    }
+                                ).execute())
+                            except Exception as add_err:
+                                log.warning(f"Could not insert video {video_id} into Check Later: {add_err}")
+                        
+                        if item_id:
+                            try:
+                                await asyncio.to_thread(lambda: google_client.playlistItems().delete(id=item_id).execute())
+                                moved_count += 1
+                                log.info(f"[MOVE PRIVATE] Moved private item {item_id} (video {video_id}) from playlist {pl_id} to Check Later")
+                            except Exception as del_err:
+                                log.warning(f"Could not remove item {item_id} from {pl_id}: {del_err}")
+
+                page_token = items_resp.get("nextPageToken")
+                if not page_token:
+                    break
+
+        if youtube_service:
+            try:
+                await youtube_service.list_playlists(force_refresh=True)
+            except Exception:
+                pass
+
+        return {
+            "status": "success",
+            "moved_count": moved_count,
+            "target_playlist_id": check_later_id,
+            "message": f"Successfully moved {moved_count} private video(s) to 'Check Later' playlist."
+        }
+    except Exception as e:
+        log.error(f"Error in move_private: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def _load_maintenance_data() -> dict[str, Any]:
     """Load maintenance.json (scan output). Returns empty-shape dict on miss."""
     maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
