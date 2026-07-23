@@ -481,6 +481,9 @@ async def process_bulk_move(
         log.warning(f"Operation {operation_id} not found for processing.")
         return
 
+    # Deduplicate video_ids to avoid retrying already-moved items.
+    video_ids = list(dict.fromkeys(video_ids))
+
     operation.status = "in_progress"
     await ops_storage.update_and_save(operation)
 
@@ -546,6 +549,9 @@ async def process_bulk_delete(
     if not operation: # Handle case where operation was deleted before starting
         log.warning(f"Operation {operation_id} not found for processing.")
         return
+
+    # Deduplicate video_ids to avoid retrying already-deleted items.
+    video_ids = list(dict.fromkeys(video_ids))
 
     operation.status = "in_progress"
     await ops_storage.update_and_save(operation)

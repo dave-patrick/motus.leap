@@ -176,9 +176,17 @@ class BulkOperationsService:
             ).execute()
 
             for item in playlist_items.get("items", []):
-                # Delete the playlist item
-                youtube.playlistItems().delete(id=item["id"]).execute()
-                log.info(f"Removed video {video_id} from playlist {playlist_id}")
+                try:
+                    # Delete the playlist item
+                    youtube.playlistItems().delete(id=item["id"]).execute()
+                    log.info(f"Removed video {video_id} from playlist {playlist_id}")
+                except Exception as del_err:
+                    # 404 playlistItemNotFound means the item is already gone
+                    # from YouTube — the goal (video not in playlist) is met.
+                    if "404" in str(del_err) or "playlistItemNotFound" in str(del_err):
+                        log.info(f"Video {video_id} already removed from playlist {playlist_id} (playlistItem gone)")
+                    else:
+                        raise
                 return True
 
             log.warning(f"Video {video_id} not found in playlist {playlist_id}")
