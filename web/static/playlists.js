@@ -50,11 +50,19 @@ async function loadPlaylists() {
         const response = await authFetch("/api/playlists");
         const data = await response.json();
 
-        if (!response.ok || data.error) {
-            throw new Error(data.error || "Failed to load playlists");
+        if (!response.ok || (data && data.error)) {
+            throw new Error((data && data.error) || "Failed to load playlists");
         }
 
-        allPlaylists = data.playlists || [];
+        const rawList = Array.isArray(data) ? data : ((data && data.playlists) || []);
+        allPlaylists = rawList.map(p => ({
+            id: p.id || (p.url ? (p.url.split('list=')[1] || '').split('&')[0] : ''),
+            title: p.title || p.name || 'Untitled',
+            name: p.name || p.title || 'Untitled',
+            video_count: p.video_count !== undefined ? p.video_count : (p.videos ? p.videos.length : 0),
+            thumbnail: p.thumbnail || (p.videos && p.videos[0] ? p.videos[0].thumbnail : ''),
+            url: p.url || (p.id ? `https://www.youtube.com/playlist?list=${p.id}` : '')
+        }));
         localStorage.setItem("cached_playlists", JSON.stringify(allPlaylists));
         renderPlaylistsGrid(allPlaylists);
     } catch (e) {
@@ -96,18 +104,19 @@ function renderPlaylistsGrid(playlists) {
         return;
     }
     playlistsList.innerHTML = playlists.map(p => {
-        const safeTitle = (p.title || '').replace(/'/g, "\\'");
+        const title = p.title || p.name || 'Untitled';
+        const playlistId = p.id || (p.url ? (p.url.split('list=')[1] || '').split('&')[0] : '');
         return `
-        <a href="/playlist/${p.id}" class="bento-card p-2.5 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-colors relative block min-h-[76px]">
+        <a href="/playlist/${playlistId}" class="bento-card p-2.5 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-colors relative block min-h-[76px]">
           <div class="flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden bg-[#0f1115]">
             ${thumbMarkup(p)}
           </div>
           <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-            <h3 class="text-base md:text-lg font-semibold text-[#2f8fc9] truncate">${p.title}</h3>
+            <h3 class="text-base md:text-lg font-semibold text-[#2f8fc9] truncate">${title}</h3>
             <p class="text-xs text-gray-400">${p.video_count} videos</p>
             <div class="flex items-center gap-2 mt-0.5" onclick="event.stopPropagation()">
-              <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${p.id}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[11px] py-1 px-1.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
-              <button onclick="event.preventDefault(); event.stopPropagation(); openPlaylist('${p.id}', event)" class="text-[11px] p-1 rounded bg-[#20242c] text-gray-400 hover:text-white hover:bg-[#2a2f3a] transition-colors flex-shrink-0" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
+              <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${playlistId}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[11px] py-1 px-1.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
+              <button onclick="event.preventDefault(); event.stopPropagation(); openPlaylist('${playlistId}', event)" class="text-[11px] p-1 rounded bg-[#20242c] text-gray-400 hover:text-white hover:bg-[#2a2f3a] transition-colors flex-shrink-0" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
             </div>
           </div>
         </a>

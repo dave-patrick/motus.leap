@@ -71,6 +71,10 @@ def get_playlists(user=Depends(get_current_user)):
                     return (1, name.lower())
                 playlists = list(playlists)
                 playlists.sort(key=sort_key)
+                for p in playlists:
+                    if isinstance(p, dict):
+                        p["title"] = p.get("title") or p.get("name") or "Untitled"
+                        p["name"] = p.get("name") or p.get("title") or "Untitled"
             return playlists
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error reading playlists report: {e}")
