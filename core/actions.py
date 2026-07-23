@@ -12,10 +12,17 @@ try:
 except ImportError:
     win32gui = None
     win32con = None
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+try:
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException, NoSuchElementException
+except ImportError:
+    By = None
+    WebDriverWait = None
+    EC = None
+    TimeoutException = Exception
+    NoSuchElementException = Exception
 
 def wait_for_condition(predicate, max_wait=5.0, poll_interval=0.2):
     """
