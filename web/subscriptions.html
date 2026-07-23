@@ -43,11 +43,17 @@
  
         <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0f1115]">
             <div class="flex flex-col gap-4 max-w-[1600px] w-full">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-xl font-bold text-white">Subscriptions</h2>
-                    <div class="flex gap-2">
-                        <button onclick="openSubscribeModal()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-plus"></i> Subscribe</button>
-                        <button onclick="refreshSubscriptions()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fa-solid fa-sync"></i> Refresh</button>
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-[#16191f] border border-[#2a2f3a] rounded-xl p-3.5 shadow-md">
+                    <div class="flex items-center gap-3">
+                        <a href="/playlists" class="px-3.5 py-1.5 rounded-lg bg-[#20242c] hover:bg-[#2f8fc9] text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-sm cursor-pointer">
+                            <i class="fa-solid fa-arrow-left"></i> Back to Playlists
+                        </a>
+                        <span class="text-gray-600">|</span>
+                        <h2 class="text-xl font-bold text-white">Subscriptions</h2>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="openSubscribeModal()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-plus"></i> Subscribe</button>
+                        <button onclick="refreshSubscriptions()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-sync text-[#2f8fc9]"></i> Refresh</button>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-5" id="subscriptions-list">
