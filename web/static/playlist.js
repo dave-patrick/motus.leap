@@ -206,19 +206,52 @@ function renderVideos() {
 function filterVideoList() {
     const query = document.getElementById('video-search')?.value?.toLowerCase() || '';
     document.querySelectorAll('.video-card').forEach(card => {
-        const title = card.dataset.title || '';
-        const channel = card.dataset.channel || '';
-        card.style.display = (!query || title.includes(query) || channel.includes(query)) ? '' : 'none';
+        const title = (card.dataset.title || '').toLowerCase();
+        const channel = (card.dataset.channel || '').toLowerCase();
+        const isMatch = (!query || title.includes(query) || channel.includes(query));
+        card.style.display = isMatch ? '' : 'none';
     });
+    syncSelectAllState();
+}
+
+function syncSelectAllState() {
+    const selectAll = document.getElementById('select-all-videos');
+    if (!selectAll) return;
+    const visibleCards = Array.from(document.querySelectorAll('.video-card')).filter(card => card.style.display !== 'none');
+    if (visibleCards.length === 0) {
+        selectAll.checked = false;
+        return;
+    }
+    const visibleCbs = visibleCards.map(card => card.querySelector('.video-checkbox')).filter(Boolean);
+    selectAll.checked = visibleCbs.length > 0 && visibleCbs.every(cb => cb.checked);
 }
 
 function toggleSelectAll(checkbox) {
-    document.querySelectorAll('.video-checkbox').forEach(cb => {
-        cb.checked = checkbox.checked;
-        const videoId = cb.closest('.video-card')?.dataset?.videoId;
+    const isChecked = checkbox.checked;
+    document.querySelectorAll('.video-card').forEach(card => {
+        // Skip hidden cards that were filtered out by search query
+        if (card.style.display === 'none') return;
+
+        const videoId = card.dataset.videoId;
+        const cb = card.querySelector('.video-checkbox');
+        if (cb) cb.checked = isChecked;
+
         if (videoId) {
-            if (checkbox.checked) selectedVideos.add(videoId);
+            if (isChecked) selectedVideos.add(videoId);
             else selectedVideos.delete(videoId);
+        }
+
+        // Update visual selection border on card
+        const aspectBox = card.querySelector('.relative.aspect-video');
+        const border = card.querySelector('.selected-border');
+        if (isChecked) {
+            if (!border && aspectBox) {
+                const el = document.createElement('div');
+                el.className = 'selected-border absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none';
+                aspectBox.appendChild(el);
+            }
+        } else {
+            border?.remove();
         }
     });
     updateMoveButton();
@@ -241,11 +274,12 @@ function toggleVideo(videoId, checkbox) {
     // Update visual selection border on card
     document.querySelectorAll(`.video-card[data-video-id="${videoId}"]`).forEach(card => {
         const border = card.querySelector('.selected-border');
+        const aspectBox = card.querySelector('.relative.aspect-video');
         if (checkbox.checked) {
-            if (!border) {
+            if (!border && aspectBox) {
                 const el = document.createElement('div');
                 el.className = 'selected-border absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none';
-                card.querySelector('.relative.aspect-video').appendChild(el);
+                aspectBox.appendChild(el);
             }
         } else {
             border?.remove();
@@ -253,12 +287,7 @@ function toggleVideo(videoId, checkbox) {
         const topCheckbox = card.querySelector('.video-checkbox');
         if (topCheckbox) topCheckbox.checked = checkbox.checked;
     });
-    // Sync the "Select all" checkbox
-    const selectAll = document.getElementById('select-all-videos');
-    if (selectAll) {
-        const allCbs = document.querySelectorAll('.video-checkbox');
-        selectAll.checked = allCbs.length > 0 && Array.from(allCbs).every(cb => cb.checked);
-    }
+    syncSelectAllState();
     updateMoveButton();
 }
 
