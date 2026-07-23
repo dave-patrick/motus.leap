@@ -263,7 +263,7 @@ window.open('/system/logs', '_blank');
             try {
                 const payload = {};
                 payload[key] = value || null;
-                const resp = await fetch('/api/settings', {
+                const resp = await authFetch('/api/settings', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
@@ -283,7 +283,7 @@ window.open('/system/logs', '_blank');
             try {
                 // H3 FIX: declare targetSelect (the "Add mapping" playlist <select>) before use.
                 const targetSelect = document.getElementById('new-playlist-id');
-                const plResp = await fetch('/api/playlists/names');
+                const plResp = await authFetch('/api/playlists/names');
                 if (plResp.ok) {
                     const plData = await plResp.json();
                     const playlists = plData.playlists || [];
@@ -318,8 +318,16 @@ window.open('/system/logs', '_blank');
             try {
                 await loadPlaylistNames();
 
-                const response = await fetch('/api/settings');
-                if (!response.ok) return;
+                const response = await authFetch('/api/settings');
+                if (!response.ok) {
+                    // Do NOT silently leave the hardcoded "Not Connected" default.
+                    // Surface an explicit "unknown" state so a transient auth/cookie
+                    // issue is never misreported as a real disconnect.
+                    setYouTubeStatusUnknown();
+                    const data = await response.json().catch(() => ({}));
+                    toast('Could not load connection status: ' + (data.detail || 'auth error'), 'error');
+                    return;
+                }
                 const data = await response.json();
                 document.getElementById('max-concurrent').value = data.max_concurrent || 3;
                 document.getElementById('notify-failures').checked = data.notify_failures === true;
@@ -335,6 +343,18 @@ window.open('/system/logs', '_blank');
 
             } catch (e) {
                 console.error(e);
+            }
+        }
+
+        function setYouTubeStatusUnknown() {
+            const title = document.getElementById('yt-status-title');
+            const detail = document.getElementById('yt-status-detail');
+            const badge = document.getElementById('yt-status-badge');
+            if (title && detail && badge) {
+                title.textContent = 'YouTube: Connection unknown';
+                detail.textContent = 'Could not verify YouTube connection. You are still authenticated; retry to confirm.';
+                badge.textContent = 'Unknown';
+                badge.className = 'px-2 py-0.5 rounded text-[9px] font-medium bg-yellow-900/30 text-yellow-400';
             }
         }
 
@@ -369,7 +389,7 @@ window.open('/system/logs', '_blank');
             };
 
             try {
-                const resp = await fetch('/api/settings', {
+                const resp = await authFetch('/api/settings', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
@@ -496,7 +516,7 @@ window.open('/system/logs', '_blank');
         async function resetSettings() {
             if (!confirm('Reset ALL settings to defaults? This cannot be undone.')) return;
             try {
-                const resp = await fetch('/api/settings/reset', {method: 'POST'});
+                const resp = await authFetch('/api/settings/reset', {method: 'POST'});
                 const data = await resp.json();
                 toast(data.message || 'Settings reset', 'success');
                 window.location.reload();
