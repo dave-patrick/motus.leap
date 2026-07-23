@@ -151,7 +151,9 @@ function renderVideos() {
         toolbarCard.classList.remove('hidden');
         toolbarCard.innerHTML = `
             <div class="flex items-center gap-2 flex-1 min-w-0">
-                <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap">${allVideos.length} videos</span>
+        toolbarCard.innerHTML = `
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+                <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap" id="video-count-info">${allVideos.length} videos</span>
                 <div class="relative flex-1 max-w-sm">
                     <i class="fa-solid fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-500"></i>
                     <input type="text" id="video-search" placeholder="Search videos..." oninput="filterVideoList()" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded pl-7 pr-2.5 py-1.5 outline-none focus:border-[#2f8fc9] transition-colors">
@@ -204,14 +206,29 @@ function renderVideos() {
 }
 
 function filterVideoList() {
-    const query = document.getElementById('video-search')?.value?.toLowerCase() || '';
-    document.querySelectorAll('.video-card').forEach(card => {
+    const query = document.getElementById('video-search')?.value?.trim()?.toLowerCase() || '';
+    const allCards = document.querySelectorAll('.video-card');
+    let matchCount = 0;
+
+    allCards.forEach(card => {
         const title = (card.dataset.title || '').toLowerCase();
         const channel = (card.dataset.channel || '').toLowerCase();
         const isMatch = (!query || title.includes(query) || channel.includes(query));
         card.style.display = isMatch ? '' : 'none';
+        if (isMatch) matchCount++;
     });
+
+    const countInfo = document.getElementById('video-count-info');
+    if (countInfo) {
+        if (query) {
+            countInfo.textContent = `${matchCount} of ${allCards.length} matched`;
+        } else {
+            countInfo.textContent = `${allCards.length} videos`;
+        }
+    }
+
     syncSelectAllState();
+    updateMoveButton();
 }
 
 function syncSelectAllState() {
@@ -294,9 +311,25 @@ function toggleVideo(videoId, checkbox) {
 function updateMoveButton() {
     const moveBtn = document.getElementById('move-btn');
     const countEl = document.getElementById('selected-count');
+    const query = document.getElementById('video-search')?.value?.trim() || '';
+    const visibleCards = Array.from(document.querySelectorAll('.video-card')).filter(card => card.style.display !== 'none');
+    
     if (countEl) {
-        countEl.textContent = selectedVideos.size > 0 ? `${selectedVideos.size} selected` : '';
+        if (selectedVideos.size > 0) {
+            if (query && visibleCards.length > 0) {
+                countEl.textContent = `${selectedVideos.size} of ${visibleCards.length} matched selected`;
+            } else {
+                countEl.textContent = `${selectedVideos.size} selected`;
+            }
+            countEl.classList.add('text-[#2f8fc9]', 'font-semibold');
+            countEl.classList.remove('text-gray-500');
+        } else {
+            countEl.textContent = query ? `${visibleCards.length} matched` : '';
+            countEl.classList.add('text-gray-500');
+            countEl.classList.remove('text-[#2f8fc9]', 'font-semibold');
+        }
     }
+    
     if (moveBtn) {
         const targetPlaylistSelected = document.getElementById('target-playlist')?.value;
         moveBtn.classList.toggle('hidden', selectedVideos.size === 0 || !targetPlaylistSelected);
