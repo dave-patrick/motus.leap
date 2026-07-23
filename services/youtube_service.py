@@ -1210,33 +1210,43 @@ class YouTubeService:
     async def get_videos(self, playlist_id: str, force_refresh: bool = False) -> Dict[str, Any]:
         """Get videos with duration (cached)."""
 
-        # Args:
-        #     playlist_id: If provided, filter by playlist
-        #     force_refresh: If True, bypass cache and fetch fresh data
-
-        # Returns:
-        #     Dictionary containing videos list or error
-        # """
-        # If no playlist_id is provided, use the global cache (fetch_all_data already cached)
+        # 1. If no playlist_id is provided, use the global cache (fetch_all_data already cached)
         if not playlist_id:
             all_data = await self.fetch_all_data(force_refresh=force_refresh)
             if "error" in all_data:
+                disk_data = await self._load_from_disk("all_data", max_age_days=365)
+                if disk_data and "videos" in disk_data:
+                    return {"videos": disk_data["videos"], "cached": True, "warning": all_data["error"]}
                 return {"videos": [], "error": all_data["error"]}
             return {"videos": all_data.get("videos", [])}
         
-        # If playlist_id is provided, check if we have cached videos for this specific playlist
-        # Decorator will handle the memory cache, we just need to handle disk for initial load
-        disk_cached = await self._load_from_disk(f"playlist_videos_{playlist_id}")
+        # 2. Check disk cache for this specific playlist first unless force_refresh is requested
+        disk_cached = await self._load_from_disk(f"playlist_videos_{playlist_id}", max_age_days=365)
         if disk_cached is not None and not force_refresh:
             log.info(f"Using disk-cached videos for playlist {playlist_id}")
-            return {"videos": disk_cached}
+            return {"videos": disk_cached, "cached": True}
+
+        # 3. Fallback check to global all_data cache if specific file is missing
+        if disk_cached is None and not force_refresh:
+            global_data = await self._load_from_disk("all_data", max_age_days=365)
+            if global_data and "videos" in global_data:
+                matching = [v for v in global_data["videos"] if v.get("playlist_id") == playlist_id]
+                if matching:
+                    log.info(f"Using global disk cache for playlist {playlist_id} ({len(matching)} videos)")
+                    return {"videos": matching, "cached": True}
 
         client = self.get_client(require_oauth=True)
         if not client:
+            if disk_cached is not None:
+                return {"videos": disk_cached, "cached": True}
+            global_data = await self._load_from_disk("all_data", max_age_days=365)
+            if global_data and "videos" in global_data:
+                matching = [v for v in global_data["videos"] if v.get("playlist_id") == playlist_id]
+                if matching:
+                    return {"videos": matching, "cached": True}
             return {"videos": [], "error": "OAuth client not available"}
             
         try:
-            # Find the playlist title from list of playlists to preserve the video metadata
             playlists_data = await self.list_playlists()
             playlist_title = "Unknown Playlist"
             for pl in playlists_data.get("playlists", []):
@@ -1254,9 +1264,21 @@ class YouTubeService:
                 video = self._video_item_to_dict(vid, playlist_id, playlist_title)
                 videos.append(video)
                 
-            # Cache the videos for this specific playlist in disk
             await self._save_to_disk(f"playlist_videos_{playlist_id}", videos)
             return {"videos": videos}
         except Exception as e:
-            log.error(f"Error fetching videos for playlist {playlist_id}: {e}")
+            log.error(f"Error fetching live videos for playlist {playlist_id}: {e}")
+            
+            # Robust disk cache fallback on live API error / quotaExceeded
+            if disk_cached is not None:
+                log.warning(f"Live fetch failed for playlist {playlist_id} ({e}); serving disk cache ({len(disk_cached)} videos)")
+                return {"videos": disk_cached, "cached": True, "warning": "YouTube API quota exceeded or offline. Showing cached videos."}
+
+            global_data = await self._load_from_disk("all_data", max_age_days=365)
+            if global_data and "videos" in global_data:
+                matching = [v for v in global_data["videos"] if v.get("playlist_id") == playlist_id]
+                if matching:
+                    log.warning(f"Live fetch failed for playlist {playlist_id} ({e}); serving global disk cache ({len(matching)} videos)")
+                    return {"videos": matching, "cached": True, "warning": "YouTube API quota exceeded or offline. Showing cached videos."}
+
             return {"videos": [], "error": str(e)}

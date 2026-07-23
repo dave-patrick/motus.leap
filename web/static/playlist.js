@@ -100,21 +100,32 @@ async function loadPlaylist() {
         
         // 2. Load the videos inside this playlist
         const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}`);
-        if (!resp.ok) {
+        if (!resp.ok && resp.status !== 403) {
             console.error('Videos API error:', resp.status, resp.statusText);
             const container = document.getElementById('videos-container');
             if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">API error: ${resp.status}</div>`;
             return;
         }
         const data = await resp.json();
-        if (data.error) {
+        allVideos = data.videos || [];
+
+        if (data.warning || (data.error && allVideos.length > 0)) {
+            toast(data.warning || "YouTube API quota limit reached. Displaying cached playlist videos.", "warning", 8000);
+        } else if (data.error && allVideos.length === 0) {
             console.error('Videos API returned error:', data.error);
             const container = document.getElementById('videos-container');
-            if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">${data.error}</div>`;
+            if (container) {
+                const isQuota = data.error.includes("quota");
+                container.innerHTML = `
+                    <div class="text-center p-8 bg-[#16191f] border border-amber-500/30 rounded-xl space-y-3 max-w-xl mx-auto my-6">
+                        <i class="fa-solid fa-cloud-sun text-amber-400 text-3xl"></i>
+                        <h3 class="text-sm font-bold text-white">${isQuota ? 'YouTube Daily Quota Limit Reached' : 'Playlist Data Unavailable'}</h3>
+                        <p class="text-xs text-gray-400 max-w-md mx-auto">${isQuota ? 'YouTube limits daily API actions (10,000 quota units/day). Quotas automatically reset daily at 12:00 AM PST.' : DOMPurify.sanitize(data.error)}</p>
+                    </div>
+                `;
+            }
             return;
         }
-        
-        allVideos = data.videos || [];
 
         // 3. Update metadata count text with real values
         const currentPlaylist = allPlaylists.find(p => p.id === playlistId);
