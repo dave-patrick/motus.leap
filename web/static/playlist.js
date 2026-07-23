@@ -151,12 +151,11 @@ function renderVideos() {
         toolbarCard.classList.remove('hidden');
         toolbarCard.innerHTML = `
             <div class="flex items-center gap-2 flex-1 min-w-0">
-        toolbarCard.innerHTML = `
-            <div class="flex items-center gap-2 flex-1 min-w-0">
                 <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap" id="video-count-info">${allVideos.length} videos</span>
                 <div class="relative flex-1 max-w-sm">
                     <i class="fa-solid fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-500"></i>
-                    <input type="text" id="video-search" placeholder="Search videos..." oninput="filterVideoList()" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded pl-7 pr-2.5 py-1.5 outline-none focus:border-[#2f8fc9] transition-colors">
+                    <input type="text" id="video-search" placeholder="Search videos..." oninput="filterVideoList()" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded pl-7 pr-7 py-1.5 outline-none focus:border-[#2f8fc9] transition-colors">
+                    <button id="clear-search-btn" onclick="clearVideoSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-[10px] cursor-pointer" title="Clear search"><i class="fa-solid fa-circle-xmark"></i></button>
                 </div>
                 <label class="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer select-none">
                     <input type="checkbox" id="select-all-videos" onchange="toggleSelectAll(this)" class="accent-[#2f8fc9]">
@@ -205,8 +204,26 @@ function renderVideos() {
     updateMoveButton();
 }
 
+function clearVideoSearch() {
+    const input = document.getElementById('video-search');
+    if (input) {
+        input.value = '';
+        filterVideoList();
+    }
+}
+
+function isCardVisible(card) {
+    if (!card) return false;
+    return card.style.display !== 'none';
+}
+
 function filterVideoList() {
     const query = document.getElementById('video-search')?.value?.trim()?.toLowerCase() || '';
+    const clearBtn = document.getElementById('clear-search-btn');
+    if (clearBtn) {
+        clearBtn.classList.toggle('hidden', !query);
+    }
+
     const allCards = document.querySelectorAll('.video-card');
     let matchCount = 0;
 
@@ -234,7 +251,7 @@ function filterVideoList() {
 function syncSelectAllState() {
     const selectAll = document.getElementById('select-all-videos');
     if (!selectAll) return;
-    const visibleCards = Array.from(document.querySelectorAll('.video-card')).filter(card => card.style.display !== 'none');
+    const visibleCards = Array.from(document.querySelectorAll('.video-card')).filter(card => isCardVisible(card));
     if (visibleCards.length === 0) {
         selectAll.checked = false;
         return;
@@ -246,21 +263,27 @@ function syncSelectAllState() {
 function toggleSelectAll(checkbox) {
     const isChecked = checkbox.checked;
     document.querySelectorAll('.video-card').forEach(card => {
-        // Skip hidden cards that were filtered out by search query
-        if (card.style.display === 'none') return;
-
+        const isMatch = isCardVisible(card);
         const videoId = card.dataset.videoId;
         const cb = card.querySelector('.video-checkbox');
-        if (cb) cb.checked = isChecked;
+        const aspectBox = card.querySelector('.relative.aspect-video');
+        const border = card.querySelector('.selected-border');
 
+        if (!isMatch) {
+            // Uncheck hidden card and remove from selection set
+            if (cb) cb.checked = false;
+            if (videoId) selectedVideos.delete(videoId);
+            border?.remove();
+            return;
+        }
+
+        // Visible card: check or uncheck based on master toggle
+        if (cb) cb.checked = isChecked;
         if (videoId) {
             if (isChecked) selectedVideos.add(videoId);
             else selectedVideos.delete(videoId);
         }
 
-        // Update visual selection border on card
-        const aspectBox = card.querySelector('.relative.aspect-video');
-        const border = card.querySelector('.selected-border');
         if (isChecked) {
             if (!border && aspectBox) {
                 const el = document.createElement('div');
@@ -312,7 +335,7 @@ function updateMoveButton() {
     const moveBtn = document.getElementById('move-btn');
     const countEl = document.getElementById('selected-count');
     const query = document.getElementById('video-search')?.value?.trim() || '';
-    const visibleCards = Array.from(document.querySelectorAll('.video-card')).filter(card => card.style.display !== 'none');
+    const visibleCards = Array.from(document.querySelectorAll('.video-card')).filter(card => isCardVisible(card));
     
     if (countEl) {
         if (selectedVideos.size > 0) {
