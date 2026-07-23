@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roadmap - motus.leap</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
+    <link rel="manifest" href="/static/manifest.json">
+        <script src="/static/shared-shell.js?v=20260720b"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    
+        @font-face {
+            font-family: 'Deltha';
+            src: url('/static/Deltha.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        .site-title { font-family: 'Deltha', serif; font-weight: normal !important; }
+</style>
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720b">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/auth-check.js?v=1781919149"></script>
+    <script src="/static/global_scripts.js?v=1781919149"></script>
+</head>
+<body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
+    <!-- ===== FULL-WIDTH TOP HEADER ===== -->
+    <!-- Left Sidebar -->
+    <div class="flex flex-1 min-h-0 overflow-hidden">
+        <!-- Top Header -->
+
+        <main class="flex-1 overflow-y-auto p-6 bg-[#121419]">
+            <div class="flex flex-col gap-4  max-w-[1600px] mx-auto w-full">
+                <h2 class="text-xl font-bold text-white mb-2">Roadmap</h2>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bento-card p-4">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-3">Deployed <span id="roadmap-deploy-date" class="text-[10px] text-gray-500 font-normal ml-1"></span></h3>
+                        <div class="space-y-2 text-xs text-gray-300">
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Settings box fixes (Storage rename, cards in row, Clear Cache button, Logging rename, remove empty space)</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Auto-refresh tokens checkbox removal (dead control, no handler)</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Remove checkboxes: auto-sort new videos, dark-mode only</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Scan Interval label → "Storage"</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Bind dead Clear All Data button to a real endpoint + validate it works</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Terms / Privacy / Roadmap open as closeable in-app modal (footer + settings links)</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-green-400"></span><span>Dock panels: slide-out AI + console dock to right, resize page so no overlap</span></div>
+                        </div>
+                    </div>
+                    <div class="bento-card p-4">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-3">In Progress</h3>
+                        <div class="space-y-2 text-xs text-gray-300">
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-[#2f8fc9]"></span><span>CSP Phase 0: strict-CSP infra + violation reporting</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-[#2f8fc9]"></span><span>Backend hardening: High/Medium/Low bug backlog</span></div>
+                        </div>
+                    </div>
+                    <div class="bento-card p-4">
+                        <h3 class="text-xs font-semibold text-gray-300 mb-3">Planned</h3>
+                        <div class="space-y-2 text-xs text-gray-300">
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-gray-500"></span><span>Remove Tailwind Play CDN + static CSS build</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-gray-500"></span><span>Remove `unsafe-inline` after page-by-page conversion</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-gray-500"></span><span>Advanced analytics + multi-user support</span></div>
+                            <div class="flex items-start gap-2"><span class="mt-0.5 h-2 w-2 rounded-full bg-gray-500"></span><span>Keep Roadmap page in alignment with this todo list</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bento-card p-4">
+                    <h3 class="text-xs font-semibold text-gray-300 mb-3">Active Workstreams</h3>
+                    <div class="space-y-2 text-xs text-gray-400">
+                        <div class="flex items-center justify-between">
+                            <span>Settings and UI backlog</span>
+                            <span class="text-[10px] text-gray-500">Settings box fixes + dead controls + dock panels</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>CSP strictness migration</span>
+                            <span class="text-[10px] text-gray-500">Phase 0: infra + meta cleanup</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>Backend bug backlog</span>
+                            <span class="text-[10px] text-gray-500">H1/H2/H6/H7 + M4/M5/M6/L1/L2</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>Roadmap alignment</span>
+                            <span class="text-[10px] text-gray-500">Todo list ↔ roadmap sync</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <script>
+            fetch("https://api.github.com/repos/dave-patrick/motus.leap/commits?per_page=1").then(function(r){return r.json()}).then(function(d){if(d[0]&&d[0].commit){var dt=new Date(d[0].commit.author.date);var el=document.getElementById("roadmap-deploy-date");if(el)el.textContent="(last: "+dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")"}}).catch(function(){});
+        </script>
+        <script src="/static/mobile-nav.js"></script>
+    </main>
+    </div>
+</body>
+</html>

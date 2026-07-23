@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>AI Management · Providers — motus.leap</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        @font-face { font-family: 'Deltha'; src: url('/static/Deltha.otf') format('opentype'); font-weight: normal; font-style: normal; font-display: swap; }
+        .site-title { font-family: 'Deltha', serif; font-weight: normal !important; }
+        .nav-item.active { background-color: #2f8fc9; color: #ffffff; }
+        .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
+        .ai-sub.active { background-color: #2a2f3a; color: #ffffff; border-left: 2px solid #2f8fc9; }
+        .ai-sub:not(.active):hover { background-color: #20242c; color: #ffffff; }
+        /* Modal */
+        .modal-backdrop { background: rgba(0,0,0,0.6); }
+        .step-dot.active { background:#2f8fc9; } .step-dot { background:#2a2f3a; }
+        @keyframes fade-in { from {opacity:0} to {opacity:1} }
+        .animate-fade { animation: fade-in 0.18s ease-out; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/auth-check.js"></script>
+</head>
+<!-- Mobile chrome -->
+<div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeMobileSidebar()"></div>
+<button id="sidebar-toggle" onclick="openMobileSidebar()" class="fixed top-3 left-3 z-30 md:hidden inline-flex items-center justify-center w-11 h-11 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-300" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+<body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
+    <header class="bg-[#1a1d24] px-4 md:px-8 py-3 md:py-6 flex items-center justify-between relative z-20">
+        <div class="flex items-center gap-3 md:gap-4 pl-12 md:pl-0">
+            <img src="/static/logo_icon.png" alt="motus.leap" class="site-logo" style="height:60px;width:auto;object-fit:contain;">
+            <h1 class="text-3xl md:text-[3rem] font-bold tracking-tight mb-1 flex items-baseline leading-none site-title">
+                <span class="text-white">m</span><span class="text-white">o</span><span class="text-white">t</span><span class="text-[#2f8fc9]">u</span><span class="text-white">s</span><span class="text-gray-500">.</span><span class="text-white">l</span><span class="text-white">e</span><span class="text-white">a</span><span class="text-white">p</span>
+            </h1>
+        </div>
+        <button onclick="logout()" class="w-8 h-8 rounded-lg bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-white flex items-center justify-center transition-colors" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket text-xs"></i></button>
+    </header>
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar -->
+        <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-[#1a1d24] p-3 flex flex-col border-r border-[#2a2f3a] transform -translate-x-full md:translate-x-0 transition-transform duration-200 overflow-y-auto md:relative md:z-auto">
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
+                <a href="/playlists" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
+                <a href="/subscriptions" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-center"></i> Subscriptions</a>
+                <a href="/maintenance" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+            </nav>
+            <div class="mt-2 pt-2 border-t border-[#2a2f3a]">
+                <div class="px-4 py-2 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">AI Management</div>
+                <a href="/ai/providers" class="ai-sub active flex items-center gap-3 px-4 py-2.5 rounded-lg text-white text-sm transition-colors duration-200"><i class="fas fa-plug w-5 text-center"></i> Providers</a>
+                <a href="/ai/models" class="ai-sub flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cube w-5 text-center"></i> Models</a>
+                <a href="/ai/rules" class="ai-sub flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-sliders w-5 text-center"></i> Rules</a>
+                <a href="/ai/chat" class="ai-sub flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-comments w-5 text-center"></i> AI Chat</a>
+                <a href="/ai/jobs" class="ai-sub flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-clock w-5 text-center"></i> Scheduled Jobs</a>
+            </div>
+            <div class="mt-auto pt-2 border-t border-[#2a2f3a]">
+                <a href="/settings" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-cog w-5 text-center"></i> Settings</a>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0f1115]">
+            <div class="max-w-7xl mx-auto w-full flex flex-col gap-4">
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Providers &amp; Connections</h2>
+                        <p class="text-[11px] text-gray-400">Connect an AI API provider, then load and select its models.</p>
+                    </div>
+                    <button id="add-provider-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2.5 rounded-lg flex items-center gap-2 min-h-[44px]">
+                        <i class="fa-solid fa-plus"></i> Add Provider
+                    </button>
+                </div>
+
+                <!-- Provider cards grid -->
+                <div id="providers-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <!-- Connected: OpenAI -->
+                    <div class="bento-card p-4 flex flex-col gap-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg bg-[#20242c] border border-[#2a2f3a] flex items-center justify-center text-[#2f8fc9]"><i class="fa-solid fa-robot"></i></div>
+                                <div>
+                                    <div class="text-sm font-semibold text-white">OpenAI</div>
+                                    <div class="text-[10px] text-gray-400 font-mono">https://api.openai.com/v1</div>
+                                </div>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#16a34a]/15 text-[#16a34a] border border-[#16a34a]/30"><i class="fa-solid fa-circle-check mr-1"></i>Connected</span>
+                        </div>
+                        <div class="text-[11px] text-gray-400 flex items-center gap-2"><i class="fa-solid fa-cube text-gray-500"></i> 4 of 11 models active</div>
+                        <div class="flex gap-2 pt-1">
+                            <button class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-[11px] py-2 rounded min-h-[40px]" data-goto="/ai/models">Manage Models</button>
+                            <button class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-400 hover:text-red-400 text-[11px] px-3 py-2 rounded" data-disconnect="OpenAI">Disconnect</button>
+                        </div>
+                    </div>
+
+                    <!-- Connected: Groq -->
+                    <div class="bento-card p-4 flex flex-col gap-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg bg-[#20242c] border border-[#2a2f3a] flex items-center justify-center text-[#2f8fc9]"><i class="fa-solid fa-bolt"></i></div>
+                                <div>
+                                    <div class="text-sm font-semibold text-white">Groq</div>
+                                    <div class="text-[10px] text-gray-400 font-mono">https://api.groq.com/openai/v1</div>
+                                </div>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#16a34a]/15 text-[#16a34a] border border-[#16a34a]/30"><i class="fa-solid fa-circle-check mr-1"></i>Connected</span>
+                        </div>
+                        <div class="text-[11px] text-gray-400 flex items-center gap-2"><i class="fa-solid fa-cube text-gray-500"></i> 2 of 6 models active</div>
+                        <div class="flex gap-2 pt-1">
+                            <button class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-[11px] py-2 rounded min-h-[40px]" data-goto="/ai/models">Manage Models</button>
+                            <button class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-400 hover:text-red-400 text-[11px] px-3 py-2 rounded" data-disconnect="Groq">Disconnect</button>
+                        </div>
+                    </div>
+
+                    <!-- Add card -->
+                    <div id="add-card" class="bento-card border-dashed border-[#2f8fc9]/40 flex flex-col items-center justify-center gap-2 p-8 cursor-pointer hover:bg-[#1a1d24]/60 transition-colors min-h-[160px]">
+                        <div class="w-12 h-12 rounded-full bg-[#2f8fc9]/15 text-[#2f8fc9] flex items-center justify-center text-lg"><i class="fa-solid fa-plus"></i></div>
+                        <div class="text-sm text-gray-300">Connect a new provider</div>
+                        <div class="text-[10px] text-gray-500">OpenAI · Anthropic · Groq · Google · Custom</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Provider Modal -->
+    <div id="provider-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div class="modal-backdrop absolute inset-0" data-close></div>
+        <div class="relative bento-card w-full max-w-lg p-5 animate-fade max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-white">Add AI Provider</h3>
+                <button class="text-gray-400 hover:text-white text-lg" data-close><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <!-- Stepper -->
+            <div class="flex items-center gap-2 mb-5 text-[10px]">
+                <div class="flex items-center gap-1.5"><span class="step-dot active w-2.5 h-2.5 rounded-full"></span><span class="text-white">Connect</span></div>
+                <div class="flex-1 h-px bg-[#2a2f3a]"></div>
+                <div class="flex items-center gap-1.5"><span id="step2-dot" class="step-dot w-2.5 h-2.5 rounded-full"></span><span id="step2-label" class="text-gray-500">Load models</span></div>
+            </div>
+
+            <!-- Step 1: Connect form -->
+            <div id="connect-step">
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] text-gray-400 mb-1 block">Name</label>
+                        <input id="np-name" type="text" placeholder="My OpenAI" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 mb-1 block">Type</label>
+                        <select id="np-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                            <option value="openai">OpenAI (standard)</option>
+                            <option value="anthropic">Anthropic (standard)</option>
+                            <option value="groq">Groq (standard)</option>
+                            <option value="google">Google (standard)</option>
+                            <option value="custom">Custom / OpenAI-compatible</option>
+                        </select>
+                    </div>
+                    <div id="np-custom" class="hidden space-y-3">
+                        <div>
+                            <label class="text-[10px] text-gray-400 mb-1 block">Base URL</label>
+                            <input id="np-base" type="text" placeholder="https://your-llm.com/v1" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px] font-mono">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-400 mb-1 block">API Key</label>
+                        <div class="relative">
+                            <input id="np-key" type="password" placeholder="sk-..." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px] pr-10 font-mono">
+                            <button type="button" id="np-eye" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"><i class="fa-solid fa-eye"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-5">
+                    <button data-close class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2.5 rounded min-h-[44px]">Cancel</button>
+                    <button id="np-connect" class="flex-1 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium py-2.5 rounded min-h-[44px] flex items-center justify-center gap-2">
+                        <span id="np-connect-label">Connect</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: Load models -->
+            <div id="load-step" class="hidden">
+                <div class="text-[11px] text-gray-400 mb-3">Connected to <span id="loaded-name" class="text-white font-medium">provider</span>. Select the models you want available for rules, chat, and jobs.</div>
+                <div id="model-picker" class="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                    <!-- injected -->
+                </div>
+                <p id="load-status" class="text-[10px] text-gray-500 mt-2"></p>
+                <div class="flex gap-2 mt-4">
+                    <button id="np-back" class="flex-1 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2.5 rounded min-h-[44px]">Back</button>
+                    <button id="np-save" class="flex-1 bg-[#16a34a] hover:bg-[#15803d] text-white text-xs font-medium py-2.5 rounded min-h-[44px]">Save Selection</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Mobile nav (mirrors production mobile-nav.js) ---
+        function openMobileSidebar(){document.getElementById('mobile-sidebar').classList.remove('-translate-x-full');document.getElementById('mobile-overlay').classList.remove('hidden');document.body.style.overflow='hidden';}
+        function closeMobileSidebar(){document.getElementById('mobile-sidebar').classList.add('-translate-x-full');document.getElementById('mobile-overlay').classList.add('hidden');document.body.style.overflow='';}
+        document.getElementById('sidebar-toggle')?.addEventListener('click',openMobileSidebar);
+        document.getElementById('mobile-overlay')?.addEventListener('click',closeMobileSidebar);
+
+        // --- Mock data (would come from GET /api/ai/providers/{id}/models) ---
+        const MOCK_MODELS = [
+            'gpt-4o','gpt-4o-mini','gpt-4-turbo','o1-preview','o1-mini',
+            'text-embedding-3-small','text-embedding-3-large','gpt-3.5-turbo'
+        ];
+
+        const modal = document.getElementById('provider-modal');
+        function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow='hidden'; }
+        function closeModal(){ modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.style.overflow=''; resetSteps(); }
+        function resetSteps(){ document.getElementById('connect-step').classList.remove('hidden'); document.getElementById('load-step').classList.add('hidden'); }
+
+        document.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click',closeModal));
+        document.getElementById('add-provider-btn')?.addEventListener('click',openModal);
+        document.getElementById('add-card')?.addEventListener('click',openModal);
+
+        // Type toggle reveals custom base URL
+        document.getElementById('np-type').addEventListener('change',e=>{
+            document.getElementById('np-custom').classList.toggle('hidden', e.target.value!=='custom');
+        });
+        // Eye toggle
+        document.getElementById('np-eye').addEventListener('click',()=>{
+            const inp=document.getElementById('np-key'); const i=document.getElementById('np-eye').querySelector('i');
+            if(inp.type==='password'){inp.type='text';i.classList.replace('fa-eye','fa-eye-slash');}else{inp.type='password';i.classList.replace('fa-eye-slash','fa-eye');}
+        });
+
+        // Connect -> simulate load models
+        document.getElementById('np-connect').addEventListener('click',()=>{
+            const btn=document.getElementById('np-connect'); const label=document.getElementById('np-connect-label');
+            btn.disabled=true; label.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Connecting…';
+            setTimeout(()=>{
+                // SUCCESS path
+                btn.disabled=false; label.textContent='Connect';
+                const name=document.getElementById('np-name').value||document.getElementById('np-type').value;
+                document.getElementById('loaded-name').textContent=name;
+                document.getElementById('connect-step').classList.add('hidden');
+                document.getElementById('load-step').classList.remove('hidden');
+                document.getElementById('step2-dot').classList.add('active');
+                document.getElementById('step2-label').classList.remove('text-gray-500');document.getElementById('step2-label').classList.add('text-white');
+                document.getElementById('load-status').textContent='Loaded '+MOCK_MODELS.length+' models from provider.';
+                renderModelPicker();
+            },900);
+        });
+
+        function renderModelPicker(){
+            const wrap=document.getElementById('model-picker');
+            // Sanitize mock data (in production these are AI/provider-derived strings -> MUST sanitize)
+            const html = MOCK_MODELS.map(m=>{
+                const safe = DOMPurify.sanitize(m,{USE_PROFILES:{html:true}});
+                return `<label class="flex items-center gap-3 p-2.5 rounded bg-[#20242c] border border-[#2a2f3a] cursor-pointer hover:border-[#2f8fc9]/50">
+                    <input type="checkbox" class="accent-[#2f8fc9] w-4 h-4" checked>
+                    <span class="text-xs text-gray-200 font-mono">${safe}</span>
+                </label>`;
+            }).join('');
+            wrap.innerHTML = html;
+        }
+
+        document.getElementById('np-back').addEventListener('click',resetSteps);
+        document.getElementById('np-save').addEventListener('click',()=>{
+            closeModal();
+            // In production: POST /api/ai/providers/{id}/models/select
+            toast('Provider saved with '+document.querySelectorAll('#model-picker input:checked').length+' models','success');
+        });
+
+        // Disconnect (destructive -> confirm)
+        document.querySelectorAll('[data-disconnect]').forEach(b=>b.addEventListener('click',()=>{
+            const p=b.getAttribute('data-disconnect');
+            if(confirm('Disconnect '+p+'? Its models and any rules using them will be disabled.')) toast(p+' disconnected','warning');
+        }));
+        document.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>toast('Navigate → '+b.getAttribute('data-goto'),'info')));
+
+        // Toast (mirrors settings.html)
+        function toast(message, type='info', duration=4000){
+            const colors={success:'bg-[#16a34a]',error:'bg-[#dc2626]',warning:'bg-[#ca8a04]',info:'bg-[#2f8fc9]'};
+            const icons={success:'fa-check-circle',error:'fa-times-circle',warning:'fa-triangle-exclamation',info:'fa-info-circle'};
+            let c=document.getElementById('toast-container');
+            if(!c){c=document.createElement('div');c.id='toast-container';c.className='fixed top-4 right-4 z-[60] flex flex-col gap-2 w-80';document.body.appendChild(c);}
+            const el=document.createElement('div');
+            el.className='flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium '+colors[type];
+            el.innerHTML='<i class="fa-solid '+(icons[type]||'fa-info-circle')+'"></i><span>'+DOMPurify.sanitize(message,{USE_PROFILES:{html:true}})+'</span>';
+            c.appendChild(el);
+            setTimeout(()=>{el.style.opacity='0';el.style.transition='opacity 0.3s';setTimeout(()=>el.remove(),300);},duration);
+        }
+    </script>
+</body>
+</html>

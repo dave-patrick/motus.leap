@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>Bulk Operations - motus.leap</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/logo_icon.png">
+        <script src="/static/shared-shell.js?v=20260720b"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720b">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        .nav-item.active { background-color: #2f8fc9; color: #ffffff; }
+        .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
+        input[type="text"], input[type="password"], input[type="number"], input[type="file"], select, textarea { min-height: 44px; }
+        .icon-btn { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    
+        @font-face {
+            font-family: 'Deltha';
+            src: url('/static/Deltha.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        .site-title { font-family: 'Deltha', serif; font-weight: normal !important; }
+</style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/auth-check.js?v=1781919149"></script>
+    <script src="/static/global_scripts.js?v=1781919149"></script>
+</head>
+<body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
+    <!-- ===== FULL-WIDTH TOP HEADER ===== -->
+    <!-- Left Sidebar -->
+    <div class="flex flex-1 min-h-0 overflow-hidden">
+        <!-- Top Header -->
+
+        <main class="flex-1 overflow-y-auto p-6 bg-[#0f1115]">
+            <div class="flex flex-col gap-4  max-w-[1600px] mx-auto w-full">
+                <div class="flex gap-2 border-b border-[#2a2f3a] pb-4 overflow-x-auto">
+                    <button onclick="showTab('move')" class="tab-btn active px-4 py-2 rounded-lg text-xs font-medium bg-[#2f8fc9] text-white transition-colors whitespace-nowrap"><i class="fa-solid fa-arrows-right-left mr-2"></i>Move Videos</button>
+                    <button onclick="showTab('delete')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors whitespace-nowrap"><i class="fa-solid fa-trash mr-2"></i>Delete Videos</button>
+                    <button onclick="showTab('tag')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors whitespace-nowrap"><i class="fa-solid fa-tags mr-2"></i>Tag Videos</button>
+                    <button onclick="showTab('import')" class="tab-btn px-4 py-2 rounded-lg text-xs font-medium bg-[#2a2f3a] text-gray-400 hover:text-gray-200 transition-colors whitespace-nowrap"><i class="fa-solid fa-upload mr-2"></i>Import Data</button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="md:col-span-2 space-y-4">
+                        <div id="panel-move" class="bento-card p-4">
+                            <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-arrows-right-left text-[#2f8fc9]"></i> Move Videos</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-xs text-gray-400 mb-1 block">Source Playlist</label>
+                                    <select id="move-source" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]"><option value="">Select source playlist...</option></select>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-400 mb-1 block">Target Playlist</label>
+                                    <select id="move-target" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]"><option value="">Select target playlist...</option></select>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
+                                    <textarea id="move-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9] font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                </div>
+                                <button onclick="executeBulkMove()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Move</button>
+                            </div>
+                        </div>
+
+                        <div id="panel-delete" class="bento-card p-4 hidden">
+                            <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-trash text-red-400"></i> Delete Videos</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-xs text-gray-400 mb-1 block">Playlist</label>
+                                    <select id="delete-playlist" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]"><option value="">Select playlist...</option></select>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
+                                    <textarea id="delete-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9] font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                </div>
+                                <div class="flex items-center gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                                    <i class="fa-solid fa-triangle-exclamation text-red-400"></i>
+                                    <span class="text-[10px] text-red-300">This action cannot be undone. Videos will be permanently removed from the playlist.</span>
+                                </div>
+                                <button onclick="executeBulkDelete()" class="w-full bg-red-600 hover:bg-red-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-trash"></i> Start Bulk Delete</button>
+                            </div>
+                        </div>
+
+                        <div id="panel-tag" class="bento-card p-4 hidden">
+                                                    <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-tags text-green-400"></i> Tag Videos</h3>
+                                                    <div class="space-y-3">
+                                                        <div class="flex gap-2">
+                                                            <button onclick="setTagAction('add')" id="tag-add-btn" class="flex-1 bg-[#2f8fc9] text-white text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-plus mr-1"></i> Add Tags</button>
+                                                            <button onclick="setTagAction('remove')" id="tag-remove-btn" class="flex-1 bg-[#2a2f3a] text-gray-400 text-xs font-medium py-2 rounded-lg transition-colors"><i class="fa-solid fa-minus mr-1"></i> Remove Tags</button>
+                                                        </div>
+                                                        <div>
+                                                            <label class="text-xs text-gray-400 mb-1 block">Tags (comma-separated)</label>
+                                                            <input type="text" id="tag-input" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]" placeholder="music, tutorial, 2024">
+                                                        </div>
+                                                        <div>
+                                                            <label class="text-xs text-gray-400 mb-1 block">Video IDs (one per line, or comma-separated)</label>
+                                                            <textarea id="tag-videos" rows="4" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9] font-mono" placeholder="dQw4w9WgXcQ, another_video_id..."></textarea>
+                                                        </div>
+                                                        <button onclick="executeBulkTag()" class="w-full bg-green-600 hover:bg-green-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-play"></i> Start Bulk Tagging</button>
+                                                    </div>
+                                                </div>
+
+                                                <div id="panel-import" class="bento-card p-4 hidden">
+                            <h3 class="text-sm font-semibold text-gray-300 mb-4 flex items-center gap-2"><i class="fa-solid fa-upload text-yellow-400"></i> Import Data</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-xs text-gray-400 mb-1 block">Resource Type</label>
+                                    <select id="import-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
+                                        <option value="mappings">Channel Mappings</option>
+                                        <option value="playlists">Playlists</option>
+                                        <option value="subscriptions">Subscriptions</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-400 mb-1 block">Import Mode</label>
+                                    <select id="import-mode" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
+                                        <option value="merge">Merge (add to existing)</option>
+                                        <option value="replace">Replace (clear existing)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-400 mb-1 block">Upload File</label>
+                                    <input type="file" id="import-file" accept=".json,.csv" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none focus:border-[#2f8fc9]">
+                                </div>
+                                <button onclick="executeImport()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-upload"></i> Import Data</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-1 space-y-4">
+                        <div class="bento-card flex flex-col overflow-hidden">
+                            <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
+                                <h3 class="text-xs font-semibold text-gray-300 flex items-center gap-2"><i class="fa-solid fa-clock text-[#2f8fc9]"></i> Operations Queue</h3>
+                                <button onclick="refreshOperations()" class="text-[9px] text-[#2f8fc9] hover:text-[#5ba5d6]"><i class="fa-solid fa-rotate mr-1"></i>Refresh</button>
+                            </div>
+                            <div id="operations-queue" class="flex-1 overflow-y-auto p-3 space-y-2 max-h-[600px]">
+                                <div class="text-[10px] text-gray-500 text-center py-6">No operations in queue</div>
+                            </div>
+                        </div>
+
+                        <div class="bento-card p-4">
+                            <h3 class="text-xs font-semibold text-gray-300 mb-3 flex items-center gap-2"><i class="fa-solid fa-chart-line text-green-400"></i> Statistics</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="bg-[#0a0c10] rounded p-2">
+                                    <div class="text-[9px] text-gray-500">Total Operations</div>
+                                    <div class="text-lg font-bold text-white" id="stat-total">0</div>
+                                </div>
+                                <div class="bg-[#0a0c10] rounded p-2">
+                                    <div class="text-[9px] text-gray-500">Success Rate</div>
+                                    <div class="text-lg font-bold text-green-400" id="stat-success">0%</div>
+                                </div>
+                                <div class="bg-[#0a0c10] rounded p-2">
+                                    <div class="text-[9px] text-gray-500">Videos Processed</div>
+                                    <div class="text-lg font-bold text-[#2f8fc9]" id="stat-processed">0</div>
+                                </div>
+                                <div class="bg-[#0a0c10] rounded p-2">
+                                    <div class="text-[9px] text-gray-500">Errors</div>
+                                    <div class="text-lg font-bold text-red-400" id="stat-errors">0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+    <script src="/static/ux-enhancements.js?v=20260720b"></script>
+    <script>
+        var currentTagAction = 'add';
+
+        function showTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-[#2f8fc9]', 'text-white');
+                btn.classList.add('bg-[#2a2f3a]', 'text-gray-400');
+            });
+            document.querySelectorAll('[id^="panel-"]').forEach(panel => panel.classList.add('hidden'));
+
+            event.target.classList.remove('bg-[#2a2f3a]', 'text-gray-400');
+            event.target.classList.add('bg-[#2f8fc9]', 'text-white');
+            document.getElementById(`panel-${tab}`).classList.remove('hidden');
+        }
+
+        function setTagAction(action) {
+            currentTagAction = action;
+            const addBtn = document.getElementById('tag-add-btn');
+            const removeBtn = document.getElementById('tag-remove-btn');
+
+            if (action === 'add') {
+                addBtn.classList.add('bg-[#2f8fc9]', 'text-white');
+                addBtn.classList.remove('bg-[#2a2f3a]', 'text-gray-400');
+                removeBtn.classList.remove('bg-[#2f8fc9]', 'text-white');
+                removeBtn.classList.add('bg-[#2a2f3a]', 'text-gray-400');
+            } else {
+                removeBtn.classList.add('bg-[#2f8fc9]', 'text-white');
+                removeBtn.classList.remove('bg-[#2a2f3a]', 'text-gray-400');
+                addBtn.classList.remove('bg-[#2f8fc9]', 'text-white');
+                addBtn.classList.add('bg-[#2a2f3a]', 'text-gray-400');
+            }
+        }
+
+        async function loadPlaylists() {
+            try {
+                const response = await fetch('/api/playlists');
+                if (!response.ok) throw new Error('Failed to load playlists');
+                const data = await response.json();
+
+                const selects = ['move-source', 'move-target', 'delete-playlist'];
+                selects.forEach(selectId => {
+                    const select = document.getElementById(selectId);
+                    if (!select) return;
+                    select.innerHTML = '<option value="">Select playlist...</option>';
+                    (data.playlists || []).forEach(playlist => {
+                        const option = document.createElement('option');
+                        option.value = playlist.id;
+                        option.textContent = playlist.title;
+                        select.appendChild(option);
+                    });
+                });
+            } catch (error) {
+                console.error('Error loading playlists:', error);
+            }
+        }
+
+        async function executeBulkMove() {
+            const sourcePlaylist = document.getElementById('move-source').value;
+            const targetPlaylist = document.getElementById('move-target').value;
+            const videos = document.getElementById('move-videos').value;
+
+            const videoIds = videos.split(/[,\n]/).map(v => v.trim()).filter(v => v);
+
+            if (!targetPlaylist || videoIds.length === 0) {
+                alert('Please select target playlist and enter video IDs');
+                return;
+            }
+
+            const response = await fetch('/api/bulk/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_ids: videoIds,
+                    target_playlist_id: targetPlaylist,
+                    source_playlist_id: sourcePlaylist || null
+                })
+            });
+
+            const result = await response.json();
+            if (result.operation_id) {
+                alert(`Bulk move started! Operation ID: ${result.operation_id}`);
+                refreshOperations();
+            }
+        }
+
+        async function executeBulkDelete() {
+            const playlist = document.getElementById('delete-playlist').value;
+            const videos = document.getElementById('delete-videos').value;
+
+            const videoIds = videos.split(/[,\n]/).map(v => v.trim()).filter(v => v);
+
+            if (!playlist || videoIds.length === 0) {
+                alert('Please select playlist and enter video IDs');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to delete these videos? This cannot be undone.')) {
+                return;
+            }
+
+            const response = await fetch('/api/bulk/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_ids: videoIds,
+                    playlist_id: playlist
+                })
+            });
+
+            const result = await response.json();
+            if (result.operation_id) {
+                alert(`Bulk delete started! Operation ID: ${result.operation_id}`);
+                refreshOperations();
+            }
+        }
+
+        async function executeBulkTag() {
+            const tags = document.getElementById('tag-input').value;
+            const videos = document.getElementById('tag-videos').value;
+
+            const tagList = tags.split(',').map(t => t.trim()).filter(t => t);
+            const videoIds = videos.split(/[,\n]/).map(v => v.trim()).filter(v => v);
+
+            if (tagList.length === 0 || videoIds.length === 0) {
+                alert('Please enter tags and video IDs');
+                return;
+            }
+
+            const response = await fetch('/api/bulk/tag', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_ids: videoIds,
+                    tags: tagList,
+                    action: currentTagAction
+                })
+            });
+
+            const result = await response.json();
+            if (result.operation_id) {
+                alert(`Bulk tagging started! Operation ID: ${result.operation_id}`);
+                refreshOperations();
+            }
+        }
+
+        async function executeImport() {
+            const type = document.getElementById('import-type').value;
+            const mode = document.getElementById('import-mode').value;
+            const file = document.getElementById('import-file').files[0];
+
+            if (!file) {
+                alert('Please select a file to import');
+                return;
+            }
+
+            const content = await file.text();
+            const format = file.name.endsWith('.csv') ? 'csv' : 'json';
+
+            const response = await fetch('/api/bulk/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    resource_type: type,
+                    format: format,
+                    data: btoa(content),
+                    options: { mode: mode }
+                })
+            });
+
+            const result = await response.json();
+            if (result.operation_id) {
+                alert(`Import started! Operation ID: ${result.operation_id}`);
+                refreshOperations();
+            }
+        }
+
+        async function refreshOperations() {
+            try {
+                const response = await fetch('/api/bulk/operations');
+                const data = await response.json();
+
+                const queueEl = document.getElementById('operations-queue');
+                if (data.operations.length === 0) {
+                    queueEl.innerHTML = '<div class="text-[10px] text-gray-500 text-center py-6">No operations in queue</div>';
+                } else {
+                    queueEl.innerHTML = data.operations.map(op => {
+                        const statusColors = {
+                            'pending': 'text-yellow-400',
+                            'in_progress': 'text-[#2f8fc9]',
+                            'completed': 'text-green-400',
+                            'failed': 'text-red-400'
+                        };
+                        const _opType = DOMPurify.sanitize(op.operation_type || '');
+                        const _status = DOMPurify.sanitize(op.status || '');
+                        const _statusClass = statusColors[op.status] || 'text-gray-400';
+                        return `
+                            <div class="bg-[#0a0c10] rounded p-3 border border-[#2a2f3a]">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-[10px] font-medium text-gray-300">${_opType}</span>
+                                    <span class="text-[9px] ${_statusClass}">${_status}</span>
+                                </div>
+                                <div class="text-[9px] text-gray-500 mb-2">${op.processed}/${op.total_items} items</div>
+                                <div class="w-full bg-[#20242c] rounded-full h-1">
+                                    <div class="bg-[#2f8fc9] h-1 rounded-full" style="width: ${op.total_items > 0 ? (op.processed / op.total_items * 100) : 0}%"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                document.getElementById('stat-total').textContent = data.operations.length;
+                document.getElementById('stat-processed').textContent = data.operations.reduce((sum, op) => sum + op.processed, 0);
+                document.getElementById('stat-errors').textContent = data.operations.reduce((sum, op) => sum + op.failed, 0);
+                const total = data.operations.reduce((sum, op) => sum + op.processed, 0);
+                const failed = data.operations.reduce((sum, op) => sum + op.failed, 0);
+                document.getElementById('stat-success').textContent = total > 0 ? Math.round(((total - failed) / total) * 100) + '%' : '0%';
+            } catch (error) {
+                console.error('Error refreshing operations:', error);
+            }
+        }
+
+        // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+function initBulkPage() {
+            loadPlaylists();
+            refreshOperations();
+            setInterval(refreshOperations, 5000);
+        }
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBulkPage);
+} else {
+    initBulkPage();
+};
+    </script>
+    <script src="/static/mobile-nav.js"></script>
+</main>
+    </div>
+</body>
+</html>

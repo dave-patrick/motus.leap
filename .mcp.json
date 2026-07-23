@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer YOUR_GITHUB_TOKEN"
+      }
+    },
+    "render": {
+      "type": "url",
+      "url": "https://mcp.render.com/mcp",
+      "headers": {
+        "Authorization": "Bearer rnd_OeiL1jwLJiEJIPyTJ2kpuyBTdGyx"
+      }
+    }
+  }
+}

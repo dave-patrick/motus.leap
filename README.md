@@ -2,66 +2,63 @@
 
 An automated agent for managing YT playlists using browser automation and OAuth APIs. This is part of the motus.leap suite and can be easily integrated into other AI systems.
 
-## Prerequisites
+![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-1. Python 3.9+
-2. Chromium browser (installed automatically via Playwright)
+<h2 align="center">Automated YouTube Playlist Orchestrator</h2>
 
-## Setup
+<p align="center">
+  <a href="https://github.com/dave-patrick/motus.leap/issues">Report Bug</a> &nbsp;|&nbsp;
+  <a href="https://github.com/dave-patrick/motus.leap/discussions">Request Feature</a>
+</p>
 
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   playwright install chromium
-   ```
+---
 
-2. **First-time Authentication**: You must log in to your YT account once so the agent can save your session data.
-   ```bash
-   python auth_setup.py
-   ```
-   A browser window will open. Navigate to YT, log in, and close the browser when done. The session will be saved locally.
+## ✨ Features
 
-## Usage for other AIs
+### Core
+- 🎬 **YouTube Data API v3** — Real-time playlist & subscription management  
+- 🔗 **Channel-to-Playlist Mappings** — Auto-route videos by channel  
+- 🤖 **AI Classification** — LLM-powered video categorization  
+- 📊 **Full Cluster Scan** — Deep YouTube account analysis  
 
-This agent provides two interfaces for integration.
+### Advanced
+- 📦 **Bulk Operations** — Move, delete, and tag videos in batches  
+- 👥 **Multi-User RBAC** — Admin / User / Viewer roles  
+- 🔒 **Enterprise Security** — CSP, rate limiting, XSS sanitization  
+- ⚡ **Performance** — In-memory caching, connection pooling, async I/O  
 
-### 1. Command Line Interface (CLI)
+---
 
-You can call the agent directly via the terminal:
+## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.9+
+- Chromium browser (installed automatically via Playwright)
+
+### Install
 
 ```bash
-# Add a video to a playlist
-python cli.py add "https://www.youtube.com/watch?v=dQw4w9WgXcQ" "My Awesome Playlist"
-
-# Remove a video from a playlist
-python cli.py remove "https://www.youtube.com/watch?v=dQw4w9WgXcQ" "My Awesome Playlist"
-
-# Create a new playlist with a video
-python cli.py create "https://www.youtube.com/watch?v=dQw4w9WgXcQ" "Brand New Playlist"
+git clone https://github.com/dave-patrick/motus.leap.git
+cd motus.leap
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+playwright install chromium
 ```
 
-### 2. REST API
+### Run Server
 
-Alternatively, you can start the local server and interact via HTTP requests.
-
-Start the server:
 ```bash
 python server.py
 ```
-*(Runs on `http://127.0.0.1:8000`)*
 
-**Endpoints:**
-- `POST /add`
-- `POST /remove`
-- `POST /create`
+Then open `http://localhost:8000`.
 
-**Request Body (JSON):**
-```json
-{
-  "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-  "playlist_name": "My Awesome Playlist"
-}
-```
+---
 
-## Note on Reliability
-Because this uses browser automation (Playwright), it simulates a real user clicking buttons. If YT changes its User Interface (e.g. changing the label of the "Save" button), the `core.py` script might need to be updated.
+## 📄 License
+
+MIT — see [LICENSE](LICENSE)
+

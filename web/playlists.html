@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>Playlists - motus.leap</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
+    <link rel="manifest" href="/static/manifest.json">
+        <script src="/static/shared-shell.js?v=20260720b"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720b">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        .nav-item.active { background-color: #2f8fc9; color: #ffffff; }
+        .nav-item:not(.active):hover { background-color: #2a2f3a; color: #ffffff; }
+
+        @font-face {
+            font-family: 'Deltha';
+            src: url('/static/Deltha.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        .site-title { font-family: 'Deltha', serif; font-weight: normal !important; }
+</style>
+    <script src="/static/ux-enhancements.js?v=20260720b"></script>
+    <script src="/static/global_scripts.js?v=1781919149"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/auth-check.js?v=1781919149"></script>
+</head>
+<body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
+    <!-- ===== FULL-WIDTH TOP HEADER ===== -->
+    <!-- Left Sidebar -->
+    <div class="flex flex-1 min-h-0 overflow-hidden">
+        <!-- Top Header -->
+
+        <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0f1115]">
+            <div class="flex flex-col gap-4 max-w-[1600px] w-full">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5 hidden" id="playlists-skeleton">
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                    <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="playlists-list"></div>
+            </div>
+        
+    <div id="create-playlist-modal" class="hidden fixed inset-0 z-50 p-4">
+        <div class="absolute inset-0 bg-black/60" onclick="closeCreatePlaylistModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bento-card p-6 mx-4">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-white">Create New Playlist</h3>
+                <button onclick="closeCreatePlaylistModal()" class="text-gray-400 hover:text-white text-xs">Close</button>
+            </div>
+            <div class="flex flex-col gap-3">
+                <div>
+                    <label class="text-[10px] text-gray-300">Title</label>
+                    <input id="cp-title" type="text" class="mt-1 w-full bg-[#0f1115] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2f8fc9]" placeholder="My New Playlist">
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-300">Description</label>
+                    <textarea id="cp-desc" rows="3" class="mt-1 w-full bg-[#0f1115] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2f8fc9]" placeholder="Optional description"></textarea>
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-300">Privacy</label>
+                    <select id="cp-privacy" class="mt-1 w-full bg-[#0f1115] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-white outline-none">
+                        <option value="private">Private</option>
+                        <option value="public">Public</option>
+                        <option value="unlisted">Unlisted</option>
+                    </select>
+                </div>
+                <button onclick="submitCreatePlaylist()" class="mt-2 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Create Playlist</button>
+            </div>
+        </div>
+    </div>
+    <script src="/static/playlists.js?v=20260715f"></script>
+    <script src="/static/mobile-nav.js?v=20260715f"></script>
+
+    <script>
+    function openCreatePlaylistModal() { document.getElementById('create-playlist-modal').classList.remove('hidden'); }
+    function closeCreatePlaylistModal() { document.getElementById('create-playlist-modal').classList.add('hidden'); }
+    async function submitCreatePlaylist() {
+        const title = document.getElementById('cp-title').value.trim();
+        const description = document.getElementById('cp-desc').value.trim();
+        const privacy = document.getElementById('cp-privacy').value;
+        if (!title) return alert('Title is required');
+        const resp = await authFetch('/api/youtube/playlists/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description, privacy })
+        });
+        if (!resp.ok) return alert('Failed to create playlist');
+        closeCreatePlaylistModal();
+        loadPlaylists();
+    }
+    </script>
+</main>
+    </div>
+</body>
+</html>

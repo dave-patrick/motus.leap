@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>motus.leap - Test</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #121419; color: #e5e5e5; padding: 20px; }
+        .card { background: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; padding: 20px; margin: 10px 0; }
+        .ok { color: #44ff88; } .err { color: #ff4444; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+</head>
+<body>
+    <h1>motus.leap - Render Test</h1>
+    <div class="card"><span class="ok">✓</span> Static HTML renders</div>
+    <div class="card" id="api-test">Testing API...</div>
+    <div class="card" id="ws-test">WebSocket test...</div>
+    <script>
+        console.log('[TEST] Script running');
+        document.body.style.border = '3px solid green';
+        
+        fetch('/api/stats')
+            .then(r => r.json())
+            .then(d => {
+                document.getElementById('api-test').innerHTML = '<span class="ok">✓</span> API works: ' + JSON.stringify(d).slice(0, 80);
+            })
+            .catch(e => {
+                document.getElementById('api-test').innerHTML = '<span class="err">✗</span> API failed: ' + e.message;
+            });
+        
+        try {
+            const ws = new WebSocket('wss://tubemanager.onrender.com/ws/terminal');
+            ws.onopen = () => {
+                document.getElementById('ws-test').innerHTML = '<span class="ok">✓</span> WebSocket connected';
+                ws.close();
+            };
+            ws.onerror = (e) => {
+                document.getElementById('ws-test').innerHTML = '<span class="err">✗</span> WebSocket failed';
+            };
+        } catch (e) {
+            document.getElementById('ws-test').innerHTML = '<span class="err">✗</span> WebSocket error: ' + e.message;
+        }
+        
+        window.onerror = (msg, src, line, col, err) => {
+            console.error('[GLOBAL ERROR]', msg, src, line, col, err);
+            const d = document.createElement('div');
+            d.className = 'card err';
+            d.textContent = 'Global JS Error: ' + msg + ' at ' + src + ':' + line;
+            document.body.appendChild(d);
+        };
+    </script>
+</body>
+</html>

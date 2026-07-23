@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>Settings - motus.leap</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
+    <link rel="manifest" href="/static/manifest.json">
+        <script src="/static/shared-shell.js?v=20260720b"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+async function viewSystemLogs() {
+window.open('/system/logs', '_blank');
+}
+
+</script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720b">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .bento-card { background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    
+        @font-face {
+            font-family: 'Deltha';
+            src: url('/static/Deltha.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        .site-title { font-family: 'Deltha', serif; font-weight: normal !important; }
+</style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="/static/auth-check.js?v=1781919149"></script>
+    <script src="/static/global_scripts.js?v=1781919149"></script>
+    <script src="/static/ux-enhancements.js?v=20260720b"></script>
+</head>
+<body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
+    <!-- ===== FULL-WIDTH TOP HEADER ===== -->
+    <!-- Left Sidebar -->
+    <div class="flex flex-1 min-h-0 overflow-hidden">
+        <!-- Top Header -->
+
+        <main class="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 bg-[#0f1115]">
+            <div class="flex flex-col gap-4 max-w-[1600px] w-full">
+                <!-- Tabs Navigation -->
+                <div class="flex items-center justify-between border-b border-[#2a2f3a] pb-2 shrink-0">
+                        <div class="flex gap-3 items-center">                        <a href="/roadmap" data-legal="/roadmap" class="text-xs text-[#2f8fc9] hover:underline">Roadmap</a>
+                        </div>
+                    <div class="flex gap-4">
+                        <button id="tab-btn-general" class="text-sm font-bold tracking-wide text-white border-b-2 border-[#2f8fc9] pb-2 px-1 focus:outline-none transition-colors">General & API</button>
+                        <button id="tab-btn-rules" class="text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors">Channel Mappings</button>
+                    </div>
+                </div>
+
+                <!-- TABS CONTAINER -->
+                <div>
+                    <!-- TAB 1: GENERAL & API -->
+                    <div id="tab-content-general" class="tab-pane space-y-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                            <!-- Left Column: General, Storage, Logging -->
+                            <div class="space-y-4">
+                                <!-- General Card -->
+                                <div class="bento-card p-4">
+                                    <h3 class="text-xs font-semibold text-gray-300 mb-4">General</h3>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="text-[10px] text-gray-400 mb-1 block">Default Playlist Privacy</label>
+                                            <select id="default-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                                <option value="private">Private</option>
+                                                <option value="unlisted">Unlisted</option>
+                                                <option value="public">Public</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] text-gray-400 mb-1 block">Storage</label>
+                                            <select id="scan-interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                                <option value="15min">Every 15 minutes</option>
+                                                <option value="hourly" selected>Every hour</option>
+                                                <option value="6hour">Every 6 hours</option>
+                                                <option value="daily">Daily</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] text-gray-400 mb-1 block">Max Concurrent Operations</label>
+                                            <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                        </div>
+
+                                        <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
+                                            <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="notify-failures" class="accent-[#2f8fc9]"> Notify on failures</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Storage Card -->
+                                <div class="bento-card p-4">
+                                    <h3 class="text-xs font-semibold text-gray-300 mb-4">Storage</h3>
+                                    <div class="space-y-4">
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div class="bg-[#20242c] p-2 rounded border border-[#2a2f3a]"><div class="text-[10px] text-gray-400">Database Size</div><div class="text-base font-bold text-white" id="db-size">—</div></div>
+                                            <div class="bg-[#20242c] p-2 rounded border border-[#2a2f3a]"><div class="text-[10px] text-gray-400">Cache Size</div><div class="text-base font-bold text-white" id="cache-size">—</div></div>
+                                        </div>
+                                        <button id="clear-cache-btn" onclick="clearCache()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2 rounded">Clear Cache</button>
+                                        <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
+                                            <button id="clear-all-data-btn" onclick="clearAllData()" class="w-full bg-[#20242c] hover:bg-red-600/20 border border-[#2a2f3a] hover:border-red-500/30 text-gray-300 hover:text-red-400 text-xs py-2 rounded">Clear All Data</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Column: YouTube API -->
+                            <div>
+                                <div class="bento-card p-4">
+                                    <h3 class="text-xs font-semibold text-gray-300 mb-4">YouTube API</h3>
+                                    <div class="space-y-4">
+                                        <!-- Connection Status -->
+                                        <div class="bento-card p-3 border-l-4 border-[#2f8fc9]" id="yt-connection-status">
+                                            <div class="flex items-center gap-3">
+                                                <i class="fab fa-youtube text-red-500 text-2xl"></i>
+                                                <div class="flex-1">
+                                                    <div class="text-xs font-medium text-white" id="yt-status-title">YouTube: Not Connected</div>
+                                                    <div class="text-[10px] text-gray-400" id="yt-status-detail">Connect your YouTube account to enable playlist sync</div>
+                                                </div>
+                                                <span class="px-2 py-0.5 rounded text-[9px] font-medium bg-red-900/30 text-red-400" id="yt-status-badge">Disconnected</span>
+                                            </div>
+                                        </div>
+                                        <div class="pt-2 border-t border-[#2a2f3a] space-y-3">
+                                            <button id="save-settings-btn" onclick="saveSettings()" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-2 rounded"><i class="fa-solid fa-floppy-disk mr-2"></i>Save All Settings</button>
+                                            <div class="border-t border-[#2a2f3a] pt-2 space-y-2">
+                                                <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="api-first" class="accent-[#2f8fc9]" checked> Use API-first mode (fallback to headless)</label>
+                                            </div>
+                                            <button id="connect-youtube-btn" onclick="connectYouTube()" class="w-full bg-[#FF0000] hover:bg-[#cc0000] text-white text-xs py-2 rounded flex items-center justify-center gap-2" style="min-height:44px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="#FFFFFF" class="w-5 h-5" aria-hidden="true"><path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.518 3.545 12 3.545 12 3.545s-7.518 0-9.388.507a3.003 3.003 0 0 0-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.87.507 9.388.507 9.388.507s7.518 0 9.388-.507a3.003 3.003 0 0 0 2.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837z"/><path d="M9.545 8.432v7.136L15.818 12l-6.273-3.568z" fill="#FFFFFF"/></svg> Connect YouTube Account (OAuth)</button>
+                                            <button id="disconnect-youtube-btn" onclick="disconnectYouTube()" class="w-full bg-[#2a2f3a] hover:bg-red-600/20 border border-[#374151] text-gray-300 hover:text-red-400 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-unlink"></i> Disconnect YouTube</button>
+                                            <div id="yt-status" class="text-[10px] text-gray-400 text-center"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bottom Action Buttons: View System Logs & Sign Out -->
+                            <div class="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                <button id="view-system-logs-btn" onclick="viewSystemLogs()"
+                                    class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2.5 rounded transition-colors flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-file-lines text-[#2f8fc9]"></i> View System Logs
+                                </button>
+                                <button id="signout-btn" onclick="if (typeof window.logout === 'function') window.logout();"
+                                    class="w-full bg-[#2a2f3a] hover:bg-red-600/20 border border-[#374151] text-gray-300 hover:text-red-400 text-xs py-2.5 rounded transition-colors flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-arrow-right-from-bracket text-[11px]"></i> Sign Out
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: RULES & MAPPINGS -->
+                    <div id="tab-content-rules" class="tab-pane hidden space-y-4">
+                        <div>
+                            <div class="bento-card flex flex-col overflow-hidden h-[70vh]">
+                                <div class="px-4 py-3 border-b border-[#2a2f3a] flex items-center justify-between">
+                                    <h3 class="text-xs font-semibold text-gray-300">Channel Mappings</h3>
+                                    <span id="mappings-count" class="text-[10px] text-gray-500">0 mapped</span>
+                                </div>
+                                <div class="p-3 border-b border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
+                                    <div class="flex gap-2">
+                                        <input id="mapping-search" type="text" placeholder="Filter channels..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]" oninput="renderMappingsList()">
+                                        <button onclick="loadChannelMappings()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Load Subs</button>
+                                        <button onclick="autoMapFromPlaylists()" title="Scan videos already in your playlists and map each channel to the playlist it appears in most" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded whitespace-nowrap">Auto-map</button>
+                                        <button onclick="backfillNames()" title="Harvest real channel names from your playlists' videos (no extra API quota)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded whitespace-nowrap">Resolve names</button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <input id="new-channel-id" type="text" placeholder="Channel ID (e.g. UC...)" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]">
+                                        <select id="new-playlist-id" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]"></select>
+                                        <button onclick="addMappingRow()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-3 py-1.5 rounded whitespace-nowrap">+ Add</button>
+                                    </div>
+                                </div>
+                                <div id="selection-bar" class="hidden items-center gap-2 px-3 py-2 bg-[#2f8fc9]/10 border-b border-[#2f8fc9]/30 text-xs shrink-0">
+                                    <span id="sel-count" class="text-[#7fc4ee] font-semibold">0 selected</span>
+                                    <div class="flex-1"></div>
+                                    <select id="sel-playlist" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none max-w-[180px]"></select>
+                                    <button onclick="applyToSelected()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white px-2 py-1 rounded whitespace-nowrap">Set playlist</button>
+                                    <button onclick="removeSelected()" class="text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-400/40 whitespace-nowrap">Remove</button>
+                                    <button onclick="clearSelection()" class="text-gray-400 hover:text-white px-2 py-1 whitespace-nowrap">Clear</button>
+                                </div>
+                                <div class="p-3 overflow-y-auto flex-1">
+                                    <div id="mappings-list" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2"></div>
+                                </div>
+                                <div class="p-3 border-t border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
+                                    <div class="flex items-center justify-between">
+                                        <label class="flex items-center gap-2 text-[10px] text-gray-400 cursor-pointer select-none">
+                                            <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)" class="accent-[#2f8fc9]"> Select all (filtered)
+                                        </label>
+                                        <span class="text-[10px] text-gray-400">Changes save automatically</span>
+                                    </div>
+                                    <button onclick="saveMappings()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs py-1.5 rounded">Save All Mappings</button>
+                                    <details class="group">
+                                        <summary class="cursor-pointer text-[11px] text-gray-400 hover:text-gray-200 select-none">Bulk import by name ▾</summary>
+                                        <div class="mt-2 flex flex-col gap-2">
+                                            <p class="text-[10px] text-gray-500">Paste <code>Channel Name : Playlist Name</code> lines (one per row). Names resolve against your connected YouTube account. Reports unmatched rows.</p>
+                                            <textarea id="bulk-import-text" rows="5" placeholder="3D Musketeers : 3D Printing Watch&#10;12 News : Arizona" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded px-2 py-1.5 outline-none font-mono resize-y"></textarea>
+                                            <button onclick="importBulkMappings()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs py-1.5 rounded">Import &amp; Resolve</button>
+                                            <div id="bulk-import-report" class="text-[10px] text-gray-400 whitespace-pre-wrap"></div>
+                                        </div>
+                                    </details>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+    <script>
+        // Tab switching logic
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => {
+                btn.className = "text-sm font-semibold tracking-wide text-gray-400 hover:text-white pb-2 px-1 focus:outline-none transition-colors border-b-2 border-transparent";
+            });
+
+            const activePane = document.getElementById(`tab-content-${tabId}`);
+            if (activePane) activePane.classList.remove('hidden');
+
+            if (tabId === 'rules') initMappings();
+
+            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+            if (activeBtn) {
+                activeBtn.className = "text-sm font-bold tracking-wide text-white border-b-2 border-[#2f8fc9] pb-2 px-1 focus:outline-none transition-colors";
+            }
+
+            if (history.replaceState) {
+                history.replaceState(null, '', window.location.pathname + '#' + tabId);
+            } else {
+                window.location.hash = tabId;
+            }
+        }
+
+        // Toast notification system
+        function toast(message, type = 'info', duration = 4000) {
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
+                document.body.appendChild(container);
+            }
+            const el = document.createElement('div');
+            const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+            const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-yellow-600', info: 'bg-[#2f8fc9]' };
+            el.className = `flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-xs font-medium ${colors[type] || colors.info}`;
+            el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span class="flex-1">${DOMPurify.sanitize(message, {USE_PROFILES: {html: true}})}</span><button onclick="this.parentElement.remove()" class="ml-2 text-white/70 hover:text-white focus:outline-none p-0.5 cursor-pointer" title="Close"><i class="fa-solid fa-xmark text-xs"></i></button>`;
+            container.appendChild(el);
+            setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, duration);
+        }
+
+        // Auto-save a single setting immediately
+        async function saveSingleSetting(key, value) {
+            try {
+                const payload = {};
+                payload[key] = value || null;
+                const resp = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (resp.ok) {
+                                    } else {
+                    const data = await resp.json().catch(() => ({}));
+                    toast('Failed to save: ' + (data.detail || 'Server error'), 'error');
+                }
+            } catch (e) {
+                toast('Network error saving setting', 'error');
+            }
+        }
+
+        // Settings actions
+        async function loadPlaylistNames() {
+            try {
+                // H3 FIX: declare targetSelect (the "Add mapping" playlist <select>) before use.
+                const targetSelect = document.getElementById('new-playlist-id');
+                const plResp = await fetch('/api/playlists/names');
+                if (plResp.ok) {
+                    const plData = await plResp.json();
+                    const playlists = plData.playlists || [];
+                                                            if (targetSelect) {
+                        const currentTargetVal = targetSelect.value;
+                        targetSelect.innerHTML = '<option value="">-- Select a playlist --</option>';
+                        if (!playlists.length) {
+                            const opt = document.createElement('option');
+                            opt.value = '';
+                            opt.textContent = 'No playlists found — configure YouTube OAuth';
+                            opt.disabled = true;
+                            targetSelect.appendChild(opt);
+                        }
+                        playlists.forEach(p => {
+                            const opt = document.createElement('option');
+                            opt.value = p.id;
+                            opt.textContent = `${p.title} (${p.video_count} videos)`;
+                            targetSelect.appendChild(opt);
+                        });
+                        if (currentTargetVal) {
+                            const exists = playlists.some(p => p.id === currentTargetVal);
+                            if (exists) targetSelect.value = currentTargetVal;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to load playlist names', e);
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                await loadPlaylistNames();
+
+                const response = await fetch('/api/settings');
+                if (!response.ok) return;
+                const data = await response.json();
+                document.getElementById('max-concurrent').value = data.max_concurrent || 3;
+                document.getElementById('notify-failures').checked = data.notify_failures === true;
+                document.getElementById('log-level').value = data.log_level || 'INFO';
+
+
+
+                if (data.default_privacy) document.getElementById('default-privacy').value = data.default_privacy;
+                if (data.scan_interval) document.getElementById('scan-interval').value = data.scan_interval;
+
+                // Update YouTube connection status UI
+                updateYouTubeStatusUI(data);
+
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function updateYouTubeStatusUI(data) {
+            const hasTokens = !!(data.oauth_access_token && data.oauth_refresh_token);
+            const title = document.getElementById('yt-status-title');
+            const detail = document.getElementById('yt-status-detail');
+            const badge = document.getElementById('yt-status-badge');
+
+            if (title && detail && badge) {
+                if (hasTokens) {
+                    title.textContent = 'YouTube: Connected';
+                    detail.textContent = 'OAuth tokens active — playlist sync enabled';
+                    badge.textContent = 'Connected';
+                    badge.className = 'px-2 py-0.5 rounded text-[9px] font-medium bg-green-900/30 text-green-400';
+                } else {
+                    title.textContent = 'YouTube: Not Connected';
+                    detail.textContent = 'Connect your YouTube account to enable playlist sync';
+                    badge.textContent = 'Disconnected';
+                    badge.className = 'px-2 py-0.5 rounded text-[9px] font-medium bg-red-900/30 text-red-400';
+                }
+            }
+        }
+
+        async function saveSettings() {
+            const payload = {
+                default_privacy: document.getElementById('default-privacy').value,
+                scan_interval: document.getElementById('scan-interval').value,
+                max_concurrent: parseInt(document.getElementById('max-concurrent').value),
+                notify_failures: document.getElementById('notify-failures').checked,
+                log_level: document.getElementById('log-level').value,
+            };
+
+            try {
+                const resp = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    toast('Settings saved successfully', 'success');
+                } else {
+                    const err = await resp.text();
+                    toast('Failed to save: ' + err, 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                toast('Failed to save: ' + e.message, 'error');
+            }
+        }
+
+        async function connectYouTube() {
+            const status = document.getElementById('yt-status');
+            status.textContent = 'Opening YouTube OAuth...';
+            status.className = 'text-[10px] text-[#2f8fc9] text-center mt-2';
+            try {
+                const resp = await fetch('/api/auth/youtube');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.auth_url) {
+                        const popup = window.open(data.auth_url, 'youtube-oauth', 'width=600,height=700');
+                        if (!popup) {
+                            window.location.href = data.auth_url;
+                            return;
+                        }
+                        window.addEventListener('message', function onMsg(e) {
+                            if (e.data.type === 'youtube-oauth-success') {
+                                window.removeEventListener('message', onMsg);
+                                status.textContent = 'YouTube connected! Token saved.';
+                                status.className = 'text-[10px] text-green-400 text-center mt-2';
+                            } else if (e.data.type === 'youtube-oauth-error') {
+                                window.removeEventListener('message', onMsg);
+                                status.textContent = 'OAuth error: ' + (e.data.error || 'unknown');
+                                status.className = 'text-[10px] text-red-400 text-center mt-2';
+                            }
+                        });
+                    } else {
+                        status.textContent = data.error || 'OAuth not configured';
+                        status.className = 'text-[10px] text-red-400 text-center mt-2';
+                    }
+                } else {
+                    status.textContent = 'Failed to initiate OAuth';
+                    status.className = 'text-[10px] text-red-400 text-center mt-2';
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.className = 'text-[10px] text-red-400 text-center mt-2';
+            }
+        }
+
+        async function disconnectYouTube() {
+            const status = document.getElementById('yt-status');
+            if (!confirm('Disconnect YouTube OAuth? This will clear stored tokens and require re-authorization.')) return;
+            status.textContent = 'Disconnecting...';
+            status.className = 'text-[10px] text-[#2f8fc9] text-center mt-2';
+            try {
+                const resp = await fetch('/api/youtube/disconnect', {method: 'POST'});
+                const data = await resp.json();
+                if (resp.ok) {
+                    status.textContent = 'YouTube disconnected. Click Connect to re-authorize.';
+                    status.className = 'text-[10px] text-green-400 text-center mt-2';
+                } else {
+                    status.textContent = data.error || 'Failed to disconnect';
+                    status.className = 'text-[10px] text-red-400 text-center mt-2';
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.className = 'text-[10px] text-red-400 text-center mt-2';
+            }
+        }
+
+        async function clearThumbnailCache() {
+            try {
+                const resp = await fetch('/api/storage/clear-thumbnails', {method: 'POST'});
+                const data = await resp.json();
+                toast(data.message || 'Cache cleared', 'success');
+                refreshStorage();
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
+        }
+
+        async function clearCache() {
+            if (!confirm('Clear cache? This removes thumbnails/processed cache and cannot be undone.')) return;
+            try {
+                const resp = await fetch('/api/storage/clear-cache', {method: 'POST'});
+                const data = await resp.json();
+                toast(data.message || 'Cache cleared', 'success');
+                refreshStorage();
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
+        }
+
+        async function clearAllData() {
+            if (!confirm('Clear ALL stored data? This wipes databases/cache and cannot be undone.')) return;
+            try {
+                const resp = await fetch('/api/storage/clear-all', {method: 'POST'});
+                const data = await resp.json();
+                toast(data.message || 'All data cleared', 'success');
+                refreshStorage();
+                window.location.reload();
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
+        }
+
+        async function clearSystemLogs() {
+            if (!confirm('Clear all system logs?')) return;
+            try {
+                const resp = await fetch('/api/system/logs/clear', {
+                    method: 'POST',
+                    headers: await authHeaders()
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    toast(data.message || 'System logs cleared', 'success');
+                } else {
+                    toast(data.detail || 'Failed to clear logs', 'error');
+                }
+            } catch (e) { toast('Failed to clear logs: ' + e.message, 'error'); }
+        }
+
+        async function resetSettings() {
+            if (!confirm('Reset ALL settings to defaults? This cannot be undone.')) return;
+            try {
+                const resp = await fetch('/api/settings/reset', {method: 'POST'});
+                const data = await resp.json();
+                toast(data.message || 'Settings reset', 'success');
+                window.location.reload();
+            } catch (e) { toast('Failed: ' + e.message, 'error'); }
+        }
+
+        // --- Channel -> Playlist mappings editor (client-side working set) ---
+        let _maps = {};        // channelId -> playlistId
+        let _channels = {};     // channelId -> {title, thumbnail}
+        let _playlists = [];    // [{id, title}]
+
+        async function refreshMappingsData() {
+            // Pull channels + playlists once so dropdowns/avatars are available.
+            try {
+                const [subsResp, plistResp] = await Promise.all([
+                    fetch('/api/subscriptions'),
+                    fetch('/api/playlists')
+                ]);
+                const subs = await subsResp.json();
+                const plist = await plistResp.json();
+                (subs.channels || []).forEach(c => { _channels[c.id] = c; });
+                _playlists = plist.playlists || [];
+            } catch (e) { /* non-fatal: mappings still editable by ID */ }
+        }
+
+        async function loadChannelMappings() {
+            const list = document.getElementById('mappings-list');
+            list.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fa-solid fa-spinner fa-spin text-[#2f8fc9]"></i> Loading...</div>';
+            try {
+                const [mapsResp, subsResp, plistResp] = await Promise.all([
+                    fetch('/api/mappings'),
+                    fetch('/api/subscriptions'),
+                    fetch('/api/playlists')
+                ]);
+                const maps = await mapsResp.json();
+                const subs = await subsResp.json();
+                const plist = await plistResp.json();
+
+                // GET /api/mappings returns {mappings: [{channel_id, playlist}, ...]}
+                // Normalize into a dict channelId -> playlistId for the editor.
+                _maps = {};
+                (maps.mappings || []).forEach(m => {
+                    const cid = m.channel_id || m.channel || m.id;
+                    const pid = m.playlist || m.playlist_id || '';
+                    if (cid) _maps[cid] = pid;
+                });
+                (subs.channels || []).forEach(c => { _channels[c.id] = c; });
+                _playlists = plist.playlists || [];
+
+                // Seed channel names from persisted metadata (survives reload
+                // without re-hitting the YouTube API).
+                if (maps.metadata) {
+                    Object.entries(maps.metadata).forEach(([cid, info]) => {
+                        if (info && info.title && !_channels[cid]) {
+                            _channels[cid] = {id: cid, title: info.title, thumbnail: info.thumbnail || ''};
+                        }
+                    });
+                }
+
+                // Seed dropdown of playlists for the "Add" row.
+                const sel = document.getElementById('new-playlist-id');
+                sel.innerHTML = '<option value="">-- playlist --</option>' +
+                    _playlists.map(p => `<option value="${p.id}">${DOMPurify.sanitize(p.title)}</option>`).join('');
+
+                renderMappingsList();
+                // Resolve real names for mapped channels that aren't in subs
+                // (e.g. Auto-mapped channels you watch but didn't subscribe to).
+                enrichChannelNames();
+                // Self-heal names on load using the FREE playlist-contents scan
+                // (no channels.list quota). If there are still mapped channels
+                // without a known name after seeding metadata, kick off a
+                // backfill so the grid fills in on a hard refresh without the
+                // user having to click "Resolve names" manually.
+                const needNames = Object.keys(_maps).filter(id => {
+                    const c = _channels[id];
+                    return !c || !c.title || !c.thumbnail;
+                });
+                if (needNames.length) {
+                    backfillNames();
+                }
+            } catch (e) {
+                console.error(e);
+                list.innerHTML = '<div class="text-center text-red-400 py-8">Failed to load mappings</div>';
+            }
+        }
+
+        let _enriching = false;
+        async function enrichChannelNames() {
+            if (_enriching) return;
+            // Target channels with NO name OR NO thumbnail: channels.list
+            // returns both, so this upgrades monogram avatars -> real photos
+            // for already-named channels that were seeded without a thumbnail.
+            const missing = Object.keys(_maps).filter(id => {
+                const c = _channels[id];
+                return !c || !c.title || !c.thumbnail;
+            });
+            if (!missing.length) return;
+            _enriching = true;
+            try {
+                const resp = await fetch('/api/channels/titles', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({channel_ids: missing})
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const r = await resp.json();
+                let changed = false;
+                const toPersist = {};
+                Object.entries(r.titles || {}).forEach(([cid, info]) => {
+                    if (info && info.title) {
+                        _channels[cid] = {id: cid, title: info.title, thumbnail: info.thumbnail || ''};
+                        toPersist[cid] = {title: info.title, thumbnail: info.thumbnail || ''};
+                        changed = true;
+                    }
+                });
+                if (changed) {
+                    renderMappingsList();
+                    // Persist so names survive reload without re-fetching.
+                    fetch('/api/channels/metadata', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({metadata: toPersist})
+                    }).catch(() => {});
+                }
+            } catch (e) {
+                console.warn('Channel name enrichment skipped:', e.message);
+            } finally {
+                _enriching = false;
+            }
+        }
+
+        // Free-quota name harvest: re-scan the playlists' videos (the same
+        // playlistItems.list quota auto-map already uses) to resolve channel
+        // names. Unlike channels.list, this doesn't burn the daily quota, so
+        // it works even when the enrichment endpoint is quota-blocked.
+        async function backfillNames() {
+            try {
+                const resp = await fetch('/api/channels/backfill-names', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const r = await resp.json();
+                // Merge returned names into _channels and re-render.
+                const meta = await fetch('/api/channels/metadata').then(x => x.json()).catch(() => ({metadata: {}}));
+                Object.entries(meta.metadata || {}).forEach(([cid, info]) => {
+                    if (!info) return;
+                    const existing = _channels[cid] || {};
+                    // Merge name AND thumbnail (backfill now harvests both).
+                    // Apply even if the channel already had a name but no logo.
+                    if (info.title || info.thumbnail) {
+                        _channels[cid] = {
+                            id: cid,
+                            title: info.title || existing.title || cid,
+                            thumbnail: info.thumbnail || existing.thumbnail || '',
+                        };
+                    }
+                });
+                renderMappingsList();
+                const d = r.diagnostics || {};
+                const cands = (d.all_data_candidates || []).map(c => `${c.videos}v@${String(c.dir).split('/').pop()}`).join(',');
+                const detail = `resolved ${r.names_added} new (${r.total_named} total)` +
+                    ` · thumbs: ${r.thumbs_applied ?? 0} applied` +
+                    ` · ${r.all_data_scanned} vids scanned` +
+                    ` · found ${r.titles_found} titles` +
+                    (cands ? ` · caches:[${cands}]` : '');
+                toast(detail, r.names_added > 0 || r.total_named > 0 ? 'success' : 'error');
+                // Backfill may have seeded names (but no thumbnails) -> let
+                // channels.list upgrade monogram avatars to real photos.
+                enrichChannelNames();
+            } catch (e) {
+                console.warn('Backfill names failed:', e.message);
+                toast('Could not resolve names: ' + e.message, 'error');
+            }
+        }
+
+        async function initMappings() {
+            // Auto-load when the mappings tab is shown (or on first paint if hash=settings/mappings).
+            await refreshMappingsData();
+            await loadChannelMappings();
+        }
+
+        function playlistOptions(selected) {
+            return '<option value="">-- No mapping --</option>' +
+                _playlists.map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${p.title}</option>`).join('');
+        }
+
+        const _selected = new Set();
+
+        // Deterministic hue from a string so each channel gets a stable color.
+        function _hashHue(s) {
+            let h = 0;
+            for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+            return h % 360;
+        }
+        // Initial for the monogram: channel name's first letter, else a letter
+        // derived from the UC id (so unmapped IDs still get a readable glyph).
+        function _initial(id, ch) {
+            if (ch && ch.title && ch.title.trim()) return ch.title.trim()[0].toUpperCase();
+            const m = id.replace(/^UC/i, '').match(/[a-z0-9]/i);
+            return (m ? m[0] : '?').toUpperCase();
+        }
+        // Avatar: real thumbnail when available (overlaid on the monogram; on
+        // load error the img is removed, revealing the monogram). Otherwise a
+        // colored monogram circle. Never a blank/white box.
+        function channelAvatar(id) {
+            const ch = _channels[id];
+            const hue = _hashHue(id);
+            const initial = _initial(id, ch);
+            if (ch && ch.thumbnail) {
+                return `<span class="relative w-7 h-7 rounded-full overflow-hidden shrink-0" style="background:hsl(${hue} 55% 40%)">
+                    <img src="${ch.thumbnail}" class="absolute inset-0 w-full h-full object-cover" onerror="this.remove()">
+                    <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">${initial}</span>
+                </span>`;
+            }
+            return `<span class="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white" style="background:hsl(${hue} 55% 40%)">${initial}</span>`;
+        }
+
+        function renderMappingsList() {
+            const list = document.getElementById('mappings-list');
+            const q = (document.getElementById('mapping-search')?.value || '').toLowerCase().trim();
+            const ids = Object.keys(_maps).filter(id => {
+                if (!q) return true;
+                const ch = _channels[id];
+                const title = ch ? (ch.title || '').toLowerCase() : '';
+                return id.toLowerCase().includes(q) || title.includes(q);
+            });
+
+            document.getElementById('mappings-count').textContent = `${Object.keys(_maps).length} mapped`;
+            // Drop selections no longer visible (filter changed).
+            [..._selected].forEach(id => { if (!ids.includes(id)) _selected.delete(id); });
+            updateSelectionBar();
+
+            if (!ids.length) {
+                list.innerHTML = '<div class="col-span-full text-center text-gray-400 py-8">No mappings yet. Load your subs or paste a Channel ID above.</div>';
+                return;
+            }
+
+            list.innerHTML = ids.map(id => {
+                const ch = _channels[id];
+                const avatar = channelAvatar(id);
+                const name = ch ? ch.title : '';
+                const sub = name ? id : '';   // show raw ID only as a dim fallback when no name
+                const checked = _selected.has(id) ? 'checked' : '';
+                return `
+                    <div class="flex items-center gap-2 p-2 rounded bg-[#20242c]/40 hover:bg-[#20242c] border border-[#2a2f3a]/50 ${_selected.has(id) ? 'ring-1 ring-[#2f8fc9]' : ''}">
+                        <input type="checkbox" class="sel-cb shrink-0 accent-[#2f8fc9]" data-channel="${id}" ${checked} onchange="onSelect('${id}', this.checked)">
+                        ${avatar}
+                        <div class="min-w-0 flex-1">
+                            <div class="text-[11px] font-semibold text-white truncate">${DOMPurify.sanitize(name || id)}</div>
+                            ${sub ? `<div class="text-[9px] text-gray-500 truncate">${DOMPurify.sanitize(sub)}</div>` : ''}
+                            <select data-channel="${id}" onchange="onMappingChange('${id}', this.value)" class="mt-1 w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-1 py-1 outline-none">
+                                ${playlistOptions(_maps[id])}
+                            </select>
+                        </div>
+                        <button onclick="removeMapping('${id}')" class="text-gray-500 hover:text-red-400 text-sm px-1 shrink-0 self-start" title="Remove">&times;</button>
+                    </div>`;
+            }).join('');
+        }
+
+        function onSelect(channelId, checked) {
+            if (checked) _selected.add(channelId); else _selected.delete(channelId);
+            updateSelectionBar();
+            const cb = document.querySelector(`.sel-cb[data-channel="${channelId}"]`);
+            if (cb) cb.closest('div').classList.toggle('ring-1', checked), cb.closest('div').classList.toggle('ring-[#2f8fc9]', checked);
+        }
+
+        function toggleSelectAll(checked) {
+            Object.keys(_maps).forEach(id => {
+                if (checked) _selected.add(id); else _selected.delete(id);
+            });
+            document.querySelectorAll('.sel-cb').forEach(cb => cb.checked = checked);
+            updateSelectionBar();
+            renderMappingsList();
+        }
+
+        function updateSelectionBar() {
+            const bar = document.getElementById('selection-bar');
+            const n = _selected.size;
+            document.getElementById('sel-count').textContent = `${n} selected`;
+            bar.classList.toggle('hidden', n === 0);
+            bar.classList.toggle('flex', n > 0);
+            // Keep the bulk-playlist dropdown in sync with available playlists.
+            const sel = document.getElementById('sel-playlist');
+            if (sel && !sel.dataset.populated) {
+                sel.innerHTML = '<option value="">-- playlist --</option>' +
+                    _playlists.map(p => `<option value="${p.id}">${DOMPurify.sanitize(p.title)}</option>`).join('');
+                sel.dataset.populated = '1';
+            }
+        }
+
+        function clearSelection() {
+            _selected.clear();
+            document.querySelectorAll('.sel-cb').forEach(cb => cb.checked = false);
+            updateSelectionBar();
+            renderMappingsList();
+        }
+
+        function applyToSelected() {
+            const pid = document.getElementById('sel-playlist').value;
+            if (!pid) { toast('Pick a playlist first', 'error'); return; }
+            _selected.forEach(cid => { _maps[cid] = pid; });
+            toast(`Set playlist for ${_selected.size} channel(s)`, 'success');
+            renderMappingsList();
+            scheduleSaveMappings();
+        }
+
+        function removeSelected() {
+            if (!_selected.size) return;
+            const n = _selected.size;
+            _selected.forEach(cid => delete _maps[cid]);
+            _selected.clear();
+            renderMappingsList();
+            scheduleSaveMappings();
+            toast(`Removed ${n} mapping(s)`, 'success');
+        }
+        function addMappingRow() {
+            const idEl = document.getElementById('new-channel-id');
+            const plEl = document.getElementById('new-playlist-id');
+            const cid = (idEl.value || '').trim();
+            const pid = plEl.value || '';
+            if (!cid) { toast('Enter a Channel ID', 'error'); return; }
+            if (!pid) { toast('Pick a playlist', 'error'); return; }
+            _maps[cid] = pid;
+            idEl.value = '';
+            plEl.value = '';
+            renderMappingsList();
+            scheduleSaveMappings();
+        }
+
+        function removeMapping(channelId) {
+            delete _maps[channelId];
+            _selected.delete(channelId);
+            renderMappingsList();
+            scheduleSaveMappings();
+        }
+
+        let _saveTimer = null;
+        function scheduleSaveMappings() {
+            clearTimeout(_saveTimer);
+            _saveTimer = setTimeout(() => saveMappings(true), 600);
+        }
+
+        async function saveMappings(silent = false) {
+            if (!silent) toast('Saving all mappings...', 'info');
+            const mappings = {};
+            Object.keys(_maps).forEach(k => { if (_maps[k]) mappings[k] = _maps[k]; });
+            try {
+                const resp = await fetch('/api/mappings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mappings})
+                });
+                const result = await resp.json();
+                if (!resp.ok) throw new Error(result.error || ('HTTP ' + resp.status));
+                document.getElementById('mappings-count').textContent = `${Object.keys(mappings).length} mapped`;
+                if (!silent) toast('Mappings saved', 'success');
+            } catch (e) {
+                toast('Failed to save mappings: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        async function importBulkMappings() {
+            const text = document.getElementById('bulk-import-text').value.trim();
+            const report = document.getElementById('bulk-import-report');
+            if (!text) { toast('Paste mapping lines first', 'error'); return; }
+            report.textContent = 'Resolving against your YouTube account...';
+            try {
+                const resp = await fetch('/api/mappings/import', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text})
+                });
+                const r = await resp.json();
+                if (!resp.ok) throw new Error(r.detail || r.error || ('HTTP ' + resp.status));
+                let out = `✔ ${r.imported} imported · ${r.skipped} skipped · ${r.total_mappings} total`;
+                if (r.unmatched_channels.length) out += `\n✖ ${r.unmatched_channels.length} channel(s) not found:\n  - ${r.unmatched_channels.slice(0,30).join('\n  - ')}`;
+                if (r.unmatched_playlists.length) out += `\n✖ ${r.unmatched_playlists.length} playlist(s) not found:\n  - ${r.unmatched_playlists.slice(0,30).join('\n  - ')}`;
+                report.textContent = out;
+                toast(r.message, 'success');
+                initMappings(); // refresh the list view
+            } catch (e) {
+                report.textContent = 'Error: ' + (e.message || 'Network error');
+                toast('Import failed: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        async function autoMapFromPlaylists() {
+            // Preview first, then confirm before applying. Maps each channel to
+            // the playlist its videos most often already live in.
+            toast('Scanning playlist contents...', 'info');
+            try {
+                const prev = await (await fetch('/api/mappings/from-playlists', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({apply: false})
+                })).json();
+                if (prev.detail) throw new Error(prev.detail);
+                const msg = `Scanned ${prev.playlists_scanned} playlists / ${prev.videos_scanned} videos.\n`
+                    + `Found ${prev.channels_found} channels; ${prev.would_add} new mapping(s) to add`
+                    + (prev.conflicts.length ? `, ${prev.conflicts.length} conflict(s) (kept existing).` : '.')
+                    + `\n\nApply the ${prev.would_add} new mapping(s)?`;
+                if (!confirm(msg)) { toast('Cancelled', 'info'); return; }
+                const r = await (await fetch('/api/mappings/from-playlists', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({apply: true})
+                })).json();
+                if (r.detail) throw new Error(r.detail);
+                toast(`Added ${r.applied} mapping(s) · ${r.total_mappings} total`, 'success');
+                initMappings();
+            } catch (e) {
+                toast('Auto-map failed: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        function retrainModel(btn) {
+            btn.disabled = true;
+            const origText = btn.textContent;
+            btn.textContent = 'Retraining...';
+            fetch('/api/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'full_cluster_scan'})
+            }).then(() => toast('Retraining started', 'success')).finally(() => {
+                btn.disabled = false;
+                btn.textContent = origText;
+            });
+        }
+
+        function exportWeights() {
+            toast('Exporting model weights...', 'info');
+            setTimeout(() => toast('Model weights exported successfully', 'success'), 1000);
+        }
+
+        function importDataset() {
+            toast('Import dataset functionality coming soon', 'info');
+        }
+
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/stats');
+                if (response.ok) {
+                    const data = await response.json();
+                    const lastScan = document.getElementById('last-scan');
+                    if (lastScan) lastScan.textContent = data.last_scan || 'Never';
+                }
+            } catch (e) {
+                console.log('Stats endpoint not available');
+            }
+        }
+
+        async function runDiagnose() {
+            const status = document.getElementById('diag-status');
+            const log = document.getElementById('diag-log');
+            status.textContent = 'Running...';
+            status.className = 'text-[10px] text-[#2f8fc9] text-center';
+            log.innerHTML = '<div class="text-[10px] text-gray-400">Starting diagnostics...</div>';
+            try {
+                const resp = await fetch('/api/diagnostics/youtube');
+                const data = await resp.json();
+                if (resp.ok) {
+                    status.textContent = 'Complete';
+                    status.className = 'text-[10px] text-green-400 text-center';
+                    const lines = [];
+                    if (data.youtube_setup) lines.push('YouTube Setup: ' + JSON.stringify(data.youtube_setup));
+                    if (data.oauth_status) lines.push('OAuth: ' + JSON.stringify(data.oauth_status));
+                    if (data.disk_usage) lines.push('Disk: ' + JSON.stringify(data.disk_usage));
+                    log.innerHTML = lines.map(l => '<div class="text-[10px] text-gray-400">' + l + '</div>').join('') || '<div class="text-[10px] text-gray-400">No diagnostic data returned.</div>';
+                    toast('Diagnostics complete', 'success');
+                } else {
+                    status.textContent = 'Failed';
+                    status.className = 'text-[10px] text-red-400 text-center';
+                    log.innerHTML = '<div class="text-[10px] text-red-400">Error: ' + (data.error || resp.status) + '</div>';
+                }
+            } catch (e) {
+                status.textContent = 'Error';
+                status.className = 'text-[10px] text-red-400 text-center';
+                log.innerHTML = '<div class="text-[10px] text-red-400">Network error: ' + e.message + '</div>';
+                toast('Diagnostics failed: ' + e.message, 'error');
+            }
+        }
+
+        async function runSurfaceScan() {
+            const status = document.getElementById('diag-status');
+            const log = document.getElementById('diag-log');
+            status.textContent = 'Scanning surfaces...';
+            status.className = 'text-[10px] text-[#2f8fc9] text-center';
+            log.innerHTML = '<div class="text-[10px] text-gray-400">Scanning UI surfaces...</div>';
+            try {
+                const resp = await fetch('/api/diagnostics/oauth-user');
+                const data = await resp.json();
+                if (resp.ok) {
+                    status.textContent = 'Complete';
+                    status.className = 'text-[10px] text-green-400 text-center';
+                    const lines = [];
+                    if (data.user) lines.push('User: ' + JSON.stringify(data.user));
+                    if (data.oauth_status) lines.push('OAuth Status: ' + JSON.stringify(data.oauth_status));
+                    log.innerHTML = lines.map(l => '<div class="text-[10px] text-gray-400">' + l + '</div>').join('') || '<div class="text-[10px] text-gray-400">No surface data.</div>';
+                    toast('Surface scan complete', 'success');
+                } else {
+                    status.textContent = 'Failed';
+                    status.className = 'text-[10px] text-red-400 text-center';
+                    log.innerHTML = '<div class="text-[10px] text-red-400">Error: ' + (data.error || resp.status) + '</div>';
+                }
+            } catch (e) {
+                status.textContent = 'Error';
+                status.className = 'text-[10px] text-red-400 text-center';
+                log.innerHTML = '<div class="text-[10px] text-red-400">Network error: ' + e.message + '</div>';
+                toast('Surface scan failed: ' + e.message, 'error');
+            }
+        }
+
+        window.addEventListener('message', (event) => {
+            if (!event.data || !event.data.type) return;
+            if (event.data.type === 'youtube-oauth-success') {
+                console.log('YouTube OAuth success, refreshing...');
+                window.location.reload();
+            } else if (event.data.type === 'youtube-oauth-error') {
+                const status = document.getElementById('yt-status');
+                if (status) {
+                    status.textContent = 'OAuth error: ' + event.data.error;
+                    status.className = 'text-[10px] text-red-400 text-center mt-2';
+                }
+            }
+        });
+
+        // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+function initSettingsPage() {
+            loadDashboardStats();
+            loadSettings();
+            initMappings();
+            refreshStorage();
+
+            // Highlight active sidebar link based on current path
+            const activeMap = {'/settings': 'Settings', '/rules': 'Settings'};
+            const activeLabel = activeMap[window.location.pathname];
+            if (activeLabel) {
+                document.querySelectorAll('.sidebar-link').forEach(link => {
+                    if (link.textContent.trim() === activeLabel) {
+                        link.className = link.className.replace('text-gray-400 hover:text-gray-200 hover:bg-[#2a2f3a]', 'bg-[#2f8fc9]/20 text-[#2f8fc9] font-semibold border border-[#2f8fc9]/30');
+                    }
+                });
+            }
+
+            // Wire up tab buttons
+            try {
+                document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        try {
+                            const tabId = btn.id.replace('tab-btn-', '');
+                            switchTab(tabId);
+                        } catch (err) {
+                            console.error('Tab switch error:', err);
+                        }
+                    });
+                });
+            } catch (err) {
+                console.error('Tab wiring error:', err);
+            }
+
+            const hash = window.location.hash.replace('#', '');
+            const initialTab = (hash === 'rules' || hash === 'general') ? hash : (window.location.pathname === '/rules' ? 'rules' : 'general');
+            switchTab(initialTab);
+
+            const log = document.getElementById('ai-log');
+            if (log) log.scrollTop = log.scrollHeight;
+
+            setInterval(loadDashboardStats, 30000);
+        }
+
+// Storage tab live populate
+function getCookie(n){const v="; "+document.cookie,parts=v.split("; "+n+"="); return parts.length===2?parts.pop().split(";").shift():null;} async function authHeaders(){const tok=getCookie("token")||(typeof localStorage!=="undefined"?localStorage.getItem("token"):null); return tok?{"Authorization":"Bearer "+tok}:{};} async function refreshStorage(){try{const r=await fetch("/api/storage/info",{headers: await authHeaders()}); if(!r.ok) throw new Error("status="+r.status); const d=await r.json(); const db=document.getElementById("db-size"); const cs=document.getElementById("cache-size"); const tc=document.getElementById("thumb-count"); if(db) db.textContent=d.db_size_human||"—"; if(cs) cs.textContent=d.cache_size_human||"—"; if(tc) tc.textContent=(typeof d.thumb_count!=="undefined"?d.thumb_count:0)+" files";}catch(e){console.warn("storage info fetch failed:",e); ["db-size","cache-size","thumb-count"].forEach(id=>{const el=document.getElementById(id); if(el) el.textContent="—";});}} document.addEventListener("DOMContentLoaded", refreshStorage); setTimeout(refreshStorage, 500);
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSettingsPage);
+} else {
+    initSettingsPage();
+};
+
+// SPA safety: re-populate dropdown after navigation
+setTimeout(loadPlaylistNames, 300);
+    </script>
+    <script src="/static/mobile-nav.js?v=20260715e"></script>
+</main>
+    </div>
+</body>
+</html>

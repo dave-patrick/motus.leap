@@ -1,7 +1,9 @@
 user_data/
 user_data_playwright/
 venv/
+.venv/
 __pycache__/
+*.py[cod]
 *.log
 *.png
 *.txt
@@ -9,4 +11,14 @@ __pycache__/
 *.bat
 db.sqlite
 scratch/
-
+.eggs/
+*.egg-info/
+dist/
+build/
+data/
+.env
+.env.*
+.understand-anything/
+.mcp.json
+node_modules/
+.worktrees/
