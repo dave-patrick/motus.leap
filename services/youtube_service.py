@@ -462,7 +462,8 @@ class YouTubeService:
     @cache_result("playlists", ttl=timedelta(minutes=10))
     async def list_playlists(self, force_refresh: bool = False) -> Dict[str, Any]:
         """List user's playlists with lightweight change detection (renames/removals force a sync)."""
-        
+        disk_playlists_payload = await self._load_from_disk("playlists", max_age_days=30)
+
         # 1. Try persistent disk caches first for fast initial load
         if not force_refresh:
             for cache_key in ["playlists", "all_data", "playlists_report", "categorized_playlists"]:
