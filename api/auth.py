@@ -1177,15 +1177,16 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
 
         # If YouTube OAuth, save tokens and show success
         if is_youtube_oauth:
-            # Use the app's running config manager so the in-memory config is updated
-            try:
-                from app import config_manager as app_config_manager, youtube_service as app_youtube_service
-                cm = app_config_manager
-            except Exception:
+            # Safely access live running app module via sys.modules to avoid circular import errors
+            import sys
+            app_mod = sys.modules.get("app")
+            if app_mod and hasattr(app_mod, "config_manager"):
+                cm = app_mod.config_manager
+            else:
                 from core.config_manager import ConfigManager
                 from pathlib import Path
-                cm = ConfigManager(Path("/app/data/config.json") if Path("/app/data").exists() else Path("config.json"))
-                app_youtube_service = None
+                data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) if Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")).exists() else Path(__file__).resolve().parent.parent
+                cm = ConfigManager(data_dir / "config.json")
 
             config = cm.config
             config.oauth.access_token = tokens["access_token"]
@@ -1200,22 +1201,16 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             from services.youtube_service import YouTubeService
             new_youtube_service = YouTubeService(config)
 
-            # Update the global youtube_service reference
-            try:
-                import app
-                app.youtube_service = new_youtube_service
-                app_youtube_service = new_youtube_service
+            # Update the global youtube_service reference on the running app instance
+            if app_mod:
+                app_mod.youtube_service = new_youtube_service
                 log.info('🌐 Updated global app.youtube_service reference')
-            except Exception as e:
-                log.error(f'❌ Failed to update global youtube_service reference: {e}')
-
-            # Propagate the new YouTubeService to the background worker
-            try:
-                from app import _sync_worker_youtube_service
-                _sync_worker_youtube_service()
-                log.info('🔁 Synced background worker youtube service')
-            except Exception as e:
-                log.error(f'❌ Failed to sync worker youtube_service: {e}')
+                if hasattr(app_mod, "_sync_worker_youtube_service"):
+                    try:
+                        app_mod._sync_worker_youtube_service()
+                        log.info('🔁 Synced background worker youtube service')
+                    except Exception as e:
+                        log.error(f'❌ Failed to sync worker youtube_service: {e}')
 
             frontend_url = os.getenv("FRONTEND_URL", "https://tubemanager.onrender.com").rstrip("/")
             return RedirectResponse(url=f"{frontend_url}/auth?status=success&type=youtube", status_code=302)
