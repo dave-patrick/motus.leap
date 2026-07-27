@@ -1335,6 +1335,8 @@ async def api_maintenance_move_private():
 
     moved_count = 0
     errors = []
+    quota_exceeded = False
+    check_later_id = None
 
     try:
         playlists = []
@@ -1343,99 +1345,131 @@ async def api_maintenance_move_private():
             pl_req = google_client.playlists().list(
                 part="snippet,status", mine=True, maxResults=50, pageToken=pl_token
             )
-            pl_res = await asyncio.to_thread(lambda req=pl_req: _retry_on_ssl(lambda: req.execute()))
+            try:
+                pl_res = await asyncio.to_thread(lambda req=pl_req: _retry_on_ssl(lambda: req.execute()))
+            except Exception as pl_err:
+                if "quotaExceeded" in str(pl_err) or "quota" in str(pl_err).lower():
+                    quota_exceeded = True
+                    break
+                raise
             items = pl_res.get("items", [])
             playlists.extend(items)
             pl_token = pl_res.get("nextPageToken")
             if not pl_token:
                 break
         
-        check_later_id = None
-        for pl in playlists:
-            snippet = pl.get("snippet", {})
-            if (snippet.get("title") or "").strip().lower() == "check later":
-                check_later_id = pl.get("id")
-                break
+        if not quota_exceeded:
+            for pl in playlists:
+                snippet = pl.get("snippet", {})
+                if (snippet.get("title") or "").strip().lower() == "check later":
+                    check_later_id = pl.get("id")
+                    break
 
-        if not check_later_id:
-            try:
-                new_pl = await asyncio.to_thread(
-                    lambda: _retry_on_ssl(
-                        lambda: google_client.playlists().insert(
-                            part="snippet,status",
-                            body={
-                                "snippet": {
-                                    "title": "Check Later",
-                                    "description": "Private videos moved from other playlists for review"
-                                },
-                                "status": {
-                                    "privacyStatus": "private"
+            if not check_later_id:
+                try:
+                    new_pl = await asyncio.to_thread(
+                        lambda: _retry_on_ssl(
+                            lambda: google_client.playlists().insert(
+                                part="snippet,status",
+                                body={
+                                    "snippet": {
+                                        "title": "Check Later",
+                                        "description": "Private videos moved from other playlists for review"
+                                    },
+                                    "status": {
+                                        "privacyStatus": "private"
+                                    }
                                 }
-                            }
-                        ).execute()
+                            ).execute()
+                        )
                     )
-                )
-                if isinstance(new_pl, dict):
-                    check_later_id = new_pl.get("id")
-                log.info(f"[MOVE PRIVATE] Created 'Check Later' playlist with ID {check_later_id}")
-            except Exception as create_err:
-                log.error(f"[MOVE PRIVATE] Failed to create 'Check Later' playlist: {create_err}")
-                raise HTTPException(status_code=500, detail=f"Failed to create 'Check Later' playlist: {create_err}")
+                    if isinstance(new_pl, dict):
+                        check_later_id = new_pl.get("id")
+                    log.info(f"[MOVE PRIVATE] Created 'Check Later' playlist with ID {check_later_id}")
+                except Exception as create_err:
+                    if "quotaExceeded" in str(create_err) or "quota" in str(create_err).lower():
+                        quota_exceeded = True
+                    else:
+                        log.error(f"[MOVE PRIVATE] Failed to create 'Check Later' playlist: {create_err}")
+                        raise HTTPException(status_code=500, detail=f"Failed to create 'Check Later' playlist: {create_err}")
 
-        for pl in playlists:
-            pl_id = pl.get("id")
-            if not pl_id or pl_id == check_later_id:
-                continue
-            
-            page_token = None
-            while True:
-                items_req = google_client.playlistItems().list(
-                    part="snippet,status", playlistId=pl_id, maxResults=50, pageToken=page_token
-                )
-                items_resp = await asyncio.to_thread(lambda req=items_req: _retry_on_ssl(lambda: req.execute()))
+        if not quota_exceeded and check_later_id:
+            for pl in playlists:
+                if quota_exceeded:
+                    break
+                pl_id = pl.get("id")
+                if not pl_id or pl_id == check_later_id:
+                    continue
                 
-                items = items_resp.get("items", [])
-                for item in items:
-                    item_id = item.get("id")
-                    snippet = item.get("snippet", {})
-                    status = item.get("status", {})
-                    title = (snippet.get("title") or "").strip().lower()
-                    privacy = (status.get("privacyStatus") or "").strip().lower()
-                    video_id = snippet.get("resourceId", {}).get("videoId")
+                page_token = None
+                while True:
+                    items_req = google_client.playlistItems().list(
+                        part="snippet,status", playlistId=pl_id, maxResults=50, pageToken=page_token
+                    )
+                    try:
+                        items_resp = await asyncio.to_thread(lambda req=items_req: _retry_on_ssl(lambda: req.execute()))
+                    except Exception as list_err:
+                        if "quotaExceeded" in str(list_err) or "quota" in str(list_err).lower():
+                            quota_exceeded = True
+                            break
+                        log.warning(f"Could not list items for playlist {pl_id}: {list_err}")
+                        break
                     
-                    if title in ["[private video]", "private video", "private"] or privacy == "private":
-                        if video_id and check_later_id:
-                            try:
-                                ins_req = google_client.playlistItems().insert(
-                                    part="snippet",
-                                    body={
-                                        "snippet": {
-                                            "playlistId": check_later_id,
-                                            "resourceId": {
-                                                "kind": "youtube#video",
-                                                "videoId": video_id
+                    items = items_resp.get("items", [])
+                    for item in items:
+                        item_id = item.get("id")
+                        snippet = item.get("snippet", {})
+                        status = item.get("status", {})
+                        title = (snippet.get("title") or "").strip().lower()
+                        privacy = (status.get("privacyStatus") or "").strip().lower()
+                        video_id = snippet.get("resourceId", {}).get("videoId")
+                        
+                        if title in ["[private video]", "private video", "private"] or privacy == "private":
+                            inserted_ok = False
+                            if video_id:
+                                try:
+                                    ins_req = google_client.playlistItems().insert(
+                                        part="snippet",
+                                        body={
+                                            "snippet": {
+                                                "playlistId": check_later_id,
+                                                "resourceId": {
+                                                    "kind": "youtube#video",
+                                                    "videoId": video_id
+                                                }
                                             }
                                         }
-                                    }
-                                )
-                                await asyncio.to_thread(lambda req=ins_req: _retry_on_ssl(lambda: req.execute()))
-                            except Exception as add_err:
-                                log.warning(f"Could not insert video {video_id} into Check Later: {add_err}")
-                                errors.append(f"Insert video {video_id}: {add_err}")
-                        
-                        if item_id:
-                            try:
-                                del_req = google_client.playlistItems().delete(id=item_id)
-                                await asyncio.to_thread(lambda req=del_req: _retry_on_ssl(lambda: req.execute()))
-                                moved_count += 1
-                                log.info(f"[MOVE PRIVATE] Moved private item {item_id} (video {video_id}) from playlist {pl_id} to Check Later")
-                            except Exception as del_err:
-                                log.warning(f"Could not remove item {item_id} from {pl_id}: {del_err}")
-                                errors.append(f"Remove item {item_id}: {del_err}")
+                                    )
+                                    await asyncio.to_thread(lambda req=ins_req: _retry_on_ssl(lambda: req.execute()))
+                                    inserted_ok = True
+                                except Exception as add_err:
+                                    err_str = str(add_err)
+                                    log.warning(f"Could not insert video {video_id} into Check Later: {add_err}")
+                                    if "quotaExceeded" in err_str or "quota" in err_str.lower():
+                                        quota_exceeded = True
+                                        break
+                                    elif "failedPrecondition" in err_str or "400" in err_str:
+                                        log.info(f"Video {video_id} cannot be inserted into Check Later due to YouTube uploader restrictions. Keeping in original playlist.")
+                                        errors.append(f"Video {video_id}: Restricted by uploader")
+                            
+                            # Only delete from source playlist if insertion into Check Later succeeded OR if video_id missing
+                            if item_id and (inserted_ok or not video_id):
+                                try:
+                                    del_req = google_client.playlistItems().delete(id=item_id)
+                                    await asyncio.to_thread(lambda req=del_req: _retry_on_ssl(lambda: req.execute()))
+                                    moved_count += 1
+                                    log.info(f"[MOVE PRIVATE] Moved private item {item_id} (video {video_id}) from playlist {pl_id} to Check Later")
+                                except Exception as del_err:
+                                    err_str = str(del_err)
+                                    log.warning(f"Could not remove item {item_id} from {pl_id}: {del_err}")
+                                    if "quotaExceeded" in err_str or "quota" in err_str.lower():
+                                        quota_exceeded = True
+                                        break
+                                    errors.append(f"Remove item {item_id}: {del_err}")
 
-                page_token = items_resp.get("nextPageToken")
-                if not page_token:
-                    break
+                    page_token = items_resp.get("nextPageToken")
+                    if not page_token or quota_exceeded:
+                        break
 
         if youtube_service:
             try:
@@ -1443,9 +1477,16 @@ async def api_maintenance_move_private():
             except Exception:
                 pass
 
-        msg = f"Successfully moved {moved_count} private video(s) to 'Check Later' playlist." if moved_count > 0 else "No private videos were found across your playlists."
+        if quota_exceeded:
+            msg = f"YouTube API daily quota exceeded. Moved {moved_count} private video(s) before quota limit was reached. Quota resets daily." if moved_count > 0 else "YouTube API daily quota limit reached. Please try again tomorrow when quota resets."
+        elif moved_count > 0:
+            msg = f"Successfully moved {moved_count} private video(s) to 'Check Later' playlist."
+        else:
+            msg = "No private videos were moved across your playlists."
+
         return {
-            "status": "success",
+            "status": "success" if not quota_exceeded else "warning",
+            "quota_exceeded": quota_exceeded,
             "moved_count": moved_count,
             "target_playlist_id": check_later_id,
             "errors": errors,
@@ -1453,6 +1494,14 @@ async def api_maintenance_move_private():
         }
     except Exception as e:
         log.error(f"Error in move_private: {e}")
+        if "quotaExceeded" in str(e) or "quota" in str(e).lower():
+            return {
+                "status": "warning",
+                "quota_exceeded": True,
+                "moved_count": moved_count,
+                "target_playlist_id": check_later_id,
+                "message": f"YouTube API daily quota exceeded. Moved {moved_count} private video(s) before quota limit was reached." if moved_count > 0 else "YouTube API daily quota limit reached. Please try again tomorrow."
+            }
         raise HTTPException(status_code=500, detail=str(e))
 
 
