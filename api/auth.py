@@ -1118,7 +1118,7 @@ async def youtube_oauth_init():
         return {"error": "Google OAuth not configured. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars or configure in Settings."}
 
     # Use the same callback as login, but with a state parameter to identify it as YouTube OAuth
-    state = secrets.token_urlsafe(16)
+    state = f"yt_{secrets.token_urlsafe(16)}"
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth"
         f"?client_id={client_id}"
@@ -1151,8 +1151,8 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             <p>Please set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables, or configure OAuth in Settings.</p>
         """, status_code=400)
 
-    # Check if this is a YouTube OAuth callback
-    is_youtube_oauth = state and _youtube_oauth_states.pop(state, False)
+    # Check if this is a YouTube OAuth callback (check yt_ prefix or dictionary)
+    is_youtube_oauth = bool((state and state.startswith("yt_")) or (_youtube_oauth_states.pop(state, False) if state else False))
 
     token_url = "https://oauth2.googleapis.com/token"
     data = {
