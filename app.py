@@ -1323,9 +1323,13 @@ async def api_maintenance_move_private():
 
     moved_count = 0
     try:
-        pl_resp = await asyncio.to_thread(lambda: google_client.playlists().list(
-            part="snippet,status", mine=True, maxResults=50
-        ).execute())
+        pl_resp = await asyncio.to_thread(
+            lambda: _retry_on_ssl(
+                lambda: google_client.playlists().list(
+                    part="snippet,status", mine=True, maxResults=50
+                ).execute()
+            )
+        )
         playlists = pl_resp.get("items", [])
         
         check_later_id = None
@@ -1336,70 +1340,24 @@ async def api_maintenance_move_private():
                 break
 
         if not check_later_id:
-            new_pl = await asyncio.to_thread(lambda: google_client.playlists().insert(
-                part="snippet,status",
-                body={
-                    "snippet": {
-                        "title": "Check Later",
-                        "description": "Private videos moved from other playlists for review"
-                    },
-                    "status": {
-                        "privacyStatus": "private"
+            new_pl = await asyncio.to_thread(
+            lambda: _retry_on_ssl(
+                lambda: google_client.playlists().insert(
+                    part="snippet,status",
+                    body={
+                        "snippet": {
+                            "title": "Check Later",
+                            "description": "Private videos moved from other playlists for review"
+                        },
+                        "status": {
+                            "privacyStatus": "private"
+                        }
                     }
-                }
-            ).execute())
-            check_later_id = new_pl.get("id")
-            log.info(f"[MOVE PRIVATE] Created 'Check Later' playlist with ID {check_later_id}")
-
-        for pl in playlists:
-            pl_id = pl.get("id")
-            if not pl_id or pl_id == check_later_id:
-                continue
-            
-            page_token = None
-            while True:
-                items_resp = await asyncio.to_thread(lambda: google_client.playlistItems().list(
-                    part="snippet,status", playlistId=pl_id, maxResults=50, pageToken=page_token
-                ).execute())
-                
-                items = items_resp.get("items", [])
-                for item in items:
-                    item_id = item.get("id")
-                    snippet = item.get("snippet", {})
-                    status = item.get("status", {})
-                    title = (snippet.get("title") or "").strip().lower()
-                    privacy = (status.get("privacyStatus") or "").strip().lower()
-                    video_id = snippet.get("resourceId", {}).get("videoId")
-                    
-                    if title in ["[private video]", "private video"] or privacy == "private":
-                        if video_id and check_later_id:
-                            try:
-                                await asyncio.to_thread(lambda: google_client.playlistItems().insert(
-                                    part="snippet",
-                                    body={
-                                        "snippet": {
-                                            "playlistId": check_later_id,
-                                            "resourceId": {
-                                                "kind": "youtube#video",
-                                                "videoId": video_id
-                                            }
-                                        }
-                                    }
-                                ).execute())
-                            except Exception as add_err:
-                                log.warning(f"Could not insert video {video_id} into Check Later: {add_err}")
-                        
-                        if item_id:
-                            try:
-                                await asyncio.to_thread(lambda: google_client.playlistItems().delete(id=item_id).execute())
-                                moved_count += 1
-                                log.info(f"[MOVE PRIVATE] Moved private item {item_id} (video {video_id}) from playlist {pl_id} to Check Later")
-                            except Exception as del_err:
-                                log.warning(f"Could not remove item {item_id} from {pl_id}: {del_err}")
-
-                page_token = items_resp.get("nextPageToken")
-                if not page_token:
-                    break
+                ).execute()
+            )
+        )
+        check_later_id = new_pl.get("id")
+        log.info(f"[MOVE PRIVATE] Created 'Check Later' playlist with ID {check_later_id}")
 
         if youtube_service:
             try:
@@ -1416,6 +1374,27 @@ async def api_maintenance_move_private():
     except Exception as e:
         log.error(f"Error in move_private: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _retry_on_ssl(call_fn, *args, **kwargs):
+    """Retry a sync httplib2 call on transient SSL errors.
+
+    ENCRYPTED_LENGTH_TOO_LONG and WRONG_VERSION_NUMBER are transient TLS
+    negotiation issues that resolve on their own. Retry up to 3 times with
+    a short delay between attempts, resetting the connection each time.
+    """
+    import ssl
+
+    last_exc = None
+    for attempt in range(3):
+        try:
+            return call_fn(*args, **kwargs)
+        except ssl.SSLError as e:
+            last_exc = e
+            log.warning(f"SSL error in move_private (attempt {attempt + 1}/3): {e}. Retrying...")
+            if attempt < 2:
+                time.sleep(2)
+    raise last_exc
 
 
 def _load_maintenance_data() -> dict[str, Any]:

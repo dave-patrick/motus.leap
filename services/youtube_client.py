@@ -365,11 +365,13 @@ class YouTubeClient:
         all_items = []
         for start in range(0, len(ids), max_results):
             batch = ids[start : start + max_results]
-            response = client.channels().list(
-                part="snippet,statistics",
-                id=",".join(batch),
-                maxResults=max_results,
-            ).execute()
+            response = _with_retry(
+                lambda: client.channels().list(
+                    part="snippet,statistics",
+                    id=",".join(batch),
+                    maxResults=max_results,
+                ).execute()
+            )
             all_items.extend(response.get("items", []))
 
         return {"items": all_items}
