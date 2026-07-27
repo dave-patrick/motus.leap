@@ -88,3 +88,4 @@ async function authFetch(url, options = {}) {
 window.getCookie = getCookie;
 window.getAuthToken = getAuthToken;
 window.authFetch = authFetch;
+window.viewSystemLogs = function() { window.open('/system/logs', '_blank'); };
