@@ -359,7 +359,10 @@ window.open('/system/logs', '_blank');
         }
 
         function updateYouTubeStatusUI(data) {
-            const hasTokens = !!(data.youtube_connected || data.oauth_refresh_token || data.oauth_access_token);
+            const isPlaceholder = (str) => !str || str.startsWith('PLACEHOLDER') || str.toLowerCase() === 'none';
+            const hasValidRefresh = !isPlaceholder(data.oauth_refresh_token);
+            const hasValidAccess = !isPlaceholder(data.oauth_access_token);
+            const hasTokens = !!((data.youtube_connected && hasValidRefresh) || hasValidRefresh || hasValidAccess);
             const title = document.getElementById('yt-status-title');
             const detail = document.getElementById('yt-status-detail');
             const badge = document.getElementById('yt-status-badge');
@@ -426,6 +429,10 @@ window.open('/system/logs', '_blank');
                                 window.removeEventListener('message', onMsg);
                                 status.textContent = 'YouTube connected! Token saved.';
                                 status.className = 'text-[10px] text-green-400 text-center mt-2';
+                                setTimeout(() => {
+                                    loadSettings();
+                                    toast('YouTube account successfully connected!', 'success');
+                                }, 500);
                             } else if (e.data.type === 'youtube-oauth-error') {
                                 window.removeEventListener('message', onMsg);
                                 status.textContent = 'OAuth error: ' + (e.data.error || 'unknown');

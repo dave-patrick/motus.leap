@@ -2423,15 +2423,21 @@ def _validate_and_consume_state(state: str) -> dict:
 
 
 
+def _is_real_token(token: str | None) -> bool:
+    val = (token or "").strip()
+    return bool(val) and not val.startswith("PLACEHOLDER") and val.lower() != "none"
+
+
 @app.get("/api/youtube/status", dependencies=[Depends(get_current_user)])
 async def youtube_status():
     """Check YouTube OAuth connection status."""
     config = config_manager.config
-    is_connected = bool(config.oauth.refresh_token or config.oauth.access_token)
+    has_ref = _is_real_token(config.oauth.refresh_token)
+    has_acc = _is_real_token(config.oauth.access_token)
     return {
-        "connected": is_connected,
-        "has_refresh": bool(config.oauth.refresh_token),
-        "api_key_configured": bool(config.youtube_api_key),
+        "connected": bool(has_ref or has_acc),
+        "has_refresh": has_ref,
+        "api_key_configured": _is_real_token(config.youtube_api_key),
     }
 
 
@@ -2479,13 +2485,15 @@ class SettingsIn(BaseModel):
 async def get_settings():
     """Get settings."""
     config = config_manager.config
+    has_ref = _is_real_token(config.oauth.refresh_token)
+    has_acc = _is_real_token(config.oauth.access_token)
     return {
         "youtube_api_key": (_secret_val(config.youtube_api_key) or "")[:4] + "••••" if _secret_val(config.youtube_api_key) else "",
         "oauth_client_id": config.oauth.client_id,
         "oauth_client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
         "oauth_access_token": config.oauth.access_token or "",
         "oauth_refresh_token": config.oauth.refresh_token or "",
-        "youtube_connected": bool(config.oauth.refresh_token or config.oauth.access_token),
+        "youtube_connected": bool(has_ref or has_acc),
         "default_privacy": config.default_privacy,
         "scan_interval": config.scan_interval,
         "max_concurrent": config.max_concurrent,
