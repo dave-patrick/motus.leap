@@ -66,7 +66,8 @@ def _with_retry(sync_func, *args, **kwargs):
     for attempt in range(RETRY_ATTEMPTS):
         try:
             resp = sync_func(*args, **kwargs)
-            resp.raise_for_status()
+            if hasattr(resp, "raise_for_status"):
+                resp.raise_for_status()
             return resp
         except (ssl.SSLError, ssl.SSLEOFError) as e:
             # SSL errors usually indicate a poisoned / mismatched connection in the pool.
