@@ -1241,7 +1241,7 @@ async def api_maintenance() -> dict[str, Any]:
 
 @app.post("/api/maintenance/remove-deleted", dependencies=[Depends(get_current_user)])
 async def api_maintenance_remove_deleted():
-    """Remove deleted/unavailable videos from all playlists."""
+    """Scan all playlists and remove deleted/unavailable videos."""
     if not youtube_service:
         raise HTTPException(status_code=500, detail="YouTube service not initialized")
     yt_client = youtube_service.get_client(require_oauth=True)
@@ -1256,10 +1256,18 @@ async def api_maintenance_remove_deleted():
     errors = []
 
     try:
-        pl_resp = await asyncio.to_thread(lambda: google_client.playlists().list(
-            part="snippet", mine=True, maxResults=50
-        ).execute())
-        playlists = pl_resp.get("items", [])
+        playlists = []
+        pl_token = None
+        while True:
+            pl_req = google_client.playlists().list(
+                part="snippet", mine=True, maxResults=50, pageToken=pl_token
+            )
+            pl_res = await asyncio.to_thread(lambda req=pl_req: _retry_on_ssl(lambda: req.execute()))
+            items = pl_res.get("items", [])
+            playlists.extend(items)
+            pl_token = pl_res.get("nextPageToken")
+            if not pl_token:
+                break
         
         for pl in playlists:
             pl_id = pl.get("id")
@@ -1268,9 +1276,10 @@ async def api_maintenance_remove_deleted():
             
             page_token = None
             while True:
-                items_resp = await asyncio.to_thread(lambda: google_client.playlistItems().list(
+                items_req = google_client.playlistItems().list(
                     part="snippet,status", playlistId=pl_id, maxResults=50, pageToken=page_token
-                ).execute())
+                )
+                items_resp = await asyncio.to_thread(lambda req=items_req: _retry_on_ssl(lambda: req.execute()))
                 
                 items = items_resp.get("items", [])
                 for item in items:
@@ -1279,10 +1288,11 @@ async def api_maintenance_remove_deleted():
                     title = (snippet.get("title") or "").strip().lower()
                     desc = (snippet.get("description") or "").strip().lower()
                     
-                    if title in ["[deleted video]", "deleted video"] or "this video is unavailable" in desc or not snippet.get("resourceId", {}).get("videoId"):
+                    if title in ["[deleted video]", "deleted video", "deleted"] or "this video is unavailable" in desc or not snippet.get("resourceId", {}).get("videoId"):
                         if item_id:
                             try:
-                                await asyncio.to_thread(lambda: google_client.playlistItems().delete(id=item_id).execute())
+                                del_req = google_client.playlistItems().delete(id=item_id)
+                                await asyncio.to_thread(lambda req=del_req: _retry_on_ssl(lambda: req.execute()))
                                 removed_count += 1
                                 log.info(f"[REMOVE DELETED] Deleted item {item_id} from playlist {pl_id}")
                             except Exception as del_err:
@@ -1298,10 +1308,12 @@ async def api_maintenance_remove_deleted():
             except Exception:
                 pass
 
+        msg = f"Successfully removed {removed_count} deleted video(s) across all playlists." if removed_count > 0 else "No deleted videos were found across your playlists."
         return {
             "status": "success",
             "removed_count": removed_count,
-            "message": f"Successfully removed {removed_count} deleted video(s) across all playlists."
+            "errors": errors,
+            "message": msg
         }
     except Exception as e:
         log.error(f"Error in remove_deleted: {e}")
@@ -1322,15 +1334,21 @@ async def api_maintenance_move_private():
         raise HTTPException(status_code=401, detail="Authenticated Google API client unavailable")
 
     moved_count = 0
+    errors = []
+
     try:
-        pl_resp = await asyncio.to_thread(
-            lambda: _retry_on_ssl(
-                lambda: google_client.playlists().list(
-                    part="snippet,status", mine=True, maxResults=50
-                ).execute()
+        playlists = []
+        pl_token = None
+        while True:
+            pl_req = google_client.playlists().list(
+                part="snippet,status", mine=True, maxResults=50, pageToken=pl_token
             )
-        )
-        playlists = pl_resp.get("items", [])
+            pl_res = await asyncio.to_thread(lambda req=pl_req: _retry_on_ssl(lambda: req.execute()))
+            items = pl_res.get("items", [])
+            playlists.extend(items)
+            pl_token = pl_res.get("nextPageToken")
+            if not pl_token:
+                break
         
         check_later_id = None
         for pl in playlists:
@@ -1371,9 +1389,10 @@ async def api_maintenance_move_private():
             
             page_token = None
             while True:
-                items_resp = await asyncio.to_thread(lambda: google_client.playlistItems().list(
+                items_req = google_client.playlistItems().list(
                     part="snippet,status", playlistId=pl_id, maxResults=50, pageToken=page_token
-                ).execute())
+                )
+                items_resp = await asyncio.to_thread(lambda req=items_req: _retry_on_ssl(lambda: req.execute()))
                 
                 items = items_resp.get("items", [])
                 for item in items:
@@ -1384,10 +1403,10 @@ async def api_maintenance_move_private():
                     privacy = (status.get("privacyStatus") or "").strip().lower()
                     video_id = snippet.get("resourceId", {}).get("videoId")
                     
-                    if title in ["[private video]", "private video"] or privacy == "private":
+                    if title in ["[private video]", "private video", "private"] or privacy == "private":
                         if video_id and check_later_id:
                             try:
-                                await asyncio.to_thread(lambda: google_client.playlistItems().insert(
+                                ins_req = google_client.playlistItems().insert(
                                     part="snippet",
                                     body={
                                         "snippet": {
@@ -1398,17 +1417,21 @@ async def api_maintenance_move_private():
                                             }
                                         }
                                     }
-                                ).execute())
+                                )
+                                await asyncio.to_thread(lambda req=ins_req: _retry_on_ssl(lambda: req.execute()))
                             except Exception as add_err:
                                 log.warning(f"Could not insert video {video_id} into Check Later: {add_err}")
+                                errors.append(f"Insert video {video_id}: {add_err}")
                         
                         if item_id:
                             try:
-                                await asyncio.to_thread(lambda: google_client.playlistItems().delete(id=item_id).execute())
+                                del_req = google_client.playlistItems().delete(id=item_id)
+                                await asyncio.to_thread(lambda req=del_req: _retry_on_ssl(lambda: req.execute()))
                                 moved_count += 1
                                 log.info(f"[MOVE PRIVATE] Moved private item {item_id} (video {video_id}) from playlist {pl_id} to Check Later")
                             except Exception as del_err:
                                 log.warning(f"Could not remove item {item_id} from {pl_id}: {del_err}")
+                                errors.append(f"Remove item {item_id}: {del_err}")
 
                 page_token = items_resp.get("nextPageToken")
                 if not page_token:
@@ -1420,11 +1443,13 @@ async def api_maintenance_move_private():
             except Exception:
                 pass
 
+        msg = f"Successfully moved {moved_count} private video(s) to 'Check Later' playlist." if moved_count > 0 else "No private videos were found across your playlists."
         return {
             "status": "success",
             "moved_count": moved_count,
             "target_playlist_id": check_later_id,
-            "message": f"Successfully moved {moved_count} private video(s) to 'Check Later' playlist."
+            "errors": errors,
+            "message": msg
         }
     except Exception as e:
         log.error(f"Error in move_private: {e}")
