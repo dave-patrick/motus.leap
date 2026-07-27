@@ -359,7 +359,7 @@ window.open('/system/logs', '_blank');
         }
 
         function updateYouTubeStatusUI(data) {
-            const hasTokens = !!(data.oauth_access_token && data.oauth_refresh_token);
+            const hasTokens = !!(data.youtube_connected || data.oauth_refresh_token || data.oauth_access_token);
             const title = document.getElementById('yt-status-title');
             const detail = document.getElementById('yt-status-detail');
             const badge = document.getElementById('yt-status-badge');
