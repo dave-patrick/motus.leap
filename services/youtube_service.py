@@ -471,7 +471,7 @@ class YouTubeService:
                 if disk_payload:
                     if isinstance(disk_payload, dict) and disk_payload.get("playlists"):
                         log.info(f"list_playlists: returning from {cache_key}.json disk cache.")
-                        return disk_payload
+                        return {**disk_payload, "cached": True}
                     elif isinstance(disk_payload, list) and len(disk_payload) > 0:
                         log.info(f"list_playlists: returning from {cache_key}.json disk list cache.")
                         return {"playlists": disk_payload, "cached": True}
