@@ -1413,7 +1413,6 @@ async def api_maintenance_move_private():
                 page_token = items_resp.get("nextPageToken")
                 if not page_token:
                     break
->>>>>>> dd3c557 (fix: resolve AttributeError raise_for_status in _with_retry and UnboundLocalError new_pl in move_private)
 
         if youtube_service:
             try:
