@@ -2423,8 +2423,13 @@ def _validate_and_consume_state(state: str) -> dict:
 
 
 
-def _is_real_token(token: str | None) -> bool:
-    val = (token or "").strip()
+def _is_real_token(token) -> bool:
+    """Return True if *token* is a genuine credential, not a placeholder."""
+    # Handle SecretStr (Pydantic) objects transparently
+    if hasattr(token, 'get_secret_value'):
+        val = (token.get_secret_value() or "").strip()
+    else:
+        val = (str(token) if token else "").strip()
     return bool(val) and not val.startswith("PLACEHOLDER") and val.lower() != "none"
 
 
@@ -2432,12 +2437,34 @@ def _is_real_token(token: str | None) -> bool:
 async def youtube_status():
     """Check YouTube OAuth connection status."""
     config = config_manager.config
-    has_ref = _is_real_token(config.oauth.refresh_token)
-    has_acc = _is_real_token(config.oauth.access_token)
+    raw_ref = config.oauth.refresh_token
+    raw_acc = config.oauth.access_token
+    has_ref = _is_real_token(raw_ref)
+    has_acc = _is_real_token(raw_acc)
+    log.info(f"[YT-STATUS] refresh_token type={type(raw_ref).__name__} len={len(raw_ref or '')} is_real={has_ref} | access_token type={type(raw_acc).__name__} len={len(raw_acc or '')} is_real={has_acc}")
     return {
         "connected": bool(has_ref or has_acc),
         "has_refresh": has_ref,
         "api_key_configured": _is_real_token(config.youtube_api_key),
+    }
+
+
+@app.get("/api/youtube/debug-status")
+async def youtube_debug_status():
+    """Diagnostic: show masked token state for debugging connection status."""
+    config = config_manager.config
+    def _mask(v):
+        s = str(v) if v else ""
+        if len(s) <= 8:
+            return repr(s)
+        return f"{s[:4]}...{s[-4:]} (len={len(s)})"
+    return {
+        "refresh_token": _mask(config.oauth.refresh_token),
+        "access_token": _mask(config.oauth.access_token),
+        "refresh_is_real": _is_real_token(config.oauth.refresh_token),
+        "access_is_real": _is_real_token(config.oauth.access_token),
+        "youtube_api_key_type": type(_secret_val(config.youtube_api_key)).__name__,
+        "config_file": str(config_manager._path),
     }
 
 
@@ -2487,13 +2514,15 @@ async def get_settings():
     config = config_manager.config
     has_ref = _is_real_token(config.oauth.refresh_token)
     has_acc = _is_real_token(config.oauth.access_token)
+    yt_connected = bool(has_ref or has_acc)
+    log.info(f"[GET-SETTINGS] youtube_connected={yt_connected} has_ref={has_ref} has_acc={has_acc} ref_type={type(config.oauth.refresh_token).__name__} acc_type={type(config.oauth.access_token).__name__}")
     return {
         "youtube_api_key": (_secret_val(config.youtube_api_key) or "")[:4] + "••••" if _secret_val(config.youtube_api_key) else "",
         "oauth_client_id": config.oauth.client_id,
         "oauth_client_secret": "••••••••" if _secret_val(config.oauth.client_secret) else "",
         "oauth_access_token": config.oauth.access_token or "",
         "oauth_refresh_token": config.oauth.refresh_token or "",
-        "youtube_connected": bool(has_ref or has_acc),
+        "youtube_connected": yt_connected,
         "default_privacy": config.default_privacy,
         "scan_interval": config.scan_interval,
         "max_concurrent": config.max_concurrent,

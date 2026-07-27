@@ -315,34 +315,35 @@ window.open('/system/logs', '_blank');
         }
 
         async function loadSettings() {
-            try {
-                await loadPlaylistNames();
+            // Load playlist names independently so failures don't block the rest
+            try { await loadPlaylistNames(); } catch (e) { console.warn('loadPlaylistNames failed:', e); }
 
+            try {
                 const response = await authFetch('/api/settings');
+                console.log('[loadSettings] /api/settings response status:', response.status);
                 if (!response.ok) {
-                    // Do NOT silently leave the hardcoded "Not Connected" default.
-                    // Surface an explicit "unknown" state so a transient auth/cookie
-                    // issue is never misreported as a real disconnect.
                     setYouTubeStatusUnknown();
                     const data = await response.json().catch(() => ({}));
                     toast('Could not load connection status: ' + (data.detail || 'auth error'), 'error');
                     return;
                 }
                 const data = await response.json();
-                document.getElementById('max-concurrent').value = data.max_concurrent || 3;
-                document.getElementById('notify-failures').checked = data.notify_failures === true;
-                document.getElementById('log-level').value = data.log_level || 'INFO';
+                console.log('[loadSettings] data:', JSON.stringify({youtube_connected: data.youtube_connected, oauth_refresh_token: (data.oauth_refresh_token||'').substring(0,6)}));
 
+                // Populate form fields (each wrapped defensively)
+                try {
+                    const el1 = document.getElementById('max-concurrent'); if (el1) el1.value = data.max_concurrent || 3;
+                    const el2 = document.getElementById('notify-failures'); if (el2) el2.checked = data.notify_failures === true;
+                    const el3 = document.getElementById('log-level'); if (el3) el3.value = data.log_level || 'INFO';
+                    if (data.default_privacy) { const el4 = document.getElementById('default-privacy'); if (el4) el4.value = data.default_privacy; }
+                    if (data.scan_interval) { const el5 = document.getElementById('scan-interval'); if (el5) el5.value = data.scan_interval; }
+                } catch (formErr) { console.warn('Error populating form fields:', formErr); }
 
-
-                if (data.default_privacy) document.getElementById('default-privacy').value = data.default_privacy;
-                if (data.scan_interval) document.getElementById('scan-interval').value = data.scan_interval;
-
-                // Update YouTube connection status UI
+                // ALWAYS update YouTube connection status UI
                 updateYouTubeStatusUI(data);
 
             } catch (e) {
-                console.error(e);
+                console.error('[loadSettings] error:', e);
             }
         }
 
@@ -359,10 +360,8 @@ window.open('/system/logs', '_blank');
         }
 
         function updateYouTubeStatusUI(data) {
-            const isPlaceholder = (str) => !str || str.startsWith('PLACEHOLDER') || str.toLowerCase() === 'none';
-            const hasValidRefresh = !isPlaceholder(data.oauth_refresh_token);
-            const hasValidAccess = !isPlaceholder(data.oauth_access_token);
-            const hasTokens = !!((data.youtube_connected && hasValidRefresh) || hasValidRefresh || hasValidAccess);
+            console.log('[YT-STATUS-UI] data received:', JSON.stringify({youtube_connected: data.youtube_connected, oauth_refresh_token: (data.oauth_refresh_token||'').substring(0,6), oauth_access_token: (data.oauth_access_token||'').substring(0,6)}));
+            const hasTokens = !!data.youtube_connected;
             const title = document.getElementById('yt-status-title');
             const detail = document.getElementById('yt-status-detail');
             const badge = document.getElementById('yt-status-badge');
