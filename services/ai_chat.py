@@ -539,7 +539,24 @@ def _extract_tool_calls(response: Optional[Dict[str, Any]]) -> Tuple[Optional[st
 # tools touch YouTube here — they build a preview + pending record.
 # ─────────────────────────────────────────────────────────────────────────────
 
+import os
+from pathlib import Path
+
 def _tool_list_playlists(youtube_service) -> Dict[str, Any]:
+    # 1. Try disk cache first (0 quota)
+    data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    for fn in ["playlists.json", "all_data.json"]:
+        p = data_dir / fn
+        if p.exists():
+            try:
+                data = json.loads(p.read_text())
+                pls = data.get("playlists") if isinstance(data, dict) else (data if isinstance(data, list) else None)
+                if pls:
+                    return {"playlists": [{"id": item.get("id"), "title": item.get("title", "Untitled")} for item in pls if item.get("id")]}
+            except Exception:
+                pass
+
+    # 2. Fallback to live client
     client = youtube_service.get_client(require_oauth=True) if youtube_service else None
     if not client:
         return {"playlists": []}
@@ -558,6 +575,29 @@ def _tool_list_playlists(youtube_service) -> Dict[str, Any]:
 
 
 def _tool_get_playlist_videos(youtube_service, playlist_id: str) -> Dict[str, Any]:
+    # 1. Try disk cache first (0 quota)
+    data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    pl_cache = data_dir / f"playlist_videos_{playlist_id}.json"
+    if pl_cache.exists():
+        try:
+            vids = json.loads(pl_cache.read_text())
+            if isinstance(vids, list) and vids:
+                return {"videos": [{"video_id": v.get("video_id") or v.get("id"), "title": v.get("title", "Untitled"), "channel": v.get("channel_title") or v.get("channel", "Unknown")} for v in vids]}
+        except Exception:
+            pass
+
+    all_data = data_dir / "all_data.json"
+    if all_data.exists():
+        try:
+            d = json.loads(all_data.read_text())
+            vids = d.get("videos", []) if isinstance(d, dict) else []
+            matching = [v for v in vids if v.get("playlist_id") == playlist_id]
+            if matching:
+                return {"videos": [{"video_id": v.get("video_id") or v.get("id"), "title": v.get("title", "Untitled"), "channel": v.get("channel_title") or v.get("channel", "Unknown")} for v in matching]}
+        except Exception:
+            pass
+
+    # 2. Fallback to live client
     client = youtube_service.get_client(require_oauth=True) if youtube_service else None
     if not client:
         return {"videos": []}
@@ -610,15 +650,8 @@ def _tool_apply_rules(config: TubeManagerConfig, youtube_service,
         return {"proposed_moves": [], "note": "no enabled rules"}
 
     # Build a lookup of playlist id -> title for matching the rule target.
-    client = youtube_service.get_client(require_oauth=True) if youtube_service else None
-    pl_by_id: Dict[str, str] = {}
-    if client:
-        try:
-            resp = client.list_mine_playlists(max_results=50)
-            for item in resp.get("items", []):
-                pl_by_id[item.get("id")] = (item.get("snippet", {}) or {}).get("title", "")
-        except Exception:
-            pass
+    pls = _tool_list_playlists(youtube_service).get("playlists", [])
+    pl_by_id: Dict[str, str] = {p.get("id"): p.get("title", "") for p in pls if p.get("id")}
 
     proposed: List[Dict[str, Any]] = []
     targets = [r for r in rules if (not playlist_id or r.target_playlist == playlist_id)]
