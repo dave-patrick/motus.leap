@@ -11,6 +11,8 @@ function upgradeThumb(url) {
               .replace(/=s\d+(-c)?$/, '=s480');
 }
 
+const CLIENT_CACHE_KEY = "motus_v2.1_playlists";
+
 function renderCachedPlaylists() {
     const skeleton = document.getElementById("playlists-skeleton");
     const playlistsList = document.getElementById("playlists-list");
@@ -18,7 +20,7 @@ function renderCachedPlaylists() {
     if (skeleton) skeleton.classList.remove("hidden");
     if (playlistsList) playlistsList.classList.add("hidden");
 
-    const raw = localStorage.getItem("playlists") || localStorage.getItem("cached_playlists");
+    const raw = localStorage.getItem(CLIENT_CACHE_KEY) || localStorage.getItem("cached_playlists");
     if (raw) {
         try {
             const playlists = JSON.parse(raw);
@@ -63,7 +65,7 @@ async function loadPlaylists() {
             thumbnail: p.thumbnail || (p.videos && p.videos[0] ? p.videos[0].thumbnail : ''),
             url: p.url || (p.id ? `https://www.youtube.com/playlist?list=${p.id}` : '')
         }));
-        localStorage.setItem("cached_playlists", JSON.stringify(allPlaylists));
+        localStorage.setItem(CLIENT_CACHE_KEY, JSON.stringify(allPlaylists));
         renderPlaylistsGrid(allPlaylists);
     } catch (e) {
         // If we already painted a cached grid, keep it instead of erroring over it

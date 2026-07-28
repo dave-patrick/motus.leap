@@ -200,7 +200,11 @@ async def lifespan(app: FastAPI):
     log.info("[DIAG] Registered auth routes: %s", [getattr(r, 'path', None) for r in auth_router.routes])
     log.info("[DIAG] Total app routes: %s", [getattr(r, 'path', None) for r in app.routes])
 
-    log.info("motus.leap started successfully")
+    if youtube_service:
+        try:
+            await youtube_service.disk_cache_cleanup(max_age_days=30)
+        except Exception as cleanup_err:
+            log.warning(f"Startup disk cache cleanup failed: {cleanup_err}")
 
     yield
 

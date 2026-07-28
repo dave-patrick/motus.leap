@@ -148,13 +148,92 @@ async function loadPlaylist() {
     }
 }
 
+const BATCH_SIZE = 36;
+let renderedVideoCount = 0;
+let infiniteScrollObserver = null;
+
+function renderSingleVideoCard(v) {
+    const title = v.title || 'Unknown title';
+    const safeTitle = DOMPurify.sanitize(title);
+    const channel = v.channel_title || v.channel || '';
+    const safeChannel = DOMPurify.sanitize(channel);
+    const vId = v.video_id || v.id || '';
+    return `
+        <div class="video-card bg-[#16191f] border border-[#2a2f3a] rounded-xl overflow-hidden hover:border-[#2f8fc9]/50 transition-all flex flex-col group relative" data-video-id="${vId}" data-title="${safeTitle.toLowerCase()}" data-channel="${safeChannel.toLowerCase()}">
+            <div class="relative aspect-video bg-[#0a0c10] overflow-hidden cursor-pointer" onclick="openYouTubeModal('${vId}')">
+                <img src="${v.thumbnail || 'https://i.ytimg.com/vi/' + vId + '/hqdefault.jpg'}" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/${vId}/hqdefault.jpg'">
+                <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[9px] font-mono px-1.5 py-0.5 rounded font-medium">${v.duration_formatted || formatDuration(v.duration_seconds) || '0:00'}</span>
+                <div class="absolute top-1.5 left-1.5 z-10" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="video-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer" onchange="toggleVideo('${vId}', this)" ${selectedVideos.has(vId) ? 'checked' : ''} onclick="event.stopPropagation()">
+                </div>
+                <button onclick="deleteSingleVideo('${vId}', event)" class="absolute top-1.5 right-1.5 bg-red-950/80 hover:bg-red-900 border border-red-500/40 text-red-300 hover:text-white text-[10px] w-6 h-6 rounded flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md z-10 cursor-pointer" title="Remove video from playlist"><i class="fa-solid fa-trash-can text-[10px]"></i></button>
+                ${selectedVideos.has(vId) ? '<div class="absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none"></div>' : ''}
+            </div>
+            <div class="p-3 flex flex-col flex-1 relative">
+                <h4 class="text-xs font-semibold text-white line-clamp-2 mb-1.5 leading-snug cursor-pointer hover:text-[#2f8fc9] transition-colors pr-6" onclick="openYouTubeModal('${vId}')" title="${safeTitle}">${safeTitle}</h4>
+                <p class="text-[10px] text-gray-400 mt-auto truncate">${safeChannel}</p>
+                <button onclick="openYouTubeModal('${vId}')" class="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
+            </div>
+        </div>
+    `;
+}
+
+function loadNextVideoBatch() {
+    const grid = document.getElementById('video-grid');
+    if (!grid || renderedVideoCount >= allVideos.length) {
+        removeSentinel();
+        return;
+    }
+
+    const nextBatch = allVideos.slice(renderedVideoCount, renderedVideoCount + BATCH_SIZE);
+    renderedVideoCount += nextBatch.length;
+
+    const tempContainer = document.createElement('div');
+    tempContainer.innerHTML = nextBatch.map(renderSingleVideoCard).join('');
+    while (tempContainer.firstChild) {
+        grid.appendChild(tempContainer.firstChild);
+    }
+
+    if (renderedVideoCount >= allVideos.length) {
+        removeSentinel();
+    }
+}
+
+function removeSentinel() {
+    if (infiniteScrollObserver) {
+        infiniteScrollObserver.disconnect();
+        infiniteScrollObserver = null;
+    }
+    const sentinel = document.getElementById('video-grid-sentinel');
+    if (sentinel) sentinel.remove();
+}
+
+function setupInfiniteScrollSentinel() {
+    removeSentinel();
+    const container = document.getElementById('videos-list');
+    if (!container || renderedVideoCount >= allVideos.length) return;
+
+    const sentinel = document.createElement('div');
+    sentinel.id = 'video-grid-sentinel';
+    sentinel.className = 'col-span-full py-6 text-center text-xs text-gray-500 font-medium flex items-center justify-center gap-2';
+    sentinel.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-[#2f8fc9]"></i> Loading more videos...';
+    container.appendChild(sentinel);
+
+    infiniteScrollObserver = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) {
+            loadNextVideoBatch();
+        }
+    }, { rootMargin: '300px' });
+
+    infiniteScrollObserver.observe(sentinel);
+}
+
 function renderVideos() {
     const container = document.getElementById('videos-list');
     const toolbarCard = document.getElementById('playlist-toolbar-card');
     const skeleton = document.getElementById('videos-skeleton');
     if (!container) return;
 
-    // loadPlaylist() hides #videos-list behind the skeleton; reveal it and drop the skeleton now that we're rendering.
     container.classList.remove('hidden');
     if (skeleton) skeleton.classList.add('hidden');
 
@@ -187,30 +266,18 @@ function renderVideos() {
         container.innerHTML = '<div class="text-center p-8 text-gray-400">No videos in this playlist</div>';
         return;
     }
+
+    renderedVideoCount = 0;
+    const initialBatch = allVideos.slice(0, BATCH_SIZE);
+    renderedVideoCount = initialBatch.length;
+
     container.innerHTML = `
-        <!-- Video grid -->
         <div class="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="video-grid">
-            ${allVideos.map((v, i) => `
-                <div class="video-card bg-[#16191f] border border-[#2a2f3a] rounded-xl overflow-hidden hover:border-[#2f8fc9]/50 transition-all flex flex-col group relative" data-video-id="${v.video_id}" data-title="${DOMPurify.sanitize(v.title || '').toLowerCase()}" data-channel="${DOMPurify.sanitize(v.channel_title || '').toLowerCase()}">
-                    <div class="relative aspect-video bg-[#0a0c10] overflow-hidden cursor-pointer" onclick="openYouTubeModal('${v.video_id}')">
-                        <img src="${v.thumbnail || 'https://i.ytimg.com/vi/' + v.video_id + '/hqdefault.jpg'}" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/${v.video_id}/hqdefault.jpg'">
-                        <span class="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[9px] font-mono px-1.5 py-0.5 rounded font-medium">${v.duration_formatted || formatDuration(v.duration_seconds) || '0:00'}</span>
-                        <div class="absolute top-1.5 left-1.5 z-10" onclick="event.stopPropagation()">
-                            <input type="checkbox" class="video-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer" onchange="toggleVideo('${v.video_id}', this)" ${selectedVideos.has(v.video_id) ? 'checked' : ''} onclick="event.stopPropagation()">
-                        </div>
-                        <button onclick="deleteSingleVideo('${v.video_id}', event)" class="absolute top-1.5 right-1.5 bg-red-950/80 hover:bg-red-900 border border-red-500/40 text-red-300 hover:text-white text-[10px] w-6 h-6 rounded flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md z-10 cursor-pointer" title="Remove video from playlist"><i class="fa-solid fa-trash-can text-[10px]"></i></button>
-                        ${selectedVideos.has(v.video_id) ? '<div class="absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none"></div>' : ''}
-                    </div>
-                    <div class="p-3 flex flex-col flex-1 relative">
-                        <h4 class="text-xs font-semibold text-white line-clamp-2 mb-1.5 leading-snug cursor-pointer hover:text-[#2f8fc9] transition-colors pr-6" onclick="openYouTubeModal('${v.video_id}')" title="${DOMPurify.sanitize(v.title || '')}">${DOMPurify.sanitize(v.title || 'Unknown title')}</h4>
-                        <p class="text-[10px] text-gray-400 mt-auto truncate">${v.channel_title ? DOMPurify.sanitize(v.channel_title) : ''}</p>
-                        <button onclick="openYouTubeModal('${v.video_id}')" class="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded font-medium hover:bg-black/90 transition-colors" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
-                    </div>
-                </div>
-            `).join('')}
+            ${initialBatch.map(renderSingleVideoCard).join('')}
         </div>
     `;
 
+    setupInfiniteScrollSentinel();
     loadPlaylistsDropdown();
     updateMoveButton();
 }
@@ -233,6 +300,12 @@ function filterVideoList() {
     const clearBtn = document.getElementById('clear-search-btn');
     if (clearBtn) {
         clearBtn.classList.toggle('hidden', !query);
+    }
+
+    if (query && renderedVideoCount < allVideos.length) {
+        while (renderedVideoCount < allVideos.length) {
+            loadNextVideoBatch();
+        }
     }
 
     const allCards = document.querySelectorAll('.video-card');
