@@ -77,8 +77,9 @@ from services.youtube_service import YouTubeService, _best_thumbnail
 # Setup logging
 
 # Paths
-WEB_DIR = Path(__file__).resolve().parent / "web"
-CONFIG_DIR = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) if Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")).exists() else Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent
+WEB_DIR = BASE_DIR / "web"
+CONFIG_DIR = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) if Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")).exists() else BASE_DIR
 
 # Initialize managers
 config_manager = ConfigManager(CONFIG_DIR / "config.json")
