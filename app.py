@@ -127,30 +127,6 @@ async def lifespan(app: FastAPI):
     youtube_service = YouTubeService(config)
     await create_default_admin()
 
-    # Clean up stale disk cache files on startup
-    try:
-        removed = await youtube_service.disk_cache_cleanup(max_age_days=30)
-        if removed:
-            log.info(f"Startup cache cleanup: removed {removed} stale files")
-    except Exception as e:
-        log.warning(f"Startup disk cache cleanup failed (non-fatal): {e}")
-
-    # Clean up stale LRU cache entries on startup (H11)
-    try:
-        if hasattr(youtube_service, '_cache'):
-            stale_removed = await youtube_service._cache.cleanup_stale()
-            if stale_removed:
-                log.info(f"Startup LRU cleanup: removed {stale_removed} stale entries")
-    except Exception as e:
-        log.warning(f"Startup LRU cleanup failed (non-fatal): {e}")
-
-    # Clean up idle sessions on startup
-    try:
-        from api.auth import cleanup_idle_sessions
-        await cleanup_idle_sessions()
-    except Exception as e:
-        log.warning(f"Idle session cleanup failed (non-fatal): {e}")
-
     # Store in app state for routers
     app.state.config = config_manager.config
     app.state.config_manager = config_manager
@@ -164,6 +140,41 @@ async def lifespan(app: FastAPI):
 
     # P3: start the in-process job scheduler ticker (stdlib cron, no APScheduler).
     await worker.start()
+
+    # Start background maintenance tasks non-blockingly so server accepts /health immediately
+    async def _async_startup_tasks():
+        """Run background initialization tasks after server is listening."""
+        try:
+            from services.db import db_engine
+            await db_engine.async_init_db()
+        except Exception as db_err:
+            log.warning(f"Database engine init failed: {db_err}")
+
+        try:
+            if youtube_service:
+                await youtube_service.disk_cache_cleanup(max_age_days=30)
+        except Exception as e:
+            log.warning(f"Startup disk cache cleanup failed (non-fatal): {e}")
+
+        try:
+            if youtube_service and hasattr(youtube_service, '_cache'):
+                await youtube_service._cache.cleanup_stale()
+        except Exception as e:
+            log.warning(f"Startup LRU cleanup failed (non-fatal): {e}")
+
+        try:
+            from api.auth import cleanup_idle_sessions
+            await cleanup_idle_sessions()
+        except Exception as e:
+            log.warning(f"Idle session cleanup failed (non-fatal): {e}")
+
+        try:
+            from api.bulk_operations import operations_storage
+            await operations_storage.load()
+        except Exception as e:
+            log.warning(f"Failed to load bulk operations (non-fatal): {e}")
+
+    asyncio.create_task(_async_startup_tasks())
 
     # Start nightly auto-apply mappings job if enabled
     async def nightly_auto_apply_mappings():
@@ -187,31 +198,10 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(nightly_auto_apply_mappings())
 
-    # Load persisted bulk operations
-    try:
-        from api.bulk_operations import operations_storage
-        await operations_storage.load()
-        log.info("Bulk operations loaded from disk")
-    except Exception as e:
-        log.warning(f"Failed to load bulk operations (non-fatal): {e}")
-
     # Log registered routes for diagnostics
-    # Use getattr to handle both Route and APIRouter/IncludedRouter objects
     log.info("[DIAG] Registered bulk routes: %s", [getattr(r, 'path', None) for r in bulk_router.routes])
     log.info("[DIAG] Registered auth routes: %s", [getattr(r, 'path', None) for r in auth_router.routes])
     log.info("[DIAG] Total app routes: %s", [getattr(r, 'path', None) for r in app.routes])
-
-    from services.db import db_engine
-    try:
-        await db_engine.async_init_db()
-    except Exception as db_err:
-        log.warning(f"Database engine init failed: {db_err}")
-
-    if youtube_service:
-        try:
-            await youtube_service.disk_cache_cleanup(max_age_days=30)
-        except Exception as cleanup_err:
-            log.warning(f"Startup disk cache cleanup failed: {cleanup_err}")
 
     yield
 
