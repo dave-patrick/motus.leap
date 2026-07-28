@@ -1155,8 +1155,9 @@ async def duplicate_playlist_endpoint(payload: dict):
                     except Exception as ve:
                         log.error(f"Error copying video {v.get('video_id')}: {ve}")
                 
-                # Force refresh cache
-                await youtube_service.fetch_all_data(force_refresh=True)
+                # Invalidate cache so next load picks up changes without burning quota on full re-sync
+                await youtube_service._cache.delete("all_data")
+                await youtube_service._cache.delete("playlists")
             except Exception as te:
                 log.error(f"Error in background copy task: {te}")
                 
@@ -2186,17 +2187,8 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
     # items (the enriched list_subscriptions() can drop titles if the
     # secondary channels.list call fails).
     try:
-        pl_data = await youtube_service.list_playlists(force_refresh=True)
-        client = youtube_service.get_client(require_oauth=True)
-        if not client:
-            raise HTTPException(status_code=503, detail="YouTube not connected. OAuth required.")
-        raw_subs = await youtube_service._fetch_all_paginated(
-            lambda mr, pt: client.list_mine_subscriptions(max_results=mr, page_token=pt),
-            max_results=50,
-            max_items=10000,
-        )
-    except HTTPException:
-        raise
+        pl_data = await youtube_service.list_playlists(force_refresh=False)
+        subs_data = await youtube_service.list_subscriptions(force_refresh=False)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to read account data: {e}")
 
@@ -2213,11 +2205,9 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
 
     channel_by_name: dict[str, str] = {}
     channel_by_norm: dict[str, str] = {}
-    for sub in raw_subs:
-        snip = (sub.get("snippet") or {})
-        res = snip.get("resourceId") or {}
-        cid = res.get("channelId") or ""
-        title = (snip.get("title") or "").strip()
+    for sub in (subs_data.get("channels") or []):
+        cid = sub.get("id") or sub.get("channel_id") or ""
+        title = (sub.get("title") or "").strip()
         if cid and title:
             channel_by_name.setdefault(title.lower(), cid)
             channel_by_norm.setdefault(_norm_name(title), cid)

@@ -593,8 +593,25 @@ class YouTubeService:
     @cache_result("subscriptions", ttl=timedelta(minutes=10))
     async def list_subscriptions(self, force_refresh: bool = False) -> Dict[str, Any]:
         """List user's subscriptions with channel stats (cached)."""
+        # 1. Check disk cache first if force_refresh is False
+        if not force_refresh:
+            disk_payload = await self._load_from_disk("subscriptions", max_age_days=30)
+            if disk_payload and isinstance(disk_payload, dict) and disk_payload.get("channels"):
+                log.info("list_subscriptions: returning from subscriptions.json disk cache.")
+                return {**disk_payload, "cached": True}
+
+            disk_all_data = await self._load_from_disk("all_data", max_age_days=30)
+            if disk_all_data and isinstance(disk_all_data, dict) and disk_all_data.get("subscriptions"):
+                subs = disk_all_data["subscriptions"]
+                log.info("list_subscriptions: returning from all_data.json disk cache.")
+                return {"channels": subs, "total_subscriptions": len(subs), "cached": True}
+
         client = self.get_client(require_oauth=True)
         if not client:
+            # Fall back to disk cache if client unavailable
+            disk_payload = await self._load_from_disk("subscriptions", max_age_days=30)
+            if disk_payload and isinstance(disk_payload, dict) and disk_payload.get("channels"):
+                return {**disk_payload, "cached": True}
             return {"channels": [], "error": "YouTube not connected. OAuth required."}
         
         try:
@@ -657,9 +674,14 @@ class YouTubeService:
                 })
             
             subscriptions.sort(key=lambda x: x["title"].lower())
-            return {"channels": subscriptions, "total_subscriptions": len(subscriptions)}
+            res = {"channels": subscriptions, "total_subscriptions": len(subscriptions)}
+            await self._save_to_disk("subscriptions", res)
+            return res
         except Exception as e:
             log.warning(f"Failed to list subscriptions: {e}")
+            disk_payload = await self._load_from_disk("subscriptions", max_age_days=30)
+            if disk_payload and isinstance(disk_payload, dict) and disk_payload.get("channels"):
+                return {**disk_payload, "cached": True, "error": str(e)}
             return {"channels": [], "error": str(e)}
 
     async def map_channels_from_playlist_contents(

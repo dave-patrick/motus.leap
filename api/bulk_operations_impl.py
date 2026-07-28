@@ -6,6 +6,8 @@ import csv
 import json
 import io
 import asyncio
+import os
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
@@ -370,6 +372,30 @@ class BulkOperationsService:
     ) -> List[Dict[str, Any]]:
         """Export playlists data."""
         try:
+            # Check disk cache first
+            data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+            for cache_name in ["playlists.json", "all_data.json"]:
+                cp = data_dir / cache_name
+                if cp.exists():
+                    try:
+                        d = json.loads(await asyncio.to_thread(cp.read_text))
+                        pls = d.get("playlists") if isinstance(d, dict) else (d if isinstance(d, list) else None)
+                        if pls:
+                            res = []
+                            for p in pls:
+                                res.append({
+                                    "id": p.get("id", ""),
+                                    "title": p.get("title", "Untitled"),
+                                    "description": p.get("description", ""),
+                                    "item_count": int(p.get("video_count", 0) or p.get("item_count", 0) or 0),
+                                    "created_at": p.get("created_at"),
+                                    "privacy": p.get("privacy", "private")
+                                })
+                            log.info(f"export_playlists: served {len(res)} items from disk cache {cache_name}")
+                            return res
+                    except Exception:
+                        pass
+
             client = self._get_client()
             if not client:
                 return []
@@ -406,6 +432,29 @@ class BulkOperationsService:
     ) -> List[Dict[str, Any]]:
         """Export subscriptions data."""
         try:
+            # Check disk cache first
+            data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+            for cache_name in ["subscriptions.json", "all_data.json"]:
+                cp = data_dir / cache_name
+                if cp.exists():
+                    try:
+                        d = json.loads(await asyncio.to_thread(cp.read_text))
+                        subs = (d.get("channels") if isinstance(d, dict) else None) or (d.get("subscriptions") if isinstance(d, dict) else None)
+                        if subs:
+                            res = []
+                            for s in subs:
+                                res.append({
+                                    "id": s.get("id") or s.get("channel_id", ""),
+                                    "title": s.get("title", "Unknown"),
+                                    "description": s.get("description", ""),
+                                    "thumbnail": s.get("thumbnail"),
+                                    "subscribed_at": s.get("subscribed_at")
+                                })
+                            log.info(f"export_subscriptions: served {len(res)} items from disk cache {cache_name}")
+                            return res
+                    except Exception:
+                        pass
+
             client = self._get_client()
             if not client:
                 return []
