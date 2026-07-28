@@ -17,7 +17,9 @@ log = logging.getLogger(__name__)
 import asyncio
 from datetime import datetime, timezone
 import json
+from core.utils import fast_dumps
 import hashlib
+import gzip
 import re
 import time
 from contextlib import asynccontextmanager
@@ -330,20 +332,28 @@ app.include_router(bulk_router, tags=["bulk"])
 app.include_router(auth_router)
 
 
+_html_page_cache: dict[tuple[str, float], str] = {}
+
 async def no_cache_file_response(file_path: Path) -> Response:
     """Return HTML response with strong no-cache headers to prevent CDN/browser caching."""
     try:
-        async with aiofiles.open(file_path, mode='r', encoding="utf-8") as f:
-            content = await f.read()
+        mtime = file_path.stat().st_mtime if file_path.exists() else 0
+        cache_key = (str(file_path), mtime)
+        content = _html_page_cache.get(cache_key)
 
-        # Hard-bust cache by inserting a fresh deploy query on all static assets
-        deploy_tag = str(int(__import__('time').time()))
-        content = content.replace(
-            '<title>motus.leap</title>',
-            f'<title>motus.leap</title>\n    <meta name="deploy-time" content="{deploy_tag}">'
-        )
-        import re
-        content = re.sub(r"\?v=\d+", f'?v={deploy_tag}', content)
+        if not content:
+            async with aiofiles.open(file_path, mode='r', encoding="utf-8") as f:
+                content = await f.read()
+
+            deploy_tag = str(int(mtime)) if mtime else str(int(__import__('time').time()))
+            content = content.replace(
+                '<title>motus.leap</title>',
+                f'<title>motus.leap</title>\n    <meta name="deploy-time" content="{deploy_tag}">'
+            )
+            import re
+            content = re.sub(r"\?v=\d+", f'?v={deploy_tag}', content)
+            _html_page_cache[cache_key] = content
+
         return Response(
             content=content,
             media_type="text/html; charset=utf-8",
@@ -414,6 +424,8 @@ async def favicon():
     return Response(content=b"\x00\x00\x01\x00\x01\x00\x01\x01\x00\x00\x01\x00\x18\x00\x30\x00\x00\x00\x16\x00\x00\x00" + b"\x00" * 50, media_type="image/x-icon")
 
 # H6 FIX: Gzip compression middleware for JSON responses
+_compression_cache: dict[bytes, bytes] = {}
+
 @app.middleware("http")
 async def add_compression(request: Request, call_next):
     """Add gzip compression for JSON responses to reduce bandwidth."""
@@ -424,8 +436,12 @@ async def add_compression(request: Request, call_next):
     if "gzip" in accept_encoding and response.headers.get("content-type", "").startswith("application/json"):
         body = getattr(response, 'body', None)
         if body and len(body) > 500:
-            import gzip
-            compressed = gzip.compress(body)
+            compressed = _compression_cache.get(body)
+            if not compressed:
+                compressed = gzip.compress(body)
+                if len(_compression_cache) > 100:
+                    _compression_cache.clear()
+                _compression_cache[body] = compressed
             if len(compressed) < len(body):
                 from starlette.responses import Response
                 response = Response(
@@ -439,14 +455,14 @@ async def add_compression(request: Request, call_next):
     # H9/H17 FIX: Add ETag and Cache-Control headers for static assets
     path = request.url.path
     if path.startswith("/static/"):
+        is_versioned = "?v=" in path or any(ext in path for ext in [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff2"])
         # H10 FIX: Versioned assets get long cache, non-versioned get stale-while-revalidate
-        if "?v=" in path or any(ext in path for ext in [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff2"]):
+        if is_versioned:
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         else:
             response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
-        # H9 FIX: Add ETag for conditional requests
-        if response.status_code == 200 and hasattr(response, 'body'):
-            import hashlib
+        # H9 FIX: Add ETag for conditional requests (skip for versioned)
+        if not is_versioned and response.status_code == 200 and hasattr(response, 'body'):
             etag = hashlib.md5(response.body).hexdigest()
             response.headers["ETag"] = f'"{etag}"'
     
@@ -503,7 +519,7 @@ async def csp_violation_report(request: Request):
         except Exception:
             data = {"raw": body.decode("utf-8", "replace")[:500]}
         report = data.get("csp-report", data) if isinstance(data, dict) else data
-        log.warning("CSP violation report: %s", json.dumps(report)[:500])
+        log.warning("CSP violation report: %s", fast_dumps(report)[:500])
     except Exception as e:
         log.debug("csp-report parse failed: %s", e)
     return Response(status_code=204)
@@ -837,7 +853,7 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
 def _save_maintenance(maintenance: dict) -> None:
     _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
     _data_dir.mkdir(parents=True, exist_ok=True)
-    ( _data_dir / "maintenance.json").write_text(json.dumps(maintenance, indent=2))
+    ( _data_dir / "maintenance.json").write_text(json.dumps(maintenance, separators=(',', ':')))
 
 
 @app.post("/api/youtube/misplaced/exclude", dependencies=[Depends(get_current_user), Depends(verify_origin)])
@@ -2703,6 +2719,7 @@ def parse_google_client_secret_json(raw: str) -> tuple[str, str]:
     Returns ("", "") if extraction fails; callers should surface a clear error.
     """
     import json
+from core.utils import fast_dumps
     raw = (raw or "").strip()
     if not raw:
         return "", ""
@@ -3053,15 +3070,16 @@ async def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> d
 
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
+    from core.http_client import get_http_client
     try:
-        with httpx.Client(timeout=15.0) as client:
-            resp = client.get(models_url, headers=headers)
-    except (httpx.TimeoutException, httpx.ConnectError, httpx.TransportError) as e:
+        client = get_http_client()
+        resp = await client.get(models_url, headers=headers)
+    except Exception as e:
         try:
             import asyncio
             await asyncio.sleep(1.0)
-            with httpx.Client(timeout=15.0) as client:
-                resp = client.get(models_url, headers=headers)
+            client = get_http_client()
+            resp = await client.get(models_url, headers=headers)
         except Exception as e2:
             return {"manual_entry": True, "error": f"Discovery probe failed: {e2}"}
 
@@ -3865,7 +3883,7 @@ async def cancel_action():
     global background_worker
     if background_worker:
         background_worker.cancel_current_task()
-    await manager.broadcast(json.dumps({"type": "log", "message": "[AGENT] Action cancelled by user"}))
+    await manager.broadcast(fast_dumps({"type": "log", "message": "[AGENT] Action cancelled by user"}))
     return {"status": "cancelled"}
 
 
@@ -3912,21 +3930,21 @@ async def diagnostics_youtube() -> dict[str, Any]:
             result["channel_id"] = channel_items[0].get("id", "")
 
         # Raw HTTP check bypassing googleapiclient to confirm API response
-        import httpx
-        async with httpx.AsyncClient(timeout=30.0) as http_client:
-            raw_playlists = await http_client.get(
-                "https://www.googleapis.com/youtube/v3/playlists",
-                headers={"Authorization": f"Bearer {config.oauth.access_token}"},
-                params={"part": "snippet,contentDetails", "mine": "true", "maxResults": 10},
-            )
-            result["raw_api_status"] = raw_playlists.status_code
-            try:
-                raw_resp = raw_playlists.json()
-                # Redact any token/secret fields from the response
-                raw_resp = _redact_secrets(raw_resp)
-                result["raw_api_response"] = raw_resp
-            except Exception:
-                result["raw_api_body"] = raw_playlists.text[:500]
+        from core.http_client import get_http_client
+        http_client = get_http_client()
+        raw_playlists = await http_client.get(
+            "https://www.googleapis.com/youtube/v3/playlists",
+            headers={"Authorization": f"Bearer {config.oauth.access_token}"},
+            params={"part": "snippet,contentDetails", "mine": "true", "maxResults": 10},
+        )
+        result["raw_api_status"] = raw_playlists.status_code
+        try:
+            raw_resp = raw_playlists.json()
+            # Redact any token/secret fields from the response
+            raw_resp = _redact_secrets(raw_resp)
+            result["raw_api_response"] = raw_resp
+        except Exception:
+            result["raw_api_body"] = raw_playlists.text[:500]
     except Exception as e:
         result["status"] = "error"
         result["error"] = f"{type(e).__name__}: {str(e)}"
@@ -3947,20 +3965,20 @@ async def diagnostics_oauth_user() -> dict[str, Any]:
         return result
 
     try:
-        import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            userinfo_resp = await client.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {config.oauth.access_token}"},
-            )
-            result["userinfo_status"] = userinfo_resp.status_code
-            if userinfo_resp.status_code == 200:
-                userinfo = userinfo_resp.json()
-                result["google_email"] = userinfo.get("email")
-                result["google_name"] = userinfo.get("name")
-                result["google_id"] = userinfo.get("id")
-            else:
-                # YouTube-only tokens don't have userinfo scope; this is normal.
+        from core.http_client import get_http_client
+        client = get_http_client()
+        userinfo_resp = await client.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {config.oauth.access_token}"},
+        )
+        result["userinfo_status"] = userinfo_resp.status_code
+        if userinfo_resp.status_code == 200:
+            userinfo = userinfo_resp.json()
+            result["google_email"] = userinfo.get("email")
+            result["google_name"] = userinfo.get("name")
+            result["google_id"] = userinfo.get("id")
+        else:
+            # YouTube-only tokens don't have userinfo scope; this is normal.
                 result["userinfo_note"] = "Token lacks OpenID/email scope (expected for YouTube-only OAuth)"
 
         yt_client = youtube_service.get_client(require_oauth=True) if youtube_service else None
@@ -4288,14 +4306,14 @@ async def clear_all_data():
 @app.post("/api/webhook/test", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def test_webhook(body: dict):
     """Test webhook URL."""
-    import httpx
+    from core.http_client import get_http_client
     url = body.get("url")
     if not url:
         raise HTTPException(status_code=400, detail="URL required")
     
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json={"test": True, "source": "motus.leap"})
+        client = get_http_client()
+        resp = await client.post(url, json={"test": True, "source": "motus.leap"})
         return {"message": f"Webhook test sent. Status: {resp.status_code}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Webhook test failed: {str(e)}")
@@ -4337,7 +4355,7 @@ async def websocket_terminal(websocket: WebSocket):
     last_pong = time.monotonic()
 
     try:
-        await websocket.send_text(json.dumps({"type": "log", "message": "[WS] Connected to agent terminal"}))
+        await websocket.send_text(fast_dumps({"type": "log", "message": "[WS] Connected to agent terminal"}))
 
         # ping_loop only SENDS pings and checks staleness of last_pong.
         # It must never call receive_text() — the main loop below is the
@@ -4349,12 +4367,12 @@ async def websocket_terminal(websocket: WebSocket):
             while True:
                 await asyncio.sleep(ping_interval)
                 try:
-                    await websocket.send_text(json.dumps({"type": "ping"}))
+                    await websocket.send_text(fast_dumps({"type": "ping"}))
                     # If we haven't seen a pong since the last ping, count a failure.
                     if time.monotonic() - last_pong > ping_interval + 5:
                         ping_failures += 1
                     if ping_failures >= max_ping_failures:
-                        await manager.broadcast(json.dumps({"type": "log", "message": "[WS] Connection lost - max ping failures reached"}))
+                        await manager.broadcast(fast_dumps({"type": "log", "message": "[WS] Connection lost - max ping failures reached"}))
                         break
                 except Exception as e:
                     log.debug(f"WebSocket handler terminated: {e}")
@@ -4368,7 +4386,7 @@ async def websocket_terminal(websocket: WebSocket):
             msg = json.loads(data)
             mtype = msg.get("type")
             if mtype == "ping":
-                await websocket.send_text(json.dumps({"type": "pong"}))
+                await websocket.send_text(fast_dumps({"type": "pong"}))
             elif mtype == "pong":
                 ping_failures = 0
                 last_pong = time.monotonic()
@@ -4379,7 +4397,7 @@ async def websocket_terminal(websocket: WebSocket):
         log.error(f"Broad WebSocket error: {e}")
         # Send the error only to the affected connection, not broadcast to all clients.
         try:
-            await websocket.send_text(json.dumps({"type": "log", "message": "[WS ERROR] connection error"}))
+            await websocket.send_text(fast_dumps({"type": "log", "message": "[WS ERROR] connection error"}))
         except Exception:
             pass
         # Log error but don't break - let the connection be handled normally

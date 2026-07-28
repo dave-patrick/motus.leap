@@ -161,7 +161,7 @@ function connectWebSocket() {
                     }
                 }, 10000);
             }
-        }, 30000);
+        }, 25000 + Math.random() * 10000);
     };
 
     ws.onmessage = (event) => {

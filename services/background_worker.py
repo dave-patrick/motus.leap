@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from core.utils import fast_dumps
 import logging
 import os
 import traceback
@@ -264,11 +265,11 @@ class BackgroundWorker:
             return await self.sync_playlists(payload)
         if action == "scan_duplicates":
             result = await self.scan_duplicates(payload)
-            await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
+            await self.manager.broadcast(fast_dumps({"type": "result", "data": result}))
             return result
         if action == "scan_misplaced":
             result = await self.scan_misplaced(payload)
-            await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
+            await self.manager.broadcast(fast_dumps({"type": "result", "data": result}))
             return result
         # Destructive actions (move_video/delete_video/remove_duplicates) are
         # only reachable here if a job was created WITH the confirm_destructive
@@ -363,7 +364,7 @@ class BackgroundWorker:
         over the existing WebSocket channel so the UI updates without polling /api/stats.
         """
         try:
-            await self.manager.broadcast(json.dumps({
+            await self.manager.broadcast(fast_dumps({
                 "type": "status",
                 "state": "running" if self.current_task_name else "idle",
                 "current_task": self.current_task_name,
@@ -381,7 +382,7 @@ class BackgroundWorker:
             try:
                 # Check if cancel was requested before picking up a new task
                 if self._cancel_requested:
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[AGENT] Cancel acknowledged — no new tasks will run."}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[AGENT] Cancel acknowledged — no new tasks will run."}))
                     self._cancel_requested = False
                 
                 task = await self.task_queue.get()
@@ -395,7 +396,7 @@ class BackgroundWorker:
                     await self._broadcast_status()
                     continue
 
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Starting: {action}"}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[AGENT] Starting: {action}"}))
 
                 self.current_task_name = action
                 await self._broadcast_status()
@@ -412,10 +413,10 @@ class BackgroundWorker:
                         await self.sync_playlists(payload)
                     elif action == "scan_duplicates":
                         result = await self.scan_duplicates(payload)
-                        await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
+                        await self.manager.broadcast(fast_dumps({"type": "result", "data": result}))
                     elif action == "scan_misplaced":
                         result = await self.scan_misplaced(payload)
-                        await self.manager.broadcast(json.dumps({"type": "result", "data": result}))
+                        await self.manager.broadcast(fast_dumps({"type": "result", "data": result}))
 
                     # Update last_scan_time for any scan-type action
                     if action.startswith("scan_") or action == "full_cluster_scan":
@@ -434,7 +435,7 @@ class BackgroundWorker:
                 try:
                     await self._current_task
                 except asyncio.CancelledError:
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Cancelled: {action}"}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[AGENT] Cancelled: {action}"}))
                     self.task_queue.task_done()
                     self.current_task_name = None
                     self._current_task = None
@@ -447,10 +448,10 @@ class BackgroundWorker:
                 # Distinguish cooperative cancel (handler checked _cancel_requested
                 # and returned early) from normal completion.
                 if self._cancel_requested:
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Cancelled: {action}"}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[AGENT] Cancelled: {action}"}))
                     self._cancel_requested = False
                 else:
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[AGENT] Completed: {action}"}))
                 self.task_queue.task_done()
                 self.current_task_name = None
                 await self._broadcast_status()
@@ -460,23 +461,23 @@ class BackgroundWorker:
                 raise
             except Exception as e:
                 log.error(f"Background task error: {e}")
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] {str(e)}"}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[ERROR] {str(e)}"}))
                 self.current_task_name = None
                 self.task_queue.task_done()
                 await self._broadcast_status()
 
     async def full_cluster_scan(self, payload):
         """Perform a full cluster scan."""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Initiating Full Playlist Sync..."}))
+        await self.manager.broadcast(fast_dumps({"type": "log", "message": "[SCAN] Initiating Full Playlist Sync..."}))
         
         client = self.youtube_service.get_client(require_oauth=True) if self.youtube_service else None
         if not client:
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] No YouTube OAuth client available. Connect YouTube in Settings first."}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[ERROR] No YouTube OAuth client available. Connect YouTube in Settings first."}))
             return
         
         try:
             # Fetch user's playlists
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Fetching playlist data from YouTube API..."}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[SCAN] Fetching playlist data from YouTube API..."}))
             playlists = []
             playlist_page_token = None
             while True:
@@ -495,7 +496,7 @@ class BackgroundWorker:
                 playlist_page_token = playlists_resp.get("nextPageToken")
                 if not playlist_page_token:
                     break
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"}))
             
             # Real duplicate and misplaced detection
             video_to_playlists = {} # video_id -> list of (playlist_id, playlist_title)
@@ -512,7 +513,7 @@ class BackgroundWorker:
             for pl in playlists:
                 if self._cancel_requested:
                     log.info("[WORKER] Cancel requested during scan — stopping early")
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[WORKER] Scan cancelled by user"}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[WORKER] Scan cancelled by user"}))
                     return
                 pl_id = pl.get("id")
                 pl_title = pl.get("snippet", {}).get("title", pl_id)
@@ -538,7 +539,7 @@ class BackgroundWorker:
                     items_resp = {"items": all_items}
                 except Exception as video_err:
                     log.warning(f"[WORKER] Failed to fetch videos for playlist {pl_id}: {video_err}")
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[WORKER] Skipping playlist {pl_id}: {video_err}"}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[WORKER] Skipping playlist {pl_id}: {video_err}"}))
                     continue
                 items = items_resp.get("items", [])
                 total_videos += len(items)
@@ -546,7 +547,7 @@ class BackgroundWorker:
                 for item in items:
                     if self._cancel_requested:
                         log.info("[WORKER] Cancel requested during video scan — stopping early")
-                        await self.manager.broadcast(json.dumps({"type": "log", "message": "[WORKER] Scan cancelled during video processing"}))
+                        await self.manager.broadcast(fast_dumps({"type": "log", "message": "[WORKER] Scan cancelled during video processing"}))
                         return
                     video_id = item.get("contentDetails", {}).get("videoId")
                     video_title = item.get("snippet", {}).get("title", "Untitled")
@@ -583,10 +584,10 @@ class BackgroundWorker:
                                     "mapped_playlist_title": mapped_pl_title
                                 })
                 
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
                 await asyncio.sleep(0.01) # Reduced sleep here
             
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."}))
             # await asyncio.sleep(1) # Removed
             
             # Filter duplicates — fingerprint-based so re-uploads (fresh video
@@ -629,35 +630,35 @@ class BackgroundWorker:
             maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
             try:
                 await asyncio.to_thread(maintenance_file.parent.mkdir, parents=True, exist_ok=True)
-                await asyncio.to_thread(maintenance_file.write_text, json.dumps(maintenance_data, indent=2))
+                await asyncio.to_thread(maintenance_file.write_text, fast_dumps(maintenance_data, indent=2))
             except Exception as e:
                 log.error(f"Failed to save maintenance data: {e}")
             
             # Real scan statistics (no fake clustering)
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SCAN] Building scan statistics..."}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[SCAN] Building scan statistics..."}))
             # await asyncio.sleep(0.5) # Removed
 
             # Calculate real metrics from fetched data
             avg_videos_per_playlist = total_videos / len(playlists) if playlists else 0
-            await self.manager.broadcast(json.dumps({
+            await self.manager.broadcast(fast_dumps({
                 "type": "log",
                 "message": f"[SCAN] Analysis complete • {total_videos} videos across {len(playlists)} playlists • {avg_videos_per_playlist:.1f} avg videos/playlist"
             }))
             # await asyncio.sleep(0.5) # Removed
             
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[LEARN] Processing statistics..."}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[LEARN] Processing statistics..."}))
             # await asyncio.sleep(1) # Removed
             
             # Populate the persistent cache so subsequent reads don't hit the API
             if self.youtube_service:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[CACHE] Updating local data cache..."}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": "[CACHE] Updating local data cache..."}))
                 try:
                     await self.youtube_service.fetch_all_data(force_refresh=True)
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[CACHE] Local cache updated. All reads will use cached data."}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[CACHE] Local cache updated. All reads will use cached data."}))
                 except Exception as cache_err:
                     log.warning(f"Failed to update cache after scan: {cache_err}")
             
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Complete • {total_videos} videos analyzed • Cache updated • Next auto-scan: 1 hour"}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Complete • {total_videos} videos analyzed • Cache updated • Next auto-scan: 1 hour"}))
             
         except Exception as e:
             error_details = f"{type(e).__name__}: {str(e)}"
@@ -669,11 +670,11 @@ class BackgroundWorker:
                 error_details += f" | Traceback: {traceback.format_exc()}"
             except Exception as t_err:
                 log.error(f"Error formatting traceback: {t_err}")
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Scan failed: {error_details}"}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[ERROR] Scan failed: {error_details}"}))
 
     async def diagnose_failures(self, payload):
         """Diagnose system health."""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] Diagnosing system health..."}))
+        await self.manager.broadcast(fast_dumps({"type": "log", "message": "[DIAG] Diagnosing system health..."}))
         
         # Check what's actually configured. Every real worker action
         # (sync/move/scan) requires OAuth, so diagnose with require_oauth=True
@@ -686,41 +687,41 @@ class BackgroundWorker:
         try:
             # OAuth status — the actionable one (required for all sync/move/scan actions)
             if oauth_client:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube OAuth: Connected — actions (sync/move/scan) are available"}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": "[DIAG] YouTube OAuth: Connected — actions (sync/move/scan) are available"}))
             else:
                 has_tokens = bool(config.oauth.access_token and config.oauth.refresh_token)
                 if has_tokens:
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube OAuth: Tokens present but client could not be built — actions will fail. Check OAuth config."}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[DIAG] YouTube OAuth: Tokens present but client could not be built — actions will fail. Check OAuth config."}))
                 else:
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube OAuth: NOT connected — actions (sync/move/scan) will fail. Connect YouTube in Settings."}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[DIAG] YouTube OAuth: NOT connected — actions (sync/move/scan) will fail. Connect YouTube in Settings."}))
 
             # Read-only API-key status (informational)
             if apikey_client and not oauth_client:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube API key: configured (read-only); OAuth still required for actions"}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": "[DIAG] YouTube API key: configured (read-only); OAuth still required for actions"}))
             elif not apikey_client:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] YouTube API: Not configured (no API key or OAuth)"}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": "[DIAG] YouTube API: Not configured (no API key or OAuth)"}))
             
             # Test subscriptions API
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] Testing subscriptions API..."}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[DIAG] Testing subscriptions API..."}))
             try:
                 if oauth_client:
                     sub_resp = await asyncio.to_thread(oauth_client.list_mine_subscriptions, max_results=3)
                     sub_items = sub_resp.get("items", [])
                     sub_error = sub_resp.get("error")
                     if sub_error:
-                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Subscriptions API error: {sub_error}"}))
+                        await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[DIAG] Subscriptions API error: {sub_error}"}))
                     else:
-                        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Subscriptions API test: {len(sub_items)} items (good — API is working)"}))
+                        await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[DIAG] Subscriptions API test: {len(sub_items)} items (good — API is working)"}))
             except Exception as e:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Subscriptions API test failed: {e}"}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[DIAG] Subscriptions API test failed: {e}"}))
 
             # Check config
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Channel mappings: {len(config.channel_mappings)}"}))
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG] Rules configured: {'Yes' if config.rules else 'No'}"}))
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[DIAG] Complete"}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[DIAG] Channel mappings: {len(config.channel_mappings)}"}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[DIAG] Rules configured: {'Yes' if config.rules else 'No'}"}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[DIAG] Complete"}))
             
         except Exception as e:
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[DIAG ERROR] {str(e)}"}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[DIAG ERROR] {str(e)}"}))
 
     # Note: regenerate_queue, surface_diagnostics, and apply_maintenance
     # stub methods were removed as part of cleanup of obsolete surfaces.
@@ -733,7 +734,7 @@ class BackgroundWorker:
         config.rules and persists via config_manager.save so the Save Rules
         button in settings.html has a real backend.
         """
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[RULES] Applying rules from editor..."}))
+        await self.manager.broadcast(fast_dumps({"type": "log", "message": "[RULES] Applying rules from editor..."}))
         config = self.config_manager.config
         rules_text = (payload or {}).get("rules")
         if rules_text is None:
@@ -741,25 +742,25 @@ class BackgroundWorker:
         config.rules = rules_text if rules_text is not None else config.rules
         await self.config_manager.save(config)
         rules_count = len(config.rules) if config.rules else 0
-        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[RULES] {rules_count} chars of rules saved successfully"}))
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[RULES] Complete"}))
+        await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[RULES] {rules_count} chars of rules saved successfully"}))
+        await self.manager.broadcast(fast_dumps({"type": "log", "message": "[RULES] Complete"}))
 
     async def sync_playlists(self, payload):
         """Sync all playlists and videos, then cache everything."""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Starting full playlist sync from YouTube..."}))
+        await self.manager.broadcast(fast_dumps({"type": "log", "message": "[SYNC] Starting full playlist sync from YouTube..."}))
         await asyncio.sleep(0.5)
         
         if not self.youtube_service:
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[ERROR] YouTube service not initialized."}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[ERROR] YouTube service not initialized."}))
             return
         
         try:
             # Use fetch_all_data which populates the persistent cache
-            await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Fetching playlists, videos, and subscriptions..."}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[SYNC] Fetching playlists, videos, and subscriptions..."}))
             result = await self.youtube_service.fetch_all_data(force_refresh=True)
             
             if "error" in result:
-                await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Sync failed: {result['error']}"}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[ERROR] Sync failed: {result['error']}"}))
                 return
             
             total_playlists = result.get("stats", {}).get("total_playlists", 0)
@@ -770,9 +771,9 @@ class BackgroundWorker:
 
             if sub_error or pl_error:
                 if pl_error:
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Playlists: {pl_error}"}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[ERROR] Playlists: {pl_error}"}))
                 if sub_error:
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Subscriptions: {sub_error}"}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[ERROR] Subscriptions: {sub_error}"}))
                 # 403 => token expired / missing scope. But a 200 with 0 items
                 # (no error) is the subtler failure: the OAuth token is valid but
                 # the authorized account currently exposes no playlists/
@@ -781,22 +782,22 @@ class BackgroundWorker:
                 # scope. Surface that clearly so the operator isn't left with a
                 # cryptic empty result.
                 if ("403" in (sub_error or "") or "403" in (pl_error or "")):
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] YouTube returned 403 — your OAuth token may be expired or missing the YouTube scope."}))
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] Go to Settings → scroll to YouTube section → click 'Re-authorize YouTube' to get a fresh token."}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[HELP] YouTube returned 403 — your OAuth token may be expired or missing the YouTube scope."}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[HELP] Go to Settings → scroll to YouTube section → click 'Re-authorize YouTube' to get a fresh token."}))
                 elif ("0 playlists" in (pl_error or "") or "0 subscriptions" in (sub_error or "")):
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] YouTube returned 0 playlists/subscriptions with NO error (HTTP 200). This usually means the OAuth token is valid but authorized for a DIFFERENT Google account than the one holding your playlists, or the app is missing the YouTube read scope."}))
-                    await self.manager.broadcast(json.dumps({"type": "log", "message": "[HELP] In Settings → YouTube, click 'Re-authorize YouTube' and sign in with the SAME account that owns your playlists, granting the YouTube scope. Then run Sync again."}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[HELP] YouTube returned 0 playlists/subscriptions with NO error (HTTP 200). This usually means the OAuth token is valid but authorized for a DIFFERENT Google account than the one holding your playlists, or the app is missing the YouTube read scope."}))
+                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[HELP] In Settings → YouTube, click 'Re-authorize YouTube' and sign in with the SAME account that owns your playlists, granting the YouTube scope. Then run Sync again."}))
                 msg = f"[SYNC] Sync failed — YouTube API returned errors"
             else:
                 msg = f"[SYNC] Successfully synchronized {total_playlists} playlists, {total_videos} videos, {total_subs} subscriptions. Cache updated."
-            await self.manager.broadcast(json.dumps({"type": "log", "message": msg}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": msg}))
             if not sub_error and not pl_error:
                 await asyncio.sleep(0.5)
-                await self.manager.broadcast(json.dumps({"type": "log", "message": "[SYNC] Complete • All data cached locally. No further API calls needed for reads."}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": "[SYNC] Complete • All data cached locally. No further API calls needed for reads."}))
             
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[ERROR] Sync failed: {error_msg}"}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[ERROR] Sync failed: {error_msg}"}))
 
     async def _persist_maintenance(self, *, duplicated_videos=None, misplaced_videos=None):
         """Merge a fresh scan result into maintenance.json so the Scan Details
@@ -831,7 +832,7 @@ class BackgroundWorker:
         )
         try:
             await asyncio.to_thread(maintenance_file.parent.mkdir, parents=True, exist_ok=True)
-            await asyncio.to_thread(maintenance_file.write_text, json.dumps(existing, indent=2))
+            await asyncio.to_thread(maintenance_file.write_text, fast_dumps(existing, indent=2))
         except Exception as e:
             log.error(f"Failed to persist live scan result: {e}")
 
@@ -839,7 +840,7 @@ class BackgroundWorker:
         """Scan playlist for duplicate videos."""
         playlist_id = payload.get("playlist_id") if payload else None
         location = f" in playlist {playlist_id}" if playlist_id else ""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Scanning for duplicates{location}..."}))
+        await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Scanning for duplicates{location}..."}))
         duplicates = 0
         if self.youtube_service:
             videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
@@ -847,7 +848,7 @@ class BackgroundWorker:
             from services.duplicate_detector import compute_duplicate_groups
             groups = compute_duplicate_groups(videos)
             duplicates = sum(g["copy_count"] - 1 for g in groups)
-            await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate video copies across {len(groups)} groups"}))
+            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate video copies across {len(groups)} groups"}))
             # Persist FULL-scan results so the Scan Details card reflects the
             # latest scan (not a stale cluster-scan snapshot). A per-playlist
             # scan must not overwrite the whole-library view.
@@ -873,7 +874,7 @@ class BackgroundWorker:
         """Scan playlist for misplaced videos based on rules."""
         playlist_id = payload.get("playlist_id") if payload else None
         location = f" in playlist {playlist_id}" if playlist_id else ""
-        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Scanning for misplaced videos{location}..."}))
+        await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Scanning for misplaced videos{location}..."}))
         count = 0
         misplaced_videos = []
         if self.youtube_service and hasattr(self.youtube_service, 'config') and hasattr(self.youtube_service.config, 'channel_mappings'):
@@ -897,7 +898,7 @@ class BackgroundWorker:
                                 "mapped_playlist_title": target_pl,
                             })
                             break
-        await self.manager.broadcast(json.dumps({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"}))
+        await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"}))
         # Persist FULL-scan results so the Scan Details card reflects the latest
         # scan (not a stale cluster-scan snapshot). Per-playlist scan skipped.
         if not playlist_id:

@@ -108,31 +108,39 @@ def is_stale(path: Path, max_age_days: int = 30) -> bool:
     return file_mtime < (datetime.now() - timedelta(days=max_age_days))
 
 
-def _best_thumbnail(thumbs: Optional[dict]) -> str:
-    """Prefer the highest-resolution YouTube thumbnail available.
+_thumb_cache = {}
 
-    YouTube returns keys default(120x90), medium(320x180), high(480x360),
-    standard(640x480), maxres(1280x720). 'default' is blurry, so pick the best
-    present and fall back to it only if nothing better exists.
-    """
+def _best_thumbnail(thumbs: Optional[dict]) -> str:
+    """Prefer the highest-resolution YouTube thumbnail available."""
     if not thumbs:
         return ""
+    
+    t_id = str(thumbs)
+    if t_id in _thumb_cache:
+        return _thumb_cache[t_id]
+        
+    res = ""
     for key in ("maxres", "standard", "high", "medium", "default"):
-        url = (thumbs.get(key) or {}).get("url")
-        if url:
-            return url
-    return ""
+        t = thumbs.get(key)
+        if t and "url" in t:
+            res = t["url"]
+            break
+            
+    if len(_thumb_cache) > 256:
+        _thumb_cache.clear()
+    _thumb_cache[t_id] = res
+    return res
 
 def cache_result(key_prefix: str, ttl: Optional[timedelta] = None):
     def decorator(func):
         @wraps(func)
         async def wrapper(instance: "YouTubeService", *args, **kwargs):
             force_refresh = kwargs.get('force_refresh', False)
-            # Generate unique key from args and kwargs, excluding 'instance' from args for hashing
-            # Use json.dumps to handle complex types in args/kwargs for hashing
-            cache_key = f"{key_prefix}_{instance._get_user_id()}_{hashlib.sha256(json.dumps(args).encode() + json.dumps(kwargs).encode()).hexdigest()}"
+            cache_key = None
 
             if not force_refresh:
+                key_material = f"{repr(args)}:{repr(kwargs)}"
+                cache_key = f"{key_prefix}_{instance._get_user_id()}_{hashlib.sha256(key_material.encode()).hexdigest()}"
                 cached_data = await instance._cache.get(cache_key)
                 if cached_data:
                     log.debug(f"Cache hit for {key_prefix}")
@@ -140,7 +148,18 @@ def cache_result(key_prefix: str, ttl: Optional[timedelta] = None):
 
             log.debug(f"Cache miss or force_refresh for {key_prefix}, fetching...")
             result = await func(instance, *args, **kwargs)
+            
+            if cache_key is None:
+                key_material = f"{repr(args)}:{repr(kwargs)}"
+                cache_key = f"{key_prefix}_{instance._get_user_id()}_{hashlib.sha256(key_material.encode()).hexdigest()}"
+            
             await instance._cache.set(cache_key, result, ttl=ttl)
+            
+            # Map playlist cache keys for O(1) invalidation
+            pl_id = kwargs.get('playlist_id') or (args[0] if args else None)
+            if pl_id and isinstance(pl_id, str):
+                instance._playlist_keys.setdefault(pl_id, set()).add(cache_key)
+                
             return result
         return wrapper
     return decorator
@@ -160,6 +179,7 @@ class YouTubeService:
         # LRU cache to avoid redundant API calls with eviction policy
         self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(hours=6))
         self._enrich_lock = asyncio.Lock()  # Prevent concurrent enrichment from crashing (heap corruption)
+        self._playlist_keys: dict[str, set[str]] = {}
         # Reentrant single-flight lock (defensive). asyncio.Lock is NOT
         # reentrant; a reentrant lock guarantees that if any internal call path
         # ever re-enters while _data_lock is held (e.g. future refactor of
@@ -310,12 +330,11 @@ class YouTubeService:
         """Remove cached data for a specific playlist from memory and disk."""
         # Invalidate memory cache entries matching this playlist
         async with self._cache._lock:
-            keys_to_remove = [
-                key for key in self._cache._cache
-                if playlist_id in key
-            ]
-            for key in keys_to_remove:
+            keys_to_remove = self._playlist_keys.get(playlist_id, set())
+            for key in list(keys_to_remove):
                 await self._cache._evict(key)
+            if playlist_id in self._playlist_keys:
+                del self._playlist_keys[playlist_id]
 
         # Invalidate disk cache files for this playlist
         disk_keys = [f"playlist_videos_{playlist_id}"]
@@ -376,18 +395,22 @@ class YouTubeService:
 
     def _video_item_to_dict(self, item: dict[str, Any], playlist_id: str, playlist_title: str) -> dict[str, Any]:
         """Normalize a playlist item API response for the UI."""
-        snippet = item.get("snippet", {}) or {}
-        content = item.get("contentDetails", {}) or {}
+        snippet = item.get("snippet") or {}
+        content = item.get("contentDetails") or {}
         duration_str = content.get("duration", "PT0S")
         duration_seconds = self._parse_duration(duration_str)
+        
+        channel_id = snippet.get("videoOwnerChannelId") or snippet.get("channelId", "")
+        channel_title = snippet.get("videoOwnerChannelTitle") or snippet.get("channelTitle", "Unknown Channel")
+        
         return {
             "id": item.get("id", ""),
             "playlist_item_id": item.get("id", ""),
             "video_id": content.get("videoId", ""),
             "title": snippet.get("title", "Unknown"),
             "description": snippet.get("description", "")[:200],
-            "channel_id": snippet.get("videoOwnerChannelId") or snippet.get("channelId", ""),
-            "channel_title": snippet.get("videoOwnerChannelTitle") or snippet.get("channelTitle", "Unknown Channel"),
+            "channel_id": channel_id,
+            "channel_title": channel_title,
             "playlist_id": playlist_id,
             "playlist_title": playlist_title,
             "duration_seconds": duration_seconds,
@@ -1134,8 +1157,9 @@ class YouTubeService:
             max_playlists = 200 if force_refresh else 150
             max_total_videos = 12000 if force_refresh else 10000
 
-            # Use semaphore to limit concurrent playlist fetches (1 on Render to avoid heap corruption)
-            semaphore = asyncio.Semaphore(1)
+            # Use semaphore to limit concurrent playlist fetches (configurable to avoid heap corruption)
+            concurrency = int(os.getenv("TUBE_MANAGER_FETCH_CONCURRENCY", "3"))
+            semaphore = asyncio.Semaphore(concurrency)
             
             async def fetch_playlist_videos(playlist):
                 pl_id = playlist["id"]

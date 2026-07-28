@@ -1,5 +1,15 @@
 import os
 import json
+try:
+    import orjson
+    def fast_dumps(obj, **kwargs):
+        return orjson.dumps(obj).decode('utf-8')
+except ImportError:
+    def fast_dumps(obj, **kwargs):
+        if 'indent' in kwargs:
+            return json.dumps(obj, **kwargs)
+        return json.dumps(obj)
+
 import uuid
 import threading
 from datetime import datetime
