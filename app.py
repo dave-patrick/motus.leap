@@ -200,6 +200,12 @@ async def lifespan(app: FastAPI):
     log.info("[DIAG] Registered auth routes: %s", [getattr(r, 'path', None) for r in auth_router.routes])
     log.info("[DIAG] Total app routes: %s", [getattr(r, 'path', None) for r in app.routes])
 
+    from services.db import db_engine
+    try:
+        await db_engine.async_init_db()
+    except Exception as db_err:
+        log.warning(f"Database engine init failed: {db_err}")
+
     if youtube_service:
         try:
             await youtube_service.disk_cache_cleanup(max_age_days=30)
@@ -222,15 +228,18 @@ async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
     return PlainTextResponse(f"Rate limit exceeded: {exc.detail}", status_code=429)
 
 
-# =============================================================================
-# Create FastAPI app (single instance)
-# =============================================================================
+try:
+    from fastapi.responses import ORJSONResponse
+    fastapi_response_class = ORJSONResponse
+except ImportError:
+    fastapi_response_class = JSONResponse
 
 app = FastAPI(
     title="motus.leap",
     description="YouTube Playlist Management System",
     version="2.0.0",
     lifespan=lifespan,
+    default_response_class=fastapi_response_class,
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -387,6 +396,17 @@ def _sync_worker_youtube_service() -> None:
 # Mount static files
 if not any(getattr(route, "path", "") == "/static" for route in app.routes):
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
+
+FRONTEND_DIST_DIR = BASE_DIR / "frontend" / "dist"
+if FRONTEND_DIST_DIR.exists():
+    if not any(getattr(route, "path", "") == "/assets" for route in app.routes):
+        app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST_DIR / "assets")), name="spa_assets")
+
+    @app.get("/app", response_class=HTMLResponse)
+    @app.get("/spa", response_class=HTMLResponse)
+    async def serve_spa():
+        """Serve compiled React 19 SPA frontend."""
+        return FileResponse(FRONTEND_DIST_DIR / "index.html")
 
 
 

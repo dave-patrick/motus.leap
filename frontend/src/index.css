@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #121419;
+    color: #e5e5e5;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+.bento-card {
+  background-color: #1a1d24;
+  border: 1px solid #2a2f3a;
+  border-radius: 12px;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
