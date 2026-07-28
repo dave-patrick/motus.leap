@@ -50,7 +50,7 @@ class PlaywrightDriverWrapper:
     def page_source(self):
         try:
             return self.page.content()
-        except:
+        except Exception:
             return ""
             
     def get(self, url):
@@ -73,11 +73,11 @@ class PlaywrightDriverWrapper:
             
     def quit(self):
         try: self.page.close()
-        except: pass
+        except Exception: pass
         try: self.context.close()
-        except: pass
+        except Exception: pass
         try: self.playwright_ctx.stop()
-        except: pass
+        except Exception: pass
         
     def close(self):
         self.quit()
@@ -149,13 +149,13 @@ class PlaywrightElementWrapper:
     def text(self):
         try:
             return self.element.inner_text()
-        except:
+        except Exception:
             return ""
             
     def get_attribute(self, name):
         try:
             return self.element.get_attribute(name)
-        except:
+        except Exception:
             return None
             
     def click(self):
@@ -165,19 +165,19 @@ class PlaywrightElementWrapper:
             # Fallback to JS click
             try:
                 self.driver.page.evaluate("(el) => el.click()", self.element)
-            except:
+            except Exception:
                 pass
                 
     def is_displayed(self):
         try:
             return self.element.is_visible()
-        except:
+        except Exception:
             return False
             
     def is_enabled(self):
         try:
             return self.element.is_enabled()
-        except:
+        except Exception:
             return False
             
     def find_elements(self, by, selector):
@@ -185,7 +185,7 @@ class PlaywrightElementWrapper:
         try:
             elements = self.element.query_selector_all(pw_selector)
             return [PlaywrightElementWrapper(self.driver, el) for el in elements]
-        except:
+        except Exception:
             return []
             
     def find_element(self, by, selector):
@@ -270,7 +270,7 @@ def get_playwright_browser():
                         window.muteInterval = setInterval(window.forceMute, 500);
                     }
                 """)
-            except: pass
+            except Exception: pass
             
         wrapper = PlaywrightDriverWrapper(pw, browser_context, page)
         wrapper.force_mute = force_mute
@@ -372,7 +372,7 @@ class CamofoxDriverWrapper:
                 for t in tabs:
                     try:
                         self.session.delete(f"{self.base_url}/tabs/{t['tabId']}", timeout=10)
-                    except:
+                    except Exception:
                         pass
         except Exception as e:
             print(f"  Camofox error cleaning up existing tabs: {e}")
@@ -418,7 +418,7 @@ class CamofoxDriverWrapper:
     def page_source(self):
         try:
             return self.execute_script("return document.documentElement.outerHTML;")
-        except:
+        except Exception:
             return ""
             
     def force_mute(self):
@@ -590,13 +590,13 @@ class CamofoxElementWrapper:
     def text(self):
         try:
             return self.driver.execute_script("return arguments[0].innerText || arguments[0].textContent;", self) or ""
-        except:
+        except Exception:
             return ""
             
     def get_attribute(self, name):
         try:
             return self.driver.execute_script("return arguments[0].getAttribute(arguments[1]);", self, name)
-        except:
+        except Exception:
             return None
             
     def click(self):
@@ -611,13 +611,13 @@ class CamofoxElementWrapper:
                 "return !!(arguments[0].offsetWidth || arguments[0].offsetHeight || arguments[0].getClientRects().length);",
                 self
             )
-        except:
+        except Exception:
             return False
             
     def is_enabled(self):
         try:
             return self.driver.execute_script("return !arguments[0].disabled;", self)
-        except:
+        except Exception:
             return False
             
     def find_elements(self, by, selector):
@@ -718,12 +718,12 @@ def get_browser():
                         if driver.title in win32gui.GetWindowText(hwnd):
                             win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
                     win32gui.EnumWindows(hide_window, None)
-            except: pass
+            except Exception: pass
 
             # Fallback off-screen positioning
             try:
                 driver.set_window_position(-10000, 0)
-            except: pass
+            except Exception: pass
 
             # Helper to mute all media immediately and periodically
             def force_mute():
@@ -741,7 +741,7 @@ def get_browser():
                             window.muteInterval = setInterval(window.forceMute, 500);
                         }
                     """)
-                except: pass
+                except Exception: pass
 
             driver.force_mute = force_mute
             return driver
@@ -839,16 +839,16 @@ def _open_save_dialog(driver):
                     print("    Found 'Save' in menu, clicking...")
                     save_items[0].click()
                     time.sleep(2)
-            except: pass
+            except Exception: pass
             
             # Check if any dialog appeared (old or new)
             try:
                 WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "yt-sheet-view-model, ytd-add-to-playlist-create-renderer, #playlists, ytd-add-to-playlist-renderer")))
                 found = True
                 break
-            except:
+            except Exception:
                 continue
-        except:
+        except Exception:
             continue
     
     if not found:
@@ -879,7 +879,7 @@ def _open_save_dialog(driver):
                 if save_items:
                     driver.execute_script("arguments[0].click();", save_items[0])
                     time.sleep(2)
-            except: pass
+            except Exception: pass
             
             WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "yt-sheet-view-model, ytd-add-to-playlist-create-renderer, #playlists, ytd-add-to-playlist-renderer")))
             found = True
@@ -935,26 +935,26 @@ def _toggle_playlist_in_dialog(driver, playlist_name: str, should_be_checked: bo
                                         btn_label = (btn.get_attribute("aria-label") or "").lower()
                                         if btn.get_attribute("aria-pressed") == "true" or btn.get_attribute("aria-checked") == "true" or ("selected" in btn_label and "not selected" not in btn_label):
                                             is_checked = True
-                                    except:
+                                    except Exception:
                                         try:
                                             checkbox = item.find_element(By.CSS_SELECTOR, "tp-yt-paper-checkbox, #checkbox")
                                             if checkbox.get_attribute("aria-checked") == "true":
                                                 is_checked = True
-                                        except: pass
-                        except: pass
+                                        except Exception: pass
+                        except Exception: pass
                         
                         if is_checked != should_be_checked:
                             print(f"    -> Toggling '{title}' (setting to {should_be_checked})")
                             # Use JS click if standard click fails
                             try:
                                 item.click()
-                            except:
+                            except Exception:
                                 driver.execute_script("arguments[0].click();", item)
                             time.sleep(1.5)
                         else:
                             print(f"    -> '{title}' already in state {should_be_checked}")
                         return True
-                except:
+                except Exception:
                     continue
             
             # Scroll down the dialog
@@ -1098,7 +1098,7 @@ def add_video_to_playlist(video_url: str, playlist_name: str, driver=None) -> bo
         # Close dialog escape
         try:
             driver.execute_script("document.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Escape'}));")
-        except: pass
+        except Exception: pass
         if own_driver:
             driver.quit()
 
@@ -1220,7 +1220,7 @@ def remove_video_from_playlist(video_url: str, playlist_name: str, driver=None) 
         # Close dialog escape
         try:
             driver.execute_script("document.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Escape'}));")
-        except: pass
+        except Exception: pass
         if own_driver:
             driver.quit()
 
@@ -1588,7 +1588,7 @@ def get_all_playlists() -> list:
                 found = driver.find_elements(By.XPATH, selector)
                 if found:
                     links.extend(found)
-            except:
+            except Exception:
                 continue
         
         if not links:
@@ -1596,7 +1596,7 @@ def get_all_playlists() -> list:
             try:
                 main = driver.find_element(By.ID, "page-manager")
                 links = main.find_elements(By.TAG_NAME, "a")
-            except:
+            except Exception:
                 pass
 
         for link in links:
@@ -1622,7 +1622,7 @@ def get_all_playlists() -> list:
                 # If we already have a name for this URL, only replace if the new name is better (longer/descriptive)
                 if clean_url not in playlists_dict or len(name) > len(playlists_dict[clean_url]):
                     playlists_dict[clean_url] = name
-            except:
+            except Exception:
                 continue
                 
         # Always include Watch Later

@@ -149,7 +149,7 @@ class TaskManager:
         try:
             with open(os.path.join(base_dir, "last_run.txt"), "w") as f:
                 f.write(timestamp)
-        except:
+        except Exception:
             pass
             
         with self.lock:
@@ -270,7 +270,7 @@ def execute_batch_move_background(video_urls: List[str], source_playlist: str, t
                 try:
                     from apply_maintenance import send_discord_history_report
                     send_discord_history_report([{**action, "action_id": action_id}])
-                except:
+                except Exception:
                     pass
                 
                 update_cache_for_move(url, source_playlist, target_playlist, user_id)
@@ -295,7 +295,7 @@ def execute_batch_move_background(video_urls: List[str], source_playlist: str, t
         if driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
         with task_manager.lock:
             task_manager.active_job = None
@@ -342,7 +342,7 @@ def execute_move_single_background(video_url: str, source_playlist: str, target_
         finally:
             if driver:
                 try: driver.quit()
-                except: pass
+                except Exception: pass
 
     try:
         if success:
@@ -441,7 +441,7 @@ def execute_batch_delete_background(video_urls: List[str], playlist: str, user_i
                     try:
                         from apply_maintenance import send_discord_history_report
                         send_discord_history_report([{**action, "action_id": action_id}])
-                    except: pass
+                    except Exception: pass
                     
                     update_cache_for_delete(url, playlist, user_id)
                 else:
@@ -515,7 +515,7 @@ def execute_batch_delete_background(video_urls: List[str], playlist: str, user_i
             if driver:
                 try:
                     driver.quit()
-                except:
+                except Exception:
                     pass
             
             with task_manager.lock:
@@ -613,7 +613,7 @@ def execute_multi_source_move_background(items: List[dict], target_playlist: str
                 try:
                     from apply_maintenance import send_discord_history_report
                     send_discord_history_report([{**action, "action_id": action_id}])
-                except:
+                except Exception:
                     pass
                 
                 update_cache_for_move(url, source_playlist, target_playlist, user_id)
@@ -638,7 +638,7 @@ def execute_multi_source_move_background(items: List[dict], target_playlist: str
         if driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
         with task_manager.lock:
             task_manager.active_job = None
@@ -691,7 +691,7 @@ def execute_multi_source_delete_background(items: List[dict], user_id=None):
                     try:
                         from apply_maintenance import send_discord_history_report
                         send_discord_history_report([{**action, "action_id": action_id}])
-                    except: pass
+                    except Exception: pass
                     
                     update_cache_for_delete(url, playlist, user_id)
                 else:
@@ -767,7 +767,7 @@ def execute_multi_source_delete_background(items: List[dict], user_id=None):
             if driver:
                 try:
                     driver.quit()
-                except:
+                except Exception:
                     pass
             
             with task_manager.lock:
@@ -858,7 +858,7 @@ def execute_remove_duplicates_background(playlist_name: str, user_id=None):
                                 try:
                                     from apply_maintenance import send_discord_history_report
                                     send_discord_history_report([{**action, "action_id": action_id}])
-                                except: pass
+                                except Exception: pass
                     except Exception as e:
                         append_agent_log(f"Error resolving duplicate for '{title}': {e}")
                 
@@ -953,7 +953,7 @@ def execute_remove_duplicates_background(playlist_name: str, user_id=None):
             finally:
                 if driver:
                     try: driver.quit()
-                    except: pass
+                    except Exception: pass
                     
             with task_manager.lock:
                 task_manager.active_job = None
@@ -1140,7 +1140,7 @@ def execute_apply_maintenance_background(user_id, force=False, limit=20):
     finally:
         if driver:
             try: driver.quit()
-            except: pass
+            except Exception: pass
         with task_manager.lock:
             task_manager.active_job = None
             with scheduler.job_lock:
@@ -1360,7 +1360,7 @@ def execute_batch_maintenance_api_background(user_id, selected_vids):
     finally:
         if driver:
             try: driver.quit()
-            except: pass
+            except Exception: pass
         with task_manager.lock:
             task_manager.active_job = None
             with scheduler.job_lock:
@@ -1409,7 +1409,7 @@ def execute_single_action_delete_background(action):
     finally:
         if driver:
             try: driver.quit()
-            except: pass
+            except Exception: pass
 
 def execute_batch_maintenance_delete_background(actions):
     base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -1456,19 +1456,19 @@ def execute_batch_maintenance_delete_background(actions):
                 try:
                     from apply_maintenance import record_history
                     record_history({**action, "type": f"DELETE_FROM_{action['type']}"})
-                except:
+                except Exception:
                     pass
                     
         if applied_actions:
             try:
                 from apply_maintenance import send_discord_history_report
                 send_discord_history_report([{**a, "type": f"DELETE_FROM_{a['type']}"} for a in applied_actions])
-            except:
+            except Exception:
                 pass
     finally:
         if driver:
             try: driver.quit()
-            except: pass
+            except Exception: pass
 
 def execute_batch_maintenance_delete_api_background(user_id, selected_vids):
     append_agent_log(f"Starting API-based batch deletion from maintenance of {len(selected_vids)} videos (user_id={user_id}).")
@@ -1609,7 +1609,7 @@ def execute_batch_maintenance_delete_api_background(user_id, selected_vids):
     finally:
         if driver:
             try: driver.quit()
-            except: pass
+            except Exception: pass
 
 def execute_batch_maintenance_background(actions):
     base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -1681,7 +1681,7 @@ def execute_batch_maintenance_background(actions):
         if driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
         with task_manager.lock:
             task_manager.active_job = None

@@ -19,9 +19,11 @@ from functools import wraps
 from services.youtube_client import YouTubeClient
 from models.config import TubeManagerConfig
 from core.lru_cache import LRUAsyncCache
+import time
 
 log = logging.getLogger(__name__)
 
+_mem_cache: dict[str, tuple[float, Any]] = {}
 
 def _extract_quota_reason(resp) -> Optional[str]:
     """Return the YouTube API error reason from an httpx error response.
@@ -223,6 +225,8 @@ class YouTubeService:
 
     async def _save_to_disk(self, key: str, data: Any) -> None:
         """Save data to persistent disk storage asynchronously."""
+        full_key = f"{self._get_user_id()}_{key}"
+        _mem_cache.pop(full_key, None)
         try:
             cache_file = self._user_data_dir / f"{key}.json"
             cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -241,13 +245,23 @@ class YouTubeService:
                 retained longer than the allowed window. Enforces the YouTube API
                 Services Developer Policy III.E.4a-g (30-day data-retention cap).
         """
+        full_key = f"{self._get_user_id()}_{key}"
+        if full_key in _mem_cache:
+            ts, val = _mem_cache[full_key]
+            if time.time() - ts < 300:
+                return val
+            else:
+                _mem_cache.pop(full_key, None)
+
         try:
             cache_file = self._user_data_dir / f"{key}.json"
             if await asyncio.to_thread(cache_file.exists):
                 if max_age_days is not None and is_stale(cache_file, max_age_days):
                     log.info(f"Disk cache {key} older than {max_age_days}d — treating as stale miss")
                     return None
-                return await asyncio.to_thread(lambda: json.loads(cache_file.read_text()))
+                data = await asyncio.to_thread(lambda: json.loads(cache_file.read_text()))
+                _mem_cache[full_key] = (time.time(), data)
+                return data
         except Exception as e:
             log.warning(f"Failed to load {key} from disk: {e}")
         return None

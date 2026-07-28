@@ -162,7 +162,7 @@ def scan(force: bool = typer.Option(False, "--force", help="Force rescan of all 
     finally:
         if driver:
             try: driver.quit()
-            except: pass
+            except Exception: pass
 
 def parse_rules():
     channel_map = {}

@@ -177,7 +177,7 @@ Return a JSON object in this format:
                             delay_str = d.get("retryDelay", "15s").replace("s", "")
                             retry_delay = float(delay_str) + 1.0
                             break
-                except: pass
+                except Exception: pass
                 print(f"AI Classifier: Rate limit (429) hit. Sleeping for {retry_delay}s before retry...")
                 time.sleep(retry_delay)
                 continue
@@ -214,7 +214,7 @@ Return a JSON object in this format:
                     hits = int(f.read().strip() or "0")
             with open(cache_file, "w") as f:
                 f.write(str(hits + 1))
-        except:
+        except Exception:
             pass
             
         confidence = result.get("confidence", 0.0)

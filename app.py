@@ -108,6 +108,62 @@ def _redact_secrets(obj):
     return obj
 
 
+# WebSocket connection manager
+class ConnectionManager:
+    """Manages WebSocket connections with user scoping."""
+
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+        self._user_connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, user_id: str = None):
+        """Accept a new WebSocket connection."""
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        if user_id:
+            self._user_connections.setdefault(user_id, []).append(websocket)
+
+    def disconnect(self, websocket: WebSocket, user_id: str = None):
+        """Remove a WebSocket connection."""
+        try:
+            self.active_connections.remove(websocket)
+        except ValueError:
+            pass
+        if user_id and user_id in self._user_connections:
+            try:
+                self._user_connections[user_id].remove(websocket)
+            except ValueError:
+                pass
+            if not self._user_connections[user_id]:
+                self._user_connections.pop(user_id, None)
+
+    async def send_to_user(self, user_id: str, message: str):
+        """Send message to all connections for a specific user."""
+        connections = self._user_connections.get(user_id, [])
+        for connection in connections:
+            try:
+                await connection.send_text(message)
+            except Exception:
+                pass
+
+    async def broadcast(self, message: str, user_id: str = None):
+        """Broadcast a message, optionally only to a specific user."""
+        if user_id:
+            await self.send_to_user(user_id, message)
+        else:
+            failed = []
+            for connection in self.active_connections:
+                try:
+                    await connection.send_text(message)
+                except Exception:
+                    failed.append(connection)
+            for connection in failed:
+                self.disconnect(connection)
+
+
+manager = ConnectionManager()
+
+
 # =============================================================================
 # Application lifespan
 # =============================================================================
@@ -301,62 +357,6 @@ async def no_cache_file_response(file_path: Path) -> Response:
     except Exception as e:
         log.error(f"Failed to read file {file_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to load page: {str(e)}")
-
-
-# WebSocket connection manager
-class ConnectionManager:
-    """Manages WebSocket connections with user scoping."""
-
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
-        self._user_connections: dict[str, list[WebSocket]] = {}
-
-    async def connect(self, websocket: WebSocket, user_id: str = None):
-        """Accept a new WebSocket connection."""
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        if user_id:
-            self._user_connections.setdefault(user_id, []).append(websocket)
-
-    def disconnect(self, websocket: WebSocket, user_id: str = None):
-        """Remove a WebSocket connection."""
-        try:
-            self.active_connections.remove(websocket)
-        except ValueError:
-            pass
-        if user_id and user_id in self._user_connections:
-            try:
-                self._user_connections[user_id].remove(websocket)
-            except ValueError:
-                pass
-            if not self._user_connections[user_id]:
-                self._user_connections.pop(user_id, None)
-
-    async def send_to_user(self, user_id: str, message: str):
-        """Send message to all connections for a specific user."""
-        connections = self._user_connections.get(user_id, [])
-        for connection in connections:
-            try:
-                await connection.send_text(message)
-            except Exception:
-                pass
-
-    async def broadcast(self, message: str, user_id: str = None):
-        """Broadcast a message, optionally only to a specific user."""
-        if user_id:
-            await self.send_to_user(user_id, message)
-        else:
-            failed = []
-            for connection in self.active_connections:
-                try:
-                    await connection.send_text(message)
-                except Exception:
-                    failed.append(connection)
-            for connection in failed:
-                self.disconnect(connection)
-
-
-manager = ConnectionManager()
 
 
 # Background task queue
@@ -834,18 +834,6 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
     }
 
 
-def _load_maintenance() -> dict:
-    """Load maintenance.json (worker analysis cache) or return an empty scaffold."""
-    _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
-    maintenance_file = _data_dir / "maintenance.json"
-    if maintenance_file.exists():
-        try:
-            return json.loads(maintenance_file.read_text())
-        except Exception:
-            pass
-    return {}
-
-
 def _save_maintenance(maintenance: dict) -> None:
     _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
     _data_dir.mkdir(parents=True, exist_ok=True)
@@ -872,7 +860,7 @@ async def exclude_misplaced_videos(request: Request):
         raise HTTPException(status_code=422, detail="playlist_id and video_ids[] required")
     video_ids = [str(v) for v in video_ids if v]
 
-    maintenance = _load_maintenance()
+    maintenance = _load_maintenance_data()
     excluded = maintenance.get("not_misplaced") or []
     seen = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
     added = 0
@@ -1750,7 +1738,7 @@ def _maintenance_drop_record(video_id: str, item_type: str) -> None:
     """Remove a record from maintenance.json by video_id and type."""
     if not video_id:
         return
-    maintenance = _load_maintenance()
+    maintenance = _load_maintenance_data()
     key_map = {"dup": "duplicated_videos", "misplaced": "misplaced_videos", "move": "move_from_x_to_y"}
     list_key = key_map.get(item_type)
     if not list_key:
@@ -2316,7 +2304,7 @@ async def import_mappings(request: Request, body: dict[str, Any]) -> dict[str, A
         "unmatched_playlists": unmatched_playlists,
         "total_mappings": len(merged),
         "debug": {
-            "subs_fetched": len(raw_subs),
+            "subs_fetched": len(subs_data.get("channels") or []),
             "channels_indexed": len(channel_by_name),
             "playlists_fetched": len(playlist_by_name),
             "sample_sub_titles": sorted(channel_by_name.keys())[:15],
@@ -2998,7 +2986,7 @@ def _get_active_provider(config: TubeManagerConfig) -> ProviderConnection | None
     return None
 
 
-def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
+async def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
     """Run model discovery for a connection.
 
     Returns a dict with:
@@ -3070,8 +3058,8 @@ def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> dict:
             resp = client.get(models_url, headers=headers)
     except (httpx.TimeoutException, httpx.ConnectError, httpx.TransportError) as e:
         try:
-            import time
-            time.sleep(1.0)
+            import asyncio
+            await asyncio.sleep(1.0)
             with httpx.Client(timeout=15.0) as client:
                 resp = client.get(models_url, headers=headers)
         except Exception as e2:
@@ -3227,7 +3215,7 @@ async def ai_discover_provider_models(provider_id: str):
         raise HTTPException(status_code=404, detail="Provider not found")
 
     api_key = _secret_val(conn.api_key)
-    result = _discover_models_for_type(conn, api_key)
+    result = await _discover_models_for_type(conn, api_key)
 
     if ("error" in result and not result.get("manual_entry")) or (result.get("manual_entry") and conn.discovered_models):
         # Probe failed (genuine error, or non-OpenAI 404/catalog fallback)

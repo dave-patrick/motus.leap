@@ -87,7 +87,7 @@ class AIRule(BaseModel):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AIRule":
-        return cls(**data)
+        return cls.model_validate(data)
 
     def redacted(self) -> Dict[str, Any]:
         """No secrets possible, but keep a stable client shape."""
@@ -188,7 +188,7 @@ class TubeManagerConfig(BaseModel):
         if not data:
             return cls()
         
-        oauth_data = data.pop('oauth', {})
+        oauth_data = data.get('oauth', {})
         oauth_config = YouTubeOAuthConfig(
             client_id=oauth_data.get('client_id', ''),
             client_secret=oauth_data.get('client_secret', ''),
@@ -197,6 +197,7 @@ class TubeManagerConfig(BaseModel):
             token_expiry=oauth_data.get('token_expiry')
         )
         
+        data = {k: v for k, v in data.items() if k != 'oauth'}
         data['youtube_api_key'] = data.get('youtube_api_key', '')
         data['oauth'] = oauth_config
         

@@ -347,7 +347,17 @@ async def cleanup_idle_sessions() -> int:
     return len(expired)
 
 # Token revocation list — stores hashes of revoked tokens
-_revoked_tokens: set = set()
+_REVOKED_TOKENS_FILE = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / ".revoked_tokens.json"
+
+def _load_revoked_tokens() -> set:
+    try:
+        if _REVOKED_TOKENS_FILE.exists():
+            return set(json.loads(_REVOKED_TOKENS_FILE.read_text()))
+    except Exception as e:
+        log.warning("Failed to load revoked tokens: %s", e)
+    return set()
+
+_revoked_tokens: set = _load_revoked_tokens()
 
 
 def _hash_token(token: str) -> str:
@@ -363,6 +373,11 @@ def is_token_revoked(token: str) -> bool:
 def revoke_token(token: str) -> None:
     """Add a token's hash to the revocation list."""
     _revoked_tokens.add(_hash_token(token))
+    try:
+        _REVOKED_TOKENS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _REVOKED_TOKENS_FILE.write_text(json.dumps(list(_revoked_tokens)))
+    except Exception as e:
+        log.warning("Failed to save revoked tokens: %s", e)
 
 
 # =============================================================================

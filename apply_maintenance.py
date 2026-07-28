@@ -16,7 +16,7 @@ def record_history(action, user_id=None):
         try:
             with open(history_path, "r", encoding="utf-8") as f:
                 history = json.load(f)
-        except: pass
+        except Exception: pass
         
     action_id = str(uuid.uuid4())[:8]
     history_entry = {
