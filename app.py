@@ -220,9 +220,10 @@ async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
 
 
 try:
+    import orjson
     from fastapi.responses import ORJSONResponse
     fastapi_response_class = ORJSONResponse
-except ImportError:
+except (ImportError, ModuleNotFoundError, AttributeError, AssertionError):
     fastapi_response_class = JSONResponse
 
 app = FastAPI(
@@ -683,9 +684,9 @@ async def test_page():
     return await no_cache_file_response(WEB_DIR / "test.html")
 # Health check
 @app.get("/health")
-async def health() -> dict[str, str]:
+async def health():
     """Health check endpoint."""
-    return {"status": "ok"}
+    return JSONResponse({"status": "ok"})
 
 
 # Single-request endpoint - QUOTA OPTIMIZED
