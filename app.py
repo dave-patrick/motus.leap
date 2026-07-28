@@ -245,6 +245,10 @@ async def generic_error_handler(request: Request, call_next):
         log.exception("Unhandled exception")
         return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
+from fastapi.middleware.gzip import GZipMiddleware
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

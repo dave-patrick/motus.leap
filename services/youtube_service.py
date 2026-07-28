@@ -226,7 +226,7 @@ class YouTubeService:
         try:
             cache_file = self._user_data_dir / f"{key}.json"
             cache_file.parent.mkdir(parents=True, exist_ok=True)
-            await asyncio.to_thread(cache_file.write_text, json.dumps(data, indent=2))
+            await asyncio.to_thread(lambda: cache_file.write_text(json.dumps(data)))
             log.debug(f"Saved to disk: {key}")
         except Exception as e:
             log.warning(f"Failed to save {key} to disk: {e}")
@@ -247,8 +247,7 @@ class YouTubeService:
                 if max_age_days is not None and is_stale(cache_file, max_age_days):
                     log.info(f"Disk cache {key} older than {max_age_days}d — treating as stale miss")
                     return None
-                content = await asyncio.to_thread(cache_file.read_text)
-                return json.loads(content)
+                return await asyncio.to_thread(lambda: json.loads(cache_file.read_text()))
         except Exception as e:
             log.warning(f"Failed to load {key} from disk: {e}")
         return None
