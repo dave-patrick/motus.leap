@@ -1331,7 +1331,7 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
             for item in deleted_items:
                 try:
                     del_req = google_client.playlistItems().delete(id=item["item_id"])
-                    await asyncio.to_thread(lambda req=del_req: _retry_on_ssl(lambda: req.execute()))
+                    await _retry_on_ssl_async(del_req.execute)
                     removed_count += 1
                     log.info(f"[REMOVE DELETED] Deleted item {item['item_id']} from playlist {item['playlist_id']}")
                 except Exception as del_err:
@@ -1352,7 +1352,7 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
                 pl_req = google_client.playlists().list(
                     part="snippet", mine=True, maxResults=50, pageToken=pl_token
                 )
-                pl_res = await asyncio.to_thread(lambda req=pl_req: _retry_on_ssl(lambda: req.execute()))
+                pl_res = await _retry_on_ssl_async(pl_req.execute)
                 items = pl_res.get("items", [])
                 playlists.extend(items)
                 pl_token = pl_res.get("nextPageToken")
@@ -1369,7 +1369,7 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
                     items_req = google_client.playlistItems().list(
                         part="snippet,status", playlistId=pl_id, maxResults=50, pageToken=page_token
                     )
-                    items_resp = await asyncio.to_thread(lambda req=items_req: _retry_on_ssl(lambda: req.execute()))
+                    items_resp = await _retry_on_ssl_async(items_req.execute)
 
                     items = items_resp.get("items", [])
                     for item in items:
@@ -1382,7 +1382,7 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
                             if item_id:
                                 try:
                                     del_req = google_client.playlistItems().delete(id=item_id)
-                                    await asyncio.to_thread(lambda req=del_req: _retry_on_ssl(lambda: req.execute()))
+                                    await _retry_on_ssl_async(del_req.execute)
                                     removed_count += 1
                                     log.info(f"[REMOVE DELETED] Deleted item {item_id} from playlist {pl_id}")
                                 except Exception as del_err:
@@ -1468,7 +1468,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                     pl_req = google_client.playlists().list(
                         part="snippet", mine=True, maxResults=50, pageToken=pl_token
                     )
-                    pl_res = await asyncio.to_thread(lambda req=pl_req: _retry_on_ssl(lambda: req.execute()))
+                    pl_res = await _retry_on_ssl_async(pl_req.execute)
                     for pl in pl_res.get("items", []):
                         if (pl.get("snippet", {}).get("title") or "").strip().lower() == "check later":
                             check_later_id = pl.get("id")
@@ -1487,22 +1487,19 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
         if not quota_exceeded and not check_later_id:
             # Create "Check Later" playlist (50 units — unavoidable)
             try:
-                new_pl = await asyncio.to_thread(
-                    lambda: _retry_on_ssl(
-                        lambda: google_client.playlists().insert(
-                            part="snippet,status",
-                            body={
-                                "snippet": {
-                                    "title": "Check Later",
-                                    "description": "Private videos moved from other playlists for review"
-                                },
-                                "status": {
-                                    "privacyStatus": "private"
-                                }
-                            }
-                        ).execute()
-                    )
+                create_req = google_client.playlists().insert(
+                    part="snippet,status",
+                    body={
+                        "snippet": {
+                            "title": "Check Later",
+                            "description": "Private videos moved from other playlists for review"
+                        },
+                        "status": {
+                            "privacyStatus": "private"
+                        }
+                    }
                 )
+                new_pl = await _retry_on_ssl_async(create_req.execute)
                 if isinstance(new_pl, dict):
                     check_later_id = new_pl.get("id")
                 log.info(f"[MOVE PRIVATE] Created 'Check Later' playlist with ID {check_later_id}")
@@ -1558,7 +1555,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                                     }
                                 }
                             )
-                            await asyncio.to_thread(lambda req=ins_req: _retry_on_ssl(lambda: req.execute()))
+                            await _retry_on_ssl_async(ins_req.execute)
                             inserted_ok = True
                         except Exception as add_err:
                             err_str = str(add_err)
@@ -1573,7 +1570,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                     if item["item_id"] and (inserted_ok or not item["video_id"]):
                         try:
                             del_req = google_client.playlistItems().delete(id=item["item_id"])
-                            await asyncio.to_thread(lambda req=del_req: _retry_on_ssl(lambda: req.execute()))
+                            await _retry_on_ssl_async(del_req.execute)
                             moved_count += 1
                             log.info(f"[MOVE PRIVATE] Moved private item {item['item_id']} (video {item['video_id']}) to Check Later")
                         except Exception as del_err:
@@ -1594,7 +1591,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                         part="snippet,status", mine=True, maxResults=50, pageToken=pl_token
                     )
                     try:
-                        pl_res = await asyncio.to_thread(lambda req=pl_req: _retry_on_ssl(lambda: req.execute()))
+                        pl_res = await _retry_on_ssl_async(pl_req.execute)
                     except Exception as pl_err:
                         if "quotaExceeded" in str(pl_err) or "quota" in str(pl_err).lower():
                             quota_exceeded = True
@@ -1619,7 +1616,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                                 part="snippet,status", playlistId=pl_id, maxResults=50, pageToken=page_token
                             )
                             try:
-                                items_resp = await asyncio.to_thread(lambda req=items_req: _retry_on_ssl(lambda: req.execute()))
+                                items_resp = await _retry_on_ssl_async(items_req.execute)
                             except Exception as list_err:
                                 if "quotaExceeded" in str(list_err) or "quota" in str(list_err).lower():
                                     quota_exceeded = True
@@ -1643,7 +1640,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                                                 part="snippet",
                                                 body={"snippet": {"playlistId": check_later_id, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}
                                             )
-                                            await asyncio.to_thread(lambda req=ins_req: _retry_on_ssl(lambda: req.execute()))
+                                            await _retry_on_ssl_async(ins_req.execute)
                                             inserted_ok = True
                                         except Exception as add_err:
                                             err_str = str(add_err)
@@ -1657,7 +1654,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                                     if item_id and (inserted_ok or not video_id):
                                         try:
                                             del_req = google_client.playlistItems().delete(id=item_id)
-                                            await asyncio.to_thread(lambda req=del_req: _retry_on_ssl(lambda: req.execute()))
+                                            await _retry_on_ssl_async(del_req.execute)
                                             moved_count += 1
                                         except Exception as del_err:
                                             err_str = str(del_err)
@@ -1706,8 +1703,8 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _retry_on_ssl(call_fn, *args, **kwargs):
-    """Retry a sync httplib2 call on transient SSL errors.
+async def _retry_on_ssl_async(call_fn, *args, **kwargs):
+    """Retry a sync call on transient SSL errors asynchronously with await asyncio.sleep.
 
     ENCRYPTED_LENGTH_TOO_LONG and WRONG_VERSION_NUMBER are transient TLS
     negotiation issues that resolve on their own. Retry up to 3 times with
@@ -1718,10 +1715,25 @@ def _retry_on_ssl(call_fn, *args, **kwargs):
     last_exc = None
     for attempt in range(3):
         try:
+            return await asyncio.to_thread(call_fn, *args, **kwargs)
+        except ssl.SSLError as e:
+            last_exc = e
+            log.warning(f"SSL error in maintenance action (attempt {attempt + 1}/3): {e}. Retrying...")
+            if attempt < 2:
+                await asyncio.sleep(2)
+    raise last_exc
+
+
+def _retry_on_ssl(call_fn, *args, **kwargs):
+    """Synchronous compatibility wrapper for _retry_on_ssl_async."""
+    import ssl
+    last_exc = None
+    for attempt in range(3):
+        try:
             return call_fn(*args, **kwargs)
         except ssl.SSLError as e:
             last_exc = e
-            log.warning(f"SSL error in move_private (attempt {attempt + 1}/3): {e}. Retrying...")
+            log.warning(f"SSL error in maintenance action (attempt {attempt + 1}/3): {e}. Retrying...")
             if attempt < 2:
                 time.sleep(2)
     raise last_exc
