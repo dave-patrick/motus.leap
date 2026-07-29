@@ -3086,21 +3086,25 @@ async def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> d
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
     from core.http_client import get_http_client
-    try:
-        client = get_http_client()
-        resp = await client.get(models_url, headers=headers)
-    except Exception as e:
+    resp = None
+    last_err = None
+    for attempt in range(3):
         try:
-            import asyncio
-            await asyncio.sleep(1.0)
             client = get_http_client()
             resp = await client.get(models_url, headers=headers)
-        except Exception as e2:
-            return {"manual_entry": True, "error": f"Discovery probe failed: {e2}"}
+            if resp.status_code == 200:
+                break
+            body_snippet = resp.text[:120].strip().replace("\n", " ")
+            last_err = f"HTTP {resp.status_code}: {body_snippet}"
+            if attempt < 2:
+                await asyncio.sleep(1.5 * (attempt + 1))
+        except Exception as e:
+            last_err = str(e)
+            if attempt < 2:
+                await asyncio.sleep(1.5 * (attempt + 1))
 
-    if resp.status_code != 200:
-        body_snippet = resp.text[:120].strip().replace("\n", " ")
-        return {"manual_entry": True, "error": f"HTTP {resp.status_code}: {body_snippet}"}
+    if resp is None or resp.status_code != 200:
+        return {"manual_entry": True, "error": f"Discovery probe failed: {last_err}"}
 
     try:
         payload = resp.json()
