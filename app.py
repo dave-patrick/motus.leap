@@ -2719,7 +2719,6 @@ def parse_google_client_secret_json(raw: str) -> tuple[str, str]:
     Returns ("", "") if extraction fails; callers should surface a clear error.
     """
     import json
-from core.utils import fast_dumps
     raw = (raw or "").strip()
     if not raw:
         return "", ""
