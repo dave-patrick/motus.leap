@@ -732,7 +732,7 @@ window.open('/system/logs', '_blank');
             const initial = _initial(id, ch);
             if (ch && ch.thumbnail) {
                 return `<span class="relative w-7 h-7 rounded-full overflow-hidden shrink-0" style="background:hsl(${hue} 55% 40%)">
-                    <img src="${ch.thumbnail}" class="absolute inset-0 w-full h-full object-cover" onerror="this.remove()">
+                    <img src="${ch.thumbnail}" alt="Channel Avatar" class="absolute inset-0 w-full h-full object-cover" onerror="this.remove()">
                     <span class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">${initial}</span>
                 </span>`;
             }

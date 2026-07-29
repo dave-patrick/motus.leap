@@ -226,3 +226,14 @@ button, a, input, select, textarea {
 .panel-resize-handle.dragging {
     background: rgba(47, 143, 201, 0.3) !important;
 }
+
+/* Accessibility: Focus indicators for interactive elements */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid #2f8fc9 !important;
+    outline-offset: 2px !important;
+}
