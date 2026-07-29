@@ -57,9 +57,19 @@ def _backoff_delay(attempt: int) -> float:
     return 2 ** attempt
 
 
-def _classify_sync(provider: str, prompt: str, api_key: str, endpoint: str, model: str = "default",
-                   max_attempts: int = _MAX_ATTEMPTS) -> tuple:
-    """Synchronous classification call (runs in thread).
+_shared_async_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_shared_async_client() -> httpx.AsyncClient:
+    global _shared_async_client
+    if _shared_async_client is None or _shared_async_client.is_closed:
+        _shared_async_client = httpx.AsyncClient(timeout=20.0)
+    return _shared_async_client
+
+
+async def _classify_async(provider: str, prompt: str, api_key: str, endpoint: str, model: str = "default",
+                    max_attempts: int = _MAX_ATTEMPTS) -> tuple:
+    """Asynchronous classification call.
 
     Returns the (data, err) tuple contract. Retries transient failures:
     HTTP 429/500/502/503/504 and transport errors (timeout/connect) are retried
@@ -67,9 +77,7 @@ def _classify_sync(provider: str, prompt: str, api_key: str, endpoint: str, mode
     ``Retry-After`` header (seconds) when present. Permanent client errors
     (400/401/403) fail fast and return the error tuple without retrying.
     """
-    import httpx
-
-    client = _get_shared_client()
+    client = _get_shared_async_client()
 
     # Build provider-specific request; validated provider only reaches the loop.
     if provider == "openai":
@@ -115,7 +123,7 @@ def _classify_sync(provider: str, prompt: str, api_key: str, endpoint: str, mode
     last_err = f"Unknown error after {max_attempts} attempts"
     for attempt in range(max_attempts):
         try:
-            resp = client.post(endpoint, headers=headers, json=json_body)
+            resp = await client.post(endpoint, headers=headers, json=json_body)
             status = resp.status_code
 
             # Permanent client errors: fail fast, never retry.
@@ -127,7 +135,7 @@ def _classify_sync(provider: str, prompt: str, api_key: str, endpoint: str, mode
                 last_err = f"HTTP {status}: {resp.text[:200]}"
                 if attempt < max_attempts - 1:
                     delay = _parse_retry_after(resp.headers.get("Retry-After"))
-                    time.sleep(delay if delay is not None else _backoff_delay(attempt))
+                    await asyncio.sleep(delay if delay is not None else _backoff_delay(attempt))
                     continue
                 return None, last_err
 
@@ -139,21 +147,21 @@ def _classify_sync(provider: str, prompt: str, api_key: str, endpoint: str, mode
             # Transport-level timeout (e.g. 20s httpx timeout) — transient.
             last_err = f"Timeout: {e}"
             if attempt < max_attempts - 1:
-                time.sleep(_backoff_delay(attempt))
+                await asyncio.sleep(_backoff_delay(attempt))
                 continue
             return None, last_err
         except httpx.ConnectError as e:
             # Transport-level connection failure — transient.
             last_err = f"Connection error: {e}"
             if attempt < max_attempts - 1:
-                time.sleep(_backoff_delay(attempt))
+                await asyncio.sleep(_backoff_delay(attempt))
                 continue
             return None, last_err
         except httpx.TransportError as e:
             # Other transport errors (e.g. httpx.NetworkError, RemoteProtocolError).
             last_err = f"Transport error: {e}"
             if attempt < max_attempts - 1:
-                time.sleep(_backoff_delay(attempt))
+                await asyncio.sleep(_backoff_delay(attempt))
                 continue
             return None, last_err
         except httpx.HTTPStatusError as e:
@@ -405,7 +413,7 @@ async def classify_video(title: str, channel: str, description: str,
         # Unpacking it as a dict previously raised
         #   TypeError: tuple indices must be integers
         # on every call, killing all classification.
-        data, err = await asyncio.to_thread(_classify_sync, provider, prompt, api_key, endpoint, custom_model)
+        data, err = await _classify_async(provider, prompt, api_key, endpoint, custom_model)
         if err is not None:
             return None, err
         if data is None:
