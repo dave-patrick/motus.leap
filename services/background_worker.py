@@ -591,7 +591,7 @@ class BackgroundWorker:
                                 })
                 
                 await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
-                await asyncio.sleep(0.01) # Reduced sleep here
+                await asyncio.sleep(0.5)
             
             await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."}))
             # await asyncio.sleep(1) # Removed
