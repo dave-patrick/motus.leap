@@ -237,3 +237,30 @@ textarea:focus-visible,
     outline: 2px solid #2f8fc9 !important;
     outline-offset: 2px !important;
 }
+
+/* Mobile Touch Target & Active Feedback Enhancements */
+@media (max-width: 768px) {
+    button, 
+    .btn, 
+    a.nav-item, 
+    input[type="button"], 
+    input[type="submit"] {
+        min-height: 44px;
+        touch-action: manipulation;
+    }
+}
+
+button:active, 
+.btn:active, 
+a.nav-item:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+    transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+/* Responsive Modal Container Heights */
+.modal-container, 
+[id$="-modal"] > div:nth-child(2) {
+    max-height: 90dvh !important;
+    overflow-y: auto;
+}
