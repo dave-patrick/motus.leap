@@ -1694,8 +1694,8 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
             except TimeoutException:
                 raise Exception(f"Playlist '{playlist_name_or_url}' not found in the sidebar menu. Try providing the direct playlist URL instead.")
             
-        # Give page some extra time to settle before querying
-        time.sleep(10)
+        # Give page brief settle time before querying
+        time.sleep(2)
         
         # Wait for initial load
         try:
