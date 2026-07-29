@@ -627,6 +627,40 @@ class YouTubeService:
             return {"playlists": [], "error": str(e)}
 
     @cache_result("subscriptions", ttl=timedelta(minutes=10))
+    async def _get_channel_stats(
+        self, client: Any, channel_ids: list[str], force_refresh: bool = False
+    ) -> dict[str, Any]:
+        """Fetch channel statistics with 24-hour disk caching to minimize API quota usage."""
+        if not channel_ids:
+            return {}
+
+        cached_stats_file = await self._load_from_disk("channel_stats", max_age_days=1)
+        cached_items = {}
+        if cached_stats_file and isinstance(cached_stats_file, dict):
+            cached_items = cached_stats_file.get("stats", {})
+
+        missing_ids = [cid for cid in channel_ids if cid not in cached_items]
+        target_ids = channel_ids if force_refresh else missing_ids
+
+        if target_ids:
+            async with self._enrich_lock:
+                log.info(f"[FETCH] Enriching {len(target_ids)} channel stats via API...")
+                try:
+                    enriched = await asyncio.to_thread(client.list_channels_by_ids, target_ids, 50) or {}
+                    for item in enriched.get("items", []):
+                        cid = item.get("id", "")
+                        if cid:
+                            cached_items[cid] = item
+                except Exception as e:
+                    log.warning(f"Channel enrichment API call failed: {e}")
+
+            await self._save_to_disk("channel_stats", {
+                "cached_at": datetime.now(timezone.utc).isoformat(),
+                "stats": cached_items
+            })
+
+        return cached_items
+
     async def list_subscriptions(self, force_refresh: bool = False) -> Dict[str, Any]:
         """List user's subscriptions with channel stats (cached)."""
         # 1. Check disk cache first if force_refresh is False
@@ -667,18 +701,7 @@ class YouTubeService:
                     seen_channels.add(cid)
                     channel_ids.append(cid)
             
-            channel_stats = {}
-            if channel_ids:
-                async with self._enrich_lock:
-                    log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
-                    try:
-                        enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
-                        for item in enriched.get("items", []):
-                            cid = item.get("id", "")
-                            if cid:
-                                channel_stats[cid] = item
-                    except Exception as e:
-                        log.warning(f"Channel enrichment failed: {e}")
+            channel_stats = await self._get_channel_stats(client, channel_ids, force_refresh=force_refresh)
             
             subscriptions = []
             for sub in all_subs:
@@ -687,10 +710,6 @@ class YouTubeService:
                 cid = resource.get("channelId", "")
                 if not cid:
                     continue
-                # PRIMARY (zero quota): title + avatar come straight from the
-                # subscriptions.list snippet, which always carries them. Do NOT
-                # depend on channels.list (quota-blocked on Render) for the
-                # basics — that was why names/avatars came back empty.
                 sub_snip = snippet
                 stats = channel_stats.get(cid, {})
                 st_snip = stats.get("snippet", {}) or {}
@@ -1062,18 +1081,7 @@ class YouTubeService:
                         seen_channels.add(cid)
                         channel_ids.append(cid)
 
-                channel_stats = {}
-                if channel_ids:
-                    async with self._enrich_lock:
-                        log.info(f"[FETCH] Enriching {len(channel_ids)} channel stats...")
-                        try:
-                            enriched = await asyncio.to_thread(client.list_channels_by_ids, channel_ids, 50) or {}
-                            for item in enriched.get("items", []):
-                                cid = item.get("id", "")
-                                if cid:
-                                    channel_stats[cid] = item
-                        except Exception as e:
-                            log.warning(f"Channel enrichment failed: {e}")
+                channel_stats = await self._get_channel_stats(client, channel_ids, force_refresh=force_refresh)
 
                 # PRIMARY (zero quota): title + avatar from the subscriptions.list
                 # snippet, NOT channels.list (quota-blocked on Render).
@@ -1341,3 +1349,68 @@ class YouTubeService:
                     return {"videos": matching, "cached": True, "warning": "YouTube API quota exceeded or offline. Showing cached videos."}
 
             return {"videos": [], "error": str(e)}
+
+    async def save_scan_data_to_cache(
+        self, raw_playlists: list[dict], video_records: list[dict]
+    ) -> dict[str, Any]:
+        """Persist data gathered during a full cluster scan directly into disk and memory caches.
+        
+        Eliminates the double-fetch (re-querying YouTube API for all playlists & videos)
+        saving ~200+ API quota units per sync.
+        """
+        user_id = self._get_user_id()
+        
+        # Load or retrieve subscriptions (prefers disk cache, 0 API units if cached)
+        subs_list = []
+        try:
+            subs_res = await self.list_subscriptions(force_refresh=False)
+            if isinstance(subs_res, dict):
+                subs_list = subs_res.get("channels", [])
+        except Exception as e:
+            log.warning(f"[CACHE] Failed to load subscriptions for scan cache: {e}")
+
+        # Normalize playlists using standard schema
+        normalized_playlists = []
+        for pl in raw_playlists:
+            if isinstance(pl, dict):
+                if "video_count" in pl:
+                    normalized_playlists.append(pl)
+                else:
+                    normalized_playlists.append(self._playlist_item_to_dict(pl))
+        normalized_playlists.sort(key=lambda x: x.get("title", "").lower())
+
+        total_videos = len(video_records)
+        total_duration = sum(v.get("duration_seconds", 0) for v in video_records if isinstance(v, dict))
+
+        all_data = {
+            "cached_at": datetime.now(timezone.utc).isoformat(),
+            "subscriptions": subs_list,
+            "playlists": normalized_playlists,
+            "videos": video_records,
+            "stats": {
+                "total_playlists": len(normalized_playlists),
+                "total_videos": total_videos,
+                "total_subscriptions": len(subs_list),
+                "total_duration_seconds": total_duration,
+            },
+            "user_id": user_id,
+        }
+
+        # Save all_data to memory and disk
+        await self._save_to_disk("all_data", all_data)
+        await self._cache.set("all_data", all_data, timedelta(minutes=10))
+
+        # Save per-playlist video lists so individual playlist requests hit disk cache
+        videos_by_playlist: dict[str, list[dict]] = {}
+        for v in video_records:
+            pid = v.get("playlist_id")
+            if pid:
+                videos_by_playlist.setdefault(pid, []).append(v)
+
+        for pid, v_list in videos_by_playlist.items():
+            await self._save_to_disk(f"playlist_videos_{pid}", v_list)
+            await self._cache.set(f"playlist_videos_{pid}", v_list, timedelta(hours=6))
+
+        log.info(f"[CACHE] Direct scan cache updated: {len(normalized_playlists)} playlists, {total_videos} videos saved (zero extra API calls).")
+        return all_data
+

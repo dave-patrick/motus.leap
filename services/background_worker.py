@@ -558,15 +558,21 @@ class BackgroundWorker:
                         # re-uploads (fresh IDs) are caught, not just same-ID
                         # copies. thumbnail is free (no extra API cost).
                         snip = item.get("snippet", {}) or {}
+                        cnt = item.get("contentDetails", {}) or {}
+                        dur_str = cnt.get("duration", "PT0S")
+                        dur_secs = self.youtube_service._parse_duration(dur_str) if (self.youtube_service and hasattr(self.youtube_service, '_parse_duration')) else 0
                         all_video_records.append({
+                            "id": item.get("id", ""),
+                            "playlist_item_id": item.get("id", ""),
                             "video_id": video_id,
                             "title": video_title,
+                            "description": snip.get("description", "")[:200],
                             "channel_id": snip.get("videoOwnerChannelId") or snip.get("channelId", ""),
-                            "channel_title": snip.get("videoOwnerChannelTitle") or snip.get("channelTitle", ""),
+                            "channel_title": snip.get("videoOwnerChannelTitle") or snip.get("channelTitle", "Unknown Channel"),
                             "playlist_id": pl_id,
                             "playlist_title": pl_title,
+                            "duration_seconds": dur_secs,
                             "thumbnail": _best_thumbnail_local(snip.get("thumbnails")),
-                            "playlist_item_id": item.get("id", ""),
                         })
                         
                         # Misplaced video check
@@ -649,11 +655,11 @@ class BackgroundWorker:
             await self.manager.broadcast(fast_dumps({"type": "log", "message": "[LEARN] Processing statistics..."}))
             # await asyncio.sleep(1) # Removed
             
-            # Populate the persistent cache so subsequent reads don't hit the API
+            # Populate the persistent cache directly from scan data (zero extra API calls)
             if self.youtube_service:
-                await self.manager.broadcast(fast_dumps({"type": "log", "message": "[CACHE] Updating local data cache..."}))
+                await self.manager.broadcast(fast_dumps({"type": "log", "message": "[CACHE] Updating local data cache directly from scan..."}))
                 try:
-                    await self.youtube_service.fetch_all_data(force_refresh=True)
+                    await self.youtube_service.save_scan_data_to_cache(playlists, all_video_records)
                     await self.manager.broadcast(fast_dumps({"type": "log", "message": "[CACHE] Local cache updated. All reads will use cached data."}))
                 except Exception as cache_err:
                     log.warning(f"Failed to update cache after scan: {cache_err}")
