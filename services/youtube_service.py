@@ -12,7 +12,7 @@ except ImportError:
     httpx = None  # type: ignore
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
 from functools import wraps
 
