@@ -941,12 +941,16 @@ async def delete_user(
 async def create_default_admin() -> None:
     users_db = await get_users_db() # Get the users_db
     if not users_db:
-        default_password = os.getenv("TUBE_MANAGER_ADMIN_PASSWORD", "admin")
-        if default_password == "admin":
+        env_pass = os.getenv("TUBE_MANAGER_ADMIN_PASSWORD")
+        if not env_pass:
+            default_password = secrets.token_urlsafe(16)
             log.warning(
-                "Using default admin password 'admin'. "
-                "Set TUBE_MANAGER_ADMIN_PASSWORD env var to change."
+                "TUBE_MANAGER_ADMIN_PASSWORD env var not set. "
+                "Generated random initial admin password: %s",
+                default_password
             )
+        else:
+            default_password = env_pass
 
         user_id = secrets.token_hex(16)
         users_db["admin"] = {

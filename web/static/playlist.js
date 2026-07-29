@@ -103,7 +103,7 @@ async function loadPlaylist() {
         if (!resp.ok && resp.status !== 403) {
             console.error('Videos API error:', resp.status, resp.statusText);
             const container = document.getElementById('videos-container');
-            if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">API error: ${resp.status}</div>`;
+            if (container) container.innerHTML = `<div class="text-center p-8 text-red-400">API error: ${DOMPurify.sanitize(String(resp.status))}</div>`;
             return;
         }
         const data = await resp.json();
