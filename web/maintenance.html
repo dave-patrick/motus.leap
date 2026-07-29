@@ -256,9 +256,31 @@
             toast("Scanning playlists for deleted videos...", "info", 6000);
 
             try {
-                const resp = await authFetch("/api/maintenance/remove-deleted", { credentials: "omit", method: "POST" });
-                const data = await resp.json();
+                let resp = await authFetch("/api/maintenance/remove-deleted", { credentials: "omit", method: "POST" });
+                let data = await resp.json();
                 if (!resp.ok) throw new Error(data.detail || data.error || "Failed to remove deleted videos");
+
+                if (data.status === "cache_missing") {
+                    const runSync = confirm(
+                        data.message + "\n\nClick OK to start 'Full Playlist Sync' now (recommended), or Cancel to choose options."
+                    );
+                    if (runSync) {
+                        toast("Triggering Full Playlist Sync...", "info", 4000);
+                        await authFetch("/api/action", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ action: "sync_playlists" })
+                        });
+                        toast("Full Playlist Sync started in background. Please retry deletion scan after sync completes.", "success", 8000);
+                        return;
+                    } else {
+                        const confirmLive = confirm("Proceed with un-cached live API scan (~200 quota units)?");
+                        if (!confirmLive) return;
+                        resp = await authFetch("/api/maintenance/remove-deleted?allow_uncached=true", { credentials: "omit", method: "POST" });
+                        data = await resp.json();
+                        if (!resp.ok) throw new Error(data.detail || data.error || "Failed to remove deleted videos");
+                    }
+                }
                 
                 toast(data.message || "Successfully removed deleted videos", "success", 6000);
                 loadMaintenance();
@@ -283,10 +305,32 @@
             toast("Scanning playlists for private videos...", "info", 6000);
 
             try {
-                const resp = await authFetch("/api/maintenance/move-private", { credentials: "omit", method: "POST" });
-                const data = await resp.json();
+                let resp = await authFetch("/api/maintenance/move-private", { credentials: "omit", method: "POST" });
+                let data = await resp.json();
                 if (!resp.ok) throw new Error(data.detail || data.error || "Failed to move private videos");
                 
+                if (data.status === "cache_missing") {
+                    const runSync = confirm(
+                        data.message + "\n\nClick OK to start 'Full Playlist Sync' now (recommended), or Cancel to choose options."
+                    );
+                    if (runSync) {
+                        toast("Triggering Full Playlist Sync...", "info", 4000);
+                        await authFetch("/api/action", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ action: "sync_playlists" })
+                        });
+                        toast("Full Playlist Sync started in background. Please retry after sync completes.", "success", 8000);
+                        return;
+                    } else {
+                        const confirmLive = confirm("Proceed with un-cached live API scan (~200 quota units)?");
+                        if (!confirmLive) return;
+                        resp = await authFetch("/api/maintenance/move-private?allow_uncached=true", { credentials: "omit", method: "POST" });
+                        data = await resp.json();
+                        if (!resp.ok) throw new Error(data.detail || data.error || "Failed to move private videos");
+                    }
+                }
+
                 toast(data.message || "Successfully moved private videos", "success", 6000);
                 loadMaintenance();
             } catch (err) {

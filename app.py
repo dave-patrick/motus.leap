@@ -1265,7 +1265,7 @@ async def api_maintenance() -> dict[str, Any]:
 
 
 @app.post("/api/maintenance/remove-deleted", dependencies=[Depends(get_current_user)])
-async def api_maintenance_remove_deleted():
+async def api_maintenance_remove_deleted(allow_uncached: bool = False):
     """Scan all playlists and remove deleted/unavailable videos.
 
     QUOTA-OPTIMIZED: Uses cached video data from the last full sync to
@@ -1292,6 +1292,15 @@ async def api_maintenance_remove_deleted():
         # ── Strategy 1: Use cached video data (ZERO quota for reads) ──
         cached_all_data = await youtube_service._load_from_disk("all_data", max_age_days=30)
         cached_videos = (cached_all_data or {}).get("videos", []) if isinstance(cached_all_data, dict) else []
+
+        if not cached_videos and not allow_uncached:
+            log.warning("[REMOVE DELETED] No cached all_data.json found. Returning cache_missing warning.")
+            return {
+                "status": "cache_missing",
+                "message": "No recent playlist data found locally to efficiently scan for deleted videos. Running this now will consume significant YouTube API quota (~200 units). For a faster, quota-optimized scan, please run 'Full Playlist Sync' first.",
+                "quota_warning": True,
+                "removed_count": 0
+            }
 
         if cached_videos:
             scanned_from_cache = True
@@ -1406,7 +1415,7 @@ async def api_maintenance_remove_deleted():
 
 
 @app.post("/api/maintenance/move-private", dependencies=[Depends(get_current_user)])
-async def api_maintenance_move_private():
+async def api_maintenance_move_private(allow_uncached: bool = False):
     """Move all private videos to a new or existing playlist 'Check Later'.
 
     QUOTA-OPTIMIZED: Uses cached video + playlist data to identify private
@@ -1434,6 +1443,15 @@ async def api_maintenance_move_private():
         cached_all_data = await youtube_service._load_from_disk("all_data", max_age_days=30)
         cached_playlists = (cached_all_data or {}).get("playlists", []) if isinstance(cached_all_data, dict) else []
         cached_videos = (cached_all_data or {}).get("videos", []) if isinstance(cached_all_data, dict) else []
+
+        if not cached_videos and not allow_uncached:
+            log.warning("[MOVE PRIVATE] No cached all_data.json found. Returning cache_missing warning.")
+            return {
+                "status": "cache_missing",
+                "message": "No recent playlist data found locally to efficiently scan for private videos. Running this now will consume significant YouTube API quota (~200 units). For a faster, quota-optimized scan, please run 'Full Playlist Sync' first.",
+                "quota_warning": True,
+                "moved_count": 0
+            }
 
         # Look up "Check Later" from cache
         for pl in cached_playlists:

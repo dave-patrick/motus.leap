@@ -329,8 +329,27 @@ function MaintenanceView() {
 
   const removeDeletedMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiFetch('/api/maintenance/remove-deleted', { method: 'POST' });
-      return res.json();
+      let res = await apiFetch('/api/maintenance/remove-deleted', { method: 'POST' });
+      let data = await res.json();
+      if (data.status === 'cache_missing') {
+        const runSync = window.confirm(
+          data.message + "\n\nClick OK to start 'Full Playlist Sync' now (recommended), or Cancel to choose options."
+        );
+        if (runSync) {
+          await apiFetch('/api/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'sync_playlists' }),
+          });
+          return { message: "Full Playlist Sync started in background. Retry scan after sync completes." };
+        } else {
+          const confirmLive = window.confirm("Proceed with un-cached live API scan (~200 quota units)?");
+          if (!confirmLive) return { message: "Action cancelled." };
+          res = await apiFetch('/api/maintenance/remove-deleted?allow_uncached=true', { method: 'POST' });
+          data = await res.json();
+        }
+      }
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
@@ -339,8 +358,27 @@ function MaintenanceView() {
 
   const movePrivateMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiFetch('/api/maintenance/move-private', { method: 'POST' });
-      return res.json();
+      let res = await apiFetch('/api/maintenance/move-private', { method: 'POST' });
+      let data = await res.json();
+      if (data.status === 'cache_missing') {
+        const runSync = window.confirm(
+          data.message + "\n\nClick OK to start 'Full Playlist Sync' now (recommended), or Cancel to choose options."
+        );
+        if (runSync) {
+          await apiFetch('/api/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'sync_playlists' }),
+          });
+          return { message: "Full Playlist Sync started in background. Retry scan after sync completes." };
+        } else {
+          const confirmLive = window.confirm("Proceed with un-cached live API scan (~200 quota units)?");
+          if (!confirmLive) return { message: "Action cancelled." };
+          res = await apiFetch('/api/maintenance/move-private?allow_uncached=true', { method: 'POST' });
+          data = await res.json();
+        }
+      }
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['playlists'] });
