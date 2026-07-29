@@ -316,8 +316,29 @@
     aside.classList.add('-translate-x-full');
   }
 
+  function checkQuotaBanner() {
+    if (document.getElementById('quota-exceeded-banner')) return;
+    const isExceeded = localStorage.getItem('quota_exceeded') === 'true';
+    if (isExceeded) {
+      const header = document.querySelector('header');
+      if (!header) return;
+      const banner = document.createElement('div');
+      banner.id = 'quota-exceeded-banner';
+      banner.className = 'w-full bg-amber-950/80 border-b border-amber-500/30 px-4 py-2 text-xs text-amber-200 flex items-center justify-between z-10 shrink-0';
+      banner.innerHTML = `
+        <div class="flex items-center gap-2">
+          <i class="fas fa-exclamation-triangle text-amber-400"></i>
+          <span><strong>YouTube API Quota Limit Reached:</strong> Live API sync paused until reset (at midnight PT). Displaying local disk cached data.</span>
+        </div>
+        <button onclick="this.parentElement.remove()" class="text-amber-300 hover:text-white text-xs px-2 py-0.5" aria-label="Dismiss">✕</button>
+      `;
+      header.parentNode.insertBefore(banner, header.nextSibling);
+    }
+  }
+
   function injectOnce() {
     ensureShellLayout();
+    checkQuotaBanner();
     injectAISheet();
 
     if (!document.getElementById('shell-nav-styles') && shellStyles()) {
