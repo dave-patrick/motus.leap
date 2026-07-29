@@ -61,11 +61,11 @@ def _reset_shared_client():
         log.info("Reset shared httpx client (closed stale connections, created fresh client)")
 
 
-def _with_retry(sync_func, *args, **kwargs):
+async def _with_retry_async(sync_func, *args, **kwargs):
     last_exc = None
     for attempt in range(RETRY_ATTEMPTS):
         try:
-            resp = sync_func(*args, **kwargs)
+            resp = await asyncio.to_thread(sync_func, *args, **kwargs)
             if hasattr(resp, "raise_for_status"):
                 resp.raise_for_status()
             return resp
@@ -77,7 +77,7 @@ def _with_retry(sync_func, *args, **kwargs):
             if httpx is not None:
                 _reset_shared_client()
             if attempt < RETRY_ATTEMPTS - 1:
-                time.sleep(RETRY_DELAY_SECONDS)
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
             else:
                 log.error(f"API call failed after {RETRY_ATTEMPTS} attempts with SSL error: {e}")
                 raise
@@ -88,7 +88,7 @@ def _with_retry(sync_func, *args, **kwargs):
             if httpx is not None:
                 _reset_shared_client()
             if attempt < RETRY_ATTEMPTS - 1:
-                time.sleep(RETRY_DELAY_SECONDS)
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
             else:
                 log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
                 raise
@@ -101,7 +101,7 @@ def _with_retry(sync_func, *args, **kwargs):
             last_exc = e
             if attempt < RETRY_ATTEMPTS - 1:
                 log.warning(f"API call failed with server error (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
-                time.sleep(RETRY_DELAY_SECONDS)
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
             else:
                 log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
                 raise
@@ -110,7 +110,7 @@ def _with_retry(sync_func, *args, **kwargs):
             last_exc = e
             if attempt < RETRY_ATTEMPTS - 1:
                 log.warning(f"API call failed (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
-                time.sleep(RETRY_DELAY_SECONDS)
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
             else:
                 log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
                 raise

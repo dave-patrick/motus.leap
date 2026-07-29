@@ -1724,20 +1724,6 @@ async def _retry_on_ssl_async(call_fn, *args, **kwargs):
     raise last_exc
 
 
-def _retry_on_ssl(call_fn, *args, **kwargs):
-    """Synchronous compatibility wrapper for _retry_on_ssl_async."""
-    import ssl
-    last_exc = None
-    for attempt in range(3):
-        try:
-            return call_fn(*args, **kwargs)
-        except ssl.SSLError as e:
-            last_exc = e
-            log.warning(f"SSL error in maintenance action (attempt {attempt + 1}/3): {e}. Retrying...")
-            if attempt < 2:
-                time.sleep(2)
-    raise last_exc
-
 
 def _load_maintenance_data() -> dict[str, Any]:
     """Load maintenance.json (scan output). Returns empty-shape dict on miss."""
