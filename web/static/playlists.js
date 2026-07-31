@@ -160,7 +160,7 @@ function renderPlaylistsGrid(playlists) {
         const playlistId = p.id || (p.url ? (p.url.split('list=')[1] || '').split('&')[0] : '');
         const isWL = (title.toLowerCase() === 'watch later' || playlistId === 'WL');
         const badgeTag = isWL 
-            ? `<span class="px-2 py-0.5 rounded text-[10px] bg-indigo-500/20 text-indigo-400 font-bold border border-indigo-500/30 flex items-center gap-1 w-fit"><i class="fa-solid fa-clock text-[9px]"></i> System Inbox</span>` 
+            ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 w-fit"><i class="fa-solid fa-clock text-[8px]"></i> System Inbox</span>` 
             : '';
 
         return `
@@ -169,10 +169,8 @@ function renderPlaylistsGrid(playlists) {
             ${thumbMarkup(p)}
           </div>
           <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-            <div class="flex items-center gap-2">
-                <h3 class="text-base md:text-lg font-semibold ${isWL ? 'text-indigo-400 font-bold' : 'text-[#2f8fc9]'} truncate">${title}</h3>
-                ${badgeTag}
-            </div>
+            <h3 class="text-base md:text-lg font-semibold ${isWL ? 'text-indigo-400' : 'text-[#2f8fc9]'} truncate">${title}</h3>
+            ${badgeTag}
             <p class="text-xs text-gray-400">${p.video_count != null ? p.video_count : 0} videos</p>
             <div class="flex items-center gap-2 mt-0.5" onclick="event.stopPropagation()">
               <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${playlistId}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[11px] py-1 px-1.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
