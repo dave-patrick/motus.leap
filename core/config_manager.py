@@ -32,10 +32,16 @@ class ConfigManager:
 
     def _get_default_config_path(self) -> Path:
         """Get the default config path based on environment."""
-        render_path = Path("/app/data/config.json")
-        if render_path.exists() or Path("/app/data").exists():
+        env_data_dir = os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")
+        render_path = Path(env_data_dir) / "config.json"
+        if render_path.exists():
             return render_path
-        return Path("config.json")
+        local_path = Path("config.json")
+        if local_path.exists():
+            return local_path
+        if render_path.parent.exists():
+            return render_path
+        return local_path
 
     async def load(self) -> TubeManagerConfig:
         """Load configuration from file."""
