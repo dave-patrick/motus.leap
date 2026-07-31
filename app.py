@@ -4078,14 +4078,20 @@ async def clear_system_logs():
 @app.get("/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def system_logs_page():
     """System logs viewer page."""
-    log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
+    data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    log_file = data_dir / "tube_manager.log"
+    if not log_file.exists():
+        local_log = Path("tube_manager.log")
+        if local_log.exists():
+            log_file = local_log
+
     logs_html = ""
     if log_file.exists():
         try:
-            content = await asyncio.to_thread(log_file.read_text)
-            lines = content.strip().split("\n")
-            last_200 = lines[-200:] if len(lines) > 200 else lines
-            for line in last_200:
+            content = await asyncio.to_thread(lambda: log_file.read_text(encoding="utf-8", errors="ignore"))
+            lines = [l for l in content.strip().split("\n") if l.strip()]
+            last_lines = lines[-500:] if len(lines) > 500 else lines
+            for line in last_lines:
                 escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 level = "OTHER"
                 style = ""
@@ -4105,7 +4111,7 @@ async def system_logs_page():
         except Exception as e:
             logs_html = f'<div style="color:#ff6b6b">Error reading logs: {e}</div>'
     else:
-        logs_html = '<div style="color:#868e96">No log file found. Logs are written to stdout only. Set a log file path in config to enable file logging.</div>'
+        logs_html = '<div style="color:#868e96">No log file found yet. System logs will record to file on next operation.</div>'
 
     return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en">

@@ -11,17 +11,22 @@ def setup_logging(log_level: str = "INFO", log_file: Optional[Path] = None) -> l
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_file: Optional path to a log file
-
-    Returns:
-        Configured logger instance
     """
+    if log_file is None:
+        import os
+        data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+        log_file = data_dir / "tube_manager.log"
+
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     date_format = "%Y-%m-%d %H:%M:%S"
 
     handlers = [logging.StreamHandler(sys.stdout)]
     if log_file:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(log_file))
+        try:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+        except Exception as e:
+            sys.stderr.write(f"[WARN] Failed to setup FileHandler for {log_file}: {e}\n")
 
     logging.basicConfig(
         level=getattr(logging, log_level.upper(), logging.INFO),
