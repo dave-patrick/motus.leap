@@ -974,6 +974,28 @@ async def api_playlists(request: Request, force_refresh: bool = False) -> dict[s
     return {"playlists": [], "error": "YouTube service not available"}
 
 
+@app.get("/api/youtube/watch-later-count", dependencies=[Depends(get_current_user)])
+async def api_watch_later_count() -> dict[str, Any]:
+    """Return the number of videos in the authenticated user's Watch Later playlist."""
+    if not youtube_service:
+        return {"count": None, "error": "YouTube service not available"}
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        return {"count": None, "error": "YouTube not authenticated"}
+    try:
+        items = await youtube_service._fetch_all_paginated(
+            lambda max_results, page_token: yt_client.list_playlist_items(
+                "WL", max_results=max_results, page_token=page_token
+            ),
+            max_results=50,
+            max_items=500,
+        )
+        return {"count": len(items)}
+    except Exception as e:
+        log.warning(f"[WL count] Could not fetch Watch Later count: {e}")
+        return {"count": None, "error": str(e)}
+
+
 @app.post("/api/youtube/playlists/rename", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def rename_playlist_endpoint(payload: dict):
     playlist_id = payload.get("playlist_id")

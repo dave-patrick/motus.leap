@@ -67,6 +67,9 @@ async function loadPlaylists() {
         }));
         localStorage.setItem(CLIENT_CACHE_KEY, JSON.stringify(allPlaylists));
         renderPlaylistsGrid(allPlaylists);
+
+        // Fetch real Watch Later video count in the background (system playlist, not in API response)
+        fetchWatchLaterCount();
     } catch (e) {
         // If we already painted a cached grid, keep it instead of erroring over it
         const hasContent = playlistsList && playlistsList.children.length > 0;
@@ -82,6 +85,32 @@ async function loadPlaylists() {
     } finally {
         if (skeleton) skeleton.classList.add("hidden");
         if (playlistsList) playlistsList.classList.remove("hidden");
+    }
+}
+
+async function fetchWatchLaterCount() {
+    try {
+        const resp = await authFetch("/api/youtube/watch-later-count");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const count = data.count;
+        if (count == null) return;
+
+        // Patch any WL card's video count text in the DOM
+        const cards = document.querySelectorAll('#playlists-list a');
+        cards.forEach(card => {
+            const href = card.getAttribute('href') || '';
+            if (href.includes('/playlist/WL')) {
+                const countEl = card.querySelector('p.text-xs.text-gray-400');
+                if (countEl) countEl.textContent = `${count} video${count !== 1 ? 's' : ''}`;
+            }
+        });
+
+        // Also update allPlaylists cache so re-renders show correct count
+        const wl = allPlaylists.find(p => p.id === 'WL' || (p.title || '').toLowerCase() === 'watch later');
+        if (wl) wl.video_count = count;
+    } catch (e) {
+        // Non-critical – silently ignore
     }
 }
 
