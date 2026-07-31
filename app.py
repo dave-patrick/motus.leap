@@ -1249,19 +1249,67 @@ async def api_subscriptions() -> dict[str, Any]:
 # Maintenance endpoint
 @app.get("/api/maintenance", dependencies=[Depends(get_current_user)])
 async def api_maintenance() -> dict[str, Any]:
-    """Get maintenance data."""
+    """Get maintenance data enriched with resolved playlist titles, deleted count, and private count."""
     maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
-    if maintenance_file.exists():
-        try:
-            return json.loads(maintenance_file.read_text())
-        except Exception:
-            pass
-    return {
+    data: dict[str, Any] = {
         "move_from_x_to_y": [],
         "duplicated_videos": [],
         "misplaced_videos": [],
-        "info": "Maintenance analysis requires full video scan. Run Full Playlist Sync first."
+        "deleted_count": 0,
+        "private_count": 0,
+        "info": "Maintenance analysis requires full video scan."
     }
+    if maintenance_file.exists():
+        try:
+            raw_data = json.loads(await asyncio.to_thread(maintenance_file.read_text))
+            if isinstance(raw_data, dict):
+                data.update(raw_data)
+        except Exception as e:
+            log.warning(f"Error reading maintenance.json: {e}")
+
+    if youtube_service:
+        try:
+            pls = await youtube_service.list_playlists()
+            title_map = {p.get("id"): p.get("title") for p in (pls.get("playlists") or []) if p.get("id")}
+            
+            for key in ("misplaced_videos", "move_from_x_to_y", "duplicated_videos"):
+                for item in data.get(key, []):
+                    if "mapped_playlist_id" in item:
+                        mid = item["mapped_playlist_id"]
+                        if mid and mid in title_map:
+                            item["mapped_playlist_title"] = title_map[mid]
+                    if "target_playlist_id" in item:
+                        tid = item["target_playlist_id"]
+                        if tid and tid in title_map:
+                            item["target_playlist_title"] = title_map[tid]
+                    if "current_playlist_id" in item:
+                        cid = item["current_playlist_id"]
+                        if cid and cid in title_map:
+                            item["current_playlist_title"] = title_map[cid]
+                    if "source_playlist_id" in item:
+                        sid = item["source_playlist_id"]
+                        if sid and sid in title_map:
+                            item["source_playlist_title"] = title_map[sid]
+                    if "playlists" in item and isinstance(item["playlists"], list):
+                        for p in item["playlists"]:
+                            pid = p.get("id") or p.get("playlist_id")
+                            if pid and pid in title_map:
+                                p["title"] = title_map[pid]
+        except Exception as e:
+            log.warning(f"Failed to enrich playlist titles in api_maintenance: {e}")
+
+        try:
+            all_videos = await youtube_service.get_videos()
+            vlist = all_videos.get("videos", []) if isinstance(all_videos, dict) else []
+            if vlist:
+                deleted_vids = [v for v in vlist if v.get("status") == "deleted" or v.get("title") in ("Deleted video", "Private video")]
+                private_vids = [v for v in vlist if v.get("status") == "private" or v.get("privacy_status") == "private"]
+                data["deleted_count"] = len(deleted_vids)
+                data["private_count"] = len(private_vids)
+        except Exception as e:
+            log.warning(f"Failed to calculate deleted/private counts: {e}")
+
+    return data
 
 
 @app.post("/api/maintenance/remove-deleted", dependencies=[Depends(get_current_user)])
