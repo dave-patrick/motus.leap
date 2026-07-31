@@ -865,6 +865,10 @@ class BackgroundWorker:
         if self.youtube_service:
             videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
             videos = videos_data.get("videos", [])
+            if not videos:
+                await self._safe_broadcast({"type": "log", "message": "[SCAN] Notice: 0 videos found in library cache. Click Full Playlist Sync to fetch library data."})
+            else:
+                await self._safe_broadcast({"type": "log", "message": f"[SCAN] Analyzing {len(videos)} videos across library..."})
             from services.duplicate_detector import compute_duplicate_groups
             groups = compute_duplicate_groups(videos)
             duplicates = sum(g["copy_count"] - 1 for g in groups)

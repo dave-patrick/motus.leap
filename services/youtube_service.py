@@ -1285,9 +1285,12 @@ class YouTubeService:
         # 1. If no playlist_id is provided, use the global cache (fetch_all_data already cached)
         if not playlist_id:
             all_data = await self.fetch_all_data(force_refresh=force_refresh)
+            if not force_refresh and not all_data.get("videos") and "error" not in all_data:
+                log.info("[get_videos] Cached all_data has 0 videos — forcing live refresh from YouTube API...")
+                all_data = await self.fetch_all_data(force_refresh=True)
             if "error" in all_data:
                 disk_data = await self._load_from_disk("all_data", max_age_days=365)
-                if disk_data and "videos" in disk_data:
+                if disk_data and "videos" in disk_data and disk_data["videos"]:
                     return {"videos": disk_data["videos"], "cached": True, "warning": all_data["error"]}
                 return {"videos": [], "error": all_data["error"]}
             return {"videos": all_data.get("videos", [])}
