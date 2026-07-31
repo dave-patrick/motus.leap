@@ -2113,19 +2113,25 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail="target_playlist_id is required")
 
     # Fetch videos from source playlist
-    source_videos = []
+    source_payload = None
     try:
-        source_videos = await youtube_service.get_videos(source_pid)
+        source_payload = await youtube_service.get_videos(source_pid)
     except Exception as e:
         log.warning(f"Cached videos lookup for {source_pid} returned error: {e}")
 
-    if not source_videos:
+    vlist = []
+    if isinstance(source_payload, dict):
+        vlist = source_payload.get("videos", [])
+    elif isinstance(source_payload, list):
+        vlist = source_payload
+
+    if not vlist:
         try:
             items = await youtube_service._fetch_all_paginated(
                 lambda max_results, page_token: yt_client.list_playlist_items(source_pid, max_results=max_results, page_token=page_token),
                 max_results=50, max_items=500
             )
-            source_videos = [
+            vlist = [
                 {
                     "id": it.get("contentDetails", {}).get("videoId"),
                     "playlist_item_id": it.get("id"),
@@ -2136,7 +2142,7 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
         except Exception as e:
             log.error(f"Live fetch failed for source playlist {source_pid}: {e}")
 
-    if not source_videos:
+    if not vlist:
         return {"status": "ok", "moved": 0, "message": "No videos found in Watch Later to move"}
 
     moved_count = 0
@@ -2152,9 +2158,20 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
     except Exception:
         pass
 
-    for v in source_videos:
-        vid = v.get("id") or v.get("video_id")
-        pli_id = v.get("playlist_item_id")
+    for v in vlist:
+        if isinstance(v, dict):
+            vid = v.get("id") or v.get("video_id")
+            pli_id = v.get("playlist_item_id")
+            v_title = v.get("title", vid)
+            v_cid = v.get("channel_id", "")
+            v_ctitle = v.get("channel_title", "")
+        else:
+            vid = str(v)
+            pli_id = None
+            v_title = vid
+            v_cid = ""
+            v_ctitle = ""
+
         if not vid:
             continue
         try:
@@ -2169,9 +2186,9 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
                 from services.ai_classifier import record_move
                 await record_move(
                     video_id=vid,
-                    title=v.get("title", vid),
-                    channel_id=v.get("channel_id", ""),
-                    channel_title=v.get("channel_title", ""),
+                    title=v_title,
+                    channel_id=v_cid,
+                    channel_title=v_ctitle,
                     from_playlist_name=source_pid,
                     from_playlist_id=source_pid,
                     to_playlist_name=target_title,

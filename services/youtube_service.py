@@ -908,10 +908,12 @@ class YouTubeService:
         unbounded = max_items <= 0
 
         while unbounded or len(all_items) < max_items:
-            # Run the blocking sync fetch_fn in a separate thread, serialized via self._api_lock
-            # so concurrent tasks never touch the non-thread-safe httplib2 socket simultaneously.
             try:
-                async with self._api_lock:
+                api_lock = getattr(self, "_api_lock", None)
+                if api_lock is not None:
+                    async with api_lock:
+                        resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
+                else:
                     resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
             except ssl.SSLError as e:
                 consecutive_errors += 1
@@ -1294,7 +1296,7 @@ class YouTubeService:
         return await self.get_basic_stats(force_refresh=False)
 
     @cache_result("playlist_videos", ttl=timedelta(minutes=5)) # Cache playlist videos for 5 minutes
-    async def get_videos(self, playlist_id: str, force_refresh: bool = False) -> Dict[str, Any]:
+    async def get_videos(self, playlist_id: str = "", force_refresh: bool = False) -> Dict[str, Any]:
         """Get videos with duration (cached)."""
 
         # 1. If no playlist_id is provided, use the global cache (fetch_all_data already cached)
