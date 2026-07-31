@@ -1,6 +1,7 @@
 """Background worker service for motus.leap."""
 
 import asyncio
+import inspect
 import json
 from core.utils import fast_dumps
 import logging
@@ -468,16 +469,16 @@ class BackgroundWorker:
 
     async def full_cluster_scan(self, payload):
         """Perform a full cluster scan."""
-        await self.manager.broadcast(fast_dumps({"type": "log", "message": "[SCAN] Initiating Full Playlist Sync..."}))
+        await self._safe_broadcast({"type": "log", "message": "[SCAN] Initiating Full Playlist Sync..."})
         
         client = self.youtube_service.get_client(require_oauth=True) if self.youtube_service else None
         if not client:
-            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[ERROR] No YouTube OAuth client available. Connect YouTube in Settings first."}))
+            await self._safe_broadcast({"type": "log", "message": "[ERROR] No YouTube OAuth client available. Connect YouTube in Settings first."})
             return
         
         try:
             # Fetch user's playlists
-            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[SCAN] Fetching playlist data from YouTube API..."}))
+            await self._safe_broadcast({"type": "log", "message": "[SCAN] Fetching playlist data from YouTube API..."})
             playlists = []
             playlist_page_token = None
             while True:
@@ -496,7 +497,7 @@ class BackgroundWorker:
                 playlist_page_token = playlists_resp.get("nextPageToken")
                 if not playlist_page_token:
                     break
-            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"}))
+            await self._safe_broadcast({"type": "log", "message": f"[SCAN] Found {len(playlists)} playlists"})
             
             # Real duplicate and misplaced detection
             video_to_playlists = {} # video_id -> list of (playlist_id, playlist_title)
@@ -513,7 +514,7 @@ class BackgroundWorker:
             for pl in playlists:
                 if self._cancel_requested:
                     log.info("[WORKER] Cancel requested during scan — stopping early")
-                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[WORKER] Scan cancelled by user"}))
+                    await self._safe_broadcast({"type": "log", "message": "[WORKER] Scan cancelled by user"})
                     return
                 pl_id = pl.get("id")
                 pl_title = pl.get("snippet", {}).get("title", pl_id)
@@ -539,7 +540,7 @@ class BackgroundWorker:
                     items_resp = {"items": all_items}
                 except Exception as video_err:
                     log.warning(f"[WORKER] Failed to fetch videos for playlist {pl_id}: {video_err}")
-                    await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[WORKER] Skipping playlist {pl_id}: {video_err}"}))
+                    await self._safe_broadcast({"type": "log", "message": f"[WORKER] Skipping playlist {pl_id}: {video_err}"})
                     continue
                 items = items_resp.get("items", [])
                 total_videos += len(items)
@@ -547,7 +548,7 @@ class BackgroundWorker:
                 for item in items:
                     if self._cancel_requested:
                         log.info("[WORKER] Cancel requested during video scan — stopping early")
-                        await self.manager.broadcast(fast_dumps({"type": "log", "message": "[WORKER] Scan cancelled during video processing"}))
+                        await self._safe_broadcast({"type": "log", "message": "[WORKER] Scan cancelled during video processing"})
                         return
                     video_id = item.get("contentDetails", {}).get("videoId")
                     video_title = item.get("snippet", {}).get("title", "Untitled")
@@ -590,10 +591,10 @@ class BackgroundWorker:
                                     "mapped_playlist_title": mapped_pl_title
                                 })
                 
-                await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"}))
+                await self._safe_broadcast({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"})
                 await asyncio.sleep(0.5)
             
-            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."}))
+            await self._safe_broadcast({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."})
             # await asyncio.sleep(1) # Removed
             
             # Filter duplicates — fingerprint-based so re-uploads (fresh video
@@ -641,30 +642,32 @@ class BackgroundWorker:
                 log.error(f"Failed to save maintenance data: {e}")
             
             # Real scan statistics (no fake clustering)
-            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[SCAN] Building scan statistics..."}))
+            await self._safe_broadcast({"type": "log", "message": "[SCAN] Building scan statistics..."})
             # await asyncio.sleep(0.5) # Removed
 
             # Calculate real metrics from fetched data
             avg_videos_per_playlist = total_videos / len(playlists) if playlists else 0
-            await self.manager.broadcast(fast_dumps({
+            await self._safe_broadcast({
                 "type": "log",
                 "message": f"[SCAN] Analysis complete • {total_videos} videos across {len(playlists)} playlists • {avg_videos_per_playlist:.1f} avg videos/playlist"
-            }))
+            })
             # await asyncio.sleep(0.5) # Removed
             
-            await self.manager.broadcast(fast_dumps({"type": "log", "message": "[LEARN] Processing statistics..."}))
+            await self._safe_broadcast({"type": "log", "message": "[LEARN] Processing statistics..."})
             # await asyncio.sleep(1) # Removed
             
             # Populate the persistent cache directly from scan data (zero extra API calls)
             if self.youtube_service:
-                await self.manager.broadcast(fast_dumps({"type": "log", "message": "[CACHE] Updating local data cache directly from scan..."}))
+                await self._safe_broadcast({"type": "log", "message": "[CACHE] Updating local data cache directly from scan..."})
                 try:
-                    await self.youtube_service.save_scan_data_to_cache(playlists, all_video_records)
-                    await self.manager.broadcast(fast_dumps({"type": "log", "message": "[CACHE] Local cache updated. All reads will use cached data."}))
+                    res = self.youtube_service.save_scan_data_to_cache(playlists, all_video_records)
+                    if inspect.isawaitable(res):
+                        await res
+                    await self._safe_broadcast({"type": "log", "message": "[CACHE] Local cache updated. All reads will use cached data."})
                 except Exception as cache_err:
                     log.warning(f"Failed to update cache after scan: {cache_err}")
             
-            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Complete • {total_videos} videos analyzed • Cache updated • Next auto-scan: 1 hour"}))
+            await self._safe_broadcast({"type": "log", "message": f"[SCAN] Complete • {total_videos} videos analyzed • Cache updated • Next auto-scan: 1 hour"})
             
         except Exception as e:
             error_details = f"{type(e).__name__}: {str(e)}"
@@ -676,7 +679,7 @@ class BackgroundWorker:
                 error_details += f" | Traceback: {traceback.format_exc()}"
             except Exception as t_err:
                 log.error(f"Error formatting traceback: {t_err}")
-            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[ERROR] Scan failed: {error_details}"}))
+            await self._safe_broadcast({"type": "log", "message": f"[ERROR] Scan failed: {error_details}"})
 
     async def diagnose_failures(self, payload):
         """Diagnose system health."""
@@ -842,11 +845,22 @@ class BackgroundWorker:
         except Exception as e:
             log.error(f"Failed to persist live scan result: {e}")
 
+    async def _safe_broadcast(self, msg_dict):
+        """Broadcast helper that safely handles missing or failing manager."""
+        if not self.manager or not hasattr(self.manager, "broadcast"):
+            return
+        try:
+            res = self.manager.broadcast(fast_dumps(msg_dict))
+            if inspect.isawaitable(res):
+                await res
+        except Exception as e:
+            log.warning(f"Failed to broadcast log: {e}")
+
     async def scan_duplicates(self, payload):
         """Scan playlist for duplicate videos."""
         playlist_id = payload.get("playlist_id") if payload else None
         location = f" in playlist {playlist_id}" if playlist_id else ""
-        await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Scanning for duplicates{location}..."}))
+        await self._safe_broadcast({"type": "log", "message": f"[SCAN] Scanning for duplicates{location}..."})
         duplicates = 0
         if self.youtube_service:
             videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
@@ -854,7 +868,7 @@ class BackgroundWorker:
             from services.duplicate_detector import compute_duplicate_groups
             groups = compute_duplicate_groups(videos)
             duplicates = sum(g["copy_count"] - 1 for g in groups)
-            await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate video copies across {len(groups)} groups"}))
+            await self._safe_broadcast({"type": "log", "message": f"[SCAN] Found {duplicates} duplicate video copies across {len(groups)} groups"})
             # Persist FULL-scan results so the Scan Details card reflects the
             # latest scan (not a stale cluster-scan snapshot). A per-playlist
             # scan must not overwrite the whole-library view.
@@ -880,7 +894,7 @@ class BackgroundWorker:
         """Scan playlist for misplaced videos based on rules."""
         playlist_id = payload.get("playlist_id") if payload else None
         location = f" in playlist {playlist_id}" if playlist_id else ""
-        await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Scanning for misplaced videos{location}..."}))
+        await self._safe_broadcast({"type": "log", "message": f"[SCAN] Scanning for misplaced videos{location}..."})
         count = 0
         misplaced_videos = []
         if self.youtube_service and hasattr(self.youtube_service, 'config') and hasattr(self.youtube_service.config, 'channel_mappings'):
@@ -904,7 +918,7 @@ class BackgroundWorker:
                                 "mapped_playlist_title": target_pl,
                             })
                             break
-        await self.manager.broadcast(fast_dumps({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"}))
+        await self._safe_broadcast({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"})
         # Persist FULL-scan results so the Scan Details card reflects the latest
         # scan (not a stale cluster-scan snapshot). Per-playlist scan skipped.
         if not playlist_id:
