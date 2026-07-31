@@ -245,6 +245,12 @@
         // Adds Bearer auth from localStorage, matching dashboard.js apiCall pattern.
         async function maintPost(body, btn) {
             if (btn) btn.disabled = true;
+            if (window.logConsole) {
+                const actName = (body.action || 'action').toUpperCase();
+                const vid = body.video_id ? ` video ${body.video_id}` : '';
+                const pl = body.playlist_id ? ` from playlist ${body.playlist_id}` : '';
+                window.logConsole(`[MAINTENANCE] Executing ${actName}${vid}${pl}...`);
+            }
             const token = localStorage.getItem('token') || '';
             const headers = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -252,17 +258,21 @@
                 const resp = await fetch('/api/maintenance/action', { method: 'POST', headers, body: JSON.stringify(body) });
                 const data = await resp.json().catch(() => ({}));
                 if (data.status === 'error') {
+                    if (window.logConsole) window.logConsole(`[ERROR] ${data.error || 'Action failed'}`);
                     toast(data.error || 'Action failed', 'error');
                 } else if (body.action === 'fix_all') {
                     const _done = data.succeeded != null ? data.succeeded : (data.processed != null ? data.processed : 'all');
+                    if (window.logConsole) window.logConsole(`[MAINTENANCE] Fixed ${_done} item(s)`);
                     toast(`Fixed ${_done} item(s)` + (data.failed ? ` (${data.failed} failed)` : ''), 'success');
                     await loadMaintenance();
                 } else {
+                    if (window.logConsole) window.logConsole(`[MAINTENANCE] Action '${body.action}' succeeded`);
                     toast('Action succeeded', 'success');
                     await loadMaintenance();
                 }
                 return data;
             } catch (e) {
+                if (window.logConsole) window.logConsole(`[ERROR] Request failed: ${e.message}`);
                 toast('Request failed: ' + e.message, 'error');
             } finally {
                 if (btn && document.body.contains(btn)) btn.disabled = false;
@@ -288,6 +298,7 @@
         async function removeDeletedVideos() {
             const btn = document.getElementById("btn-remove-deleted");
             if (!confirm("Are you sure you want to scan all playlists and remove deleted videos?")) return;
+            if (window.logConsole) window.logConsole("[MAINTENANCE] Scanning playlists for deleted videos...");
             
             if (btn) {
                 btn.disabled = true;
@@ -306,6 +317,7 @@
                     );
                     if (runSync) {
                         toast("Triggering Full Playlist Sync...", "info", 4000);
+                        if (window.logConsole) window.logConsole("[SYNC] Triggering Full Playlist Sync...");
                         await authFetch("/api/action", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -322,9 +334,11 @@
                     }
                 }
                 
+                if (window.logConsole) window.logConsole(`[MAINTENANCE] ${data.message || "Successfully removed deleted videos"}`);
                 toast(data.message || "Successfully removed deleted videos", "success", 6000);
                 loadMaintenance();
             } catch (err) {
+                if (window.logConsole) window.logConsole(`[ERROR] ${err.message}`);
                 toast(`Error: ${err.message}`, "error", 6000);
             } finally {
                 if (btn) {

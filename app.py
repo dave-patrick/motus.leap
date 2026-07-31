@@ -1904,6 +1904,9 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     # Single-item actions
     if action != "fix_all":
         try:
+            if background_worker and background_worker.manager:
+                vid_text = f" video {payload.video_id}" if payload.video_id else ""
+                await background_worker._safe_broadcast({"type": "log", "message": f"[WORKER] Maintenance '{action}' on {item_type}{vid_text}..."})
             result = await _maintenance_apply_one(
                 yt_client,
                 action=action,
@@ -1915,12 +1918,18 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                 video_id=payload.video_id,
             )
             if result.get("status") == "ok":
+                if background_worker and background_worker.manager:
+                    await background_worker._safe_broadcast({"type": "log", "message": f"[WORKER] Maintenance '{action}' succeeded"})
                 # Drop the inner "status":"ok" so it doesn't overwrite "success".
                 clean = {k: v for k, v in result.items() if k != "status"}
                 return {"status": "success", **clean}
+            if background_worker and background_worker.manager:
+                await background_worker._safe_broadcast({"type": "log", "message": f"[ERROR] Maintenance '{action}' failed: {result.get('error')}"})
             return result  # already {"status": "error", ...}
         except Exception as e:
             log.error(f"Maintenance action '{action}' failed: {e}")
+            if background_worker and background_worker.manager:
+                await background_worker._safe_broadcast({"type": "log", "message": f"[ERROR] Maintenance '{action}' exception: {e}"})
             return {"status": "error", "error": str(e)}
 
     # fix_all: apply the given action to every record of the given type.
