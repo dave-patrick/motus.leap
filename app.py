@@ -4348,64 +4348,68 @@ async def system_logs_page():
     <script src="/static/global_scripts.js?v=1781919149"></script>
     <script src="/static/ux-enhancements.js?v=20260720b"></script>
 </head>
-<body class="bg-[#121419] text-gray-200 flex flex-col min-h-screen">
-    <div class="flex-1 flex flex-col max-w-7xl w-full mx-auto p-4 md:p-6 space-y-4">
-        <!-- Top Title Bar -->
-        <div class="flex items-center justify-between bg-[#1a1d24] border border-[#2a2f3a] p-4 rounded-xl shadow-lg">
-            <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-lg bg-[#2f8fc9]/10 border border-[#2f8fc9]/20 flex items-center justify-center text-[#2f8fc9]">
-                    <i class="fa-solid fa-file-lines text-base"></i>
+<body class="bg-[#121419] text-gray-200 flex flex-col min-h-screen h-screen overflow-hidden">
+    <div class="flex flex-1 min-h-0 overflow-hidden">
+        <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0f1115] pb-24">
+            <div class="max-w-7xl mx-auto space-y-4">
+                <!-- Top Title Bar -->
+                <div class="flex items-center justify-between bg-[#1a1d24] border border-[#2a2f3a] p-4 rounded-xl shadow-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-[#2f8fc9]/10 border border-[#2f8fc9]/20 flex items-center justify-center text-[#2f8fc9]">
+                            <i class="fa-solid fa-file-lines text-base"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-base font-bold text-white tracking-wide flex items-center gap-2">
+                                System Logs
+                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2f8fc9]/20 text-[#2f8fc9] border border-[#2f8fc9]/30">Live Stream</span>
+                            </h1>
+                            <p class="text-[11px] text-gray-400">Diagnostic server output and background execution logs</p>
+                        </div>
+                    </div>
+                    <a href="/settings" class="px-3.5 py-2 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white rounded-lg text-xs font-medium transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-arrow-left text-[11px]"></i> Back to Settings
+                    </a>
                 </div>
-                <div>
-                    <h1 class="text-base font-bold text-white tracking-wide flex items-center gap-2">
-                        System Logs
-                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2f8fc9]/20 text-[#2f8fc9] border border-[#2f8fc9]/30">Live Stream</span>
-                    </h1>
-                    <p class="text-[11px] text-gray-400">Diagnostic server output and background execution logs</p>
-                </div>
-            </div>
-            <a href="/settings" class="px-3.5 py-2 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white rounded-lg text-xs font-medium transition-all flex items-center gap-2">
-                <i class="fa-solid fa-arrow-left text-[11px]"></i> Back to Settings
-            </a>
-        </div>
 
-        <!-- Controls & Log Viewer Card -->
-        <div class="bento-card flex-1 flex flex-col overflow-hidden border border-[#2a2f3a]">
-            <!-- Toolbar -->
-            <div class="p-3 bg-[#14171f] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <button onclick="location.reload()" class="px-3 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-rotate-right text-[11px] text-[#2f8fc9]"></i> Refresh
-                    </button>
-                    <button onclick="copyLogs(this)" class="px-3 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-copy text-[11px] text-gray-400"></i> Copy Logs
-                    </button>
-                    <button onclick="clearLogs(this)" class="px-3 py-1.5 bg-[#20242c] hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-trash-can text-[11px]"></i> Clear Logs
-                    </button>
-                    <div class="h-4 w-px bg-[#2a2f3a] mx-1"></div>
-                    <button onclick="scrollToBottom()" class="px-2.5 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1">
-                        <i class="fa-solid fa-arrow-down text-[10px]"></i> Bottom
-                    </button>
-                    <button onclick="scrollToTop()" class="px-2.5 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1">
-                        <i class="fa-solid fa-arrow-up text-[10px]"></i> Top
-                    </button>
-                </div>
-                <!-- Filters -->
-                <div class="flex items-center gap-1.5">
-                    <span class="text-[11px] text-gray-400 font-medium mr-1">Filter:</span>
-                    <button class="filter-btn active px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('ALL', this)">ALL</button>
-                    <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('DEBUG', this)">DEBUG</button>
-                    <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('INFO', this)">INFO</button>
-                    <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('WARNING', this)">WARNING</button>
-                    <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('ERROR', this)">ERROR</button>
+                <!-- Controls & Log Viewer Card -->
+                <div class="bento-card flex-1 flex flex-col overflow-hidden border border-[#2a2f3a]">
+                    <!-- Toolbar -->
+                    <div class="p-3 bg-[#14171f] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button onclick="location.reload()" class="px-3 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-rotate-right text-[11px] text-[#2f8fc9]"></i> Refresh
+                            </button>
+                            <button onclick="copyLogs(this)" class="px-3 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-copy text-[11px] text-gray-400"></i> Copy Logs
+                            </button>
+                            <button onclick="clearLogs(this)" class="px-3 py-1.5 bg-[#20242c] hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-trash-can text-[11px]"></i> Clear Logs
+                            </button>
+                            <div class="h-4 w-px bg-[#2a2f3a] mx-1"></div>
+                            <button onclick="scrollToBottom()" class="px-2.5 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-down text-[10px]"></i> Bottom
+                            </button>
+                            <button onclick="scrollToTop()" class="px-2.5 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-up text-[10px]"></i> Top
+                            </button>
+                        </div>
+                        <!-- Filters -->
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[11px] text-gray-400 font-medium mr-1">Filter:</span>
+                            <button class="filter-btn active px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('ALL', this)">ALL</button>
+                            <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('DEBUG', this)">DEBUG</button>
+                            <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('INFO', this)">INFO</button>
+                            <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('WARNING', this)">WARNING</button>
+                            <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('ERROR', this)">ERROR</button>
+                        </div>
+                    </div>
+                    <!-- Log Output Terminal Area -->
+                    <div class="p-4 flex-1 bg-[#0e1015] font-mono text-[11px] leading-relaxed overflow-y-auto max-h-[70vh] min-h-[400px] border-t border-[#2a2f3a]" id="log-container">
+                        {logs_html}
+                    </div>
                 </div>
             </div>
-            <!-- Log Output Terminal Area -->
-            <div class="p-4 flex-1 bg-[#0e1015] font-mono text-[11px] leading-relaxed overflow-y-auto max-h-[70vh] min-h-[400px] border-t border-[#2a2f3a]" id="log-container">
-                {logs_html}
-            </div>
-        </div>
+        </main>
     </div>
 
     <script>

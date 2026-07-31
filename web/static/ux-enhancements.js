@@ -879,6 +879,10 @@ async function navigateSPA(url) {
                 }
                 oldScript.parentNode.replaceChild(newScript, oldScript);
             });
+        } else {
+            // Fallback to full page reload if page layout lacks a main tag
+            window.location.href = url;
+            return;
         }
 
         // Highlight the active sidebar menu link
