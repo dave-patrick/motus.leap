@@ -1902,13 +1902,41 @@ async def _maintenance_apply_one(
                     "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
         yt_client.remove_video_from_playlist_item(item_id)
         yt_client.add_video_to_playlist(target_playlist_id, video_id)
+
+        # Automatic System Learning: record channel mapping for this move
+        learned_channel = False
+        channel_id = record.get("channel_id")
+        if not channel_id and youtube_service:
+            try:
+                v_details = await youtube_service.get_videos()
+                for v in (v_details.get("videos") or []):
+                    if v.get("id") == video_id or v.get("video_id") == video_id:
+                        channel_id = v.get("channel_id")
+                        break
+            except Exception:
+                pass
+
+        if channel_id and config_manager:
+            try:
+                cfg = config_manager.config
+                mappings = dict(cfg.channel_mappings or {})
+                mappings[channel_id] = target_playlist_id
+                cfg.channel_mappings = mappings
+                await config_manager.save(cfg)
+                learned_channel = True
+                log.info(f"[LEARNING] Recorded channel mapping: channel {channel_id} -> target playlist {target_playlist_id}")
+            except Exception as learn_err:
+                log.warning(f"[LEARNING] Failed to save channel mapping: {learn_err}")
+
         for pid in (playlist_id, target_playlist_id):
             try:
                 await youtube_service._cache_invalidate_playlist(pid)
             except Exception:
                 pass
+
+        _maintenance_drop_record(video_id, item_type)
         return {"status": "ok", "action": "move", "video_id": video_id,
-                "source": playlist_id, "target": target_playlist_id}
+                "source": playlist_id, "target": target_playlist_id, "learned": learned_channel}
 
     return {"status": "error", "action": action, "error": f"unknown action '{action}'"}
 

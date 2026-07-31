@@ -221,6 +221,19 @@
             }
         }
         
+        function buildPlaylistOptionsHtml(selectedId, recommendedTitle) {
+            const keys = Object.keys(playlistsMap);
+            if (!keys.length) {
+                return `<option value="${DOMPurify.sanitize(selectedId)}" selected>Move to ${DOMPurify.sanitize(recommendedTitle || selectedId)}</option>`;
+            }
+            const sorted = keys.map(k => ({ id: k, title: playlistsMap[k] || k })).sort((a, b) => a.title.localeCompare(b.title));
+            return sorted.map(p => {
+                const isSel = p.id === selectedId ? 'selected' : '';
+                const recTag = p.id === selectedId ? ' ★ Recommended' : '';
+                return `<option value="${DOMPurify.sanitize(p.id)}" ${isSel}>Move to ${DOMPurify.sanitize(p.title)}${recTag}</option>`;
+            }).join('');
+        }
+
         function renderQueue(elId, items, type) {
             const el = document.getElementById(elId);
             if (!items || !items.length) { 
@@ -275,11 +288,13 @@
                     }).join('') + `</div>`;
                 }
 
+                const optionsHtml = buildPlaylistOptionsHtml(_toId, _to);
+
                 let _controls = '';
                 if (type === 'move') {
                     _controls = `<div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-2">
                         <select id="${_selId}" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
-                            <option value="${DOMPurify.sanitize(_toId)}">Move to ${_to}</option>
+                            ${optionsHtml}
                         </select>
                         <button onclick="maintMove('${item.video_id}', '${item.source_playlist_id}', 'move', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1">
                             <i class="fa-solid fa-arrow-right"></i> Move
@@ -297,7 +312,7 @@
                 } else if (type === 'misplaced') {
                     _controls = `<div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-2">
                         <select id="${_selId}" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
-                            <option value="${DOMPurify.sanitize(_toId)}">Move to ${_to}</option>
+                            ${optionsHtml}
                         </select>
                         <button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1">
                             <i class="fa-solid fa-arrow-right"></i> Move
@@ -354,7 +369,10 @@
                     await loadMaintenance();
                 } else {
                     if (window.logConsole) window.logConsole(`[MAINTENANCE] Action '${body.action}' succeeded`);
-                    toast('Action succeeded', 'success');
+                    const msg = data.learned 
+                        ? 'Video moved & system learned channel rule for future scans!'
+                        : 'Action succeeded';
+                    toast(msg, 'success');
                     await loadMaintenance();
                 }
                 return data;
