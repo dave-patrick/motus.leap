@@ -73,6 +73,7 @@
                             <div>
                                 <h3 class="text-sm font-bold text-white flex items-center gap-2">
                                     <i class="fa-solid fa-clone text-[#2f8fc9]"></i> Duplicated Videos
+                                    <span id="dup-count-badge" class="ml-1 px-2 py-0.5 rounded-full bg-[#2f8fc9]/20 text-[#2f8fc9] text-xs font-bold border border-[#2f8fc9]/30">0</span>
                                 </h3>
                                 <p class="text-[11px] text-gray-400">Videos saved across multiple playlists or re-uploaded</p>
                             </div>
@@ -87,11 +88,28 @@
                             <div>
                                 <h3 class="text-sm font-bold text-white flex items-center gap-2">
                                     <i class="fa-solid fa-arrows-split-up-and-left text-amber-400"></i> Misplaced Videos & Category Moves
+                                    <span id="misplaced-count-badge" class="ml-1 px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-400 text-xs font-bold border border-amber-400/30">0</span>
                                 </h3>
                                 <p class="text-[11px] text-gray-400">Videos in staging/inbox playlists matching AI rules & channel mappings</p>
                             </div>
                             <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1"><i class="fa-solid fa-check text-[10px]"></i> Fix All</button>
                         </div>
+
+                        <!-- Multiselect Batch Action Bar -->
+                        <div id="misplaced-batch-bar" class="hidden px-5 py-2.5 bg-[#181c24] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="chk-select-all-misplaced" onchange="toggleSelectAllMisplaced(this)" class="w-4 h-4 rounded bg-[#2a2f3a] border-gray-600 text-[#2f8fc9] cursor-pointer">
+                                <label for="chk-select-all-misplaced" class="text-gray-300 font-semibold cursor-pointer">Select All (<span id="selected-count" class="text-[#2f8fc9] font-bold">0</span>)</label>
+                            </div>
+                            <div class="flex items-center gap-2 flex-1 max-w-sm">
+                                <select id="batch-target-playlist" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
+                                </select>
+                                <button onclick="executeBatchMove()" id="btn-batch-move" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer">
+                                    <i class="fa-solid fa-arrow-right"></i> Move Selected
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="p-4 overflow-y-auto flex-1 max-h-[75vh]" id="misplaced-queue">Loading...</div>
                     </div>
                 </div>
@@ -177,6 +195,25 @@
                     ...(maintenanceData.misplaced_videos || []),
                     ...(maintenanceData.move_from_x_to_y || [])
                 ];
+
+                const dupCount = (maintenanceData.duplicated_videos || []).length;
+                const misplacedCount = misplacedCombined.length;
+                const dBadge = document.getElementById('dup-count-badge');
+                if (dBadge) dBadge.textContent = dupCount;
+                const mBadge = document.getElementById('misplaced-count-badge');
+                if (mBadge) mBadge.textContent = misplacedCount;
+
+                const batchBar = document.getElementById('misplaced-batch-bar');
+                if (batchBar) {
+                    if (misplacedCount > 0) {
+                        batchBar.classList.remove('hidden');
+                        const batchSel = document.getElementById('batch-target-playlist');
+                        if (batchSel) batchSel.innerHTML = buildPlaylistOptionsHtml('', 'Select Destination...');
+                    } else {
+                        batchBar.classList.add('hidden');
+                    }
+                }
+
                 renderQueue('dup-queue', maintenanceData.duplicated_videos || [], 'dup');
                 renderQueue('misplaced-queue', misplacedCombined, 'misplaced');
             } catch (e) {
@@ -184,6 +221,56 @@
             }
         }
         
+        function updateSelectedCount() {
+            const chks = document.querySelectorAll('.misplaced-chk:checked');
+            const countEl = document.getElementById('selected-count');
+            if (countEl) countEl.textContent = chks.length;
+            const selectAllChk = document.getElementById('chk-select-all-misplaced');
+            const allChks = document.querySelectorAll('.misplaced-chk');
+            if (selectAllChk && allChks.length > 0) {
+                selectAllChk.checked = (chks.length === allChks.length);
+            }
+        }
+
+        function toggleSelectAllMisplaced(masterChk) {
+            const allChks = document.querySelectorAll('.misplaced-chk');
+            allChks.forEach(chk => { chk.checked = masterChk.checked; });
+            updateSelectedCount();
+        }
+
+        async function executeBatchMove() {
+            const chks = Array.from(document.querySelectorAll('.misplaced-chk:checked'));
+            if (!chks.length) {
+                toast('Please check at least one video to move', 'warning');
+                return;
+            }
+            const sel = document.getElementById('batch-target-playlist');
+            const targetId = sel ? sel.value : '';
+            if (!targetId) {
+                toast('Please select a destination playlist', 'warning');
+                return;
+            }
+            const targetName = playlistsMap[targetId] || targetId;
+            if (!confirm(`Are you sure you want to move ${chks.length} selected video(s) to "${targetName}"?`)) return;
+
+            const btn = document.getElementById('btn-batch-move');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Moving (${chks.length})...`; }
+
+            toast(`Moving ${chks.length} video(s) to "${targetName}"...`, 'info', 5000);
+            let successCount = 0;
+            for (const chk of chks) {
+                const vid = chk.getAttribute('data-vid');
+                const curId = chk.getAttribute('data-curid');
+                try {
+                    await maintPost({ action: 'move', type: 'misplaced', video_id: vid, playlist_id: curId, target_playlist_id: targetId });
+                    successCount++;
+                } catch(e) {}
+            }
+            toast(`Successfully moved ${successCount} video(s) to "${targetName}"!`, 'success');
+            if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Move Selected`; }
+            await loadMaintenance();
+        }
+
         async function runScanFromMaintenance() {
             const btn = document.getElementById('btn-run-scan');
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning…'; }
@@ -296,16 +383,16 @@
                         <select id="${_selId}" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
                             ${optionsHtml}
                         </select>
-                        <button onclick="maintMove('${item.video_id}', '${item.source_playlist_id}', 'move', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1">
+                        <button onclick="maintMove('${item.video_id}', '${item.source_playlist_id}', 'move', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
                             <i class="fa-solid fa-arrow-right"></i> Move
                         </button>
                     </div>`;
                 } else if (type === 'dup') {
                     _controls = `<div class="flex items-center gap-2 mt-2">
-                        <button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1" title="Keep in category playlist & remove from staging">
+                        <button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Keep in category playlist & remove copy from staging">
                             <i class="fa-solid fa-bookmark"></i> Keep in Category
                         </button>
-                        <button onclick="maintRemove('${_removeVid}', '${_removePlId}', 'dup', this, '${_removePli}')" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1">
+                        <button onclick="maintRemove('${_removeVid}', '${_removePlId}', 'dup', this, '${_removePli}')" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer" title="Deletes the duplicate copy from your staging/inbox playlist (e.g. 1~Sort) while preserving the main copy in your category playlist">
                             <i class="fa-solid fa-trash-can"></i> Remove Staging Copy
                         </button>
                     </div>`;
@@ -314,7 +401,7 @@
                         <select id="${_selId}" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
                             ${optionsHtml}
                         </select>
-                        <button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1">
+                        <button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
                             <i class="fa-solid fa-arrow-right"></i> Move
                         </button>
                     </div>`;
@@ -324,9 +411,14 @@
                     ? `<div class="text-xs text-gray-400 mt-1 flex items-center gap-1.5"><span class="text-red-400 font-medium">${_from}</span> <i class="fa-solid fa-arrow-right text-[10px] text-gray-500"></i> <span class="text-green-400 font-semibold">${_to}</span></div>` 
                     : '';
 
+                const _checkboxHtml = type === 'misplaced' 
+                    ? `<input type="checkbox" class="misplaced-chk w-4 h-4 rounded bg-[#14171f] border-gray-600 text-[#2f8fc9] cursor-pointer self-center flex-shrink-0" data-vid="${_vid}" data-curid="${_fromId}" onchange="updateSelectedCount()">`
+                    : '';
+
                 return `
                 <div class="flex flex-col bg-[#20242c] p-3.5 rounded-xl border border-[#2a2f3a] mb-3 hover:border-[#2f8fc9]/40 transition-colors shadow-sm">
                     <div class="flex items-start gap-3">
+                        ${_checkboxHtml}
                         <div class="w-16 h-11 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0 border border-[#2a2f3a] shadow-inner">
                             <img src="${_thumb}" alt="Thumbnail" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://picsum.photos/64/48'">
                         </div>
