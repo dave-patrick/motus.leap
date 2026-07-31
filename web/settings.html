@@ -12,8 +12,8 @@
 <link rel="preconnect" href="https://cdn.tailwindcss.com">
 <script src="https://cdn.tailwindcss.com" defer></script>
 <script>
-async function viewSystemLogs() {
-window.open('/system/logs', '_blank');
+function viewSystemLogs() {
+    window.location.href = '/system/logs';
 }
 
 </script>
@@ -147,7 +147,7 @@ window.open('/system/logs', '_blank');
 
                             <!-- Bottom Action Buttons: View System Logs & Sign Out -->
                             <div class="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                                <a href="/system/logs" target="_blank" id="view-system-logs-btn"
+                                <a href="/system/logs" id="view-system-logs-btn"
                                     class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs py-2.5 rounded transition-colors flex items-center justify-center gap-2 cursor-pointer">
                                     <i class="fa-solid fa-file-lines text-[#2f8fc9]"></i> View System Logs
                                 </a>
