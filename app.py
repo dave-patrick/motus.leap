@@ -4119,56 +4119,102 @@ async def system_logs_page():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System Logs - motus.leap</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
+    <script src="/static/shared-shell.js?v=20260720b"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720b">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
-        body {{ font-family: 'JetBrains Mono', monospace; background: #0a0c10; color: #e5e5e5; margin: 0; padding: 0; }}
-        .header {{ background: #16191f; border-bottom: 1px solid #2a2f3a; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 20; }}
-        .header h1 {{ font-size: 14px; margin: 0; color: #e5e5e5; }}
-        .header a {{ color: #60a5fa; text-decoration: none; font-size: 12px; }}
-        .header a:hover {{ text-decoration: underline; }}
-        .controls {{ padding: 8px 20px; background: #16191f; border-bottom: 1px solid #2a2f3a; display: flex; gap: 8px; position: sticky; top: 43px; z-index: 10; flex-wrap: wrap; align-items: center; }}
-        .controls button {{ background: #20242c; border: 1px solid #2a2f3a; color: #9ca3af; font-size: 10px; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; transition: all 0.15s; }}
-        .controls button:hover {{ background: #2a2f3a; color: #e5e5e5; }}
-        .filter-active {{ background: #3b82f6 !important; color: white !important; border-color: #3b82f6 !important; }}
-        .log-container {{ padding: 16px 20px; font-size: 11px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; }}
-        .log-container div {{ border-bottom: 1px solid #1a1d24; padding: 2px 0; }}
+        body {{ font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; margin: 0; min-height: 100vh; }}
+        .font-mono {{ font-family: 'JetBrains Mono', monospace; }}
+        .bento-card {{ background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 16px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4); }}
+        .filter-btn.active {{ background-color: #2f8fc9 !important; color: #ffffff !important; border-color: #2f8fc9 !important; }}
+        ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+        ::-webkit-scrollbar-track {{ background: #14171f; }}
+        ::-webkit-scrollbar-thumb {{ background: #2a2f3a; border-radius: 3px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: #374151; }}
     </style>
+    <script src="/static/auth-check.js?v=1781919149"></script>
+    <script src="/static/global_scripts.js?v=1781919149"></script>
+    <script src="/static/ux-enhancements.js?v=20260720b"></script>
 </head>
-<body>
-    <div class="header">
-        <h1>📋 System Logs — motus.leap</h1>
-        <a href="/settings">← Back to Settings</a>
-    </div>
-    <div class="controls">
-        <button onclick="location.reload()">🔄 Refresh</button>
-        <button onclick="copyLogs(this)">📋 Copy Logs</button>
-        <button onclick="clearLogs(this)" style="color:#ef4444;border-color:rgba(239,68,68,0.3)">🗑️ Clear Logs</button>
-        <button onclick="scrollToBottom()">⬇ Bottom</button>
-        <button onclick="scrollToTop()">⬆ Top</button>
-        <div style="display:flex;gap:4px;margin-left:auto;align-items:center;">
-            <span style="font-size:10px;color:#9ca3af;margin-right:4px;">Filter:</span>
-            <button class="filter-btn filter-active" onclick="filterLogs('ALL', this)">ALL</button>
-            <button class="filter-btn" onclick="filterLogs('DEBUG', this)">DEBUG</button>
-            <button class="filter-btn" onclick="filterLogs('INFO', this)">INFO</button>
-            <button class="filter-btn" onclick="filterLogs('WARNING', this)">WARNING</button>
-            <button class="filter-btn" onclick="filterLogs('ERROR', this)">ERROR</button>
+<body class="bg-[#121419] text-gray-200 flex flex-col min-h-screen">
+    <div class="flex-1 flex flex-col max-w-7xl w-full mx-auto p-4 md:p-6 space-y-4">
+        <!-- Top Title Bar -->
+        <div class="flex items-center justify-between bg-[#1a1d24] border border-[#2a2f3a] p-4 rounded-xl shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-[#2f8fc9]/10 border border-[#2f8fc9]/20 flex items-center justify-center text-[#2f8fc9]">
+                    <i class="fa-solid fa-file-lines text-base"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-white tracking-wide flex items-center gap-2">
+                        System Logs
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2f8fc9]/20 text-[#2f8fc9] border border-[#2f8fc9]/30">Live Stream</span>
+                    </h1>
+                    <p class="text-[11px] text-gray-400">Diagnostic server output and background execution logs</p>
+                </div>
+            </div>
+            <a href="/settings" class="px-3.5 py-2 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white rounded-lg text-xs font-medium transition-all flex items-center gap-2">
+                <i class="fa-solid fa-arrow-left text-[11px]"></i> Back to Settings
+            </a>
+        </div>
+
+        <!-- Controls & Log Viewer Card -->
+        <div class="bento-card flex-1 flex flex-col overflow-hidden border border-[#2a2f3a]">
+            <!-- Toolbar -->
+            <div class="p-3 bg-[#14171f] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button onclick="location.reload()" class="px-3 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate-right text-[11px] text-[#2f8fc9]"></i> Refresh
+                    </button>
+                    <button onclick="copyLogs(this)" class="px-3 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-copy text-[11px] text-gray-400"></i> Copy Logs
+                    </button>
+                    <button onclick="clearLogs(this)" class="px-3 py-1.5 bg-[#20242c] hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-trash-can text-[11px]"></i> Clear Logs
+                    </button>
+                    <div class="h-4 w-px bg-[#2a2f3a] mx-1"></div>
+                    <button onclick="scrollToBottom()" class="px-2.5 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-down text-[10px]"></i> Bottom
+                    </button>
+                    <button onclick="scrollToTop()" class="px-2.5 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-up text-[10px]"></i> Top
+                    </button>
+                </div>
+                <!-- Filters -->
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[11px] text-gray-400 font-medium mr-1">Filter:</span>
+                    <button class="filter-btn active px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('ALL', this)">ALL</button>
+                    <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('DEBUG', this)">DEBUG</button>
+                    <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('INFO', this)">INFO</button>
+                    <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('WARNING', this)">WARNING</button>
+                    <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('ERROR', this)">ERROR</button>
+                </div>
+            </div>
+            <!-- Log Output Terminal Area -->
+            <div class="p-4 flex-1 bg-[#0e1015] font-mono text-[11px] leading-relaxed overflow-y-auto max-h-[70vh] min-h-[400px] border-t border-[#2a2f3a]" id="log-container">
+                {logs_html}
+            </div>
         </div>
     </div>
-    <div class="log-container" id="log-container">{logs_html}</div>
+
     <script>
         window.scrollTo({{ top: document.body.scrollHeight, behavior: 'instant' }});
 
         function scrollToBottom() {{
-            window.scrollTo({{ top: document.body.scrollHeight, behavior: 'smooth' }});
+            const el = document.getElementById('log-container');
+            if (el) el.scrollTo({{ top: el.scrollHeight, behavior: 'smooth' }});
         }}
 
         function scrollToTop() {{
-            window.scrollTo({{ top: 0, behavior: 'smooth' }});
+            const el = document.getElementById('log-container');
+            if (el) el.scrollTo({{ top: 0, behavior: 'smooth' }});
         }}
 
         function filterLogs(level, btn) {{
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('filter-active'));
-            btn.classList.add('filter-active');
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
             document.querySelectorAll('.log-line').forEach(line => {{
                 if (level === 'ALL' || line.dataset.level === level) {{
                     line.style.display = '';
@@ -4183,7 +4229,7 @@ async def system_logs_page():
             try {{
                 const resp = await fetch('/api/system/logs/clear', {{ method: 'POST' }});
                 if (resp.ok) {{
-                    document.getElementById('log-container').innerHTML = '<div style="color:#868e96">Logs cleared.</div>';
+                    document.getElementById('log-container').innerHTML = '<div class="text-gray-500">Logs cleared.</div>';
                 }} else {{
                     alert('Failed to clear logs');
                 }}
@@ -4196,9 +4242,9 @@ async def system_logs_page():
             const container = document.getElementById('log-container');
             const text = container.innerText || container.textContent;
             navigator.clipboard.writeText(text).then(() => {{
-                const orig = btn.innerText;
-                btn.innerText = '✅ Copied!';
-                setTimeout(() => btn.innerText = orig, 2000);
+                const orig = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> Copied!';
+                setTimeout(() => btn.innerHTML = orig, 2000);
             }}).catch(err => {{
                 console.error('Copy failed:', err);
                 const textArea = document.createElement('textarea');
@@ -4207,11 +4253,11 @@ async def system_logs_page():
                 textArea.select();
                 try {{
                     document.execCommand('copy');
-                    const orig = btn.innerText;
-                    btn.innerText = '✅ Copied!';
-                    setTimeout(() => btn.innerText = orig, 2000);
+                    const orig = btn.innerHTML;
+                    btn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> Copied!';
+                    setTimeout(() => btn.innerHTML = orig, 2000);
                 }} catch (e) {{
-                    alert('Copy failed');
+                    alert('Failed to copy logs');
                 }}
                 document.body.removeChild(textArea);
             }});
