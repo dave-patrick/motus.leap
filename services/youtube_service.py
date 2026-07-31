@@ -1229,8 +1229,21 @@ class YouTubeService:
                         log.warning(f"Failed to fetch videos for playlist {pl_id}: {e}. Skipping playlist.")
                         return []
             
-            # Create tasks for all playlists
-            playlist_tasks = [fetch_playlist_videos(pl) for pl in playlists[:max_playlists]]
+            # Create tasks for playlists with concurrency control (max 5 parallel playlist fetches)
+            sem = asyncio.Semaphore(5)
+            completed_playlists = 0
+            total_target = len(playlists[:max_playlists])
+
+            async def sem_fetch_playlist_videos(pl):
+                nonlocal completed_playlists
+                async with sem:
+                    res = await fetch_playlist_videos(pl)
+                    completed_playlists += 1
+                    if completed_playlists % 5 == 0 or completed_playlists == total_target:
+                        log.info(f"[FETCH] Progress: {completed_playlists}/{total_target} playlists fetched")
+                    return res
+
+            playlist_tasks = [sem_fetch_playlist_videos(pl) for pl in playlists[:max_playlists]]
             try:
                 playlist_results: list = await asyncio.gather(*playlist_tasks, return_exceptions=True)
             except Exception as e:
