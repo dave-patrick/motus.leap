@@ -66,42 +66,33 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    <div class="bento-card flex flex-col overflow-hidden min-h-[450px]">
-                        <div class="px-5 py-3.5 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Column 1: Duplicated Videos -->
+                    <div class="bento-card flex flex-col overflow-hidden min-h-[500px]">
+                        <div class="px-5 py-4 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center">
                             <div>
                                 <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                                    <i class="fa-solid fa-[#2f8fc9] fa-clone text-[#2f8fc9]"></i> Duplicated Videos
+                                    <i class="fa-solid fa-clone text-[#2f8fc9]"></i> Duplicated Videos
                                 </h3>
-                                <p class="text-[11px] text-gray-400">Videos existing across multiple playlists or re-uploaded</p>
+                                <p class="text-[11px] text-gray-400">Videos saved across multiple playlists or re-uploaded</p>
                             </div>
                             <button onclick="applyMaintenance('dup')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1"><i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i> Resolve All</button>
                         </div>
                         <div class="p-4 overflow-y-auto flex-1 max-h-[75vh]" id="dup-queue">Loading...</div>
                     </div>
-                    <div class="bento-card flex flex-col overflow-hidden min-h-[450px]">
-                        <div class="px-5 py-3.5 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center">
+
+                    <!-- Column 2: Misplaced & AI Category Moves -->
+                    <div class="bento-card flex flex-col overflow-hidden min-h-[500px]">
+                        <div class="px-5 py-4 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center">
                             <div>
                                 <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                                    <i class="fa-solid fa-arrows-split-up-and-left text-amber-400"></i> Misplaced Videos
+                                    <i class="fa-solid fa-arrows-split-up-and-left text-amber-400"></i> Misplaced Videos & Category Moves
                                 </h3>
-                                <p class="text-[11px] text-gray-400">Videos in wrong staging/inbox playlists based on rules</p>
+                                <p class="text-[11px] text-gray-400">Videos in staging/inbox playlists matching AI rules & channel mappings</p>
                             </div>
                             <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1"><i class="fa-solid fa-check text-[10px]"></i> Fix All</button>
                         </div>
                         <div class="p-4 overflow-y-auto flex-1 max-h-[75vh]" id="misplaced-queue">Loading...</div>
-                    </div>
-                    <div class="bento-card flex flex-col overflow-hidden min-h-[450px]">
-                        <div class="px-5 py-3.5 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center">
-                            <div>
-                                <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                                    <i class="fa-solid fa-arrow-right-arrow-left text-emerald-400"></i> Recommended Moves
-                                </h3>
-                                <p class="text-[11px] text-gray-400">Rule-based category playlist move suggestions</p>
-                            </div>
-                            <button onclick="applyMaintenance('move')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1"><i class="fa-solid fa-layer-group text-[10px]"></i> Apply All</button>
-                        </div>
-                        <div class="p-4 overflow-y-auto flex-1 max-h-[75vh]" id="move-queue">Loading...</div>
                     </div>
                 </div>
             </div>
@@ -182,9 +173,12 @@
                     privBtn.innerHTML = `<i class="fa-solid fa-box-archive"></i> Move Private Videos to "Check Later" (${privCount})`;
                 }
 
-                renderQueue('move-queue', maintenanceData.move_from_x_to_y || [], 'move');
+                const misplacedCombined = [
+                    ...(maintenanceData.misplaced_videos || []),
+                    ...(maintenanceData.move_from_x_to_y || [])
+                ];
                 renderQueue('dup-queue', maintenanceData.duplicated_videos || [], 'dup');
-                renderQueue('misplaced-queue', maintenanceData.misplaced_videos || [], 'misplaced');
+                renderQueue('misplaced-queue', misplacedCombined, 'misplaced');
             } catch (e) {
                 console.error(e);
             }
