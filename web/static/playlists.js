@@ -89,34 +89,14 @@ async function loadPlaylists() {
 }
 
 async function fetchWatchLaterCount() {
-    try {
-        const resp = await authFetch("/api/youtube/watch-later-count");
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const count = data.count;
-        if (count == null) return;
-
-        // Patch any WL card's video count text in the DOM
-        const cards = document.querySelectorAll('#playlists-list a');
-        cards.forEach(card => {
-            const href = card.getAttribute('href') || '';
-            if (href.includes('/playlist/WL')) {
-                const countEl = card.querySelector('p.text-xs.text-gray-400');
-                if (countEl) countEl.textContent = `${count} video${count !== 1 ? 's' : ''}`;
-            }
-        });
-
-        // Also update allPlaylists cache so re-renders show correct count
-        const wl = allPlaylists.find(p => p.id === 'WL' || (p.title || '').toLowerCase() === 'watch later');
-        if (wl) wl.video_count = count;
-    } catch (e) {
-        // Non-critical – silently ignore
-    }
+    // YouTube Data API v3 does not expose Watch Later playlist items — the WL
+    // card already shows an em-dash by design. Nothing to fetch.
 }
 
 function thumbMarkup(p) {
     // Default graphic for empty playlists (inline SVG: no network, no CSP issues)
-    if (!p.video_count) {
+    const isWL = (p.id === 'WL' || (p.title || '').toLowerCase() === 'watch later');
+    if (!p.video_count && !isWL) {
         return `
         <svg viewBox="0 0 160 90" class="w-full h-full" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-label="No videos yet">
             <rect width="160" height="90" fill="#0f1115"/>
@@ -200,7 +180,7 @@ function renderPlaylistsGrid(playlists) {
           <div class="flex-1 min-w-0 flex flex-col gap-0.5">
             <h3 class="text-base md:text-lg font-semibold ${isWL ? 'text-indigo-400' : 'text-[#2f8fc9]'} truncate">${title}</h3>
             ${badgeTag}
-            <p class="text-xs text-gray-400">${p.video_count != null ? p.video_count : 0} videos</p>
+            <p class="text-xs text-gray-400" data-count-id="${playlistId}">${isWL ? '&mdash;' : (p.video_count != null ? p.video_count : 0) + ' videos'}</p>
             <div class="flex items-center gap-2 mt-0.5" onclick="event.stopPropagation()">
               <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${playlistId}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[11px] py-1 px-1.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
               <button onclick="event.preventDefault(); event.stopPropagation(); openPlaylist('${playlistId}', event)" class="text-[11px] p-1 rounded bg-[#20242c] text-gray-400 hover:text-white hover:bg-[#2a2f3a] transition-colors flex-shrink-0" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
@@ -224,19 +204,28 @@ async function rescanPlaylist(playlistId, event) {
     
     toast("Rescanning playlist videos...", "info");
     try {
-        const resp = await authFetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
+        const resp = await authFetch(`/api/youtube/videos?playlist_id=${encodeURIComponent(playlistId)}&force_refresh=true`);
         const data = await resp.json();
 
         if (!resp.ok) {
             throw new Error(data.error || "Failed to refresh playlist videos");
         }
 
+        const count = data.videos?.length || 0;
+
+        // Update count badge directly in DOM
+        const countEl = document.querySelector(`[data-count-id="${playlistId}"]`);
+        if (countEl) countEl.textContent = `${count} video${count !== 1 ? 's' : ''}`;
+
+        // Update in-memory list
         const playlistIndex = allPlaylists.findIndex(item => item.id === playlistId);
         if (playlistIndex !== -1) {
-            allPlaylists[playlistIndex].video_count = data.videos?.length || 0;
+            allPlaylists[playlistIndex].video_count = count;
         }
+        // Bust local cache so full reload gets fresh data
+        localStorage.removeItem(CLIENT_CACHE_KEY);
         
-        toast(`Rescan complete - ${data.videos?.length || 0} videos found`, "success");
+        toast(`Rescan complete — ${count} videos found`, "success");
         loadPlaylists();
     } catch (e) {
         toast(`Rescan failed: ${DOMPurify.sanitize(e.message)}`, "error");
