@@ -51,13 +51,16 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 class="text-xl font-bold text-white">Maintenance Queue</h2>
                     <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="runScanFromMaintenance()" id="btn-run-scan" class="px-3.5 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
+                            <i class="fa-solid fa-magnifying-glass"></i> Run Scan
+                        </button>
                         <button onclick="removeDeletedVideos()" id="btn-remove-deleted" class="px-3.5 py-2 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
                             <i class="fa-solid fa-trash-can"></i> Remove Deleted Videos
                         </button>
                         <button onclick="movePrivateVideos()" id="btn-move-private" class="px-3.5 py-2 rounded-lg bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
                             <i class="fa-solid fa-box-archive"></i> Move Private Videos to "Check Later"
                         </button>
-                        <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors">
+                        <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors">
                             <i class="fa-solid fa-layer-group"></i> Bulk Operations
                         </a>
                     </div>
@@ -141,10 +144,44 @@
             }
         }
         
+        async function runScanFromMaintenance() {
+            const btn = document.getElementById('btn-run-scan');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning…'; }
+            try {
+                toast('Starting duplicate & misplaced video scan...', 'info');
+                await fetch('/api/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'scan_duplicates' })
+                });
+                await fetch('/api/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'scan_misplaced' })
+                });
+                toast('Scan started! Items will populate automatically as findings arrive.', 'success');
+                let tries = 0;
+                const timer = setInterval(async () => {
+                    tries++;
+                    await loadMaintenance();
+                    const hasItems = (maintenanceData.duplicated_videos && maintenanceData.duplicated_videos.length > 0) ||
+                                     (maintenanceData.misplaced_videos && maintenanceData.misplaced_videos.length > 0) ||
+                                     (maintenanceData.move_from_x_to_y && maintenanceData.move_from_x_to_y.length > 0);
+                    if (tries >= 12 || hasItems) {
+                        clearInterval(timer);
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Run Scan'; }
+                    }
+                }, 5000);
+            } catch (e) {
+                toast(`Scan error: ${DOMPurify.sanitize(e.message)}`, 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Run Scan'; }
+            }
+        }
+        
         function renderQueue(elId, items, type) {
             const el = document.getElementById(elId);
             if (!items.length) { 
-                el.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-4">No items</div>'; 
+                el.innerHTML = '<div class="text-xs text-gray-400 text-center py-6">No items found.<br><span class="text-[11px] text-gray-500 mt-1 block">Click <b>Run Scan</b> above to analyze your playlists.</span></div>'; 
                 return; 
             }
             el.innerHTML = items.map(item => {
