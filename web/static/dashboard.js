@@ -36,8 +36,8 @@ function logConsole(text, type = 'info') {
     line.className = `console-line ${type}`;
     line.textContent = `[${time}] ${text}`;
     consoleOutput.appendChild(line);
-    consoleOutput.scrollTop = consoleOutput.scrollHeight;
 }
+window.logConsole = logConsole;
 
 async function apiCall(url, options = {}) {
     const headers = {
