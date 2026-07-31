@@ -60,6 +60,9 @@
                         <button onclick="movePrivateVideos()" id="btn-move-private" class="px-3.5 py-2 rounded-lg bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
                             <i class="fa-solid fa-box-archive"></i> Move Private Videos to "Check Later"
                         </button>
+                        <button onclick="openMoveWatchLaterModal()" id="btn-move-watch-later" class="px-3.5 py-2 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
+                            <i class="fa-solid fa-clock"></i> Move All "Watch Later" Videos
+                        </button>
                         <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors">
                             <i class="fa-solid fa-layer-group"></i> Bulk Operations
                         </a>
@@ -595,6 +598,54 @@
         }
         
         
+        function openMoveWatchLaterModal() {
+            const modal = document.getElementById('move-watch-later-modal');
+            const sel = document.getElementById('wl-target-playlist');
+            if (sel) sel.innerHTML = buildPlaylistOptionsHtml('', 'Select Target Playlist...');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeMoveWatchLaterModal() {
+            const modal = document.getElementById('move-watch-later-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function submitMoveWatchLater() {
+            const sel = document.getElementById('wl-target-playlist');
+            const targetId = sel ? sel.value : '';
+            if (!targetId) {
+                toast('Please select a destination playlist', 'warning');
+                return;
+            }
+            const targetName = playlistsMap[targetId] || targetId;
+            if (!confirm(`Are you sure you want to move all videos from Watch Later to "${targetName}"?`)) return;
+
+            const btn = document.getElementById('btn-submit-move-wl');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Moving...`; }
+
+            toast(`Moving all Watch Later videos to "${targetName}"...`, 'info', 6000);
+            try {
+                const token = localStorage.getItem('token') || '';
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = 'Bearer ' + token;
+                const resp = await fetch('/api/maintenance/move-watch-later', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ target_playlist_id: targetId, source_playlist_id: 'WL' })
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || data.error || 'Failed to move Watch Later videos');
+
+                toast(data.message || 'Successfully moved Watch Later videos', 'success', 6000);
+                closeMoveWatchLaterModal();
+                await loadMaintenance();
+            } catch (err) {
+                toast(`Error: ${err.message}`, 'error', 6000);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Move All Videos`; }
+            }
+        }
+        
         // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
 async function initMaintenancePage() {
     await fetchPlaylistsMap();
@@ -607,6 +658,36 @@ if (document.readyState === 'loading') {
     initMaintenancePage();
 };
     </script>
+    
+    <!-- Move Watch Later Modal -->
+    <div id="move-watch-later-modal" class="hidden fixed inset-0 z-50 p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-xs" onclick="closeMoveWatchLaterModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bento-card p-6 mx-4 shadow-2xl">
+            <div class="flex items-center justify-between mb-4 border-b border-[#2a2f3a] pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-clock text-indigo-400"></i> Move All "Watch Later" Videos
+                </h3>
+                <button onclick="closeMoveWatchLaterModal()" class="text-gray-400 hover:text-white text-xs cursor-pointer"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+            <div class="flex flex-col gap-4">
+                <p class="text-xs text-gray-300 leading-relaxed">
+                    Select a destination playlist. All videos currently in your <b>Watch Later</b> playlist will be moved to the selected playlist, and AI content learning will be recorded.
+                </p>
+                <div>
+                    <label class="text-[11px] font-semibold text-gray-400 block mb-1">Destination Playlist</label>
+                    <select id="wl-target-playlist" class="w-full bg-[#14171f] border border-[#2a2f3a] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#2f8fc9]">
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2 mt-2">
+                    <button onclick="closeMoveWatchLaterModal()" class="px-4 py-2 bg-[#2a2f3a] text-gray-300 hover:text-white rounded-lg text-xs font-medium cursor-pointer">Cancel</button>
+                    <button onclick="submitMoveWatchLater()" id="btn-submit-move-wl" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-md cursor-pointer">
+                        <i class="fa-solid fa-arrow-right"></i> Move All Videos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/mobile-nav.js?v=20260715e"></script>
 </main>
     </div>

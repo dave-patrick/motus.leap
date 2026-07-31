@@ -2093,6 +2093,111 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     }
 
 
+class MoveWatchLaterIn(BaseModel):
+    target_playlist_id: str
+    source_playlist_id: str = "WL"
+
+
+@app.post("/api/maintenance/move-watch-later", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
+    """Move all videos from Watch Later (or a specified source playlist) to a target playlist."""
+    if youtube_service is None:
+        raise HTTPException(status_code=400, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=400, detail="YouTube client not authenticated")
+
+    target_pid = payload.target_playlist_id
+    source_pid = payload.source_playlist_id or "WL"
+    if not target_pid:
+        raise HTTPException(status_code=422, detail="target_playlist_id is required")
+
+    # Fetch videos from source playlist
+    source_videos = []
+    try:
+        source_videos = await youtube_service.get_videos(source_pid)
+    except Exception as e:
+        log.warning(f"Cached videos lookup for {source_pid} returned error: {e}")
+
+    if not source_videos:
+        try:
+            items = await youtube_service._fetch_all_paginated(
+                lambda max_results, page_token: yt_client.list_playlist_items(source_pid, max_results=max_results, page_token=page_token),
+                max_results=50, max_items=500
+            )
+            source_videos = [
+                {
+                    "id": it.get("contentDetails", {}).get("videoId"),
+                    "playlist_item_id": it.get("id"),
+                    "title": it.get("snippet", {}).get("title"),
+                }
+                for it in items if isinstance(it, dict) and it.get("contentDetails", {}).get("videoId")
+            ]
+        except Exception as e:
+            log.error(f"Live fetch failed for source playlist {source_pid}: {e}")
+
+    if not source_videos:
+        return {"status": "ok", "moved": 0, "message": "No videos found in Watch Later to move"}
+
+    moved_count = 0
+    failed_count = 0
+
+    target_title = target_pid
+    try:
+        all_pls = await youtube_service.list_playlists()
+        for p in all_pls:
+            if p.get("id") == target_pid:
+                target_title = p.get("title") or target_pid
+                break
+    except Exception:
+        pass
+
+    for v in source_videos:
+        vid = v.get("id") or v.get("video_id")
+        pli_id = v.get("playlist_item_id")
+        if not vid:
+            continue
+        try:
+            if not pli_id:
+                pli_id = await _maintenance_resolve_item_id(yt_client, source_pid, vid, None)
+            if pli_id:
+                yt_client.remove_video_from_playlist_item(pli_id)
+            yt_client.add_video_to_playlist(target_pid, vid)
+            moved_count += 1
+
+            try:
+                from services.ai_classifier import record_move
+                await record_move(
+                    video_id=vid,
+                    title=v.get("title", vid),
+                    channel_id=v.get("channel_id", ""),
+                    channel_title=v.get("channel_title", ""),
+                    from_playlist_name=source_pid,
+                    from_playlist_id=source_pid,
+                    to_playlist_name=target_title,
+                    to_playlist_id=target_pid,
+                    source="batch_watch_later_move"
+                )
+            except Exception:
+                pass
+        except Exception as err:
+            log.warning(f"Failed moving video {vid} from {source_pid} to {target_pid}: {err}")
+            failed_count += 1
+
+    for pid in (source_pid, target_pid):
+        try:
+            await youtube_service._cache_invalidate_playlist(pid)
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "moved": moved_count,
+        "failed": failed_count,
+        "message": f"Successfully moved {moved_count} video(s) from Watch Later to '{target_title}'!"
+    }
+
+
 # Mappings endpoints
 def _norm_name(s: str) -> str:
     """Aggressively normalize a channel/playlist display name for matching.

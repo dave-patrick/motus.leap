@@ -100,27 +100,80 @@ function thumbMarkup(p) {
     return `<img src="${thumb}" class="w-full h-full object-cover" loading="lazy" onerror="this.onerror=null; this.src='https://picsum.photos/160/90'">`;
 }
 
+function sortPlaylistsWithWatchLaterFirst(playlists) {
+    if (!Array.isArray(playlists)) return [];
+    let list = [...playlists];
+    
+    // Check if Watch Later exists in user's playlist list
+    const hasWL = list.some(p => {
+        const t = (p.title || p.name || '').trim().toLowerCase();
+        return t === 'watch later' || t === 'wl' || p.id === 'WL';
+    });
+
+    // If YouTube API excluded system Watch Later, synthesize a Card #1 entry for Watch Later
+    if (!hasWL) {
+        list.unshift({
+            id: 'WL',
+            title: 'Watch Later',
+            name: 'Watch Later',
+            video_count: 0,
+            thumbnail: '',
+            url: 'https://www.youtube.com/playlist?list=WL'
+        });
+    }
+
+    return list.sort((a, b) => {
+        const titleA = (a.title || a.name || '').trim();
+        const titleB = (b.title || b.name || '').trim();
+        const lowerA = titleA.toLowerCase();
+        const lowerB = titleB.toLowerCase();
+
+        const isWLA = lowerA === 'watch later' || lowerA === 'wl' || a.id === 'WL';
+        const isWLB = lowerB === 'watch later' || lowerB === 'wl' || b.id === 'WL';
+        if (isWLA && !isWLB) return -1;
+        if (!isWLA && isWLB) return 1;
+
+        const isStagingA = lowerA.startsWith('1~sort') || lowerA === 'inbox';
+        const isStagingB = lowerB.startsWith('1~sort') || lowerB === 'inbox';
+        if (isStagingA && !isStagingB) return -1;
+        if (!isStagingA && isStagingB) return 1;
+
+        return titleA.localeCompare(titleB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+}
+
 function renderPlaylistsGrid(playlists) {
     const playlistsList = document.getElementById("playlists-list");
     if (!playlistsList) return;
 
-    if (!playlists.length) {
+    if (!playlists || !playlists.length) {
         playlistsList.innerHTML = `<div class="col-span-full flex items-center justify-center min-h-[60vh]">
             <div class="bento-card p-12 text-center text-gray-400 text-base">No playlists found. Create one to get started.</div>
         </div>`;
         return;
     }
-    playlistsList.innerHTML = playlists.map(p => {
+
+    const sortedPlaylists = sortPlaylistsWithWatchLaterFirst(playlists);
+
+    playlistsList.innerHTML = sortedPlaylists.map(p => {
         const title = p.title || p.name || 'Untitled';
         const playlistId = p.id || (p.url ? (p.url.split('list=')[1] || '').split('&')[0] : '');
+        const isWL = (title.toLowerCase() === 'watch later' || playlistId === 'WL');
+        const badgeTag = isWL 
+            ? `<span class="px-2 py-0.5 rounded text-[10px] bg-indigo-500/20 text-indigo-400 font-bold border border-indigo-500/30 flex items-center gap-1 w-fit"><i class="fa-solid fa-clock text-[9px]"></i> System Inbox</span>` 
+            : '';
+
         return `
-        <a href="/playlist/${playlistId}" class="bento-card p-2.5 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-colors relative block min-h-[76px]">
-          <div class="flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden bg-[#0f1115]">
+        <a href="/playlist/${playlistId}" class="bento-card p-3 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-all relative block min-h-[82px] ${isWL ? 'border-indigo-500/40 bg-indigo-950/10' : ''}">
+          <div class="flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden bg-[#0f1115] border border-[#2a2f3a]">
             ${thumbMarkup(p)}
           </div>
           <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-            <h3 class="text-base md:text-lg font-semibold text-[#2f8fc9] truncate">${title}</h3>
-            <p class="text-xs text-gray-400">${p.video_count} videos</p>
+            <div class="flex items-center gap-2">
+                <h3 class="text-base md:text-lg font-semibold ${isWL ? 'text-indigo-400 font-bold' : 'text-[#2f8fc9]'} truncate">${title}</h3>
+                ${badgeTag}
+            </div>
+            <p class="text-xs text-gray-400">${p.video_count != null ? p.video_count : 0} videos</p>
             <div class="flex items-center gap-2 mt-0.5" onclick="event.stopPropagation()">
               <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${playlistId}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[11px] py-1 px-1.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
               <button onclick="event.preventDefault(); event.stopPropagation(); openPlaylist('${playlistId}', event)" class="text-[11px] p-1 rounded bg-[#20242c] text-gray-400 hover:text-white hover:bg-[#2a2f3a] transition-colors flex-shrink-0" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
