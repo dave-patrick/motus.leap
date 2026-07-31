@@ -1903,30 +1903,41 @@ async def _maintenance_apply_one(
         yt_client.remove_video_from_playlist_item(item_id)
         yt_client.add_video_to_playlist(target_playlist_id, video_id)
 
-        # Automatic System Learning: record channel mapping for this move
-        learned_channel = False
-        channel_id = record.get("channel_id")
-        if not channel_id and youtube_service:
-            try:
-                v_details = await youtube_service.get_videos()
-                for v in (v_details.get("videos") or []):
-                    if v.get("id") == video_id or v.get("video_id") == video_id:
-                        channel_id = v.get("channel_id")
-                        break
-            except Exception:
-                pass
+        # Automatic System Learning: record video content & title training memory
+        learned_content = False
+        v_title = record.get("video_title") or record.get("title") or video_id
+        v_channel_id = record.get("channel_id") or ""
+        v_channel_title = record.get("channel_title") or ""
 
-        if channel_id and config_manager:
-            try:
-                cfg = config_manager.config
-                mappings = dict(cfg.channel_mappings or {})
-                mappings[channel_id] = target_playlist_id
-                cfg.channel_mappings = mappings
-                await config_manager.save(cfg)
-                learned_channel = True
-                log.info(f"[LEARNING] Recorded channel mapping: channel {channel_id} -> target playlist {target_playlist_id}")
-            except Exception as learn_err:
-                log.warning(f"[LEARNING] Failed to save channel mapping: {learn_err}")
+        # Resolve target playlist title
+        target_name = target_playlist_id
+        try:
+            if youtube_service:
+                all_pls = await youtube_service.list_playlists()
+                for p in all_pls:
+                    if p.get("id") == target_playlist_id:
+                        target_name = p.get("title") or target_playlist_id
+                        break
+        except Exception:
+            pass
+
+        try:
+            from services.ai_classifier import record_move
+            await record_move(
+                video_id=video_id,
+                title=v_title,
+                channel_id=v_channel_id,
+                channel_title=v_channel_title,
+                from_playlist_name=playlist_id,
+                from_playlist_id=playlist_id,
+                to_playlist_name=target_name,
+                to_playlist_id=target_playlist_id,
+                source="maintenance_correction"
+            )
+            learned_content = True
+            log.info(f"[LEARNING] Recorded AI content memory: '{v_title}' => '{target_name}'")
+        except Exception as learn_err:
+            log.warning(f"[LEARNING] Failed to record AI content memory: {learn_err}")
 
         for pid in (playlist_id, target_playlist_id):
             try:
@@ -1936,7 +1947,7 @@ async def _maintenance_apply_one(
 
         _maintenance_drop_record(video_id, item_type)
         return {"status": "ok", "action": "move", "video_id": video_id,
-                "source": playlist_id, "target": target_playlist_id, "learned": learned_channel}
+                "source": playlist_id, "target": target_playlist_id, "learned": learned_content}
 
     return {"status": "error", "action": action, "error": f"unknown action '{action}'"}
 
