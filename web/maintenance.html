@@ -147,6 +147,9 @@
         async function runScanFromMaintenance() {
             const btn = document.getElementById('btn-run-scan');
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning…'; }
+            if (window.logConsole) {
+                window.logConsole('[AGENT] Initiating duplicate & misplaced video scan...');
+            }
             try {
                 toast('Starting duplicate & misplaced video scan...', 'info');
                 await fetch('/api/action', {

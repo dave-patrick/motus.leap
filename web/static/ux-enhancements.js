@@ -1117,6 +1117,13 @@ function startAgentActivityTracker() {
     });
 }
 
+// Auto-initialize agent activity tracker and WebSocket telemetry on page load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startAgentActivityTracker);
+} else {
+    startAgentActivityTracker();
+}
+
 // Cancel current task
 window.cancelCurrentTask = async function() {
     const btn = document.getElementById('agent-cancel-btn');
