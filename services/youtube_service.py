@@ -180,6 +180,7 @@ class YouTubeService:
         self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(hours=6))
         self._enrich_lock = asyncio.Lock()  # Prevent concurrent enrichment from crashing (heap corruption)
         self._playlist_keys: dict[str, set[str]] = {}
+        self._api_lock = asyncio.Lock()  # Serialize API calls so non-thread-safe httplib2 sockets never corrupt OpenSSL
         # Reentrant single-flight lock (defensive). asyncio.Lock is NOT
         # reentrant; a reentrant lock guarantees that if any internal call path
         # ever re-enters while _data_lock is held (e.g. future refactor of
@@ -904,13 +905,14 @@ class YouTubeService:
         all_items = []
         page_token = None
         consecutive_errors = 0
-        max_consecutive_errors = 3
         unbounded = max_items <= 0
 
         while unbounded or len(all_items) < max_items:
-            # Run the blocking sync fetch_fn in a separate thread to unblock the main FastAPI event loop
+            # Run the blocking sync fetch_fn in a separate thread, serialized via self._api_lock
+            # so concurrent tasks never touch the non-thread-safe httplib2 socket simultaneously.
             try:
-                resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
+                async with self._api_lock:
+                    resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
             except ssl.SSLError as e:
                 consecutive_errors += 1
                 log.warning(f"_fetch_all_paginated: SSL error ({consecutive_errors}/{max_consecutive_errors}): {e}")
