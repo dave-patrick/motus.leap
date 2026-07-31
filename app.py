@@ -983,14 +983,10 @@ async def api_watch_later_count() -> dict[str, Any]:
     if not yt_client:
         return {"count": None, "error": "YouTube not authenticated"}
     try:
-        items = await youtube_service._fetch_all_paginated(
-            lambda max_results, page_token: yt_client.list_playlist_items(
-                "WL", max_results=max_results, page_token=page_token
-            ),
-            max_results=50,
-            max_items=500,
-        )
-        return {"count": len(items)}
+        # Use get_videos which handles caching and pagination via list_videos
+        result = await youtube_service.get_videos("WL")
+        vlist = result.get("videos", []) if isinstance(result, dict) else (result if isinstance(result, list) else [])
+        return {"count": len(vlist)}
     except Exception as e:
         log.warning(f"[WL count] Could not fetch Watch Later count: {e}")
         return {"count": None, "error": str(e)}
@@ -2149,8 +2145,9 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
 
     if not vlist:
         try:
-            items = await youtube_service._fetch_all_paginated(
-                lambda max_results, page_token: yt_client.list_playlist_items(source_pid, max_results=max_results, page_token=page_token),
+            # Fallback: live fetch using list_videos (correct client method)
+            fetched = await youtube_service._fetch_all_paginated(
+                lambda max_results, page_token: yt_client.list_videos(source_pid, page_token=page_token, max_results=max_results),
                 max_results=50, max_items=500
             )
             vlist = [
@@ -2159,7 +2156,7 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
                     "playlist_item_id": it.get("id"),
                     "title": it.get("snippet", {}).get("title"),
                 }
-                for it in items if isinstance(it, dict) and it.get("contentDetails", {}).get("videoId")
+                for it in fetched if isinstance(it, dict) and it.get("contentDetails", {}).get("videoId")
             ]
         except Exception as e:
             log.error(f"Live fetch failed for source playlist {source_pid}: {e}")
@@ -2172,9 +2169,10 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
 
     target_title = target_pid
     try:
-        all_pls = await youtube_service.list_playlists()
+        pls_resp = await youtube_service.list_playlists()
+        all_pls = pls_resp.get("playlists", []) if isinstance(pls_resp, dict) else (pls_resp if isinstance(pls_resp, list) else [])
         for p in all_pls:
-            if p.get("id") == target_pid:
+            if isinstance(p, dict) and p.get("id") == target_pid:
                 target_title = p.get("title") or target_pid
                 break
     except Exception:
