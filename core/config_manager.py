@@ -67,7 +67,65 @@ class ConfigManager:
             log.error(f"Failed to load config: {e}, using defaults")
             self._config = TubeManagerConfig()
 
+        if not os.getenv("PYTEST_CURRENT_TEST") and not os.getenv("TESTING"):
+            self._sync_yt_prompt_rules(self._config)
         return self._config
+
+    def _sync_yt_prompt_rules(self, config: TubeManagerConfig) -> None:
+        """Sync yt_rules.promptinclude.md rules into config.ai_rules."""
+        from models.config import AIRule
+        import re
+
+        env_data_dir = os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")
+        data_rules_path = Path(env_data_dir) / "yt_rules.promptinclude.md"
+        local_rules_path = Path("yt_rules.promptinclude.md")
+
+        target_path = data_rules_path if data_rules_path.exists() else local_rules_path
+        if not target_path.exists():
+            return
+
+        try:
+            content = target_path.read_text(encoding="utf-8")
+        except Exception as e:
+            log.warning(f"Failed to read prompt rules from {target_path}: {e}")
+            return
+
+        existing_by_target = {r.target_playlist: r for r in config.ai_rules if r.target_playlist}
+
+        parsed_rules = []
+        for line in content.splitlines():
+            if not line.startswith("|") or "---" in line or "Video type" in line:
+                continue
+            parts = [p.strip() for p in line.split("|")[1:-1]]
+            if len(parts) >= 3:
+                vtype_raw = parts[0]
+                pname = parts[1]
+                pid = parts[2].strip("` ")
+                if not pid:
+                    continue
+
+                clean_name = re.sub(r"\*\*|\*", "", vtype_raw.split("(")[0]).strip()
+                desc = re.sub(r"\*\*|\*", "", vtype_raw).strip()
+
+                if pid in existing_by_target:
+                    rule = existing_by_target[pid]
+                    rule.name = clean_name or pname
+                    rule.description = desc
+                    rule.playlist_name = pname
+                else:
+                    rule = AIRule(
+                        name=clean_name or pname,
+                        description=desc,
+                        target_playlist=pid,
+                        playlist_name=pname,
+                        enabled=True
+                    )
+                parsed_rules.append(rule)
+
+        if parsed_rules:
+            parsed_targets = {r.target_playlist for r in parsed_rules}
+            non_prompt_rules = [r for r in config.ai_rules if r.target_playlist not in parsed_targets]
+            config.ai_rules = parsed_rules + non_prompt_rules
 
     # ── P1 provider migration (DESIGN_SPEC §7, Gwen §A.2) ──────────────
 

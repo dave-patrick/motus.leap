@@ -35,6 +35,12 @@ def save_rules(req: RulesSaveRequest, user=Depends(get_current_user)):
         rules_path = os.path.join(base_dir, "yt_rules.promptinclude.md")
         with open(rules_path, "w", encoding="utf-8") as f:
             f.write(req.rules_md)
+
+        env_data_dir = os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")
+        data_rules_path = os.path.join(env_data_dir, "yt_rules.promptinclude.md")
+        if os.path.exists(os.path.dirname(data_rules_path)):
+            with open(data_rules_path, "w", encoding="utf-8") as f:
+                f.write(req.rules_md)
             
         if not is_oauth_configured():
             chan_path = os.path.join(base_dir, "yt_category_channel_map.txt")
