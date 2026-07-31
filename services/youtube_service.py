@@ -451,10 +451,15 @@ class YouTubeService:
             cached_pl = await self._load_from_disk("playlists", max_age_days=30)
             if cached_pl and isinstance(cached_pl, dict) and cached_pl.get("playlists"):
                 pls = cached_pl["playlists"]
+                total_subs = (cached_pl.get("stats") or {}).get("total_subscriptions")
+                if total_subs is None:
+                    cached_subs = await self._load_from_disk("subscriptions", max_age_days=30)
+                    if cached_subs and isinstance(cached_subs, dict):
+                        total_subs = cached_subs.get("total_subscriptions") or len(cached_subs.get("channels", []))
                 return {
                     "total_playlists": len(pls),
                     "total_videos": sum(int((p.get("video_count", 0) or 0)) for p in pls),
-                    "total_subscriptions": (cached_pl.get("stats") or {}).get("total_subscriptions", 0),
+                    "total_subscriptions": total_subs or 0,
                     "cached": True,
                 }
 
