@@ -283,11 +283,15 @@
             for (const chk of chks) {
                 const vid = chk.getAttribute('data-vid');
                 try {
-                    await maintPost({ action: 'keep', type: 'dup', video_id: vid });
+                    const res = await maintPost({ action: 'keep', type: 'dup', video_id: vid });
+                    if (res && res.quota_exceeded) {
+                        toast('Quota limit reached. Batch paused.', 'warning', 8000);
+                        break;
+                    }
                     successCount++;
-                } catch(e) {}
+                } catch(e) { break; }
             }
-            toast(`Successfully kept ${successCount} video(s) in category!`, 'success');
+            toast(`Processed ${successCount} video(s)!`, 'success');
             if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-bookmark text-[10px]"></i> Keep Selected`; }
             await loadMaintenance();
         }
@@ -310,11 +314,15 @@
                 const plId = chk.getAttribute('data-rempid');
                 const pliId = chk.getAttribute('data-rempli') || null;
                 try {
-                    await maintPost({ action: 'remove', type: 'dup', video_id: vid, playlist_id: plId, playlist_item_id: pliId });
+                    const res = await maintPost({ action: 'remove', type: 'dup', video_id: vid, playlist_id: plId, playlist_item_id: pliId });
+                    if (res && res.quota_exceeded) {
+                        toast('Quota limit reached. Batch paused.', 'warning', 8000);
+                        break;
+                    }
                     successCount++;
-                } catch(e) {}
+                } catch(e) { break; }
             }
-            toast(`Successfully removed ${successCount} duplicate copy(ies)!`, 'success');
+            toast(`Processed ${successCount} duplicate copy(ies)!`, 'success');
             if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-trash-can text-[10px]"></i> Remove Selected Copies`; }
             await loadMaintenance();
         }
@@ -360,9 +368,13 @@
                 const vid = chk.getAttribute('data-vid');
                 const curId = chk.getAttribute('data-curid');
                 try {
-                    await maintPost({ action: 'move', type: 'misplaced', video_id: vid, playlist_id: curId, target_playlist_id: targetId });
+                    const res = await maintPost({ action: 'move', type: 'misplaced', video_id: vid, playlist_id: curId, target_playlist_id: targetId });
+                    if (res && res.quota_exceeded) {
+                        toast('Quota limit reached. Batch paused.', 'warning', 8000);
+                        break;
+                    }
                     successCount++;
-                } catch(e) {}
+                } catch(e) { break; }
             }
             toast(`Successfully moved ${successCount} video(s) to "${targetName}"!`, 'success');
             if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Move Selected`; }
@@ -552,7 +564,12 @@
             try {
                 const resp = await fetch('/api/maintenance/action', { method: 'POST', headers, body: JSON.stringify(body) });
                 const data = await resp.json().catch(() => ({}));
-                if (data.status === 'error') {
+                if (data.quota_exceeded || data.status === 'warning') {
+                    const msg = data.error || 'YouTube API daily quota limit reached (10,000 units/day). Google resets quota daily.';
+                    if (window.logConsole) window.logConsole(`[QUOTA WARNING] ${msg}`);
+                    toast(`⚠️ ${msg}`, 'warning', 10000);
+                    await loadMaintenance();
+                } else if (data.status === 'error') {
                     if (window.logConsole) window.logConsole(`[ERROR] ${data.error || 'Action failed'}`);
                     toast(data.error || 'Action failed', 'error');
                 } else if (body.action === 'fix_all') {

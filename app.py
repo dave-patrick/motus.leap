@@ -1882,90 +1882,99 @@ async def _maintenance_apply_one(
     if not video_id:
         return {"status": "error", "action": action, "error": "missing video_id"}
 
-    if action == "remove":
-        if not playlist_id:
-            return {"status": "error", "action": "remove", "error": "missing playlist_id"}
-        item_id = await _maintenance_resolve_item_id(
-            yt_client, playlist_id, video_id, playlist_item_id
-        )
-        if not item_id:
-            # Item likely already removed from the playlist — dismiss from queue.
+    try:
+        if action == "remove":
+            if not playlist_id:
+                return {"status": "error", "action": "remove", "error": "missing playlist_id"}
+            item_id = await _maintenance_resolve_item_id(
+                yt_client, playlist_id, video_id, playlist_item_id
+            )
+            if not item_id:
+                # Item likely already removed from the playlist — dismiss from queue.
+                _maintenance_drop_record(video_id, item_type)
+                return {"status": "ok", "action": "remove", "video_id": video_id,
+                        "message": "Item not found in playlist (already removed), dismissed from queue"}
+            yt_client.remove_video_from_playlist_item(item_id)
+            # Invalidate cache so the change shows immediately.
+            try:
+                await youtube_service._cache_invalidate_playlist(playlist_id)
+            except Exception:
+                pass
             _maintenance_drop_record(video_id, item_type)
             return {"status": "ok", "action": "remove", "video_id": video_id,
-                    "message": "Item not found in playlist (already removed), dismissed from queue"}
-        yt_client.remove_video_from_playlist_item(item_id)
-        # Invalidate cache so the change shows immediately.
-        try:
-            await youtube_service._cache_invalidate_playlist(playlist_id)
-        except Exception:
-            pass
-        _maintenance_drop_record(video_id, item_type)
-        return {"status": "ok", "action": "remove", "video_id": video_id,
-                "playlist_item_id": item_id}
+                    "playlist_item_id": item_id}
 
-    if action == "move":
-        target_playlist_id = target_playlist_id or record.get(
-            "mapped_playlist_id"
-        ) or record.get("target_playlist_id")
-        if not playlist_id:
-            return {"status": "error", "action": "move", "error": "missing source playlist_id"}
-        if not target_playlist_id:
-            return {"status": "error", "action": "move", "error": "missing target_playlist_id"}
-        # 1 delete (source) + 1 insert (target) = 2 quota units.
-        item_id = await _maintenance_resolve_item_id(
-            yt_client, playlist_id, video_id, playlist_item_id
-        )
-        if not item_id:
-            return {"status": "error", "action": "move",
-                    "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
-        yt_client.remove_video_from_playlist_item(item_id)
-        yt_client.add_video_to_playlist(target_playlist_id, video_id)
-
-        # Automatic System Learning: record video content & title training memory
-        learned_content = False
-        v_title = record.get("video_title") or record.get("title") or video_id
-        v_channel_id = record.get("channel_id") or ""
-        v_channel_title = record.get("channel_title") or ""
-
-        # Resolve target playlist title
-        target_name = target_playlist_id
-        try:
-            if youtube_service:
-                all_pls = await youtube_service.list_playlists()
-                for p in all_pls:
-                    if p.get("id") == target_playlist_id:
-                        target_name = p.get("title") or target_playlist_id
-                        break
-        except Exception:
-            pass
-
-        try:
-            from services.ai_classifier import record_move
-            await record_move(
-                video_id=video_id,
-                title=v_title,
-                channel_id=v_channel_id,
-                channel_title=v_channel_title,
-                from_playlist_name=playlist_id,
-                from_playlist_id=playlist_id,
-                to_playlist_name=target_name,
-                to_playlist_id=target_playlist_id,
-                source="maintenance_correction"
+        if action == "move":
+            target_playlist_id = target_playlist_id or record.get(
+                "mapped_playlist_id"
+            ) or record.get("target_playlist_id")
+            if not playlist_id:
+                return {"status": "error", "action": "move", "error": "missing source playlist_id"}
+            if not target_playlist_id:
+                return {"status": "error", "action": "move", "error": "missing target_playlist_id"}
+            # 1 delete (source) + 1 insert (target) = 2 ops (100 quota units).
+            item_id = await _maintenance_resolve_item_id(
+                yt_client, playlist_id, video_id, playlist_item_id
             )
-            learned_content = True
-            log.info(f"[LEARNING] Recorded AI content memory: '{v_title}' => '{target_name}'")
-        except Exception as learn_err:
-            log.warning(f"[LEARNING] Failed to record AI content memory: {learn_err}")
+            if not item_id:
+                return {"status": "error", "action": "move",
+                        "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
+            yt_client.remove_video_from_playlist_item(item_id)
+            yt_client.add_video_to_playlist(target_playlist_id, video_id)
 
-        for pid in (playlist_id, target_playlist_id):
+            # Automatic System Learning: record video content & title training memory
+            learned_content = False
+            v_title = record.get("video_title") or record.get("title") or video_id
+            v_channel_id = record.get("channel_id") or ""
+            v_channel_title = record.get("channel_title") or ""
+
+            # Resolve target playlist title
+            target_name = target_playlist_id
             try:
-                await youtube_service._cache_invalidate_playlist(pid)
+                if youtube_service:
+                    all_pls = await youtube_service.list_playlists()
+                    for p in all_pls:
+                        if p.get("id") == target_playlist_id:
+                            target_name = p.get("title") or target_playlist_id
+                            break
             except Exception:
                 pass
 
-        _maintenance_drop_record(video_id, item_type)
-        return {"status": "ok", "action": "move", "video_id": video_id,
-                "source": playlist_id, "target": target_playlist_id, "learned": learned_content}
+            try:
+                from services.ai_classifier import record_move
+                await record_move(
+                    video_id=video_id,
+                    title=v_title,
+                    channel_id=v_channel_id,
+                    channel_title=v_channel_title,
+                    from_playlist_name=playlist_id,
+                    from_playlist_id=playlist_id,
+                    to_playlist_name=target_name,
+                    to_playlist_id=target_playlist_id,
+                    source="maintenance_correction"
+                )
+                learned_content = True
+                log.info(f"[LEARNING] Recorded AI content memory: '{v_title}' => '{target_name}'")
+            except Exception as learn_err:
+                log.warning(f"[LEARNING] Failed to record AI content memory: {learn_err}")
+
+            for pid in (playlist_id, target_playlist_id):
+                try:
+                    await youtube_service._cache_invalidate_playlist(pid)
+                except Exception:
+                    pass
+
+            _maintenance_drop_record(video_id, item_type)
+            return {"status": "ok", "action": "move", "video_id": video_id,
+                    "source": playlist_id, "target": target_playlist_id, "learned": learned_content}
+    except Exception as exc:
+        err_str = str(exc)
+        if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:
+            log.warning(f"[QUOTA] YouTube API daily quota exceeded during maintenance '{action}': {err_str}")
+            return {"status": "error", "quota_exceeded": True, "action": action, "video_id": video_id,
+                    "error": "YouTube API daily quota limit reached (10,000 units/day). Google resets quota daily."}
+        log.error(f"[MAINTENANCE] Error during '{action}': {err_str}")
+        return {"status": "error", "action": action, "video_id": video_id, "error": err_str}
 
     return {"status": "error", "action": action, "error": f"unknown action '{action}'"}
 
@@ -2025,17 +2034,18 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
             if result.get("status") == "ok":
                 if background_worker and background_worker.manager:
                     await background_worker._safe_broadcast({"type": "log", "message": f"[WORKER] Maintenance '{action}' succeeded"})
-                # Drop the inner "status":"ok" so it doesn't overwrite "success".
                 clean = {k: v for k, v in result.items() if k != "status"}
                 return {"status": "success", **clean}
             if background_worker and background_worker.manager:
                 await background_worker._safe_broadcast({"type": "log", "message": f"[ERROR] Maintenance '{action}' failed: {result.get('error')}"})
-            return result  # already {"status": "error", ...}
+            return result
         except Exception as e:
-            log.error(f"Maintenance action '{action}' failed: {e}")
+            err_str = str(e)
+            log.error(f"Maintenance action '{action}' failed: {err_str}")
             if background_worker and background_worker.manager:
-                await background_worker._safe_broadcast({"type": "log", "message": f"[ERROR] Maintenance '{action}' exception: {e}"})
-            return {"status": "error", "error": str(e)}
+                await background_worker._safe_broadcast({"type": "log", "message": f"[ERROR] Maintenance '{action}' exception: {err_str}"})
+            is_quota = "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str
+            return {"status": "error", "quota_exceeded": is_quota, "error": err_str}
 
     # fix_all: apply the given action to every record of the given type.
     maintenance = _load_maintenance_data()
@@ -2044,11 +2054,11 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     succeeded = 0
     failed = 0
     errors = []
+    quota_hit = False
+
     for rec in records:
-        # fix_all is an aggregate of a real per-item op. Map it to that op:
-        #   - misplaced/move → remove (delete the item from its current/source playlist;
-        #     there is no single insert target for "fix all" on these types).
-        #   - dup → remove each *non-primary* copy (keep playlists[0], the primary).
+        if quota_hit:
+            break
         if item_type == "dup":
             sub_action = "remove"
             copy_playlists = rec.get("playlists", []) or []
@@ -2075,11 +2085,18 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                     else:
                         failed += 1
                         errors.append(res.get("error", "unknown error"))
+                        if res.get("quota_exceeded"):
+                            quota_hit = True
+                            break
                 except Exception as e:
                     failed += 1
-                    errors.append(str(e))
+                    err_str = str(e)
+                    errors.append(err_str)
+                    if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:
+                        quota_hit = True
+                        break
             continue
-        # misplaced / move: fix_all deletes each item from its current/source playlist.
+        # misplaced / move
         sub_action = "remove"
         processed += 1
         try:
@@ -2098,10 +2115,28 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
             else:
                 failed += 1
                 errors.append(res.get("error", "unknown error"))
+                if res.get("quota_exceeded"):
+                    quota_hit = True
+                    break
         except Exception as e:
             failed += 1
-            errors.append(str(e))
-            continue
+            err_str = str(e)
+            errors.append(err_str)
+            if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:
+                quota_hit = True
+                break
+
+    if quota_hit:
+        return {
+            "status": "warning",
+            "quota_exceeded": True,
+            "processed": processed,
+            "succeeded": succeeded,
+            "failed": failed,
+            "error": f"YouTube API daily quota limit reached (10,000 units/day). Processed {succeeded} item(s) before limit. Google resets quota daily.",
+            "errors": errors[:25],
+        }
+
     return {
         "status": "success" if failed == 0 else "partial",
         "processed": processed,
