@@ -38,6 +38,8 @@ function renderCachedPlaylists() {
     return false;
 }
 
+var excludedPlaylistsSet = new Set();
+
 async function loadPlaylists() {
     const skeleton = document.getElementById("playlists-skeleton");
     const playlistsList = document.getElementById("playlists-list");
@@ -49,7 +51,15 @@ async function loadPlaylists() {
     }
 
     try {
-        const response = await authFetch("/api/playlists");
+        const [response, exResp] = await Promise.all([
+            authFetch("/api/playlists"),
+            authFetch("/api/playlists/excluded").catch(() => null)
+        ]);
+        if (exResp && exResp.ok) {
+            const exData = await exResp.json();
+            excludedPlaylistsSet = new Set(exData.excluded_playlists || []);
+        }
+
         const data = await response.json();
 
         const rawList = Array.isArray(data) ? data : ((data && data.playlists) || []);
