@@ -178,12 +178,13 @@ function renderPlaylistsGrid(playlists) {
         const title = p.title || p.name || 'Untitled';
         const playlistId = p.id || (p.url ? (p.url.split('list=')[1] || '').split('&')[0] : '');
         const isWL = (title.toLowerCase() === 'watch later' || playlistId === 'WL');
+        const isExcluded = excludedPlaylistsSet.has(playlistId);
         const badgeTag = isWL 
             ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 w-fit"><i class="fa-solid fa-clock text-[8px]"></i> System Inbox</span>` 
-            : '';
+            : (isExcluded ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/25 font-medium w-fit"><i class="fa-solid fa-shield-halved text-[8px]"></i> Excluded</span>` : '');
 
         return `
-        <a href="/playlist/${playlistId}" class="bento-card p-3 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-all relative block min-h-[82px] ${isWL ? 'border-indigo-500/40 bg-indigo-950/10' : ''}">
+        <a href="/playlist/${playlistId}" class="bento-card p-3 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-all relative block min-h-[82px] ${isWL ? 'border-indigo-500/40 bg-indigo-950/10' : (isExcluded ? 'border-amber-500/30 bg-amber-950/10' : '')}">
           <div class="flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden bg-[#0f1115] border border-[#2a2f3a]">
             ${thumbMarkup(p)}
           </div>
@@ -194,6 +195,9 @@ function renderPlaylistsGrid(playlists) {
             <div class="flex items-center gap-2 mt-0.5" onclick="event.stopPropagation()">
               <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${playlistId}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[11px] py-1 px-1.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
               <button onclick="event.preventDefault(); event.stopPropagation(); openPlaylist('${playlistId}', event)" class="text-[11px] p-1 rounded bg-[#20242c] text-gray-400 hover:text-white hover:bg-[#2a2f3a] transition-colors flex-shrink-0" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
+              <label class="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-200 cursor-pointer select-none ml-auto" onclick="event.stopPropagation()" title="Exclude from mapping and AI changes">
+                <input type="checkbox" class="accent-[#eab308] scale-90" ${isExcluded ? 'checked' : ''} onchange="toggleExcludePlaylist('${playlistId}', this.checked, event)"> Exclude
+              </label>
             </div>
           </div>
         </a>

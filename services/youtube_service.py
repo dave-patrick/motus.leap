@@ -512,11 +512,13 @@ class YouTubeService:
                 disk_payload = await self._load_from_disk(cache_key, max_age_days=30)
                 if disk_payload:
                     if isinstance(disk_payload, dict) and disk_payload.get("playlists"):
+                        pls = await self._sync_playlist_video_counts(disk_payload["playlists"])
                         log.info(f"list_playlists: returning from {cache_key}.json disk cache.")
-                        return {**disk_payload, "cached": True}
+                        return {**disk_payload, "playlists": pls, "cached": True}
                     elif isinstance(disk_payload, list) and len(disk_payload) > 0:
+                        pls = await self._sync_playlist_video_counts(disk_payload)
                         log.info(f"list_playlists: returning from {cache_key}.json disk list cache.")
-                        return {"playlists": disk_payload, "cached": True}
+                        return {"playlists": pls, "cached": True}
 
         client = self.get_client(require_oauth=True)
         if not client:
@@ -1357,6 +1359,7 @@ class YouTubeService:
                 videos.append(video)
                 
             await self._save_to_disk(f"playlist_videos_{playlist_id}", videos)
+            await self._update_cached_playlist_count(playlist_id, len(videos))
             return {"videos": videos}
         except Exception as e:
             log.error(f"Error fetching live videos for playlist {playlist_id}: {e}")
@@ -1437,5 +1440,47 @@ class YouTubeService:
             await self._cache.set(f"playlist_videos_{pid}", v_list, timedelta(hours=6))
 
         log.info(f"[CACHE] Direct scan cache updated: {len(normalized_playlists)} playlists, {total_videos} videos saved (zero extra API calls).")
+
+    async def _sync_playlist_video_counts(self, playlists: list[dict]) -> list[dict]:
+        """Ensure video_count in each playlist dict reflects accurate counts from individual playlist caches or all_data."""
+        if not playlists:
+            return playlists
+        global_data = await self._load_from_disk("all_data", max_age_days=365)
+        videos_by_pid = {}
+        if global_data and isinstance(global_data, dict) and "videos" in global_data:
+            for v in global_data["videos"]:
+                pid = v.get("playlist_id")
+                if pid:
+                    videos_by_pid[pid] = videos_by_pid.get(pid, 0) + 1
+
+        for pl in playlists:
+            if not isinstance(pl, dict):
+                continue
+            pid = pl.get("id")
+            if not pid:
+                continue
+            pl_cache = await self._load_from_disk(f"playlist_videos_{pid}", max_age_days=365)
+            if isinstance(pl_cache, list):
+                pl["video_count"] = len(pl_cache)
+            elif pid in videos_by_pid:
+                pl["video_count"] = videos_by_pid[pid]
+
+        return playlists
+
+    async def _update_cached_playlist_count(self, playlist_id: str, count: int) -> None:
+        """Update video_count for playlist_id in cached playlists.json & all_data.json."""
+        for key in ["playlists", "all_data", "playlists_report"]:
+            data = await self._load_from_disk(key, max_age_days=365)
+            if not data:
+                continue
+            updated = False
+            pls = data.get("playlists", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+            for pl in pls:
+                if isinstance(pl, dict) and pl.get("id") == playlist_id:
+                    pl["video_count"] = count
+                    updated = True
+            if updated:
+                await self._save_to_disk(key, data)
+
         return all_data
 
