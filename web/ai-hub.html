@@ -96,6 +96,23 @@
                     <button id="rule-new-btn" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-plus"></i> New Rule</button>
                 </div>
                 <div id="rules-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+
+                <!-- Excluded Playlists Card -->
+                <div class="bento-card p-5 mt-6 space-y-4 max-w-3xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-semibold text-white flex items-center gap-2"><i class="fas fa-shield-alt text-[#eab308]"></i> Excluded Playlists</h2>
+                            <p class="text-xs text-gray-400 mt-0.5">Select playlists to protect and exclude from mapping, auto-sort, and AI changes.</p>
+                        </div>
+                        <span id="excluded-count-badge" class="bg-[#eab308]/10 text-[#eab308] border border-[#eab308]/30 px-2.5 py-1 rounded-full text-[10px] font-medium">0 excluded</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <input id="excluded-search" type="text" placeholder="Search playlists..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                    </div>
+                    <div id="excluded-playlists-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                        <div class="text-xs text-gray-500">Loading playlists…</div>
+                    </div>
+                </div>
             </section>
 
             <section id="panel-jobs" class="ai-panel space-y-4 hidden">

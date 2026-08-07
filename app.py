@@ -244,8 +244,10 @@ async def lifespan(app: FastAPI):
                 if getattr(config, "ai_auto_apply_mappings", False):
                     log.info("[NIGHTLY] Running auto-apply mappings job...")
                     from services.ai_classifier import get_channel_mapping_suggestions
-                    suggestions = await get_channel_mapping_suggestions()
+                    excluded = set(getattr(config, "excluded_playlists", []) or [])
                     for s in suggestions:
+                        if s.get("playlist_id") in excluded:
+                            continue
                         if s["move_count"] >= 3:
                             config.channel_mappings[s["channel_id"]] = s["playlist_id"]
                             log.info(f"[NIGHTLY] Auto-applied mapping: {s['channel_title']} -> {s['playlist_name']}")
@@ -3759,6 +3761,14 @@ async def ai_update_rule(rule_id: str, body: AIRuleUpdateIn):
     return {"id": rule.id, "status": "updated"}
 
 
+class ExcludedPlaylistsIn(BaseModel):
+    excluded_playlists: list[str]
+
+
+class ExcludedPlaylistToggleIn(BaseModel):
+    playlist_id: str
+
+
 @app.delete("/api/ai/rules/{rule_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def ai_delete_rule(rule_id: str):
     """Delete a rule."""
@@ -3769,6 +3779,40 @@ async def ai_delete_rule(rule_id: str):
         raise HTTPException(status_code=404, detail="Rule not found")
     await config_manager.save(config)
     return {"ok": True}
+
+
+@app.get("/api/playlists/excluded", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def get_excluded_playlists():
+    """Get list of excluded playlist IDs."""
+    config = config_manager.config
+    return {"excluded_playlists": getattr(config, "excluded_playlists", []) or []}
+
+
+@app.put("/api/playlists/excluded", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@app.post("/api/playlists/excluded", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def update_excluded_playlists(body: ExcludedPlaylistsIn):
+    """Update list of excluded playlist IDs."""
+    config = config_manager.config
+    config.excluded_playlists = list(dict.fromkeys(body.excluded_playlists))
+    await config_manager.save(config)
+    return {"ok": True, "excluded_playlists": config.excluded_playlists}
+
+
+@app.post("/api/playlists/excluded/toggle", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def toggle_excluded_playlist(body: ExcludedPlaylistToggleIn):
+    """Toggle exclusion status for a playlist ID."""
+    config = config_manager.config
+    current = list(getattr(config, "excluded_playlists", []) or [])
+    pid = body.playlist_id
+    if pid in current:
+        current.remove(pid)
+        status = "included"
+    else:
+        current.append(pid)
+        status = "excluded"
+    config.excluded_playlists = current
+    await config_manager.save(config)
+    return {"ok": True, "status": status, "excluded_playlists": config.excluded_playlists}
 
 
 @app.post("/api/ai/chat", dependencies=[Depends(get_current_user), Depends(verify_origin)])
