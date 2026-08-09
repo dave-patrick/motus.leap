@@ -1896,7 +1896,16 @@ async def _maintenance_apply_one(
                 _maintenance_drop_record(video_id, item_type)
                 return {"status": "ok", "action": "remove", "video_id": video_id,
                         "message": "Item not found in playlist (already removed), dismissed from queue"}
-            yt_client.remove_video_from_playlist_item(item_id)
+            try:
+                yt_client.remove_video_from_playlist_item(item_id)
+            except Exception as del_err:
+                # 404 playlistItemNotFound = item already gone from YouTube.
+                # Goal (video not in playlist) is met -> dismiss from the queue.
+                if "404" in str(del_err) or "playlistItemNotFound" in str(del_err):
+                    _maintenance_drop_record(video_id, item_type)
+                    return {"status": "ok", "action": "remove", "video_id": video_id,
+                            "message": "Item already removed from YouTube (playlistItem gone), dismissed from queue"}
+                raise
             # Invalidate cache so the change shows immediately.
             try:
                 await youtube_service._cache_invalidate_playlist(playlist_id)

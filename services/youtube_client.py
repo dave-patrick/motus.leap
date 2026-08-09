@@ -497,7 +497,15 @@ class YouTubeClient:
         if not client:
             raise RuntimeError("OAuth client not available for remove_video_from_playlist")
         with _client_lock:
-            result = client.playlistItems().delete(id=playlist_item_id).execute()
+            try:
+                result = client.playlistItems().delete(id=playlist_item_id).execute()
+            except Exception as del_err:
+                # 404 playlistItemNotFound means the item is already gone from
+                # YouTube — the goal (video not in playlist) is met. Treat as
+                # success rather than raising. Mirrors bulk_operations_impl.py.
+                if "404" in str(del_err) or "playlistItemNotFound" in str(del_err):
+                    return {}
+                raise
         if result is None:
             return {}
         return result
@@ -536,7 +544,15 @@ class YouTubeClient:
         if not client:
             raise RuntimeError("OAuth client not available for remove_video_from_playlist_item")
         with _client_lock:
-            result = client.playlistItems().delete(id=playlist_item_id).execute()
+            try:
+                result = client.playlistItems().delete(id=playlist_item_id).execute()
+            except Exception as del_err:
+                # 404 playlistItemNotFound means the item is already gone from
+                # YouTube — the goal (video not in playlist) is met. Treat as
+                # success rather than raising. Mirrors bulk_operations_impl.py.
+                if "404" in str(del_err) or "playlistItemNotFound" in str(del_err):
+                    return {}
+                raise
         if result is None:
             return {}
         return result
