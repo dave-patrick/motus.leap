@@ -834,6 +834,10 @@ if (document.readyState === 'loading') {
 // ============================================
 
 async function navigateSPA(url) {
+    if (url && (url.startsWith('/settings') || url.startsWith('/rules'))) {
+        window.location.href = url;
+        return;
+    }
     try {
         const resp = await fetch(url);
         if (!resp.ok) {
@@ -929,7 +933,9 @@ document.addEventListener('click', (e) => {
             !href.startsWith('/oauth') && 
             !href.startsWith('/api') && 
             !href.startsWith('/terms') && 
-            !href.startsWith('/privacy')) {
+            !href.startsWith('/privacy') &&
+            !href.startsWith('/settings') &&
+            !href.startsWith('/rules')) {
             e.preventDefault();
             window.history.pushState(null, '', href);
             navigateSPA(href);
