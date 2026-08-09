@@ -834,7 +834,13 @@ if (document.readyState === 'loading') {
 // ============================================
 
 async function navigateSPA(url) {
-    if (url && (url.startsWith('/settings') || url.startsWith('/rules'))) {
+    if (url && (
+        url.startsWith('/settings') || 
+        url.startsWith('/rules') || 
+        url.startsWith('/system') || 
+        url.startsWith('/logs') || 
+        url.startsWith('/maintenance')
+    )) {
         window.location.href = url;
         return;
     }
@@ -935,7 +941,10 @@ document.addEventListener('click', (e) => {
             !href.startsWith('/terms') && 
             !href.startsWith('/privacy') &&
             !href.startsWith('/settings') &&
-            !href.startsWith('/rules')) {
+            !href.startsWith('/rules') &&
+            !href.startsWith('/system') &&
+            !href.startsWith('/logs') &&
+            !href.startsWith('/maintenance')) {
             e.preventDefault();
             window.history.pushState(null, '', href);
             navigateSPA(href);
