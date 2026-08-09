@@ -60,6 +60,12 @@
                         <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors">
                             <i class="fa-solid fa-layer-group"></i> Bulk Operations
                         </a>
+                        <button onclick="exportMaintenance('csv')" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors">
+                            <i class="fa-solid fa-file-csv"></i> Export CSV
+                        </button>
+                        <button onclick="exportMaintenance('json')" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors">
+                            <i class="fa-solid fa-file-code"></i> Export JSON
+                        </button>
                     </div>
                 </div>
 
@@ -344,6 +350,76 @@
         }
         
         
+        // Export the maintenance queue (all types) as CSV or JSON, client-side.
+        function exportMaintenance(format) {
+            if (!maintenanceData || typeof maintenanceData !== 'object') {
+                toast('Nothing to export yet — queue not loaded', 'info');
+                return;
+            }
+            const queues = [
+                { type: 'move', items: maintenanceData.move_from_x_to_y || [] },
+                { type: 'duplicate', items: maintenanceData.duplicated_videos || [] },
+                { type: 'misplaced', items: maintenanceData.misplaced_videos || [] }
+            ];
+            const rows = [];
+            for (const q of queues) {
+                for (const item of q.items) {
+                    const pls = Array.isArray(item.playlists) ? item.playlists : [];
+                    let from = '', to = '';
+                    if (q.type === 'misplaced') {
+                        from = item.current_playlist_title || item.current_playlist_id || '';
+                        to = item.mapped_playlist_title || item.mapped_playlist_id || '';
+                    } else if (q.type === 'move') {
+                        from = item.source_playlist_title || item.source_playlist_id || '';
+                        to = item.target_playlist_title || item.target_playlist_id || '';
+                    }
+                    rows.push({
+                        queue_type: q.type,
+                        video_id: item.video_id || '',
+                        title: item.video_title || item.title || '',
+                        channel: item.channel || '',
+                        from_playlist: from,
+                        to_playlist: to,
+                        copy_count: item.copy_count || '',
+                        exact_duplicate: item.exact_duplicate != null ? String(item.exact_duplicate) : '',
+                        all_playlists: pls.map(p => p.title || p.id || '').join(' | ')
+                    });
+                }
+            }
+            if (!rows.length) {
+                toast('Queue is empty — nothing to export', 'info');
+                return;
+            }
+            const stamp = new Date().toISOString().slice(0, 19).replace(/[:]/g, '-');
+            if (format === 'json') {
+                const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+                downloadBlob(blob, `maintenance-export-${stamp}.json`);
+                toast(`Exported ${rows.length} item(s) to JSON`, 'success');
+            } else {
+                const headers = ['queue_type', 'video_id', 'title', 'channel', 'from_playlist', 'to_playlist', 'copy_count', 'exact_duplicate', 'all_playlists'];
+                const esc = v => {
+                    const s = String(v == null ? '' : v);
+                    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+                };
+                const lines = [headers.join(',')];
+                for (const r of rows) lines.push(headers.map(h => esc(r[h])).join(','));
+                const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+                downloadBlob(blob, `maintenance-export-${stamp}.csv`);
+                toast(`Exported ${rows.length} item(s) to CSV`, 'success');
+            }
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
         // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
 function initMaintenancePage() {
             loadMaintenance();
