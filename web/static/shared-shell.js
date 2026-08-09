@@ -16,15 +16,15 @@
     const path = window.location.pathname;
     const settingsActive = path === '/settings' ? 'text-[#2f8fc9] border-[#2f8fc9]/40' : 'text-gray-400 border-[#2a2f3a]';
     return `<header class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center justify-between border-b border-[#2a2f3a] shrink-0 z-20">
-        <div class="flex items-center gap-4 pl-14 md:pl-0 flex-1">
-                  <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="site-logo" style="height:62px;width:auto;object-fit:contain;">
-                  <h1 class="text-[27px] md:text-[43px] font-semibold tracking-tight flex items-baseline leading-none site-title">
-                    <span class="text-white">m</span><span class="text-white">o</span><span class="text-white">t</span>
-                    <span class="text-[#2f8fc9]">u</span><span class="text-white">s</span>
-                    <span class="text-gray-500">.</span>
-                    <span class="text-white">l</span><span class="text-white">e</span><span class="text-white">a</span><span class="text-white">p</span>
-                  </h1>
-                </div>
+        <a href="/dashboard" class="flex items-center gap-4 pl-14 md:pl-0 flex-1 cursor-pointer hover:opacity-90 transition-opacity no-underline" title="Go to Dashboard">
+          <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="site-logo" style="height:62px;width:auto;object-fit:contain;">
+          <h1 class="text-[27px] md:text-[43px] font-semibold tracking-tight flex items-baseline leading-none site-title">
+            <span class="text-white">m</span><span class="text-white">o</span><span class="text-white">t</span>
+            <span class="text-[#2f8fc9]">u</span><span class="text-white">s</span>
+            <span class="text-gray-500">.</span>
+            <span class="text-white">l</span><span class="text-white">e</span><span class="text-white">a</span><span class="text-white">p</span>
+          </h1>
+        </a>
         <div class="flex items-center gap-2">
           <a href="/settings" id="settings-gear-btn" aria-label="Settings" title="Settings" class="ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-[#1a1d24] border ${settingsActive} hover:text-[#2f8fc9] hover:border-[#2f8fc9]/40 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/20"><i class="fa-solid fa-gear text-sm"></i></a>
           <button id="live-console-btn" aria-label="Live Console" title="Live Console" class="ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-[#2f8fc9] hover:border-[#2f8fc9]/40 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/20"><i class="fa-solid fa-terminal text-sm"></i></button>
@@ -41,7 +41,7 @@
         <nav class="flex flex-col gap-1.5">
           <a href="/dashboard" class="${active('/dashboard')} flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
           <a href="/playlists" class="${active('/playlists')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-          <a href="/subscriptions" class="${active('/subscriptions')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fab fa-youtube w-5 text-red-500 text-center"></i> Subscriptions</a>
+          <a href="/subscriptions" class="${active('/subscriptions')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fa-solid fa-rss w-5 text-center"></i> Subscriptions</a>
           <a href="/maintenance" class="${active('/maintenance')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
           <div class="mt-1.5 pt-1.5 border-t border-[#2a2f3a]/40">
             <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-sm cursor-pointer select-none transition-colors duration-200 ${path.startsWith('/ai') ? 'bg-[#2f8fc9]/10 text-white font-semibold' : 'text-gray-300 hover:text-white hover:bg-[#2a2f3a]'}" data-group="aihub" onclick="toggleAiGroup('aihub')">

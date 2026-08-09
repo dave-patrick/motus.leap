@@ -180,6 +180,7 @@ class YouTubeService:
         self._cache = LRUAsyncCache(max_size=100, ttl=timedelta(hours=6))
         self._enrich_lock = asyncio.Lock()  # Prevent concurrent enrichment from crashing (heap corruption)
         self._playlist_keys: dict[str, set[str]] = {}
+        self._api_lock = asyncio.Lock()  # Serialize API calls so non-thread-safe httplib2 sockets never corrupt OpenSSL
         # Reentrant single-flight lock (defensive). asyncio.Lock is NOT
         # reentrant; a reentrant lock guarantees that if any internal call path
         # ever re-enters while _data_lock is held (e.g. future refactor of
@@ -451,10 +452,15 @@ class YouTubeService:
             cached_pl = await self._load_from_disk("playlists", max_age_days=30)
             if cached_pl and isinstance(cached_pl, dict) and cached_pl.get("playlists"):
                 pls = cached_pl["playlists"]
+                total_subs = (cached_pl.get("stats") or {}).get("total_subscriptions")
+                if total_subs is None:
+                    cached_subs = await self._load_from_disk("subscriptions", max_age_days=30)
+                    if cached_subs and isinstance(cached_subs, dict):
+                        total_subs = cached_subs.get("total_subscriptions") or len(cached_subs.get("channels", []))
                 return {
                     "total_playlists": len(pls),
                     "total_videos": sum(int((p.get("video_count", 0) or 0)) for p in pls),
-                    "total_subscriptions": (cached_pl.get("stats") or {}).get("total_subscriptions", 0),
+                    "total_subscriptions": total_subs or 0,
                     "cached": True,
                 }
 
@@ -506,11 +512,13 @@ class YouTubeService:
                 disk_payload = await self._load_from_disk(cache_key, max_age_days=30)
                 if disk_payload:
                     if isinstance(disk_payload, dict) and disk_payload.get("playlists"):
+                        pls = await self._sync_playlist_video_counts(disk_payload["playlists"])
                         log.info(f"list_playlists: returning from {cache_key}.json disk cache.")
-                        return {**disk_payload, "cached": True}
+                        return {**disk_payload, "playlists": pls, "cached": True}
                     elif isinstance(disk_payload, list) and len(disk_payload) > 0:
+                        pls = await self._sync_playlist_video_counts(disk_payload)
                         log.info(f"list_playlists: returning from {cache_key}.json disk list cache.")
-                        return {"playlists": disk_payload, "cached": True}
+                        return {"playlists": pls, "cached": True}
 
         client = self.get_client(require_oauth=True)
         if not client:
@@ -899,13 +907,16 @@ class YouTubeService:
         all_items = []
         page_token = None
         consecutive_errors = 0
-        max_consecutive_errors = 3
         unbounded = max_items <= 0
 
         while unbounded or len(all_items) < max_items:
-            # Run the blocking sync fetch_fn in a separate thread to unblock the main FastAPI event loop
             try:
-                resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
+                api_lock = getattr(self, "_api_lock", None)
+                if api_lock is not None:
+                    async with api_lock:
+                        resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
+                else:
+                    resp = await asyncio.to_thread(fetch_fn, max_results, page_token)
             except ssl.SSLError as e:
                 consecutive_errors += 1
                 log.warning(f"_fetch_all_paginated: SSL error ({consecutive_errors}/{max_consecutive_errors}): {e}")
@@ -1224,8 +1235,21 @@ class YouTubeService:
                         log.warning(f"Failed to fetch videos for playlist {pl_id}: {e}. Skipping playlist.")
                         return []
             
-            # Create tasks for all playlists
-            playlist_tasks = [fetch_playlist_videos(pl) for pl in playlists[:max_playlists]]
+            # Create tasks for playlists with concurrency control (max 5 parallel playlist fetches)
+            sem = asyncio.Semaphore(5)
+            completed_playlists = 0
+            total_target = len(playlists[:max_playlists])
+
+            async def sem_fetch_playlist_videos(pl):
+                nonlocal completed_playlists
+                async with sem:
+                    res = await fetch_playlist_videos(pl)
+                    completed_playlists += 1
+                    if completed_playlists % 5 == 0 or completed_playlists == total_target:
+                        log.info(f"[FETCH] Progress: {completed_playlists}/{total_target} playlists fetched")
+                    return res
+
+            playlist_tasks = [sem_fetch_playlist_videos(pl) for pl in playlists[:max_playlists]]
             try:
                 playlist_results: list = await asyncio.gather(*playlist_tasks, return_exceptions=True)
             except Exception as e:
@@ -1274,15 +1298,18 @@ class YouTubeService:
         return await self.get_basic_stats(force_refresh=False)
 
     @cache_result("playlist_videos", ttl=timedelta(minutes=5)) # Cache playlist videos for 5 minutes
-    async def get_videos(self, playlist_id: str, force_refresh: bool = False) -> Dict[str, Any]:
+    async def get_videos(self, playlist_id: str = "", force_refresh: bool = False) -> Dict[str, Any]:
         """Get videos with duration (cached)."""
 
         # 1. If no playlist_id is provided, use the global cache (fetch_all_data already cached)
         if not playlist_id:
             all_data = await self.fetch_all_data(force_refresh=force_refresh)
+            if not force_refresh and not all_data.get("videos") and "error" not in all_data:
+                log.info("[get_videos] Cached all_data has 0 videos — forcing live refresh from YouTube API...")
+                all_data = await self.fetch_all_data(force_refresh=True)
             if "error" in all_data:
                 disk_data = await self._load_from_disk("all_data", max_age_days=365)
-                if disk_data and "videos" in disk_data:
+                if disk_data and "videos" in disk_data and disk_data["videos"]:
                     return {"videos": disk_data["videos"], "cached": True, "warning": all_data["error"]}
                 return {"videos": [], "error": all_data["error"]}
             return {"videos": all_data.get("videos", [])}
@@ -1332,6 +1359,7 @@ class YouTubeService:
                 videos.append(video)
                 
             await self._save_to_disk(f"playlist_videos_{playlist_id}", videos)
+            await self._update_cached_playlist_count(playlist_id, len(videos))
             return {"videos": videos}
         except Exception as e:
             log.error(f"Error fetching live videos for playlist {playlist_id}: {e}")
@@ -1412,5 +1440,47 @@ class YouTubeService:
             await self._cache.set(f"playlist_videos_{pid}", v_list, timedelta(hours=6))
 
         log.info(f"[CACHE] Direct scan cache updated: {len(normalized_playlists)} playlists, {total_videos} videos saved (zero extra API calls).")
+
+    async def _sync_playlist_video_counts(self, playlists: list[dict]) -> list[dict]:
+        """Ensure video_count in each playlist dict reflects accurate counts from individual playlist caches or all_data."""
+        if not playlists:
+            return playlists
+        global_data = await self._load_from_disk("all_data", max_age_days=365)
+        videos_by_pid = {}
+        if global_data and isinstance(global_data, dict) and "videos" in global_data:
+            for v in global_data["videos"]:
+                pid = v.get("playlist_id")
+                if pid:
+                    videos_by_pid[pid] = videos_by_pid.get(pid, 0) + 1
+
+        for pl in playlists:
+            if not isinstance(pl, dict):
+                continue
+            pid = pl.get("id")
+            if not pid:
+                continue
+            pl_cache = await self._load_from_disk(f"playlist_videos_{pid}", max_age_days=365)
+            if isinstance(pl_cache, list):
+                pl["video_count"] = len(pl_cache)
+            elif pid in videos_by_pid:
+                pl["video_count"] = videos_by_pid[pid]
+
+        return playlists
+
+    async def _update_cached_playlist_count(self, playlist_id: str, count: int) -> None:
+        """Update video_count for playlist_id in cached playlists.json & all_data.json."""
+        for key in ["playlists", "all_data", "playlists_report"]:
+            data = await self._load_from_disk(key, max_age_days=365)
+            if not data:
+                continue
+            updated = False
+            pls = data.get("playlists", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+            for pl in pls:
+                if isinstance(pl, dict) and pl.get("id") == playlist_id:
+                    pl["video_count"] = count
+                    updated = True
+            if updated:
+                await self._save_to_disk(key, data)
+
         return all_data
 

@@ -138,6 +138,8 @@ class TubeManagerConfig(BaseModel):
     allowed_origins: List[str] = Field(default_factory=list)
     # ── P2 AI Rules + AI Chat ──
     ai_rules: List[AIRule] = Field(default_factory=list)
+    # List of playlist IDs excluded from mapping, auto-sort, and AI changes.
+    excluded_playlists: List[str] = Field(default_factory=list)
     # Per-user (by identity) chat request ceiling per minute (M8). 0 = unlimited.
     ai_chat_rate_limit_per_min: int = Field(default=20)
 

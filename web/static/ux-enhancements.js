@@ -879,6 +879,10 @@ async function navigateSPA(url) {
                 }
                 oldScript.parentNode.replaceChild(newScript, oldScript);
             });
+        } else {
+            // Fallback to full page reload if page layout lacks a main tag
+            window.location.href = url;
+            return;
         }
 
         // Highlight the active sidebar menu link
@@ -993,6 +997,9 @@ function startAgentActivityTracker() {
         }
         ws.onopen = () => {
             if (logEl) logEl.textContent = 'Agent connected. Streaming telemetry...';
+            if (typeof window.logConsole === 'function') {
+                window.logConsole('WebSocket connected. Real-time telemetry streaming ready.', 'success');
+            }
         };
         ws.onmessage = (event) => {
             let msg;
@@ -1000,11 +1007,17 @@ function startAgentActivityTracker() {
                 msg = JSON.parse(event.data);
             } catch (e) {
                 if (logEl) logEl.textContent = event.data;
+                if (typeof window.logConsole === 'function') {
+                    window.logConsole(event.data, 'info');
+                }
                 return;
             }
-            if (msg.type === 'log') {
-                const text = msg.message;
+            if (msg.type === 'log' || msg.message || msg.text) {
+                const text = msg.message || msg.text || '';
                 if (logEl) logEl.textContent = text;
+                if (typeof window.logConsole === 'function' && text) {
+                    window.logConsole(text, 'info');
+                }
 
                 const logContent = document.getElementById('agent-drawer-log-content');
                 if (logContent) {
@@ -1106,6 +1119,13 @@ function startAgentActivityTracker() {
     window.addEventListener('beforeunload', () => {
         stopStatsPolling();
     });
+}
+
+// Auto-initialize agent activity tracker and WebSocket telemetry on page load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startAgentActivityTracker);
+} else {
+    startAgentActivityTracker();
 }
 
 // Cancel current task
@@ -1323,7 +1343,16 @@ function dockPanel(opts) {
         _closeConsole(undefined, document.getElementById(opts.panelId));
     });
 }
-window.dockPanel = dockPanel;
+window.logConsole = function (text, type = 'info') {
+    const consoleOutput = document.getElementById('console-output');
+    if (!consoleOutput) return;
+    const line = document.createElement('div');
+    const time = new Date().toLocaleTimeString();
+    line.className = `console-line ${type}`;
+    line.textContent = `[${time}] ${text}`;
+    consoleOutput.appendChild(line);
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+};
 
 // ============================================================
 // Global Live Console Widget — terminal button + slide-in panel

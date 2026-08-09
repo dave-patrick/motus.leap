@@ -52,22 +52,29 @@
 </head>
 <body class="min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <!-- ===== FULL-WIDTH TOP HEADER ===== -->
-    <!-- Playlist context bar (below header) -->
-    <div class="px-6 py-2.5 bg-[#16191f] border-b border-[#2a2f3a] flex items-center justify-between gap-3 shrink-0">
-        <div class="flex items-center gap-3">
-            <a href="/playlists" class="px-3.5 py-1.5 rounded-lg bg-[#20242c] hover:bg-[#2f8fc9] text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-sm cursor-pointer">
-                <i class="fa-solid fa-arrow-left"></i> Back to Playlists
-            </a>
-            <span class="text-gray-600">|</span>
-            <span class="text-xs md:text-sm font-semibold text-white truncate" id="playlist-title">Loading...</span>
-            <span class="text-[10px] text-gray-500" id="playlist-meta">-- videos</span>
-        </div>
-    </div>
     <div class="flex flex-1 min-h-0">
     <main class="flex-1 overflow-y-auto p-4 bg-[#121419]">
-            <div class="flex flex-col gap-3  max-w-[1600px] mx-auto w-full">
-                
+            <div class="flex flex-col gap-3 max-w-[1600px] mx-auto w-full">
+                <!-- Playlist Context Header Bar -->
+                <div class="px-5 py-3 bg-[#16191f] border border-[#2a2f3a] rounded-xl flex items-center justify-between gap-3 shrink-0 shadow-md">
+                    <div class="flex items-center gap-3">
+                        <a href="/playlists" class="px-3.5 py-1.5 rounded-lg bg-[#20242c] hover:bg-[#2f8fc9] text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-sm cursor-pointer">
+                            <i class="fa-solid fa-arrow-left"></i> Back to Playlists
+                        </a>
+                        <span class="text-gray-600">|</span>
+                        <span class="text-xs md:text-sm font-semibold text-white truncate" id="playlist-title">Loading...</span>
+                        <span class="text-[10px] text-gray-500" id="playlist-meta">-- videos</span>
+                    </div>
+                    <div id="playlist-exclusion-container">
+                        <label class="flex items-center gap-2 text-xs text-gray-300 hover:text-white cursor-pointer select-none bg-[#20242c] border border-[#2a2f3a] px-3 py-1.5 rounded-lg transition-colors">
+                            <input type="checkbox" id="exclude-playlist-single-toggle" class="accent-[#eab308]">
+                            <i class="fa-solid fa-shield-halved text-[#eab308]"></i> Exclude from Mapping/AI
+                        </label>
+                    </div>
+                </div>
+
                 <!-- Sticky Operations & Control Bar Container -->
+
                 <div class="sticky top-0 z-30 bg-[#121419] pb-2 space-y-3 shadow-xl" style="position: sticky; top: 0; z-index: 40; background-color: #121419;">
                     <!-- Operations Panel (Scan Buttons and Results Box) -->
                     <div class="bento-card p-4 flex flex-col gap-3 shrink-0">

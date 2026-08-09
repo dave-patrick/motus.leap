@@ -98,6 +98,40 @@ async function loadPlaylist() {
             }
         }
         
+        // 1.5 Load exclusion state for this playlist
+        try {
+            const exResp = await fetch('/api/playlists/excluded');
+            if (exResp.ok) {
+                const exData = await exResp.json();
+                const excludedSet = new Set(exData.excluded_playlists || []);
+                const singleToggle = document.getElementById('exclude-playlist-single-toggle');
+                if (singleToggle) {
+                    singleToggle.checked = excludedSet.has(playlistId);
+                    singleToggle.onchange = async () => {
+                        try {
+                            const tResp = await fetch('/api/playlists/excluded/toggle', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ playlist_id: playlistId })
+                            });
+                            const tData = await tResp.json();
+                            if (tResp.ok) {
+                                toast(tData.status === 'excluded' ? 'Playlist excluded from mapping & AI' : 'Playlist included in mapping & AI', 'success');
+                            } else {
+                                toast(tData.error || 'Failed to update exclusion', 'error');
+                                singleToggle.checked = !singleToggle.checked;
+                            }
+                        } catch (err) {
+                            toast(`Error: ${err.message}`, 'error');
+                            singleToggle.checked = !singleToggle.checked;
+                        }
+                    };
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load excluded playlists:', e);
+        }
+
         // 2. Load the videos inside this playlist
         const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}`);
         if (!resp.ok && resp.status !== 403) {

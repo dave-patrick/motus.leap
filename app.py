@@ -244,8 +244,10 @@ async def lifespan(app: FastAPI):
                 if getattr(config, "ai_auto_apply_mappings", False):
                     log.info("[NIGHTLY] Running auto-apply mappings job...")
                     from services.ai_classifier import get_channel_mapping_suggestions
-                    suggestions = await get_channel_mapping_suggestions()
+                    excluded = set(getattr(config, "excluded_playlists", []) or [])
                     for s in suggestions:
+                        if s.get("playlist_id") in excluded:
+                            continue
                         if s["move_count"] >= 3:
                             config.channel_mappings[s["channel_id"]] = s["playlist_id"]
                             log.info(f"[NIGHTLY] Auto-applied mapping: {s['channel_title']} -> {s['playlist_name']}")
@@ -974,6 +976,24 @@ async def api_playlists(request: Request, force_refresh: bool = False) -> dict[s
     return {"playlists": [], "error": "YouTube service not available"}
 
 
+@app.get("/api/youtube/watch-later-count", dependencies=[Depends(get_current_user)])
+async def api_watch_later_count() -> dict[str, Any]:
+    """Return the number of videos in the authenticated user's Watch Later playlist."""
+    if not youtube_service:
+        return {"count": None, "error": "YouTube service not available"}
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        return {"count": None, "error": "YouTube not authenticated"}
+    try:
+        # Use get_videos which handles caching and pagination via list_videos
+        result = await youtube_service.get_videos("WL")
+        vlist = result.get("videos", []) if isinstance(result, dict) else (result if isinstance(result, list) else [])
+        return {"count": len(vlist)}
+    except Exception as e:
+        log.warning(f"[WL count] Could not fetch Watch Later count: {e}")
+        return {"count": None, "error": str(e)}
+
+
 @app.post("/api/youtube/playlists/rename", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def rename_playlist_endpoint(payload: dict):
     playlist_id = payload.get("playlist_id")
@@ -1249,19 +1269,67 @@ async def api_subscriptions() -> dict[str, Any]:
 # Maintenance endpoint
 @app.get("/api/maintenance", dependencies=[Depends(get_current_user)])
 async def api_maintenance() -> dict[str, Any]:
-    """Get maintenance data."""
+    """Get maintenance data enriched with resolved playlist titles, deleted count, and private count."""
     maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
-    if maintenance_file.exists():
-        try:
-            return json.loads(maintenance_file.read_text())
-        except Exception:
-            pass
-    return {
+    data: dict[str, Any] = {
         "move_from_x_to_y": [],
         "duplicated_videos": [],
         "misplaced_videos": [],
-        "info": "Maintenance analysis requires full video scan. Run Full Playlist Sync first."
+        "deleted_count": 0,
+        "private_count": 0,
+        "info": "Maintenance analysis requires full video scan."
     }
+    if maintenance_file.exists():
+        try:
+            raw_data = json.loads(await asyncio.to_thread(maintenance_file.read_text))
+            if isinstance(raw_data, dict):
+                data.update(raw_data)
+        except Exception as e:
+            log.warning(f"Error reading maintenance.json: {e}")
+
+    if youtube_service:
+        try:
+            pls = await youtube_service.list_playlists()
+            title_map = {p.get("id"): p.get("title") for p in (pls.get("playlists") or []) if p.get("id")}
+            
+            for key in ("misplaced_videos", "move_from_x_to_y", "duplicated_videos"):
+                for item in data.get(key, []):
+                    if "mapped_playlist_id" in item:
+                        mid = item["mapped_playlist_id"]
+                        if mid and mid in title_map:
+                            item["mapped_playlist_title"] = title_map[mid]
+                    if "target_playlist_id" in item:
+                        tid = item["target_playlist_id"]
+                        if tid and tid in title_map:
+                            item["target_playlist_title"] = title_map[tid]
+                    if "current_playlist_id" in item:
+                        cid = item["current_playlist_id"]
+                        if cid and cid in title_map:
+                            item["current_playlist_title"] = title_map[cid]
+                    if "source_playlist_id" in item:
+                        sid = item["source_playlist_id"]
+                        if sid and sid in title_map:
+                            item["source_playlist_title"] = title_map[sid]
+                    if "playlists" in item and isinstance(item["playlists"], list):
+                        for p in item["playlists"]:
+                            pid = p.get("id") or p.get("playlist_id")
+                            if pid and pid in title_map:
+                                p["title"] = title_map[pid]
+        except Exception as e:
+            log.warning(f"Failed to enrich playlist titles in api_maintenance: {e}")
+
+        try:
+            all_videos = await youtube_service.get_videos()
+            vlist = all_videos.get("videos", []) if isinstance(all_videos, dict) else []
+            if vlist:
+                deleted_vids = [v for v in vlist if v.get("status") == "deleted" or v.get("title") in ("Deleted video", "Private video")]
+                private_vids = [v for v in vlist if v.get("status") == "private" or v.get("privacy_status") == "private"]
+                data["deleted_count"] = len(deleted_vids)
+                data["private_count"] = len(private_vids)
+        except Exception as e:
+            log.warning(f"Failed to calculate deleted/private counts: {e}")
+
+    return data
 
 
 @app.post("/api/maintenance/remove-deleted", dependencies=[Depends(get_current_user)])
@@ -1816,51 +1884,99 @@ async def _maintenance_apply_one(
     if not video_id:
         return {"status": "error", "action": action, "error": "missing video_id"}
 
-    if action == "remove":
-        if not playlist_id:
-            return {"status": "error", "action": "remove", "error": "missing playlist_id"}
-        item_id = await _maintenance_resolve_item_id(
-            yt_client, playlist_id, video_id, playlist_item_id
-        )
-        if not item_id:
-            # Item likely already removed from the playlist — dismiss from queue.
-            _maintenance_drop_record(video_id, item_type)
-            return {"status": "ok", "action": "remove", "video_id": video_id,
-                    "message": "Item not found in playlist (already removed), dismissed from queue"}
-        yt_client.remove_video_from_playlist_item(item_id)
-        # Invalidate cache so the change shows immediately.
-        try:
-            await youtube_service._cache_invalidate_playlist(playlist_id)
-        except Exception:
-            pass
-        _maintenance_drop_record(video_id, item_type)
-        return {"status": "ok", "action": "remove", "video_id": video_id,
-                "playlist_item_id": item_id}
-
-    if action == "move":
-        target_playlist_id = target_playlist_id or record.get(
-            "mapped_playlist_id"
-        ) or record.get("target_playlist_id")
-        if not playlist_id:
-            return {"status": "error", "action": "move", "error": "missing source playlist_id"}
-        if not target_playlist_id:
-            return {"status": "error", "action": "move", "error": "missing target_playlist_id"}
-        # 1 delete (source) + 1 insert (target) = 2 quota units.
-        item_id = await _maintenance_resolve_item_id(
-            yt_client, playlist_id, video_id, playlist_item_id
-        )
-        if not item_id:
-            return {"status": "error", "action": "move",
-                    "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
-        yt_client.remove_video_from_playlist_item(item_id)
-        yt_client.add_video_to_playlist(target_playlist_id, video_id)
-        for pid in (playlist_id, target_playlist_id):
+    try:
+        if action == "remove":
+            if not playlist_id:
+                return {"status": "error", "action": "remove", "error": "missing playlist_id"}
+            item_id = await _maintenance_resolve_item_id(
+                yt_client, playlist_id, video_id, playlist_item_id
+            )
+            if not item_id:
+                # Item likely already removed from the playlist — dismiss from queue.
+                _maintenance_drop_record(video_id, item_type)
+                return {"status": "ok", "action": "remove", "video_id": video_id,
+                        "message": "Item not found in playlist (already removed), dismissed from queue"}
+            yt_client.remove_video_from_playlist_item(item_id)
+            # Invalidate cache so the change shows immediately.
             try:
-                await youtube_service._cache_invalidate_playlist(pid)
+                await youtube_service._cache_invalidate_playlist(playlist_id)
             except Exception:
                 pass
-        return {"status": "ok", "action": "move", "video_id": video_id,
-                "source": playlist_id, "target": target_playlist_id}
+            _maintenance_drop_record(video_id, item_type)
+            return {"status": "ok", "action": "remove", "video_id": video_id,
+                    "playlist_item_id": item_id}
+
+        if action == "move":
+            target_playlist_id = target_playlist_id or record.get(
+                "mapped_playlist_id"
+            ) or record.get("target_playlist_id")
+            if not playlist_id:
+                return {"status": "error", "action": "move", "error": "missing source playlist_id"}
+            if not target_playlist_id:
+                return {"status": "error", "action": "move", "error": "missing target_playlist_id"}
+            # 1 delete (source) + 1 insert (target) = 2 ops (100 quota units).
+            item_id = await _maintenance_resolve_item_id(
+                yt_client, playlist_id, video_id, playlist_item_id
+            )
+            if not item_id:
+                return {"status": "error", "action": "move",
+                        "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
+            yt_client.remove_video_from_playlist_item(item_id)
+            yt_client.add_video_to_playlist(target_playlist_id, video_id)
+
+            # Automatic System Learning: record video content & title training memory
+            learned_content = False
+            v_title = record.get("video_title") or record.get("title") or video_id
+            v_channel_id = record.get("channel_id") or ""
+            v_channel_title = record.get("channel_title") or ""
+
+            # Resolve target playlist title
+            target_name = target_playlist_id
+            try:
+                if youtube_service:
+                    all_pls = await youtube_service.list_playlists()
+                    for p in all_pls:
+                        if p.get("id") == target_playlist_id:
+                            target_name = p.get("title") or target_playlist_id
+                            break
+            except Exception:
+                pass
+
+            try:
+                from services.ai_classifier import record_move
+                await record_move(
+                    video_id=video_id,
+                    title=v_title,
+                    channel_id=v_channel_id,
+                    channel_title=v_channel_title,
+                    from_playlist_name=playlist_id,
+                    from_playlist_id=playlist_id,
+                    to_playlist_name=target_name,
+                    to_playlist_id=target_playlist_id,
+                    source="maintenance_correction"
+                )
+                learned_content = True
+                log.info(f"[LEARNING] Recorded AI content memory: '{v_title}' => '{target_name}'")
+            except Exception as learn_err:
+                log.warning(f"[LEARNING] Failed to record AI content memory: {learn_err}")
+
+            for pid in (playlist_id, target_playlist_id):
+                try:
+                    await youtube_service._cache_invalidate_playlist(pid)
+                except Exception:
+                    pass
+
+            _maintenance_drop_record(video_id, item_type)
+            return {"status": "ok", "action": "move", "video_id": video_id,
+                    "source": playlist_id, "target": target_playlist_id, "learned": learned_content}
+    except Exception as exc:
+        err_str = str(exc)
+        if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:
+            log.warning(f"[QUOTA] YouTube API daily quota exceeded during maintenance '{action}': {err_str}")
+            return {"status": "error", "quota_exceeded": True, "action": action, "video_id": video_id,
+                    "error": "YouTube API daily quota limit reached (10,000 units/day). Google resets quota daily."}
+        log.error(f"[MAINTENANCE] Error during '{action}': {err_str}")
+        return {"status": "error", "action": action, "video_id": video_id, "error": err_str}
 
     return {"status": "error", "action": action, "error": f"unknown action '{action}'"}
 
@@ -1904,6 +2020,9 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     # Single-item actions
     if action != "fix_all":
         try:
+            if background_worker and background_worker.manager:
+                vid_text = f" video {payload.video_id}" if payload.video_id else ""
+                await background_worker._safe_broadcast({"type": "log", "message": f"[WORKER] Maintenance '{action}' on {item_type}{vid_text}..."})
             result = await _maintenance_apply_one(
                 yt_client,
                 action=action,
@@ -1915,13 +2034,20 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                 video_id=payload.video_id,
             )
             if result.get("status") == "ok":
-                # Drop the inner "status":"ok" so it doesn't overwrite "success".
+                if background_worker and background_worker.manager:
+                    await background_worker._safe_broadcast({"type": "log", "message": f"[WORKER] Maintenance '{action}' succeeded"})
                 clean = {k: v for k, v in result.items() if k != "status"}
                 return {"status": "success", **clean}
-            return result  # already {"status": "error", ...}
+            if background_worker and background_worker.manager:
+                await background_worker._safe_broadcast({"type": "log", "message": f"[ERROR] Maintenance '{action}' failed: {result.get('error')}"})
+            return result
         except Exception as e:
-            log.error(f"Maintenance action '{action}' failed: {e}")
-            return {"status": "error", "error": str(e)}
+            err_str = str(e)
+            log.error(f"Maintenance action '{action}' failed: {err_str}")
+            if background_worker and background_worker.manager:
+                await background_worker._safe_broadcast({"type": "log", "message": f"[ERROR] Maintenance '{action}' exception: {err_str}"})
+            is_quota = "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str
+            return {"status": "error", "quota_exceeded": is_quota, "error": err_str}
 
     # fix_all: apply the given action to every record of the given type.
     maintenance = _load_maintenance_data()
@@ -1930,11 +2056,11 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     succeeded = 0
     failed = 0
     errors = []
+    quota_hit = False
+
     for rec in records:
-        # fix_all is an aggregate of a real per-item op. Map it to that op:
-        #   - misplaced/move → remove (delete the item from its current/source playlist;
-        #     there is no single insert target for "fix all" on these types).
-        #   - dup → remove each *non-primary* copy (keep playlists[0], the primary).
+        if quota_hit:
+            break
         if item_type == "dup":
             sub_action = "remove"
             copy_playlists = rec.get("playlists", []) or []
@@ -1961,11 +2087,18 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                     else:
                         failed += 1
                         errors.append(res.get("error", "unknown error"))
+                        if res.get("quota_exceeded"):
+                            quota_hit = True
+                            break
                 except Exception as e:
                     failed += 1
-                    errors.append(str(e))
+                    err_str = str(e)
+                    errors.append(err_str)
+                    if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:
+                        quota_hit = True
+                        break
             continue
-        # misplaced / move: fix_all deletes each item from its current/source playlist.
+        # misplaced / move
         sub_action = "remove"
         processed += 1
         try:
@@ -1984,16 +2117,158 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
             else:
                 failed += 1
                 errors.append(res.get("error", "unknown error"))
+                if res.get("quota_exceeded"):
+                    quota_hit = True
+                    break
         except Exception as e:
             failed += 1
-            errors.append(str(e))
-            continue
+            err_str = str(e)
+            errors.append(err_str)
+            if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:
+                quota_hit = True
+                break
+
+    if quota_hit:
+        return {
+            "status": "warning",
+            "quota_exceeded": True,
+            "processed": processed,
+            "succeeded": succeeded,
+            "failed": failed,
+            "error": f"YouTube API daily quota limit reached (10,000 units/day). Processed {succeeded} item(s) before limit. Google resets quota daily.",
+            "errors": errors[:25],
+        }
+
     return {
         "status": "success" if failed == 0 else "partial",
         "processed": processed,
         "succeeded": succeeded,
         "failed": failed,
         "errors": errors[:25],
+    }
+
+
+class MoveWatchLaterIn(BaseModel):
+    target_playlist_id: str
+    source_playlist_id: str = "WL"
+
+
+@app.post("/api/maintenance/move-watch-later", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
+    """Move all videos from Watch Later (or a specified source playlist) to a target playlist."""
+    if youtube_service is None:
+        raise HTTPException(status_code=400, detail="YouTube service not initialized")
+    yt_client = youtube_service.get_client(require_oauth=True)
+    if not yt_client:
+        raise HTTPException(status_code=400, detail="YouTube client not authenticated")
+
+    target_pid = payload.target_playlist_id
+    source_pid = payload.source_playlist_id or "WL"
+    if not target_pid:
+        raise HTTPException(status_code=422, detail="target_playlist_id is required")
+
+    # Fetch videos from source playlist
+    source_payload = None
+    try:
+        source_payload = await youtube_service.get_videos(source_pid)
+    except Exception as e:
+        log.warning(f"Cached videos lookup for {source_pid} returned error: {e}")
+
+    vlist = []
+    if isinstance(source_payload, dict):
+        vlist = source_payload.get("videos", [])
+    elif isinstance(source_payload, list):
+        vlist = source_payload
+
+    if not vlist:
+        try:
+            # Fallback: live fetch using list_videos (correct client method)
+            fetched = await youtube_service._fetch_all_paginated(
+                lambda max_results, page_token: yt_client.list_videos(source_pid, page_token=page_token, max_results=max_results),
+                max_results=50, max_items=500
+            )
+            vlist = [
+                {
+                    "id": it.get("contentDetails", {}).get("videoId"),
+                    "playlist_item_id": it.get("id"),
+                    "title": it.get("snippet", {}).get("title"),
+                }
+                for it in fetched if isinstance(it, dict) and it.get("contentDetails", {}).get("videoId")
+            ]
+        except Exception as e:
+            log.error(f"Live fetch failed for source playlist {source_pid}: {e}")
+
+    if not vlist:
+        return {"status": "ok", "moved": 0, "message": "No videos found in Watch Later to move"}
+
+    moved_count = 0
+    failed_count = 0
+
+    target_title = target_pid
+    try:
+        pls_resp = await youtube_service.list_playlists()
+        all_pls = pls_resp.get("playlists", []) if isinstance(pls_resp, dict) else (pls_resp if isinstance(pls_resp, list) else [])
+        for p in all_pls:
+            if isinstance(p, dict) and p.get("id") == target_pid:
+                target_title = p.get("title") or target_pid
+                break
+    except Exception:
+        pass
+
+    for v in vlist:
+        if isinstance(v, dict):
+            vid = v.get("id") or v.get("video_id")
+            pli_id = v.get("playlist_item_id")
+            v_title = v.get("title", vid)
+            v_cid = v.get("channel_id", "")
+            v_ctitle = v.get("channel_title", "")
+        else:
+            vid = str(v)
+            pli_id = None
+            v_title = vid
+            v_cid = ""
+            v_ctitle = ""
+
+        if not vid:
+            continue
+        try:
+            if not pli_id:
+                pli_id = await _maintenance_resolve_item_id(yt_client, source_pid, vid, None)
+            if pli_id:
+                yt_client.remove_video_from_playlist_item(pli_id)
+            yt_client.add_video_to_playlist(target_pid, vid)
+            moved_count += 1
+
+            try:
+                from services.ai_classifier import record_move
+                await record_move(
+                    video_id=vid,
+                    title=v_title,
+                    channel_id=v_cid,
+                    channel_title=v_ctitle,
+                    from_playlist_name=source_pid,
+                    from_playlist_id=source_pid,
+                    to_playlist_name=target_title,
+                    to_playlist_id=target_pid,
+                    source="batch_watch_later_move"
+                )
+            except Exception:
+                pass
+        except Exception as err:
+            log.warning(f"Failed moving video {vid} from {source_pid} to {target_pid}: {err}")
+            failed_count += 1
+
+    for pid in (source_pid, target_pid):
+        try:
+            await youtube_service._cache_invalidate_playlist(pid)
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "moved": moved_count,
+        "failed": failed_count,
+        "message": f"Successfully moved {moved_count} video(s) from Watch Later to '{target_title}'!"
     }
 
 
@@ -3486,6 +3761,14 @@ async def ai_update_rule(rule_id: str, body: AIRuleUpdateIn):
     return {"id": rule.id, "status": "updated"}
 
 
+class ExcludedPlaylistsIn(BaseModel):
+    excluded_playlists: list[str]
+
+
+class ExcludedPlaylistToggleIn(BaseModel):
+    playlist_id: str
+
+
 @app.delete("/api/ai/rules/{rule_id}", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def ai_delete_rule(rule_id: str):
     """Delete a rule."""
@@ -3496,6 +3779,40 @@ async def ai_delete_rule(rule_id: str):
         raise HTTPException(status_code=404, detail="Rule not found")
     await config_manager.save(config)
     return {"ok": True}
+
+
+@app.get("/api/playlists/excluded", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def get_excluded_playlists():
+    """Get list of excluded playlist IDs."""
+    config = config_manager.config
+    return {"excluded_playlists": getattr(config, "excluded_playlists", []) or []}
+
+
+@app.put("/api/playlists/excluded", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@app.post("/api/playlists/excluded", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def update_excluded_playlists(body: ExcludedPlaylistsIn):
+    """Update list of excluded playlist IDs."""
+    config = config_manager.config
+    config.excluded_playlists = list(dict.fromkeys(body.excluded_playlists))
+    await config_manager.save(config)
+    return {"ok": True, "excluded_playlists": config.excluded_playlists}
+
+
+@app.post("/api/playlists/excluded/toggle", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def toggle_excluded_playlist(body: ExcludedPlaylistToggleIn):
+    """Toggle exclusion status for a playlist ID."""
+    config = config_manager.config
+    current = list(getattr(config, "excluded_playlists", []) or [])
+    pid = body.playlist_id
+    if pid in current:
+        current.remove(pid)
+        status = "included"
+    else:
+        current.append(pid)
+        status = "excluded"
+    config.excluded_playlists = current
+    await config_manager.save(config)
+    return {"ok": True, "status": status, "excluded_playlists": config.excluded_playlists}
 
 
 @app.post("/api/ai/chat", dependencies=[Depends(get_current_user), Depends(verify_origin)])
@@ -4069,14 +4386,20 @@ async def clear_system_logs():
 @app.get("/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def system_logs_page():
     """System logs viewer page."""
-    log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
+    data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    log_file = data_dir / "tube_manager.log"
+    if not log_file.exists():
+        local_log = Path("tube_manager.log")
+        if local_log.exists():
+            log_file = local_log
+
     logs_html = ""
     if log_file.exists():
         try:
-            content = await asyncio.to_thread(log_file.read_text)
-            lines = content.strip().split("\n")
-            last_200 = lines[-200:] if len(lines) > 200 else lines
-            for line in last_200:
+            content = await asyncio.to_thread(lambda: log_file.read_text(encoding="utf-8", errors="ignore"))
+            lines = [l for l in content.strip().split("\n") if l.strip()]
+            last_lines = lines[-500:] if len(lines) > 500 else lines
+            for line in last_lines:
                 escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 level = "OTHER"
                 style = ""
@@ -4096,7 +4419,7 @@ async def system_logs_page():
         except Exception as e:
             logs_html = f'<div style="color:#ff6b6b">Error reading logs: {e}</div>'
     else:
-        logs_html = '<div style="color:#868e96">No log file found. Logs are written to stdout only. Set a log file path in config to enable file logging.</div>'
+        logs_html = '<div style="color:#868e96">No log file found yet. System logs will record to file on next operation.</div>'
 
     return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en">
@@ -4104,56 +4427,106 @@ async def system_logs_page():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System Logs - motus.leap</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
+    <script src="/static/shared-shell.js?v=20260720b"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720b">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
-        body {{ font-family: 'JetBrains Mono', monospace; background: #0a0c10; color: #e5e5e5; margin: 0; padding: 0; }}
-        .header {{ background: #16191f; border-bottom: 1px solid #2a2f3a; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 20; }}
-        .header h1 {{ font-size: 14px; margin: 0; color: #e5e5e5; }}
-        .header a {{ color: #60a5fa; text-decoration: none; font-size: 12px; }}
-        .header a:hover {{ text-decoration: underline; }}
-        .controls {{ padding: 8px 20px; background: #16191f; border-bottom: 1px solid #2a2f3a; display: flex; gap: 8px; position: sticky; top: 43px; z-index: 10; flex-wrap: wrap; align-items: center; }}
-        .controls button {{ background: #20242c; border: 1px solid #2a2f3a; color: #9ca3af; font-size: 10px; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono', monospace; transition: all 0.15s; }}
-        .controls button:hover {{ background: #2a2f3a; color: #e5e5e5; }}
-        .filter-active {{ background: #3b82f6 !important; color: white !important; border-color: #3b82f6 !important; }}
-        .log-container {{ padding: 16px 20px; font-size: 11px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; }}
-        .log-container div {{ border-bottom: 1px solid #1a1d24; padding: 2px 0; }}
+        body {{ font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; margin: 0; min-height: 100vh; }}
+        .font-mono {{ font-family: 'JetBrains Mono', monospace; }}
+        .bento-card {{ background-color: #1a1d24; border: 1px solid #2a2f3a; border-radius: 16px; box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4); }}
+        .filter-btn.active {{ background-color: #2f8fc9 !important; color: #ffffff !important; border-color: #2f8fc9 !important; }}
+        ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+        ::-webkit-scrollbar-track {{ background: #14171f; }}
+        ::-webkit-scrollbar-thumb {{ background: #2a2f3a; border-radius: 3px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: #374151; }}
     </style>
+    <script src="/static/auth-check.js?v=1781919149"></script>
+    <script src="/static/global_scripts.js?v=1781919149"></script>
+    <script src="/static/ux-enhancements.js?v=20260720b"></script>
 </head>
-<body>
-    <div class="header">
-        <h1>📋 System Logs — motus.leap</h1>
-        <a href="/settings">← Back to Settings</a>
+<body class="bg-[#121419] text-gray-200 flex flex-col min-h-screen h-screen overflow-hidden">
+    <div class="flex flex-1 min-h-0 overflow-hidden">
+        <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0f1115] pb-24">
+            <div class="max-w-7xl mx-auto space-y-4">
+                <!-- Top Title Bar -->
+                <div class="flex items-center justify-between bg-[#1a1d24] border border-[#2a2f3a] p-4 rounded-xl shadow-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-[#2f8fc9]/10 border border-[#2f8fc9]/20 flex items-center justify-center text-[#2f8fc9]">
+                            <i class="fa-solid fa-file-lines text-base"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-base font-bold text-white tracking-wide flex items-center gap-2">
+                                System Logs
+                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#2f8fc9]/20 text-[#2f8fc9] border border-[#2f8fc9]/30">Live Stream</span>
+                            </h1>
+                            <p class="text-[11px] text-gray-400">Diagnostic server output and background execution logs</p>
+                        </div>
+                    </div>
+                    <a href="/settings" class="px-3.5 py-2 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white rounded-lg text-xs font-medium transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-arrow-left text-[11px]"></i> Back to Settings
+                    </a>
+                </div>
+
+                <!-- Controls & Log Viewer Card -->
+                <div class="bento-card flex-1 flex flex-col overflow-hidden border border-[#2a2f3a]">
+                    <!-- Toolbar -->
+                    <div class="p-3 bg-[#14171f] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button onclick="location.reload()" class="px-3 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-rotate-right text-[11px] text-[#2f8fc9]"></i> Refresh
+                            </button>
+                            <button onclick="copyLogs(this)" class="px-3 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-copy text-[11px] text-gray-400"></i> Copy Logs
+                            </button>
+                            <button onclick="clearLogs(this)" class="px-3 py-1.5 bg-[#20242c] hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs rounded-lg font-medium transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-trash-can text-[11px]"></i> Clear Logs
+                            </button>
+                            <div class="h-4 w-px bg-[#2a2f3a] mx-1"></div>
+                            <button onclick="scrollToBottom()" class="px-2.5 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-down text-[10px]"></i> Bottom
+                            </button>
+                            <button onclick="scrollToTop()" class="px-2.5 py-1.5 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 hover:text-white text-xs rounded-lg font-medium transition-all flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-up text-[10px]"></i> Top
+                            </button>
+                        </div>
+                        <!-- Filters -->
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[11px] text-gray-400 font-medium mr-1">Filter:</span>
+                            <button class="filter-btn active px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('ALL', this)">ALL</button>
+                            <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('DEBUG', this)">DEBUG</button>
+                            <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('INFO', this)">INFO</button>
+                            <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('WARNING', this)">WARNING</button>
+                            <button class="filter-btn px-2.5 py-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 rounded-md text-[11px] font-medium transition-all" onclick="filterLogs('ERROR', this)">ERROR</button>
+                        </div>
+                    </div>
+                    <!-- Log Output Terminal Area -->
+                    <div class="p-4 flex-1 bg-[#0e1015] font-mono text-[11px] leading-relaxed overflow-y-auto max-h-[70vh] min-h-[400px] border-t border-[#2a2f3a]" id="log-container">
+                        {logs_html}
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
-    <div class="controls">
-        <button onclick="location.reload()">🔄 Refresh</button>
-        <button onclick="copyLogs(this)">📋 Copy Logs</button>
-        <button onclick="clearLogs(this)" style="color:#ef4444;border-color:rgba(239,68,68,0.3)">🗑️ Clear Logs</button>
-        <button onclick="scrollToBottom()">⬇ Bottom</button>
-        <button onclick="scrollToTop()">⬆ Top</button>
-        <div style="display:flex;gap:4px;margin-left:auto;align-items:center;">
-            <span style="font-size:10px;color:#9ca3af;margin-right:4px;">Filter:</span>
-            <button class="filter-btn filter-active" onclick="filterLogs('ALL', this)">ALL</button>
-            <button class="filter-btn" onclick="filterLogs('DEBUG', this)">DEBUG</button>
-            <button class="filter-btn" onclick="filterLogs('INFO', this)">INFO</button>
-            <button class="filter-btn" onclick="filterLogs('WARNING', this)">WARNING</button>
-            <button class="filter-btn" onclick="filterLogs('ERROR', this)">ERROR</button>
-        </div>
-    </div>
-    <div class="log-container" id="log-container">{logs_html}</div>
+
     <script>
         window.scrollTo({{ top: document.body.scrollHeight, behavior: 'instant' }});
 
         function scrollToBottom() {{
-            window.scrollTo({{ top: document.body.scrollHeight, behavior: 'smooth' }});
+            const el = document.getElementById('log-container');
+            if (el) el.scrollTo({{ top: el.scrollHeight, behavior: 'smooth' }});
         }}
 
         function scrollToTop() {{
-            window.scrollTo({{ top: 0, behavior: 'smooth' }});
+            const el = document.getElementById('log-container');
+            if (el) el.scrollTo({{ top: 0, behavior: 'smooth' }});
         }}
 
         function filterLogs(level, btn) {{
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('filter-active'));
-            btn.classList.add('filter-active');
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
             document.querySelectorAll('.log-line').forEach(line => {{
                 if (level === 'ALL' || line.dataset.level === level) {{
                     line.style.display = '';
@@ -4168,7 +4541,7 @@ async def system_logs_page():
             try {{
                 const resp = await fetch('/api/system/logs/clear', {{ method: 'POST' }});
                 if (resp.ok) {{
-                    document.getElementById('log-container').innerHTML = '<div style="color:#868e96">Logs cleared.</div>';
+                    document.getElementById('log-container').innerHTML = '<div class="text-gray-500">Logs cleared.</div>';
                 }} else {{
                     alert('Failed to clear logs');
                 }}
@@ -4181,9 +4554,9 @@ async def system_logs_page():
             const container = document.getElementById('log-container');
             const text = container.innerText || container.textContent;
             navigator.clipboard.writeText(text).then(() => {{
-                const orig = btn.innerText;
-                btn.innerText = '✅ Copied!';
-                setTimeout(() => btn.innerText = orig, 2000);
+                const orig = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> Copied!';
+                setTimeout(() => btn.innerHTML = orig, 2000);
             }}).catch(err => {{
                 console.error('Copy failed:', err);
                 const textArea = document.createElement('textarea');
@@ -4192,11 +4565,11 @@ async def system_logs_page():
                 textArea.select();
                 try {{
                     document.execCommand('copy');
-                    const orig = btn.innerText;
-                    btn.innerText = '✅ Copied!';
-                    setTimeout(() => btn.innerText = orig, 2000);
+                    const orig = btn.innerHTML;
+                    btn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> Copied!';
+                    setTimeout(() => btn.innerHTML = orig, 2000);
                 }} catch (e) {{
-                    alert('Copy failed');
+                    alert('Failed to copy logs');
                 }}
                 document.body.removeChild(textArea);
             }});

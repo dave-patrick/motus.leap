@@ -51,13 +51,19 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 class="text-xl font-bold text-white">Maintenance Queue</h2>
                     <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="runScanFromMaintenance()" id="btn-run-scan" class="px-3.5 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
+                            <i class="fa-solid fa-magnifying-glass"></i> Run Scan
+                        </button>
                         <button onclick="removeDeletedVideos()" id="btn-remove-deleted" class="px-3.5 py-2 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
                             <i class="fa-solid fa-trash-can"></i> Remove Deleted Videos
                         </button>
                         <button onclick="movePrivateVideos()" id="btn-move-private" class="px-3.5 py-2 rounded-lg bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
                             <i class="fa-solid fa-box-archive"></i> Move Private Videos to "Check Later"
                         </button>
-                        <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-colors">
+                        <button onclick="openMoveWatchLaterModal()" id="btn-move-watch-later" class="px-3.5 py-2 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
+                            <i class="fa-solid fa-clock"></i> Move All "Watch Later" Videos
+                        </button>
+                        <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors">
                             <i class="fa-solid fa-layer-group"></i> Bulk Operations
                         </a>
                         <button onclick="exportMaintenance('csv')" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors">
@@ -69,27 +75,68 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div class="bento-card flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
-                            <h3 class="text-xs font-semibold text-gray-300">Duplicated Videos</h3>
-                            <button onclick="applyMaintenance('dup')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1 px-2 rounded">Resolve All</button>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Column 1: Duplicated Videos -->
+                    <div class="bento-card flex flex-col overflow-hidden min-h-[500px]">
+                        <div class="px-5 py-4 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center gap-3">
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-clone text-[#2f8fc9]"></i> Duplicated Videos
+                                    <span id="dup-count-badge" class="ml-1 px-2 py-0.5 rounded-full bg-[#2f8fc9]/20 text-[#2f8fc9] text-xs font-bold border border-[#2f8fc9]/30">0</span>
+                                </h3>
+                                <p class="text-[11px] text-gray-400 truncate">Videos saved across multiple playlists or re-uploaded</p>
+                            </div>
+                            <button onclick="applyMaintenance('dup')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 cursor-pointer"><i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i> Resolve All</button>
                         </div>
-                        <div class="p-3 overflow-y-auto flex-1" id="dup-queue">Loading...</div>
+
+                        <!-- Multiselect Batch Action Bar for Duplicates -->
+                        <div id="dup-batch-bar" class="hidden px-5 py-2.5 bg-[#181c24] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="chk-select-all-dup" onchange="toggleSelectAllDup(this)" class="w-4 h-4 rounded bg-[#2a2f3a] border-gray-600 text-[#2f8fc9] cursor-pointer">
+                                <label for="chk-select-all-dup" class="text-gray-300 font-semibold cursor-pointer">Select All (<span id="selected-dup-count" class="text-[#2f8fc9] font-bold">0</span>)</label>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="executeBatchKeepDup()" id="btn-batch-keep-dup" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                                    <i class="fa-solid fa-bookmark text-[10px]"></i> Keep Selected
+                                </button>
+                                <button onclick="executeBatchRemoveDup()" id="btn-batch-remove-dup" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                                    <i class="fa-solid fa-trash-can text-[10px]"></i> Remove Selected Copies
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="p-4 overflow-y-auto flex-1 max-h-[75vh]" id="dup-queue">Loading...</div>
                     </div>
-                    <div class="bento-card flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
-                            <h3 class="text-xs font-semibold text-gray-300">Misplaced Videos</h3>
-                            <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1 px-2 rounded">Fix All</button>
+
+                    <!-- Column 2: Misplaced & AI Category Moves -->
+                    <div class="bento-card flex flex-col overflow-hidden min-h-[500px]">
+                        <div class="px-5 py-4 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center gap-3">
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-arrows-split-up-and-left text-amber-400"></i> Misplaced Videos & Category Moves
+                                    <span id="misplaced-count-badge" class="ml-1 px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-400 text-xs font-bold border border-amber-400/30">0</span>
+                                </h3>
+                                <p class="text-[11px] text-gray-400 truncate">Videos in staging/inbox playlists matching AI rules & channel mappings</p>
+                            </div>
+                            <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 cursor-pointer"><i class="fa-solid fa-check text-[10px]"></i> Fix All</button>
                         </div>
-                        <div class="p-3 overflow-y-auto flex-1" id="misplaced-queue">Loading...</div>
-                    </div>
-                    <div class="bento-card flex flex-col overflow-hidden">
-                        <div class="px-4 py-3 border-b border-[#2a2f3a] flex justify-between items-center">
-                            <h3 class="text-xs font-semibold text-gray-300">Move from X to Y</h3>
-                            <button onclick="applyMaintenance('move')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-1 px-2 rounded">Apply All</button>
+
+                        <!-- Multiselect Batch Action Bar -->
+                        <div id="misplaced-batch-bar" class="hidden px-5 py-2.5 bg-[#181c24] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="chk-select-all-misplaced" onchange="toggleSelectAllMisplaced(this)" class="w-4 h-4 rounded bg-[#2a2f3a] border-gray-600 text-[#2f8fc9] cursor-pointer">
+                                <label for="chk-select-all-misplaced" class="text-gray-300 font-semibold cursor-pointer">Select All (<span id="selected-count" class="text-[#2f8fc9] font-bold">0</span>)</label>
+                            </div>
+                            <div class="flex items-center gap-2 flex-1 max-w-sm">
+                                <select id="batch-target-playlist" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
+                                </select>
+                                <button onclick="executeBatchMove()" id="btn-batch-move" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                                    <i class="fa-solid fa-arrow-right"></i> Move Selected
+                                </button>
+                            </div>
                         </div>
-                        <div class="p-3 overflow-y-auto flex-1" id="move-queue">Loading...</div>
+
+                        <div class="p-4 overflow-y-auto flex-1 max-h-[75vh]" id="misplaced-queue">Loading...</div>
                     </div>
                 </div>
             </div>
@@ -127,80 +174,380 @@
             return container;
         }
         var maintenanceData = {};
+        var playlistsMap = {};
         
-        // Build a thumbnail URL straight from a YouTube video_id (no extra API cost).
+        async function fetchPlaylistsMap() {
+            try {
+                const res = await fetch('/api/playlists/names');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        data.forEach(p => { if (p.id) playlistsMap[p.id] = p.title; });
+                    } else if (data.playlists && Array.isArray(data.playlists)) {
+                        data.playlists.forEach(p => { if (p.id) playlistsMap[p.id] = p.title; });
+                    } else if (typeof data === 'object') {
+                        playlistsMap = Object.assign(playlistsMap, data);
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to fetch playlists map:', e);
+            }
+        }
+
         function maintenanceThumb(videoId) {
-            if (!videoId) return 'https://picsum.photos/32/24';
+            if (!videoId) return 'https://picsum.photos/64/48';
             return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
         }
         
         async function loadMaintenance() {
             try {
                 const response = await fetch('/api/maintenance');
-                if (!response.ok) throw new Error('Failed to load');
+                if (!response.ok) throw new Error('Failed to load maintenance data');
                 maintenanceData = await response.json();
-                renderQueue('move-queue', maintenanceData.move_from_x_to_y || [], 'move');
+                
+                // Update top action buttons with live counts
+                const delBtn = document.getElementById('btn-remove-deleted');
+                if (delBtn) {
+                    const delCount = maintenanceData.deleted_count ?? 0;
+                    delBtn.innerHTML = `<i class="fa-solid fa-trash-can"></i> Remove Deleted Videos (${delCount})`;
+                }
+                const privBtn = document.getElementById('btn-move-private');
+                if (privBtn) {
+                    const privCount = maintenanceData.private_count ?? 0;
+                    privBtn.innerHTML = `<i class="fa-solid fa-box-archive"></i> Move Private Videos to "Check Later" (${privCount})`;
+                }
+
+                const misplacedCombined = [
+                    ...(maintenanceData.misplaced_videos || []),
+                    ...(maintenanceData.move_from_x_to_y || [])
+                ];
+
+                const dupCount = (maintenanceData.duplicated_videos || []).length;
+                const misplacedCount = misplacedCombined.length;
+                const dBadge = document.getElementById('dup-count-badge');
+                if (dBadge) dBadge.textContent = dupCount;
+                const mBadge = document.getElementById('misplaced-count-badge');
+                if (mBadge) mBadge.textContent = misplacedCount;
+
+                const dupBatchBar = document.getElementById('dup-batch-bar');
+                if (dupBatchBar) {
+                    if (dupCount > 0) {
+                        dupBatchBar.classList.remove('hidden');
+                    } else {
+                        dupBatchBar.classList.add('hidden');
+                    }
+                }
+
+                const batchBar = document.getElementById('misplaced-batch-bar');
+                if (batchBar) {
+                    if (misplacedCount > 0) {
+                        batchBar.classList.remove('hidden');
+                        const batchSel = document.getElementById('batch-target-playlist');
+                        if (batchSel) batchSel.innerHTML = buildPlaylistOptionsHtml('', 'Select Destination...');
+                    } else {
+                        batchBar.classList.add('hidden');
+                    }
+                }
+
                 renderQueue('dup-queue', maintenanceData.duplicated_videos || [], 'dup');
-                renderQueue('misplaced-queue', maintenanceData.misplaced_videos || [], 'misplaced');
+                renderQueue('misplaced-queue', misplacedCombined, 'misplaced');
             } catch (e) {
                 console.error(e);
             }
         }
+
+        function updateSelectedCountDup() {
+            const chks = document.querySelectorAll('.dup-chk:checked');
+            const countEl = document.getElementById('selected-dup-count');
+            if (countEl) countEl.textContent = chks.length;
+            const selectAllChk = document.getElementById('chk-select-all-dup');
+            const allChks = document.querySelectorAll('.dup-chk');
+            if (selectAllChk && allChks.length > 0) {
+                selectAllChk.checked = (chks.length === allChks.length);
+            }
+        }
+
+        function toggleSelectAllDup(masterChk) {
+            const allChks = document.querySelectorAll('.dup-chk');
+            allChks.forEach(chk => { chk.checked = masterChk.checked; });
+            updateSelectedCountDup();
+        }
+
+        async function executeBatchKeepDup() {
+            const chks = Array.from(document.querySelectorAll('.dup-chk:checked'));
+            if (!chks.length) {
+                toast('Please check at least one video to keep', 'warning');
+                return;
+            }
+            if (!confirm(`Are you sure you want to keep ${chks.length} selected video(s) in category and remove staging copies?`)) return;
+
+            const btn = document.getElementById('btn-batch-keep-dup');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Keeping (${chks.length})...`; }
+
+            toast(`Processing ${chks.length} video(s)...`, 'info', 5000);
+            let successCount = 0;
+            for (const chk of chks) {
+                const vid = chk.getAttribute('data-vid');
+                try {
+                    const res = await maintPost({ action: 'keep', type: 'dup', video_id: vid });
+                    if (res && res.quota_exceeded) {
+                        toast('Quota limit reached. Batch paused.', 'warning', 8000);
+                        break;
+                    }
+                    successCount++;
+                } catch(e) { break; }
+            }
+            toast(`Processed ${successCount} video(s)!`, 'success');
+            if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-bookmark text-[10px]"></i> Keep Selected`; }
+            await loadMaintenance();
+        }
+
+        async function executeBatchRemoveDup() {
+            const chks = Array.from(document.querySelectorAll('.dup-chk:checked'));
+            if (!chks.length) {
+                toast('Please check at least one duplicate video copy to remove', 'warning');
+                return;
+            }
+            if (!confirm(`Are you sure you want to remove staging copies for ${chks.length} selected video(s)?`)) return;
+
+            const btn = document.getElementById('btn-batch-remove-dup');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Removing (${chks.length})...`; }
+
+            toast(`Removing ${chks.length} duplicate copy(ies)...`, 'info', 5000);
+            let successCount = 0;
+            for (const chk of chks) {
+                const vid = chk.getAttribute('data-remsvid') || chk.getAttribute('data-vid');
+                const plId = chk.getAttribute('data-rempid');
+                const pliId = chk.getAttribute('data-rempli') || null;
+                try {
+                    const res = await maintPost({ action: 'remove', type: 'dup', video_id: vid, playlist_id: plId, playlist_item_id: pliId });
+                    if (res && res.quota_exceeded) {
+                        toast('Quota limit reached. Batch paused.', 'warning', 8000);
+                        break;
+                    }
+                    successCount++;
+                } catch(e) { break; }
+            }
+            toast(`Processed ${successCount} duplicate copy(ies)!`, 'success');
+            if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-trash-can text-[10px]"></i> Remove Selected Copies`; }
+            await loadMaintenance();
+        }
         
+        function updateSelectedCount() {
+            const chks = document.querySelectorAll('.misplaced-chk:checked');
+            const countEl = document.getElementById('selected-count');
+            if (countEl) countEl.textContent = chks.length;
+            const selectAllChk = document.getElementById('chk-select-all-misplaced');
+            const allChks = document.querySelectorAll('.misplaced-chk');
+            if (selectAllChk && allChks.length > 0) {
+                selectAllChk.checked = (chks.length === allChks.length);
+            }
+        }
+
+        function toggleSelectAllMisplaced(masterChk) {
+            const allChks = document.querySelectorAll('.misplaced-chk');
+            allChks.forEach(chk => { chk.checked = masterChk.checked; });
+            updateSelectedCount();
+        }
+
+        async function executeBatchMove() {
+            const chks = Array.from(document.querySelectorAll('.misplaced-chk:checked'));
+            if (!chks.length) {
+                toast('Please check at least one video to move', 'warning');
+                return;
+            }
+            const sel = document.getElementById('batch-target-playlist');
+            const targetId = sel ? sel.value : '';
+            if (!targetId) {
+                toast('Please select a destination playlist', 'warning');
+                return;
+            }
+            const targetName = playlistsMap[targetId] || targetId;
+            if (!confirm(`Are you sure you want to move ${chks.length} selected video(s) to "${targetName}"?`)) return;
+
+            const btn = document.getElementById('btn-batch-move');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Moving (${chks.length})...`; }
+
+            toast(`Moving ${chks.length} video(s) to "${targetName}"...`, 'info', 5000);
+            let successCount = 0;
+            for (const chk of chks) {
+                const vid = chk.getAttribute('data-vid');
+                const curId = chk.getAttribute('data-curid');
+                try {
+                    const res = await maintPost({ action: 'move', type: 'misplaced', video_id: vid, playlist_id: curId, target_playlist_id: targetId });
+                    if (res && res.quota_exceeded) {
+                        toast('Quota limit reached. Batch paused.', 'warning', 8000);
+                        break;
+                    }
+                    successCount++;
+                } catch(e) { break; }
+            }
+            toast(`Successfully moved ${successCount} video(s) to "${targetName}"!`, 'success');
+            if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Move Selected`; }
+            await loadMaintenance();
+        }
+
+        async function runScanFromMaintenance() {
+            const btn = document.getElementById('btn-run-scan');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning…'; }
+            if (window.logConsole) {
+                window.logConsole('[AGENT] Initiating duplicate & misplaced video scan...');
+            }
+            try {
+                toast('Starting duplicate & misplaced video scan...', 'info');
+                await fetch('/api/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'scan_duplicates' })
+                });
+                await fetch('/api/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'scan_misplaced' })
+                });
+                toast('Scan started! Items will populate automatically as findings arrive.', 'success');
+                let tries = 0;
+                const timer = setInterval(async () => {
+                    tries++;
+                    await loadMaintenance();
+                    const hasItems = (maintenanceData.duplicated_videos && maintenanceData.duplicated_videos.length > 0) ||
+                                     (maintenanceData.misplaced_videos && maintenanceData.misplaced_videos.length > 0) ||
+                                     (maintenanceData.move_from_x_to_y && maintenanceData.move_from_x_to_y.length > 0);
+                    if (tries >= 12 || hasItems) {
+                        clearInterval(timer);
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Run Scan'; }
+                    }
+                }, 5000);
+            } catch (e) {
+                toast(`Scan error: ${DOMPurify.sanitize(e.message)}`, 'error');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Run Scan'; }
+            }
+        }
+        
+        function buildPlaylistOptionsHtml(selectedId, recommendedTitle) {
+            const keys = Object.keys(playlistsMap);
+            if (!keys.length) {
+                return `<option value="${DOMPurify.sanitize(selectedId)}" selected>Move to ${DOMPurify.sanitize(recommendedTitle || selectedId)}</option>`;
+            }
+            const sorted = keys.map(k => ({ id: k, title: playlistsMap[k] || k })).sort((a, b) => a.title.localeCompare(b.title));
+            return sorted.map(p => {
+                const isSel = p.id === selectedId ? 'selected' : '';
+                const recTag = p.id === selectedId ? ' ★ Recommended' : '';
+                return `<option value="${DOMPurify.sanitize(p.id)}" ${isSel}>Move to ${DOMPurify.sanitize(p.title)}${recTag}</option>`;
+            }).join('');
+        }
+
         function renderQueue(elId, items, type) {
             const el = document.getElementById(elId);
-            if (!items.length) { 
-                el.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-4">No items</div>'; 
+            if (!items || !items.length) { 
+                el.innerHTML = `<div class="flex flex-col items-center justify-center p-8 text-center text-gray-400 bg-[#20242c]/50 rounded-xl border border-dashed border-[#2a2f3a]">
+                    <div class="w-10 h-10 rounded-full bg-[#2f8fc9]/10 text-[#2f8fc9] flex items-center justify-center mb-2">
+                        <i class="fa-solid fa-circle-check text-lg"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-gray-300">No items found</span>
+                    <span class="text-[11px] text-gray-500 mt-1 max-w-xs">Click <b>Run Scan</b> above to analyze your playlists and detect issues.</span>
+                </div>`; 
                 return; 
             }
             el.innerHTML = items.map(item => {
                 const _vid = DOMPurify.sanitize(item.video_id || '');
                 const _thumb = DOMPurify.sanitize(maintenanceThumb(item.video_id || ''));
-                const _title = DOMPurify.sanitize(item.video_title || item.title || '');
-                // Resolve real playlist NAMES (fall back to the raw ID only as last resort).
-                let _from = '', _fromId = '', _to = '', _toId = '', _plText = '';
+                const _title = DOMPurify.sanitize(item.video_title || item.title || 'Untitled Video');
+                
+                let _from = '', _fromId = '', _to = '', _toId = '';
                 if (type === 'misplaced') {
-                    _from = item.current_playlist_title || item.current_playlist_id || '';
                     _fromId = item.current_playlist_id || '';
-                    _to = item.mapped_playlist_title || item.mapped_playlist_id || '';
                     _toId = item.mapped_playlist_id || '';
+                    _from = playlistsMap[_fromId] || item.current_playlist_title || _fromId;
+                    _to = playlistsMap[_toId] || item.mapped_playlist_title || _toId;
                 } else if (type === 'move') {
-                    _from = item.source_playlist_title || item.source_playlist_id || '';
                     _fromId = item.source_playlist_id || '';
-                    _to = item.target_playlist_title || item.target_playlist_id || '';
                     _toId = item.target_playlist_id || '';
-                } else if (type === 'dup') {
-                    const _pls = Array.isArray(item.playlists) ? item.playlists : [];
-                    _plText = _pls.map(p => DOMPurify.sanitize(p.title || p.id || '')).join(', ');
+                    _from = playlistsMap[_fromId] || item.source_playlist_title || _fromId;
+                    _to = playlistsMap[_toId] || item.target_playlist_title || _toId;
                 }
-                const _fromTo = (_from && _to) ? `${_from} → ${_to}` : (_plText || '?');
+                
                 const _selId = `sel-${elId}-${item.video_id || 'x'}`;
-                // Duplicate-specific extras (re-upload / multi-playlist aware)
                 const _copies = item.copy_count ? Number(item.copy_count) : 0;
                 const _exact = item.exact_duplicate;
-                const _dupMeta = type === 'dup' && _copies
-                    ? `<span class="text-[9px] ${_exact ? 'text-yellow-400' : 'text-orange-400'}">${_copies} copies${_exact ? ' (same ID)' : ' (re-upload)'}</span>`
-                    : '';
-                // For a duplicate, remove the second (non-primary) copy by default.
+                
                 const _pls = Array.isArray(item.playlists) ? item.playlists : [];
                 const _removePl = _pls[1] || _pls[0] || {};
-                const _removePlId = _removePl.id || '';
+                const _removePlId = _removePl.id || _removePl.playlist_id || '';
                 const _removeVid = _removePl.video_id || item.video_id || '';
                 const _removePli = _removePl.playlist_item_id || '';
+                
+                let _playlistBadges = '';
+                if (type === 'dup' && _pls.length > 0) {
+                    _playlistBadges = `<div class="flex flex-wrap gap-1.5 mt-2">` + _pls.map(p => {
+                        const pid = p.id || p.playlist_id || '';
+                        const ptitle = playlistsMap[pid] || p.title || pid || 'Unknown Playlist';
+                        const isStaging = ptitle.includes('1~Sort') || ptitle.includes('Inbox') || ptitle.includes('Unsorted');
+                        const badgeClass = isStaging ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-[#2f8fc9]/10 text-[#2f8fc9] border-[#2f8fc9]/30 font-semibold';
+                        const icon = isStaging ? 'fa-folder-minus' : 'fa-folder-check';
+                        return `<span class="px-2 py-0.5 rounded-md text-[11px] border ${badgeClass} flex items-center gap-1">
+                            <i class="fa-solid ${icon} text-[10px]"></i> ${DOMPurify.sanitize(ptitle)}
+                        </span>`;
+                    }).join('') + `</div>`;
+                }
+
+                const optionsHtml = buildPlaylistOptionsHtml(_toId, _to);
+
                 let _controls = '';
                 if (type === 'move') {
-                    _controls = `<select id="${_selId}" class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option value="${DOMPurify.sanitize(_toId)}">${_to || 'Move from X to Y'}</option></select>` +
-                        `<button onclick="maintMove('${item.video_id}', '${item.source_playlist_id}', 'move', '${_selId}', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Move</button>`;
+                    _controls = `<div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-2">
+                        <select id="${_selId}" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
+                            ${optionsHtml}
+                        </select>
+                        <button onclick="maintMove('${item.video_id}', '${item.source_playlist_id}', 'move', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                            <i class="fa-solid fa-arrow-right"></i> Move
+                        </button>
+                    </div>`;
                 } else if (type === 'dup') {
-                    _controls = `<div class="flex gap-1"><button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Keep</button><button onclick="maintRemove('${_removeVid}', '${_removePlId}', 'dup', this, '${_removePli}')" class="bg-[#2a2f3a] text-gray-300 text-[10px] px-2 py-1 rounded">Remove</button></div>`;
+                    _controls = `<div class="flex items-center gap-2 mt-2">
+                        <button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Keep in category playlist & remove copy from staging">
+                            <i class="fa-solid fa-bookmark"></i> Keep in Category
+                        </button>
+                        <button onclick="maintRemove('${_removeVid}', '${_removePlId}', 'dup', this, '${_removePli}')" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer" title="Deletes the duplicate copy from your staging/inbox playlist (e.g. 1~Sort) while preserving the main copy in your category playlist">
+                            <i class="fa-solid fa-trash-can"></i> Remove Staging Copy
+                        </button>
+                    </div>`;
                 } else if (type === 'misplaced') {
-                    _controls = `<select id="${_selId}" class="bg-[#2f8fc9] text-white text-[10px] rounded px-2 py-1 w-32 outline-none border-none"><option value="${DOMPurify.sanitize(_toId)}">Move to ${_to || 'Correct Playlist'}</option></select>` +
-                        `<button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] text-white text-[10px] px-2 py-1 rounded">Move</button>`;
+                    _controls = `<div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-2">
+                        <select id="${_selId}" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
+                            ${optionsHtml}
+                        </select>
+                        <button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                            <i class="fa-solid fa-arrow-right"></i> Move
+                        </button>
+                    </div>`;
                 }
+
+                const _locationSub = (_from && _to) 
+                    ? `<div class="text-xs text-gray-400 mt-1 flex items-center gap-1.5"><span class="text-red-400 font-medium">${_from}</span> <i class="fa-solid fa-arrow-right text-[10px] text-gray-500"></i> <span class="text-green-400 font-semibold">${_to}</span></div>` 
+                    : '';
+
+                let _checkboxHtml = '';
+                if (type === 'misplaced') {
+                    _checkboxHtml = `<input type="checkbox" class="misplaced-chk w-4 h-4 rounded bg-[#14171f] border-gray-600 text-[#2f8fc9] cursor-pointer self-center flex-shrink-0" data-vid="${_vid}" data-curid="${_fromId}" onchange="updateSelectedCount()">`;
+                } else if (type === 'dup') {
+                    _checkboxHtml = `<input type="checkbox" class="dup-chk w-4 h-4 rounded bg-[#14171f] border-gray-600 text-[#2f8fc9] cursor-pointer self-center flex-shrink-0" data-vid="${_vid}" data-remsvid="${_removeVid}" data-rempid="${_removePlId}" data-rempli="${_removePli}" onchange="updateSelectedCountDup()">`;
+                }
+
                 return `
-                <div class="flex items-center gap-2 bg-[#20242c] p-1.5 rounded border border-[#2a2f3a] mb-2">
-                    <div class="w-8 h-6 bg-gray-700 rounded overflow-hidden flex-shrink-0"><img src="${_thumb}" alt="Thumbnail" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://picsum.photos/32/24'"></div>
-                    <div class="flex-1 min-w-0"><div class="text-[10px] text-white truncate">${_title}</div><div class="text-[9px] text-gray-400 truncate">${_fromTo}</div>${_dupMeta}</div>
+                <div class="flex flex-col bg-[#20242c] p-3.5 rounded-xl border border-[#2a2f3a] mb-3 hover:border-[#2f8fc9]/40 transition-colors shadow-sm">
+                    <div class="flex items-start gap-3">
+                        ${_checkboxHtml}
+                        <div class="w-16 h-11 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0 border border-[#2a2f3a] shadow-inner">
+                            <img src="${_thumb}" alt="Thumbnail" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://picsum.photos/64/48'">
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h4 class="text-xs font-bold text-white leading-snug break-words">${_title}</h4>
+                            ${_locationSub}
+                            ${type === 'dup' && _copies ? `<div class="text-[11px] font-medium ${_exact ? 'text-yellow-400' : 'text-orange-400'} mt-0.5"><i class="fa-solid fa-copy text-[10px]"></i> ${_copies} copies ${_exact ? '(Exact Duplicate)' : '(Re-upload)'}</div>` : ''}
+                        </div>
+                    </div>
+                    ${_playlistBadges}
                     ${_controls}
                 </div>
                 `;
@@ -211,24 +558,42 @@
         // Adds Bearer auth from localStorage, matching dashboard.js apiCall pattern.
         async function maintPost(body, btn) {
             if (btn) btn.disabled = true;
+            if (window.logConsole) {
+                const actName = (body.action || 'action').toUpperCase();
+                const vid = body.video_id ? ` video ${body.video_id}` : '';
+                const pl = body.playlist_id ? ` from playlist ${body.playlist_id}` : '';
+                window.logConsole(`[MAINTENANCE] Executing ${actName}${vid}${pl}...`);
+            }
             const token = localStorage.getItem('token') || '';
             const headers = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = 'Bearer ' + token;
             try {
                 const resp = await fetch('/api/maintenance/action', { method: 'POST', headers, body: JSON.stringify(body) });
                 const data = await resp.json().catch(() => ({}));
-                if (data.status === 'error') {
+                if (data.quota_exceeded || data.status === 'warning') {
+                    const msg = data.error || 'YouTube API daily quota limit reached (10,000 units/day). Google resets quota daily.';
+                    if (window.logConsole) window.logConsole(`[QUOTA WARNING] ${msg}`);
+                    toast(`⚠️ ${msg}`, 'warning', 10000);
+                    await loadMaintenance();
+                } else if (data.status === 'error') {
+                    if (window.logConsole) window.logConsole(`[ERROR] ${data.error || 'Action failed'}`);
                     toast(data.error || 'Action failed', 'error');
                 } else if (body.action === 'fix_all') {
                     const _done = data.succeeded != null ? data.succeeded : (data.processed != null ? data.processed : 'all');
+                    if (window.logConsole) window.logConsole(`[MAINTENANCE] Fixed ${_done} item(s)`);
                     toast(`Fixed ${_done} item(s)` + (data.failed ? ` (${data.failed} failed)` : ''), 'success');
                     await loadMaintenance();
                 } else {
-                    toast('Action succeeded', 'success');
+                    if (window.logConsole) window.logConsole(`[MAINTENANCE] Action '${body.action}' succeeded`);
+                    const msg = data.learned 
+                        ? 'Video moved & system learned video content pattern for future AI scans!'
+                        : 'Action succeeded';
+                    toast(msg, 'success');
                     await loadMaintenance();
                 }
                 return data;
             } catch (e) {
+                if (window.logConsole) window.logConsole(`[ERROR] Request failed: ${e.message}`);
                 toast('Request failed: ' + e.message, 'error');
             } finally {
                 if (btn && document.body.contains(btn)) btn.disabled = false;
@@ -254,6 +619,7 @@
         async function removeDeletedVideos() {
             const btn = document.getElementById("btn-remove-deleted");
             if (!confirm("Are you sure you want to scan all playlists and remove deleted videos?")) return;
+            if (window.logConsole) window.logConsole("[MAINTENANCE] Scanning playlists for deleted videos...");
             
             if (btn) {
                 btn.disabled = true;
@@ -272,6 +638,7 @@
                     );
                     if (runSync) {
                         toast("Triggering Full Playlist Sync...", "info", 4000);
+                        if (window.logConsole) window.logConsole("[SYNC] Triggering Full Playlist Sync...");
                         await authFetch("/api/action", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -288,9 +655,11 @@
                     }
                 }
                 
+                if (window.logConsole) window.logConsole(`[MAINTENANCE] ${data.message || "Successfully removed deleted videos"}`);
                 toast(data.message || "Successfully removed deleted videos", "success", 6000);
                 loadMaintenance();
             } catch (err) {
+                if (window.logConsole) window.logConsole(`[ERROR] ${err.message}`);
                 toast(`Error: ${err.message}`, "error", 6000);
             } finally {
                 if (btn) {
@@ -420,10 +789,63 @@
             URL.revokeObjectURL(url);
         }
 
+        function openMoveWatchLaterModal() {
+            const modal = document.getElementById('move-watch-later-modal');
+            const sel = document.getElementById('wl-target-playlist');
+            if (sel) sel.innerHTML = buildPlaylistOptionsHtml('', 'Select Target Playlist...');
+            if (modal) modal.classList.remove('hidden');
+        }
+
         // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
 function initMaintenancePage() {
             loadMaintenance();
+
+        function closeMoveWatchLaterModal() {
+            const modal = document.getElementById('move-watch-later-modal');
+            if (modal) modal.classList.add('hidden');
         }
+
+        async function submitMoveWatchLater() {
+            const sel = document.getElementById('wl-target-playlist');
+            const targetId = sel ? sel.value : '';
+            if (!targetId) {
+                toast('Please select a destination playlist', 'warning');
+                return;
+            }
+            const targetName = playlistsMap[targetId] || targetId;
+            if (!confirm(`Are you sure you want to move all videos from Watch Later to "${targetName}"?`)) return;
+
+            const btn = document.getElementById('btn-submit-move-wl');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Moving...`; }
+
+            toast(`Moving all Watch Later videos to "${targetName}"...`, 'info', 6000);
+            try {
+                const token = localStorage.getItem('token') || '';
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = 'Bearer ' + token;
+                const resp = await fetch('/api/maintenance/move-watch-later', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ target_playlist_id: targetId, source_playlist_id: 'WL' })
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || data.error || 'Failed to move Watch Later videos');
+
+                toast(data.message || 'Successfully moved Watch Later videos', 'success', 6000);
+                closeMoveWatchLaterModal();
+                await loadMaintenance();
+            } catch (err) {
+                toast(`Error: ${err.message}`, 'error', 6000);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Move All Videos`; }
+            }
+        }
+        
+        // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
+async function initMaintenancePage() {
+    await fetchPlaylistsMap();
+    await loadMaintenance();
+}
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initMaintenancePage);
@@ -431,6 +853,36 @@ if (document.readyState === 'loading') {
     initMaintenancePage();
 };
     </script>
+    
+    <!-- Move Watch Later Modal -->
+    <div id="move-watch-later-modal" class="hidden fixed inset-0 z-50 p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-xs" onclick="closeMoveWatchLaterModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bento-card p-6 mx-4 shadow-2xl">
+            <div class="flex items-center justify-between mb-4 border-b border-[#2a2f3a] pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-clock text-indigo-400"></i> Move All "Watch Later" Videos
+                </h3>
+                <button onclick="closeMoveWatchLaterModal()" class="text-gray-400 hover:text-white text-xs cursor-pointer"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+            <div class="flex flex-col gap-4">
+                <p class="text-xs text-gray-300 leading-relaxed">
+                    Select a destination playlist. All videos currently in your <b>Watch Later</b> playlist will be moved to the selected playlist, and AI content learning will be recorded.
+                </p>
+                <div>
+                    <label class="text-[11px] font-semibold text-gray-400 block mb-1">Destination Playlist</label>
+                    <select id="wl-target-playlist" class="w-full bg-[#14171f] border border-[#2a2f3a] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#2f8fc9]">
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2 mt-2">
+                    <button onclick="closeMoveWatchLaterModal()" class="px-4 py-2 bg-[#2a2f3a] text-gray-300 hover:text-white rounded-lg text-xs font-medium cursor-pointer">Cancel</button>
+                    <button onclick="submitMoveWatchLater()" id="btn-submit-move-wl" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-md cursor-pointer">
+                        <i class="fa-solid fa-arrow-right"></i> Move All Videos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/mobile-nav.js?v=20260715e"></script>
 </main>
     </div>

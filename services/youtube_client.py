@@ -61,6 +61,75 @@ def _reset_shared_client():
         log.info("Reset shared httpx client (closed stale connections, created fresh client)")
 
 
+def _with_retry(sync_func, *args, **kwargs):
+    last_exc = None
+    for attempt in range(RETRY_ATTEMPTS):
+        try:
+            resp = sync_func(*args, **kwargs)
+            if hasattr(resp, "raise_for_status"):
+                resp.raise_for_status()
+            return resp
+        except (ssl.SSLError, ssl.SSLEOFError) as e:
+            # SSL errors usually indicate a poisoned / mismatched connection in the pool.
+            # Reset the shared client once, then retry immediately on the fresh client.
+            last_exc = e
+            log.warning(f"SSL error on API call (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Resetting HTTP client...")
+            if httpx is not None:
+                _reset_shared_client()
+            if attempt < RETRY_ATTEMPTS - 1:
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts with SSL error: {e}")
+                raise
+        except httpx.ConnectError as e:
+            # Connection-level errors (reset, timeout, etc.) — reset client and retry
+            last_exc = e
+            log.warning(f"Connection error on API call (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Resetting HTTP client...")
+            if httpx is not None:
+                _reset_shared_client()
+            if attempt < RETRY_ATTEMPTS - 1:
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
+                raise
+        except httpx.HTTPStatusError as e:
+            # 4xx client errors (403, 404, etc.) won't succeed on retry — raise immediately.
+            # 5xx server errors (502, 503, etc.) are retryable.
+            if e.response.status_code < 500:
+                log.warning(f"API call returned client error (non-retryable): {e.response.status_code}")
+                raise
+            last_exc = e
+            if attempt < RETRY_ATTEMPTS - 1:
+                log.warning(f"API call failed with server error (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
+                raise
+        except httpx.RequestError as e:
+            # Other request-level errors (timeouts, etc.) — retry
+            last_exc = e
+            if attempt < RETRY_ATTEMPTS - 1:
+                log.warning(f"API call failed (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}. Retrying in {RETRY_DELAY_SECONDS} seconds...")
+                time.sleep(RETRY_DELAY_SECONDS)
+            else:
+                log.error(f"API call failed after {RETRY_ATTEMPTS} attempts: {e}")
+                raise
+        except Exception as e:
+            # Safety net: catch any unexpected error so a single bad request
+            # never crashes the worker process. Log it and re-raise as a
+            # RuntimeError with the original message.
+            log.error(f"Unexpected error in _with_retry (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {type(e).__name__}: {e}")
+            raise
+        except BaseException as e:
+            # Safety net for BaseException subclasses that aren't Exception
+            # (e.g. asyncio.CancelledError in Python 3.13 where it is BaseException).
+            # CancelledError should propagate immediately; others are logged as critical.
+            if isinstance(e, getattr(asyncio, "CancelledError", ())):
+                raise
+            log.critical(f"Non-Exception BaseException caught in _with_retry (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {type(e).__name__}: {e}")
+            raise
+
+
 async def _with_retry_async(sync_func, *args, **kwargs):
     last_exc = None
     for attempt in range(RETRY_ATTEMPTS):
@@ -124,7 +193,7 @@ async def _with_retry_async(sync_func, *args, **kwargs):
             # Safety net for BaseException subclasses that aren't Exception
             # (e.g. asyncio.CancelledError in Python 3.13 where it is BaseException).
             # CancelledError should propagate immediately; others are logged as critical.
-            if isinstance(e, asyncio.CancelledError):
+            if isinstance(e, getattr(asyncio, "CancelledError", ())):
                 raise
             log.critical(f"Non-Exception BaseException caught in _with_retry (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {type(e).__name__}: {e}")
             raise

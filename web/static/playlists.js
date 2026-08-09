@@ -38,6 +38,8 @@ function renderCachedPlaylists() {
     return false;
 }
 
+var excludedPlaylistsSet = new Set();
+
 async function loadPlaylists() {
     const skeleton = document.getElementById("playlists-skeleton");
     const playlistsList = document.getElementById("playlists-list");
@@ -49,7 +51,15 @@ async function loadPlaylists() {
     }
 
     try {
-        const response = await authFetch("/api/playlists");
+        const [response, exResp] = await Promise.all([
+            authFetch("/api/playlists"),
+            authFetch("/api/playlists/excluded").catch(() => null)
+        ]);
+        if (exResp && exResp.ok) {
+            const exData = await exResp.json();
+            excludedPlaylistsSet = new Set(exData.excluded_playlists || []);
+        }
+
         const data = await response.json();
 
         const rawList = Array.isArray(data) ? data : ((data && data.playlists) || []);
@@ -67,6 +77,9 @@ async function loadPlaylists() {
         }));
         localStorage.setItem(CLIENT_CACHE_KEY, JSON.stringify(allPlaylists));
         renderPlaylistsGrid(allPlaylists);
+
+        // Fetch real Watch Later video count in the background (system playlist, not in API response)
+        fetchWatchLaterCount();
     } catch (e) {
         // If we already painted a cached grid, keep it instead of erroring over it
         const hasContent = playlistsList && playlistsList.children.length > 0;
@@ -85,9 +98,15 @@ async function loadPlaylists() {
     }
 }
 
+async function fetchWatchLaterCount() {
+    // YouTube Data API v3 does not expose Watch Later playlist items — the WL
+    // card already shows an em-dash by design. Nothing to fetch.
+}
+
 function thumbMarkup(p) {
     // Default graphic for empty playlists (inline SVG: no network, no CSP issues)
-    if (!p.video_count) {
+    const isWL = (p.id === 'WL' || (p.title || '').toLowerCase() === 'watch later');
+    if (!p.video_count && !isWL) {
         return `
         <svg viewBox="0 0 160 90" class="w-full h-full" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-label="No videos yet">
             <rect width="160" height="90" fill="#0f1115"/>
@@ -100,27 +119,79 @@ function thumbMarkup(p) {
     return `<img src="${thumb}" class="w-full h-full object-cover" loading="lazy" onerror="this.onerror=null; this.src='https://picsum.photos/160/90'">`;
 }
 
+function sortPlaylistsWithWatchLaterFirst(playlists) {
+    if (!Array.isArray(playlists)) return [];
+    let list = [...playlists];
+    
+    // Check if Watch Later exists in user's playlist list
+    const hasWL = list.some(p => {
+        const t = (p.title || p.name || '').trim().toLowerCase();
+        return t === 'watch later' || t === 'wl' || p.id === 'WL';
+    });
+
+    // If YouTube API excluded system Watch Later, synthesize a Card #1 entry for Watch Later
+    if (!hasWL) {
+        list.unshift({
+            id: 'WL',
+            title: 'Watch Later',
+            name: 'Watch Later',
+            video_count: 0,
+            thumbnail: '',
+            url: 'https://www.youtube.com/playlist?list=WL'
+        });
+    }
+
+    return list.sort((a, b) => {
+        const titleA = (a.title || a.name || '').trim();
+        const titleB = (b.title || b.name || '').trim();
+        const lowerA = titleA.toLowerCase();
+        const lowerB = titleB.toLowerCase();
+
+        const isWLA = lowerA === 'watch later' || lowerA === 'wl' || a.id === 'WL';
+        const isWLB = lowerB === 'watch later' || lowerB === 'wl' || b.id === 'WL';
+        if (isWLA && !isWLB) return -1;
+        if (!isWLA && isWLB) return 1;
+
+        const isStagingA = lowerA.startsWith('1~sort') || lowerA === 'inbox';
+        const isStagingB = lowerB.startsWith('1~sort') || lowerB === 'inbox';
+        if (isStagingA && !isStagingB) return -1;
+        if (!isStagingA && isStagingB) return 1;
+
+        return titleA.localeCompare(titleB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+}
+
 function renderPlaylistsGrid(playlists) {
     const playlistsList = document.getElementById("playlists-list");
     if (!playlistsList) return;
 
-    if (!playlists.length) {
+    if (!playlists || !playlists.length) {
         playlistsList.innerHTML = `<div class="col-span-full flex items-center justify-center min-h-[60vh]">
             <div class="bento-card p-12 text-center text-gray-400 text-base">No playlists found. Create one to get started.</div>
         </div>`;
         return;
     }
-    playlistsList.innerHTML = playlists.map(p => {
+
+    const sortedPlaylists = sortPlaylistsWithWatchLaterFirst(playlists);
+
+    playlistsList.innerHTML = sortedPlaylists.map(p => {
         const title = p.title || p.name || 'Untitled';
         const playlistId = p.id || (p.url ? (p.url.split('list=')[1] || '').split('&')[0] : '');
+        const isWL = (title.toLowerCase() === 'watch later' || playlistId === 'WL');
+        const isExcluded = excludedPlaylistsSet.has(playlistId);
+        const badgeTag = isWL 
+            ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 w-fit"><i class="fa-solid fa-clock text-[8px]"></i> System Inbox</span>` 
+            : (isExcluded ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/25 font-medium w-fit"><i class="fa-solid fa-shield-halved text-[8px]"></i> Excluded</span>` : '');
+
         return `
-        <a href="/playlist/${playlistId}" class="bento-card p-2.5 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-colors relative block min-h-[76px]">
-          <div class="flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden bg-[#0f1115]">
+        <a href="/playlist/${playlistId}" class="bento-card p-3 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-all relative block min-h-[82px] ${isWL ? 'border-indigo-500/40 bg-indigo-950/10' : (isExcluded ? 'border-amber-500/30 bg-amber-950/10' : '')}">
+          <div class="flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden bg-[#0f1115] border border-[#2a2f3a]">
             ${thumbMarkup(p)}
           </div>
           <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-            <h3 class="text-base md:text-lg font-semibold text-[#2f8fc9] truncate">${title}</h3>
-            <p class="text-xs text-gray-400">${p.video_count} videos</p>
+            <h3 class="text-base md:text-lg font-semibold ${isWL ? 'text-indigo-400' : 'text-[#2f8fc9]'} truncate">${title}</h3>
+            ${badgeTag}
+            <p class="text-xs text-gray-400" data-count-id="${playlistId}">${isWL ? '&mdash;' : (p.video_count != null ? p.video_count : 0) + ' videos'}</p>
             <div class="flex items-center gap-2 mt-0.5" onclick="event.stopPropagation()">
               <button onclick="event.preventDefault(); event.stopPropagation(); rescanPlaylist('${playlistId}', event)" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 text-[11px] py-1 px-1.5 rounded transition-colors" title="Rescan Videos"><i class="fa-solid fa-arrows-rotate text-[9px]"></i></button>
               <button onclick="event.preventDefault(); event.stopPropagation(); openPlaylist('${playlistId}', event)" class="text-[11px] p-1 rounded bg-[#20242c] text-gray-400 hover:text-white hover:bg-[#2a2f3a] transition-colors flex-shrink-0" title="Open on YouTube"><i class="fa-solid fa-external-link text-[9px]"></i></button>
@@ -129,6 +200,10 @@ function renderPlaylistsGrid(playlists) {
         </a>
       `;
     }).join('');
+}
+
+function openPlaylistDetail(playlistId) {
+    window.location.href = `/playlist/${playlistId}`;
 }
 function openPlaylist(playlistId, event) {
     if (event) event.stopPropagation();
@@ -144,19 +219,28 @@ async function rescanPlaylist(playlistId, event) {
     
     toast("Rescanning playlist videos...", "info");
     try {
-        const resp = await authFetch(`/api/youtube/videos?playlist_id=${playlistId}&force_refresh=true`);
+        const resp = await authFetch(`/api/youtube/videos?playlist_id=${encodeURIComponent(playlistId)}&force_refresh=true`);
         const data = await resp.json();
 
         if (!resp.ok) {
             throw new Error(data.error || "Failed to refresh playlist videos");
         }
 
+        const count = data.videos?.length || 0;
+
+        // Update count badge directly in DOM
+        const countEl = document.querySelector(`[data-count-id="${playlistId}"]`);
+        if (countEl) countEl.textContent = `${count} video${count !== 1 ? 's' : ''}`;
+
+        // Update in-memory list
         const playlistIndex = allPlaylists.findIndex(item => item.id === playlistId);
         if (playlistIndex !== -1) {
-            allPlaylists[playlistIndex].video_count = data.videos?.length || 0;
+            allPlaylists[playlistIndex].video_count = count;
         }
+        // Bust local cache so full reload gets fresh data
+        localStorage.removeItem(CLIENT_CACHE_KEY);
         
-        toast(`Rescan complete - ${data.videos?.length || 0} videos found`, "success");
+        toast(`Rescan complete — ${count} videos found`, "success");
         loadPlaylists();
     } catch (e) {
         toast(`Rescan failed: ${DOMPurify.sanitize(e.message)}`, "error");

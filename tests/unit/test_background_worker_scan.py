@@ -138,7 +138,7 @@ async def test_full_cluster_scan_advances_past_page_one_no_infinite_loop():
     # playlists" log must report the TOTAL across both pages (no duplicates).
     found_msgs = [
         c.args[0] for c in manager.broadcast.call_args_list
-        if isinstance(c.args[0], str) and c.args[0].startswith('{"type": "log", "message": "[SCAN] Found')
+        if isinstance(c.args[0], str) and '"[SCAN] Found' in c.args[0]
     ]
     assert found_msgs, "expected a '[SCAN] Found N playlists' broadcast"
     # Parse N out of the message.
@@ -173,7 +173,7 @@ async def test_full_cluster_scan_single_page_still_works():
     import json
     found_msgs = [
         c.args[0] for c in manager.broadcast.call_args_list
-        if isinstance(c.args[0], str) and c.args[0].startswith('{"type": "log", "message": "[SCAN] Found')
+        if isinstance(c.args[0], str) and '"[SCAN] Found' in c.args[0]
     ]
     msg = json.loads(found_msgs[-1])["message"]
     assert f"[SCAN] Found {num_page1} playlists" in msg
