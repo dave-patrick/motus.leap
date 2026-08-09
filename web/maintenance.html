@@ -719,6 +719,54 @@
         }
         
         
+        function openMoveWatchLaterModal() {
+            const modal = document.getElementById('move-watch-later-modal');
+            const sel = document.getElementById('wl-target-playlist');
+            if (sel) sel.innerHTML = buildPlaylistOptionsHtml('', 'Select Target Playlist...');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeMoveWatchLaterModal() {
+            const modal = document.getElementById('move-watch-later-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function submitMoveWatchLater() {
+            const sel = document.getElementById('wl-target-playlist');
+            const targetId = sel ? sel.value : '';
+            if (!targetId) {
+                toast('Please select a destination playlist', 'warning');
+                return;
+            }
+            const targetName = playlistsMap[targetId] || targetId;
+            if (!confirm(`Are you sure you want to move all videos from Watch Later to "${targetName}"?`)) return;
+
+            const btn = document.getElementById('btn-submit-move-wl');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Moving...`; }
+
+            toast(`Moving all Watch Later videos to "${targetName}"...`, 'info', 6000);
+            try {
+                const token = localStorage.getItem('token') || '';
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = 'Bearer ' + token;
+                const resp = await fetch('/api/maintenance/move-watch-later', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ target_playlist_id: targetId, source_playlist_id: 'WL' })
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || data.error || 'Failed to move Watch Later videos');
+
+                toast(data.message || 'Successfully moved Watch Later videos', 'success', 6000);
+                closeMoveWatchLaterModal();
+                await loadMaintenance();
+            } catch (err) {
+                toast(`Error: ${err.message}`, 'error', 6000);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Move All Videos`; }
+            }
+        }
+        
         // Export the maintenance queue (all types) as CSV or JSON, client-side.
         function exportMaintenance(format) {
             if (!maintenanceData || typeof maintenanceData !== 'object') {
@@ -770,7 +818,8 @@
                     const s = String(v == null ? '' : v);
                     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
                 };
-                const lines = [headers.join(',')];
+                const headersLine = headers.join(',');
+                const lines = [headersLine];
                 for (const r of rows) lines.push(headers.map(h => esc(r[h])).join(','));
                 const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
                 downloadBlob(blob, `maintenance-export-${stamp}.csv`);
@@ -789,58 +838,6 @@
             URL.revokeObjectURL(url);
         }
 
-        function openMoveWatchLaterModal() {
-            const modal = document.getElementById('move-watch-later-modal');
-            const sel = document.getElementById('wl-target-playlist');
-            if (sel) sel.innerHTML = buildPlaylistOptionsHtml('', 'Select Target Playlist...');
-            if (modal) modal.classList.remove('hidden');
-        }
-
-        // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
-function initMaintenancePage() {
-            loadMaintenance();
-
-        function closeMoveWatchLaterModal() {
-            const modal = document.getElementById('move-watch-later-modal');
-            if (modal) modal.classList.add('hidden');
-        }
-
-        async function submitMoveWatchLater() {
-            const sel = document.getElementById('wl-target-playlist');
-            const targetId = sel ? sel.value : '';
-            if (!targetId) {
-                toast('Please select a destination playlist', 'warning');
-                return;
-            }
-            const targetName = playlistsMap[targetId] || targetId;
-            if (!confirm(`Are you sure you want to move all videos from Watch Later to "${targetName}"?`)) return;
-
-            const btn = document.getElementById('btn-submit-move-wl');
-            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Moving...`; }
-
-            toast(`Moving all Watch Later videos to "${targetName}"...`, 'info', 6000);
-            try {
-                const token = localStorage.getItem('token') || '';
-                const headers = { 'Content-Type': 'application/json' };
-                if (token) headers['Authorization'] = 'Bearer ' + token;
-                const resp = await fetch('/api/maintenance/move-watch-later', {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({ target_playlist_id: targetId, source_playlist_id: 'WL' })
-                });
-                const data = await resp.json();
-                if (!resp.ok) throw new Error(data.detail || data.error || 'Failed to move Watch Later videos');
-
-                toast(data.message || 'Successfully moved Watch Later videos', 'success', 6000);
-                closeMoveWatchLaterModal();
-                await loadMaintenance();
-            } catch (err) {
-                toast(`Error: ${err.message}`, 'error', 6000);
-            } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Move All Videos`; }
-            }
-        }
-        
         // DOMContentLoaded may have already fired (SPA navigation). Run init either way.
 async function initMaintenancePage() {
     await fetchPlaylistsMap();
