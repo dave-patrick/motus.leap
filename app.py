@@ -76,6 +76,7 @@ from models.task import Task, TaskStatus, TaskPriority
 
 # Service imports
 from services.youtube_service import YouTubeService, _best_thumbnail
+from services import quota_ledger as _quota_ledger
 # Setup logging
 
 # Paths
@@ -180,6 +181,10 @@ async def lifespan(app: FastAPI):
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "tube_manager.log"
     setup_logging(log_file=log_file)
+
+    # Quota ledger: track YouTube API units spent per UTC day so we can defer
+    # mutations near the daily cap instead of burning the remainder and failing.
+    _quota_ledger.configure(log_dir)
 
     config = await config_manager.load()
     youtube_service = YouTubeService(config)
@@ -1904,6 +1909,10 @@ async def _maintenance_apply_one(
                 return {"status": "ok", "action": "remove", "video_id": video_id,
                         "message": "Item not found in playlist (already removed), dismissed from queue"}
             try:
+                # Quota guard: a remove is 1 mutation (50 units). Defer instead
+                # of burning the last of the daily budget and failing.
+                if not _quota_ledger.ledger().can_spend(50):
+                    return _quota_ledger.ledger().deferred_result("remove", 50, video_id)
                 yt_client.remove_video_from_playlist_item(item_id)
             except Exception as del_err:
                 # 404 playlistItemNotFound = item already gone from YouTube.
@@ -1913,6 +1922,8 @@ async def _maintenance_apply_one(
                     return {"status": "ok", "action": "remove", "video_id": video_id,
                             "message": "Item already removed from YouTube (playlistItem gone), dismissed from queue"}
                 raise
+            # Mutually successful: 1 mutation (50 units) spent.
+            _quota_ledger.ledger().spend(50)
             # Invalidate cache so the change shows immediately.
             try:
                 await youtube_service._cache_invalidate_playlist(playlist_id)
@@ -1937,8 +1948,12 @@ async def _maintenance_apply_one(
             if not item_id:
                 return {"status": "error", "action": "move",
                         "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
+            # Quota guard: a move is 2 mutations (delete + insert = 100 units).
+            if not _quota_ledger.ledger().can_spend(100):
+                return _quota_ledger.ledger().deferred_result("move", 100, video_id)
             yt_client.remove_video_from_playlist_item(item_id)
             yt_client.add_video_to_playlist(target_playlist_id, video_id)
+            _quota_ledger.ledger().spend(100)
 
             # Automatic System Learning: record video content & title training memory
             learned_content = False
