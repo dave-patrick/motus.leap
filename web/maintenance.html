@@ -664,8 +664,8 @@
             } finally {
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = `<i class="fa-solid fa-trash-can"></i> Remove Deleted Videos`;
                 }
+                await loadMaintenance();
             }
         }
 
@@ -707,14 +707,13 @@
                 }
 
                 toast(data.message || "Successfully moved private videos", "success", 6000);
-                loadMaintenance();
             } catch (err) {
                 toast(`Error: ${err.message}`, "error", 6000);
             } finally {
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = `<i class="fa-solid fa-box-archive"></i> Move Private Videos to "Check Later"`;
                 }
+                await loadMaintenance();
             }
         }
         

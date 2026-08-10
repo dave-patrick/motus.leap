@@ -1322,8 +1322,17 @@ async def api_maintenance() -> dict[str, Any]:
             all_videos = await youtube_service.get_videos()
             vlist = all_videos.get("videos", []) if isinstance(all_videos, dict) else []
             if vlist:
-                deleted_vids = [v for v in vlist if v.get("status") == "deleted" or v.get("title") in ("Deleted video", "Private video")]
-                private_vids = [v for v in vlist if v.get("status") == "private" or v.get("privacy_status") == "private"]
+                deleted_vids = []
+                private_vids = []
+                for v in vlist:
+                    t = (v.get("title") or "").strip().lower()
+                    d = (v.get("description") or "").strip().lower()
+                    st = (v.get("status") or "").strip().lower()
+                    priv = (v.get("privacy_status") or "").strip().lower()
+                    if st == "deleted" or t in ["[deleted video]", "deleted video", "deleted"] or "this video is unavailable" in d:
+                        deleted_vids.append(v)
+                    elif st == "private" or priv == "private" or t == "private video":
+                        private_vids.append(v)
                 data["deleted_count"] = len(deleted_vids)
                 data["private_count"] = len(private_vids)
         except Exception as e:
@@ -1410,6 +1419,15 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
                         break
                     errors.append(f"Failed item {item['item_id']} in {item['playlist_id']}: {del_err}")
 
+            # Prune removed or non-existent deleted items from cached_all_data
+            if deleted_items:
+                del_ids = {item["item_id"] for item in deleted_items}
+                cached_all_data["videos"] = [
+                    v for v in cached_videos 
+                    if (v.get("playlist_item_id") or v.get("id")) not in del_ids
+                ]
+                await youtube_service._save_to_disk("all_data", cached_all_data)
+
         else:
             # ── Strategy 2: Fallback to live API scan (no cached data available) ──
             log.info("[REMOVE DELETED] No cached data available, falling back to live API scan")
@@ -1460,9 +1478,20 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
                     if not page_token:
                         break
 
+        # Update maintenance.json deleted_count to 0 or remaining count
+        _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+        m_file = _data_dir / "maintenance.json"
+        if m_file.exists():
+            try:
+                m_data = json.loads(await asyncio.to_thread(m_file.read_text))
+                if isinstance(m_data, dict):
+                    m_data["deleted_count"] = 0 if (scanned_from_cache and not deleted_items) else max(0, (m_data.get("deleted_count") or 0) - removed_count)
+                    await asyncio.to_thread(lambda: m_file.write_text(json.dumps(m_data, indent=2)))
+            except Exception as m_err:
+                log.warning(f"Failed to update maintenance.json deleted_count: {m_err}")
+
         # Invalidate in-memory caches so the UI reflects changes on next load
-        # but do NOT call force_refresh (that triggers a full re-sync = ~200 quota units)
-        if removed_count > 0 and youtube_service:
+        if youtube_service:
             try:
                 await youtube_service._cache.delete("all_data")
                 await youtube_service._cache.delete("playlists")
@@ -1477,6 +1506,7 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
             "errors": errors,
             "message": msg
         }
+
     except Exception as e:
         log.error(f"Error in remove_deleted: {e}")
         raise HTTPException(status_code=500, detail=str(e))
