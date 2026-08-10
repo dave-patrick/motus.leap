@@ -1318,6 +1318,7 @@ async def api_maintenance() -> dict[str, Any]:
         except Exception as e:
             log.warning(f"Failed to enrich playlist titles in api_maintenance: {e}")
 
+        restricted_private = set(data.get("restricted_private_videos", []))
         try:
             all_videos = await youtube_service.get_videos()
             vlist = all_videos.get("videos", []) if isinstance(all_videos, dict) else []
@@ -1329,9 +1330,10 @@ async def api_maintenance() -> dict[str, Any]:
                     d = (v.get("description") or "").strip().lower()
                     st = (v.get("status") or "").strip().lower()
                     priv = (v.get("privacy_status") or "").strip().lower()
+                    vid_id = v.get("video_id") or v.get("id")
                     if st == "deleted" or t in ["[deleted video]", "deleted video", "deleted"] or "this video is unavailable" in d:
                         deleted_vids.append(v)
-                    elif st == "private" or priv == "private" or t == "private video":
+                    elif (st == "private" or priv == "private" or t == "private video") and vid_id not in restricted_private:
                         private_vids.append(v)
                 data["deleted_count"] = len(deleted_vids)
                 data["private_count"] = len(private_vids)
@@ -1532,6 +1534,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
 
     moved_count = 0
     errors = []
+    restricted_video_ids = []
     quota_exceeded = False
     check_later_id = None
 
@@ -1664,6 +1667,8 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                             elif "failedPrecondition" in err_str or "400" in err_str:
                                 log.info(f"Video {item['video_id']} restricted by uploader. Keeping in original playlist.")
                                 errors.append(f"Video {item['video_id']}: Restricted by uploader")
+                                if item["video_id"]:
+                                    restricted_video_ids.append(item["video_id"])
 
                     if item["item_id"] and (inserted_ok or not item["video_id"]):
                         try:
@@ -1715,28 +1720,37 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                             )
                             try:
                                 items_resp = await _retry_on_ssl_async(items_req.execute)
-                            except Exception as list_err:
-                                if "quotaExceeded" in str(list_err) or "quota" in str(list_err).lower():
+                            except Exception as items_err:
+                                if "quotaExceeded" in str(items_err) or "quota" in str(items_err).lower():
                                     quota_exceeded = True
                                     break
-                                log.warning(f"Could not list items for playlist {pl_id}: {list_err}")
+                                log.warning(f"Failed to list items for playlist {pl_id}: {items_err}")
                                 break
 
-                            for item in items_resp.get("items", []):
+                            items = items_resp.get("items", [])
+                            for item in items:
+                                if quota_exceeded:
+                                    break
                                 item_id = item.get("id")
                                 snippet = item.get("snippet", {})
-                                status = item.get("status", {})
                                 title = (snippet.get("title") or "").strip().lower()
-                                privacy = (status.get("privacyStatus") or "").strip().lower()
                                 video_id = snippet.get("resourceId", {}).get("videoId")
 
-                                if title in ["[private video]", "private video", "private"] or privacy == "private":
+                                if title in ["[private video]", "private video", "private"]:
                                     inserted_ok = False
                                     if video_id:
                                         try:
                                             ins_req = google_client.playlistItems().insert(
                                                 part="snippet",
-                                                body={"snippet": {"playlistId": check_later_id, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}
+                                                body={
+                                                    "snippet": {
+                                                        "playlistId": check_later_id,
+                                                        "resourceId": {
+                                                            "kind": "youtube#video",
+                                                            "videoId": video_id
+                                                        }
+                                                    }
+                                                }
                                             )
                                             await _retry_on_ssl_async(ins_req.execute)
                                             inserted_ok = True
@@ -1747,7 +1761,10 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                                                 quota_exceeded = True
                                                 break
                                             elif "failedPrecondition" in err_str or "400" in err_str:
+                                                log.info(f"Video {video_id} restricted by uploader. Keeping in original playlist.")
                                                 errors.append(f"Video {video_id}: Restricted by uploader")
+                                                if video_id:
+                                                    restricted_video_ids.append(video_id)
 
                                     if item_id and (inserted_ok or not video_id):
                                         try:
@@ -1765,6 +1782,21 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                             if not page_token or quota_exceeded:
                                 break
 
+        # Record restricted_video_ids in maintenance.json
+        if restricted_video_ids:
+            _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+            m_file = _data_dir / "maintenance.json"
+            if m_file.exists():
+                try:
+                    m_data = json.loads(await asyncio.to_thread(m_file.read_text))
+                    if isinstance(m_data, dict):
+                        existing_r = set(m_data.get("restricted_private_videos", []))
+                        existing_r.update(restricted_video_ids)
+                        m_data["restricted_private_videos"] = list(existing_r)
+                        await asyncio.to_thread(lambda: m_file.write_text(json.dumps(m_data, indent=2)))
+                except Exception as m_err:
+                    log.warning(f"Failed to update maintenance.json restricted_private_videos: {m_err}")
+
         # Invalidate in-memory caches (do NOT force_refresh — saves ~200 quota units)
         if moved_count > 0 and youtube_service:
             try:
@@ -1777,6 +1809,8 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
             msg = f"YouTube API daily quota exceeded. Moved {moved_count} private video(s) before quota limit was reached. Quota resets daily." if moved_count > 0 else "YouTube API daily quota limit reached. Please try again tomorrow when quota resets."
         elif moved_count > 0:
             msg = f"Successfully moved {moved_count} private video(s) to 'Check Later' playlist."
+        elif restricted_video_ids:
+            msg = f"0 private videos moved. {len(restricted_video_ids)} private video(s) are restricted by YouTube / uploader and cannot be added to playlists via the API."
         else:
             msg = "No private videos were moved across your playlists."
 
