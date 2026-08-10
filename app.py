@@ -1460,12 +1460,15 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
                     if not page_token:
                         break
 
-        # Invalidate in-memory caches so the UI reflects changes on next load
-        # but do NOT call force_refresh (that triggers a full re-sync = ~200 quota units)
+        # Invalidate in-memory caches so the UI reflects changes on next load.
+        # SCOPED invalidation (quota fix): only drop the per-playlist caches that
+        # were actually touched, NEVER the global all_data/playlists blobs — those
+        # force a full ~200-unit re-sync on the next read.
         if removed_count > 0 and youtube_service:
             try:
-                await youtube_service._cache.delete("all_data")
-                await youtube_service._cache.delete("playlists")
+                touched = {item.get("playlist_id") for item in deleted_items if item.get("playlist_id")}
+                for pid in touched:
+                    await youtube_service._cache_invalidate_playlist(pid)
             except Exception:
                 pass
 
@@ -1671,6 +1674,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                         break
 
                 if not quota_exceeded:
+                    touched_playlists = set()
                     for pl in playlists:
                         if quota_exceeded:
                             break
@@ -1724,6 +1728,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                                             del_req = google_client.playlistItems().delete(id=item_id)
                                             await _retry_on_ssl_async(del_req.execute)
                                             moved_count += 1
+                                            touched_playlists.add(pl_id)
                                         except Exception as del_err:
                                             err_str = str(del_err)
                                             if "quotaExceeded" in err_str or "quota" in err_str.lower():
@@ -1735,11 +1740,13 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                             if not page_token or quota_exceeded:
                                 break
 
-        # Invalidate in-memory caches (do NOT force_refresh — saves ~200 quota units)
+        # Invalidate in-memory caches (SCOPED, quota fix): only the playlists
+        # actually touched, never the global all_data/playlists blobs (those
+        # force a ~200-unit full re-sync on next read).
         if moved_count > 0 and youtube_service:
             try:
-                await youtube_service._cache.delete("all_data")
-                await youtube_service._cache.delete("playlists")
+                for pid in set(touched_playlists) | {check_later_id}:
+                    await youtube_service._cache_invalidate_playlist(pid)
             except Exception:
                 pass
 
