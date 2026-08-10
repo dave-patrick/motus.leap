@@ -638,21 +638,32 @@ class YouTubeService:
     async def _get_channel_stats(
         self, client: Any, channel_ids: list[str], force_refresh: bool = False
     ) -> dict[str, Any]:
-        """Fetch channel statistics with 24-hour disk caching to minimize API quota usage."""
+        """Fetch channel statistics with disk caching to minimize API quota usage.
+
+        QUOTA FIX: channel stats (subscriber/video/view counts) change very
+        slowly, so we cache them for 7 days and NEVER force-refresh them even
+        when the caller asks for a fresh playlist/video sync. A full sync with
+        force_refresh=True must not re-fetch hundreds of channel stats — that
+        was the single biggest read-cost item (hundreds of channels().list
+        calls per sync). The playlist/video data can be fresh while channel
+        stats ride the long-lived cache.
+        """
         if not channel_ids:
             return {}
 
-        cached_stats_file = await self._load_from_disk("channel_stats", max_age_days=1)
+        cached_stats_file = await self._load_from_disk("channel_stats", max_age_days=7)
         cached_items = {}
         if cached_stats_file and isinstance(cached_stats_file, dict):
             cached_items = cached_stats_file.get("stats", {})
 
+        # Always serve from the 7-day cache when possible, regardless of
+        # force_refresh — only gap-fill channels we have never cached.
         missing_ids = [cid for cid in channel_ids if cid not in cached_items]
-        target_ids = channel_ids if force_refresh else missing_ids
+        target_ids = missing_ids
 
         if target_ids:
             async with self._enrich_lock:
-                log.info(f"[FETCH] Enriching {len(target_ids)} channel stats via API...")
+                log.info(f"[FETCH] Enriching {len(target_ids)} (previously-uncached) channel stats via API...")
                 try:
                     enriched = await asyncio.to_thread(client.list_channels_by_ids, target_ids, 50) or {}
                     for item in enriched.get("items", []):
