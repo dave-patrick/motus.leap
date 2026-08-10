@@ -868,34 +868,59 @@ def _save_maintenance(maintenance: dict) -> None:
 async def exclude_misplaced_videos(request: Request):
     """Mark specific videos as 'not misplaced' for a given playlist (per-playlist).
 
-    Body: {"playlist_id": str, "video_ids": [str, ...]}
+    Body: {"playlist_id": str, "video_ids": [str, ...]} OR {"items": [{"video_id": str, "playlist_id": str}, ...]}
     Persisted under maintenance.json -> not_misplaced as {video_id, playlist_id}.
-    Future scans of that playlist will skip these videos. Does NOT touch the
-    channel->playlist mapping (use /correct-mapping for that).
+    Future scans of that playlist will skip these videos.
     """
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=422, detail="Invalid JSON body")
-    playlist_id = body.get("playlist_id") or ""
-    video_ids = body.get("video_ids") or []
-    if not playlist_id or not isinstance(video_ids, list):
-        raise HTTPException(status_code=422, detail="playlist_id and video_ids[] required")
-    video_ids = [str(v) for v in video_ids if v]
+
+    to_exclude = []
+    if "items" in body and isinstance(body["items"], list):
+        for item in body["items"]:
+            if isinstance(item, dict) and item.get("video_id") and item.get("playlist_id"):
+                to_exclude.append((str(item["video_id"]), str(item["playlist_id"])))
+    else:
+        playlist_id = body.get("playlist_id") or ""
+        video_ids = body.get("video_ids") or []
+        if playlist_id and isinstance(video_ids, list):
+            for vid in video_ids:
+                if vid:
+                    to_exclude.append((str(vid), str(playlist_id)))
+
+    if not to_exclude:
+        raise HTTPException(status_code=422, detail="Valid items or (playlist_id and video_ids[]) required")
 
     maintenance = _load_maintenance_data()
     excluded = maintenance.get("not_misplaced") or []
     seen = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
     added = 0
-    for vid in video_ids:
-        key = (vid, playlist_id)
+    for vid, pid in to_exclude:
+        key = (vid, pid)
         if key not in seen:
-            excluded.append({"video_id": vid, "playlist_id": playlist_id})
+            excluded.append({"video_id": vid, "playlist_id": pid})
             seen.add(key)
             added += 1
+
+    exc_set = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
+    misplaced = maintenance.get("misplaced_videos") or []
+    move_x_y = maintenance.get("move_from_x_to_y") or []
+
+    maintenance["misplaced_videos"] = [
+        v for v in misplaced 
+        if (v.get("video_id") or v.get("id"), v.get("current_playlist_id") or v.get("playlist_id")) not in exc_set
+    ]
+    maintenance["move_from_x_to_y"] = [
+        v for v in move_x_y 
+        if (v.get("video_id") or v.get("id"), v.get("source_playlist_id") or v.get("playlist_id")) not in exc_set
+    ]
+
     maintenance["not_misplaced"] = excluded
     _save_maintenance(maintenance)
     return {"status": "success", "added": added, "total_excluded": len(excluded)}
+
 
 
 @app.post("/api/youtube/misplaced/correct-mapping", dependencies=[Depends(get_current_user), Depends(verify_origin)])
@@ -1323,12 +1348,23 @@ async def api_maintenance() -> dict[str, Any]:
         except Exception as e:
             log.warning(f"Failed to enrich playlist titles in api_maintenance: {e}")
 
+        restricted_private = set(data.get("restricted_private_videos", []))
         try:
             all_videos = await youtube_service.get_videos()
             vlist = all_videos.get("videos", []) if isinstance(all_videos, dict) else []
             if vlist:
-                deleted_vids = [v for v in vlist if v.get("status") == "deleted" or v.get("title") in ("Deleted video", "Private video")]
-                private_vids = [v for v in vlist if v.get("status") == "private" or v.get("privacy_status") == "private"]
+                deleted_vids = []
+                private_vids = []
+                for v in vlist:
+                    t = (v.get("title") or "").strip().lower()
+                    d = (v.get("description") or "").strip().lower()
+                    st = (v.get("status") or "").strip().lower()
+                    priv = (v.get("privacy_status") or "").strip().lower()
+                    vid_id = v.get("video_id") or v.get("id")
+                    if st == "deleted" or t in ["[deleted video]", "deleted video", "deleted"] or "this video is unavailable" in d:
+                        deleted_vids.append(v)
+                    elif (st == "private" or priv == "private" or t == "private video") and vid_id not in restricted_private:
+                        private_vids.append(v)
                 data["deleted_count"] = len(deleted_vids)
                 data["private_count"] = len(private_vids)
         except Exception as e:
@@ -1415,6 +1451,15 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
                         break
                     errors.append(f"Failed item {item['item_id']} in {item['playlist_id']}: {del_err}")
 
+            # Prune removed or non-existent deleted items from cached_all_data
+            if deleted_items:
+                del_ids = {item["item_id"] for item in deleted_items}
+                cached_all_data["videos"] = [
+                    v for v in cached_videos 
+                    if (v.get("playlist_item_id") or v.get("id")) not in del_ids
+                ]
+                await youtube_service._save_to_disk("all_data", cached_all_data)
+
         else:
             # ── Strategy 2: Fallback to live API scan (no cached data available) ──
             log.info("[REMOVE DELETED] No cached data available, falling back to live API scan")
@@ -1465,7 +1510,18 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
                     if not page_token:
                         break
 
-        # Invalidate in-memory caches so the UI reflects changes on next load.
+        # Update maintenance.json deleted_count to 0 or remaining count
+        _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+        m_file = _data_dir / "maintenance.json"
+        if m_file.exists():
+            try:
+                m_data = json.loads(await asyncio.to_thread(m_file.read_text))
+                if isinstance(m_data, dict):
+                    m_data["deleted_count"] = 0 if (scanned_from_cache and not deleted_items) else max(0, (m_data.get("deleted_count") or 0) - removed_count)
+                    await asyncio.to_thread(lambda: m_file.write_text(json.dumps(m_data, indent=2)))
+            except Exception as m_err:
+                log.warning(f"Failed to update maintenance.json deleted_count: {m_err}")
+
         # SCOPED invalidation (quota fix): only drop the per-playlist caches that
         # were actually touched, NEVER the global all_data/playlists blobs — those
         # force a full ~200-unit re-sync on the next read.
@@ -1485,6 +1541,7 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
             "errors": errors,
             "message": msg
         }
+
     except Exception as e:
         log.error(f"Error in remove_deleted: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1510,6 +1567,7 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
 
     moved_count = 0
     errors = []
+    restricted_video_ids = []
     quota_exceeded = False
     check_later_id = None
 
@@ -1642,6 +1700,8 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                             elif "failedPrecondition" in err_str or "400" in err_str:
                                 log.info(f"Video {item['video_id']} restricted by uploader. Keeping in original playlist.")
                                 errors.append(f"Video {item['video_id']}: Restricted by uploader")
+                                if item["video_id"]:
+                                    restricted_video_ids.append(item["video_id"])
 
                     if item["item_id"] and (inserted_ok or not item["video_id"]):
                         try:
@@ -1694,28 +1754,37 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                             )
                             try:
                                 items_resp = await _retry_on_ssl_async(items_req.execute)
-                            except Exception as list_err:
-                                if "quotaExceeded" in str(list_err) or "quota" in str(list_err).lower():
+                            except Exception as items_err:
+                                if "quotaExceeded" in str(items_err) or "quota" in str(items_err).lower():
                                     quota_exceeded = True
                                     break
-                                log.warning(f"Could not list items for playlist {pl_id}: {list_err}")
+                                log.warning(f"Failed to list items for playlist {pl_id}: {items_err}")
                                 break
 
-                            for item in items_resp.get("items", []):
+                            items = items_resp.get("items", [])
+                            for item in items:
+                                if quota_exceeded:
+                                    break
                                 item_id = item.get("id")
                                 snippet = item.get("snippet", {})
-                                status = item.get("status", {})
                                 title = (snippet.get("title") or "").strip().lower()
-                                privacy = (status.get("privacyStatus") or "").strip().lower()
                                 video_id = snippet.get("resourceId", {}).get("videoId")
 
-                                if title in ["[private video]", "private video", "private"] or privacy == "private":
+                                if title in ["[private video]", "private video", "private"]:
                                     inserted_ok = False
                                     if video_id:
                                         try:
                                             ins_req = google_client.playlistItems().insert(
                                                 part="snippet",
-                                                body={"snippet": {"playlistId": check_later_id, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}
+                                                body={
+                                                    "snippet": {
+                                                        "playlistId": check_later_id,
+                                                        "resourceId": {
+                                                            "kind": "youtube#video",
+                                                            "videoId": video_id
+                                                        }
+                                                    }
+                                                }
                                             )
                                             await _retry_on_ssl_async(ins_req.execute)
                                             inserted_ok = True
@@ -1726,7 +1795,10 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                                                 quota_exceeded = True
                                                 break
                                             elif "failedPrecondition" in err_str or "400" in err_str:
+                                                log.info(f"Video {video_id} restricted by uploader. Keeping in original playlist.")
                                                 errors.append(f"Video {video_id}: Restricted by uploader")
+                                                if video_id:
+                                                    restricted_video_ids.append(video_id)
 
                                     if item_id and (inserted_ok or not video_id):
                                         try:
@@ -1745,9 +1817,24 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
                             if not page_token or quota_exceeded:
                                 break
 
-        # Invalidate in-memory caches (SCOPED, quota fix): only the playlists
-        # actually touched, never the global all_data/playlists blobs (those
-        # force a ~200-unit full re-sync on next read).
+        # Record restricted_video_ids in maintenance.json
+        if restricted_video_ids:
+            _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+            m_file = _data_dir / "maintenance.json"
+            if m_file.exists():
+                try:
+                    m_data = json.loads(await asyncio.to_thread(m_file.read_text))
+                    if isinstance(m_data, dict):
+                        existing_r = set(m_data.get("restricted_private_videos", []))
+                        existing_r.update(restricted_video_ids)
+                        m_data["restricted_private_videos"] = list(existing_r)
+                        await asyncio.to_thread(lambda: m_file.write_text(json.dumps(m_data, indent=2)))
+                except Exception as m_err:
+                    log.warning(f"Failed to update maintenance.json restricted_private_videos: {m_err}")
+
+        # SCOPED invalidation (quota fix): only the playlists actually touched,
+        # never the global all_data/playlists blobs (those force a ~200-unit
+        # full re-sync on the next read).
         if moved_count > 0 and youtube_service:
             try:
                 for pid in set(touched_playlists) | {check_later_id}:
@@ -1759,6 +1846,8 @@ async def api_maintenance_move_private(allow_uncached: bool = False):
             msg = f"YouTube API daily quota exceeded. Moved {moved_count} private video(s) before quota limit was reached. Quota resets daily." if moved_count > 0 else "YouTube API daily quota limit reached. Please try again tomorrow when quota resets."
         elif moved_count > 0:
             msg = f"Successfully moved {moved_count} private video(s) to 'Check Later' playlist."
+        elif restricted_video_ids:
+            msg = f"0 private videos moved. {len(restricted_video_ids)} private video(s) are restricted by YouTube / uploader and cannot be added to playlists via the API."
         else:
             msg = "No private videos were moved across your playlists."
 
