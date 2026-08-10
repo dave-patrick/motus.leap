@@ -727,6 +727,24 @@ async def fetch_all_youtube_data(request: Request, force_refresh: bool = False):
     if not youtube_service:
         return {"error": "YouTube service not initialized"}
     
+    # Fix 6 (quota): a forced full re-sync is the single most expensive operation
+    # (hundreds of read calls). If the daily ledger is already near/at the soft
+    # cap, defer it instead of firing the calls and burning the last of the
+    # budget on a sync that will likely fail partway with a 403. A normal cached
+    # read (force_refresh=False) is always permitted — it's ~1 unit from cache.
+    if force_refresh and not _quota_ledger.ledger().can_spend(500):
+        return {
+            "status": "quota_deferred",
+            "error": (
+                f"Full re-sync deferred: daily YouTube API quota is nearly "
+                f"exhausted ({_quota_ledger.ledger().used_today()}/"
+                f"{_quota_ledger.SOFT_CAP} units used). Serving cached data "
+                f"instead — the sync will run once quota resets."
+            ),
+            "used_units_today": _quota_ledger.ledger().used_today(),
+            "soft_cap": _quota_ledger.SOFT_CAP,
+        }
+
     result = await youtube_service.fetch_all_data(force_refresh=force_refresh)
     return result
 
@@ -2178,6 +2196,41 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     errors = []
     quota_hit = False
 
+    # Fix 2 (quota): resolve playlistItem IDs ONCE per source playlist instead
+    # of one API read per record. A list call returns up to 50 items; for a
+    # queue of N records spread across M playlists this drops the resolve reads
+    # from N to M (often 1) — the single biggest read saving in fix_all.
+    bulk_item_map: dict[str, dict[str, str]] = {}
+    _src_pids: set[str] = set()
+    for _rec in records:
+        if item_type == "dup":
+            for _cp in (_rec.get("playlists") or []):
+                _pid = _cp.get("id") if isinstance(_cp, dict) else None
+                if _pid:
+                    _src_pids.add(_pid)
+        else:
+            _pid = _rec.get("current_playlist_id") or _rec.get("source_playlist_id")
+            if _pid:
+                _src_pids.add(_pid)
+    for _pid in _src_pids:
+        _mapping: dict[str, str] = {}
+        try:
+            _pt = None
+            while True:
+                _resp = yt_client.list_videos(_pid, _pt)
+                for _it in _resp.get("items", []):
+                    _snip = _it.get("snippet", {}) or {}
+                    _rid = _snip.get("resourceId", {}) or {}
+                    _vid = _rid.get("videoId")
+                    if _vid:
+                        _mapping[_vid] = _it.get("id")
+                _pt = _resp.get("nextPageToken")
+                if not _pt:
+                    break
+        except Exception as _map_err:
+            log.warning(f"Fix2 bulk resolve failed for playlist {_pid}: {_map_err}")
+        bulk_item_map[_pid] = _mapping
+
     for rec in records:
         if quota_hit:
             break
@@ -2191,6 +2244,9 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                 if idx == 0:
                     continue  # keep the primary copy
                 processed += 1
+                _resolved_item_id = (bulk_item_map.get(cp_id) or {}).get(
+                    rec.get("video_id") or ""
+                )
                 try:
                     res = await _maintenance_apply_one(
                         yt_client,
@@ -2199,8 +2255,8 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                         record=rec,
                         playlist_id=cp_id,
                         target_playlist_id=None,
-                        playlist_item_id=None,
-                        video_id=None,
+                        playlist_item_id=_resolved_item_id,
+                        video_id=rec.get("video_id"),
                     )
                     if res.get("status") == "ok":
                         succeeded += 1
@@ -2221,16 +2277,18 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
         # misplaced / move
         sub_action = "remove"
         processed += 1
+        _src_pid = rec.get("current_playlist_id") or rec.get("source_playlist_id")
+        _resolved_item_id = (bulk_item_map.get(_src_pid) or {}).get(rec.get("video_id") or "")
         try:
             res = await _maintenance_apply_one(
                 yt_client,
                 action=sub_action,
                 item_type=item_type,
                 record=rec,
-                playlist_id=None,
+                playlist_id=_src_pid,
                 target_playlist_id=None,
-                playlist_item_id=None,
-                video_id=None,
+                playlist_item_id=_resolved_item_id,
+                video_id=rec.get("video_id"),
             )
             if res.get("status") == "ok":
                 succeeded += 1
