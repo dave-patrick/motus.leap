@@ -863,34 +863,59 @@ def _save_maintenance(maintenance: dict) -> None:
 async def exclude_misplaced_videos(request: Request):
     """Mark specific videos as 'not misplaced' for a given playlist (per-playlist).
 
-    Body: {"playlist_id": str, "video_ids": [str, ...]}
+    Body: {"playlist_id": str, "video_ids": [str, ...]} OR {"items": [{"video_id": str, "playlist_id": str}, ...]}
     Persisted under maintenance.json -> not_misplaced as {video_id, playlist_id}.
-    Future scans of that playlist will skip these videos. Does NOT touch the
-    channel->playlist mapping (use /correct-mapping for that).
+    Future scans of that playlist will skip these videos.
     """
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=422, detail="Invalid JSON body")
-    playlist_id = body.get("playlist_id") or ""
-    video_ids = body.get("video_ids") or []
-    if not playlist_id or not isinstance(video_ids, list):
-        raise HTTPException(status_code=422, detail="playlist_id and video_ids[] required")
-    video_ids = [str(v) for v in video_ids if v]
+
+    to_exclude = []
+    if "items" in body and isinstance(body["items"], list):
+        for item in body["items"]:
+            if isinstance(item, dict) and item.get("video_id") and item.get("playlist_id"):
+                to_exclude.append((str(item["video_id"]), str(item["playlist_id"])))
+    else:
+        playlist_id = body.get("playlist_id") or ""
+        video_ids = body.get("video_ids") or []
+        if playlist_id and isinstance(video_ids, list):
+            for vid in video_ids:
+                if vid:
+                    to_exclude.append((str(vid), str(playlist_id)))
+
+    if not to_exclude:
+        raise HTTPException(status_code=422, detail="Valid items or (playlist_id and video_ids[]) required")
 
     maintenance = _load_maintenance_data()
     excluded = maintenance.get("not_misplaced") or []
     seen = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
     added = 0
-    for vid in video_ids:
-        key = (vid, playlist_id)
+    for vid, pid in to_exclude:
+        key = (vid, pid)
         if key not in seen:
-            excluded.append({"video_id": vid, "playlist_id": playlist_id})
+            excluded.append({"video_id": vid, "playlist_id": pid})
             seen.add(key)
             added += 1
+
+    exc_set = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
+    misplaced = maintenance.get("misplaced_videos") or []
+    move_x_y = maintenance.get("move_from_x_to_y") or []
+
+    maintenance["misplaced_videos"] = [
+        v for v in misplaced 
+        if (v.get("video_id") or v.get("id"), v.get("current_playlist_id") or v.get("playlist_id")) not in exc_set
+    ]
+    maintenance["move_from_x_to_y"] = [
+        v for v in move_x_y 
+        if (v.get("video_id") or v.get("id"), v.get("source_playlist_id") or v.get("playlist_id")) not in exc_set
+    ]
+
     maintenance["not_misplaced"] = excluded
     _save_maintenance(maintenance)
     return {"status": "success", "added": added, "total_excluded": len(excluded)}
+
 
 
 @app.post("/api/youtube/misplaced/correct-mapping", dependencies=[Depends(get_current_user), Depends(verify_origin)])
