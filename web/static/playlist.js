@@ -423,9 +423,14 @@ function toggleSelectAll(checkbox) {
 
 function loadPlaylistsDropdown() {
     const select = document.getElementById('target-playlist');
+    const scanSelect = document.getElementById('scan-target-playlist');
+    const optionsHtml = '<option value="">Move selected to...</option>' +
+        allPlaylists.filter(p => p.id !== playlistId).map(p => `<option value="${p.id}">${DOMPurify.sanitize(p.title)}</option>`).join('');
     if (select) {
-        select.innerHTML = '<option value="">Move to...</option>' +
-            allPlaylists.filter(p => p.id !== playlistId).map(p => `<option value="${p.id}">${DOMPurify.sanitize(p.title)}</option>`).join('');
+        select.innerHTML = optionsHtml;
+    }
+    if (scanSelect) {
+        scanSelect.innerHTML = optionsHtml;
     }
 }
 
@@ -485,8 +490,9 @@ function updateMoveButton() {
     
     if (moveBtn) {
         const targetPlaylistSelected = document.getElementById('target-playlist')?.value;
-        moveBtn.classList.toggle('hidden', selectedVideos.size === 0 || !targetPlaylistSelected);
-        moveBtn.disabled = selectedVideos.size === 0 || !targetPlaylistSelected;
+        const canMove = totalSelected > 0 && !!targetPlaylistSelected;
+        moveBtn.classList.toggle('hidden', !canMove);
+        moveBtn.disabled = !canMove;
     }
 }
 
@@ -511,6 +517,11 @@ async function moveSelectedVideos() {
     const targetSelect = document.getElementById('target-playlist');
     const targetId = targetSelect?.value;
     const targetName = targetSelect?.options[targetSelect.selectedIndex]?.text || 'target playlist';
+
+    if (selectedMisplaced.size > 0 && targetId) {
+        await moveSelectedMisplacedToCustom(targetId);
+        return;
+    }
 
     if (!targetId || selectedVideos.size === 0) {
         toast('Please select videos and a target playlist', 'error');
@@ -629,11 +640,19 @@ function updateMisplacedActions() {
     const n = selectedMisplaced.size;
     const keepBtn = document.getElementById('keep-misplaced-btn');
     const fixBtn = document.getElementById('fix-mapping-btn');
+    const moveCustomBtn = document.getElementById('move-custom-misplaced-btn');
+    const scanTargetVal = document.getElementById('scan-target-playlist')?.value;
     const masterCb = document.getElementById('select-all-misplaced-cb');
     const displayedCbs = document.querySelectorAll('.misplaced-checkbox');
 
     if (keepBtn) { keepBtn.disabled = n === 0; keepBtn.classList.toggle('opacity-40', n === 0); }
     if (fixBtn) { fixBtn.disabled = n === 0; fixBtn.classList.toggle('opacity-40', n === 0); }
+
+    if (moveCustomBtn) {
+        const canCustomMove = n > 0 && !!scanTargetVal;
+        moveCustomBtn.disabled = !canCustomMove;
+        moveCustomBtn.classList.toggle('opacity-40', !canCustomMove);
+    }
 
     if (masterCb && displayedCbs.length > 0) {
         masterCb.checked = Array.from(displayedCbs).every(cb => cb.checked);
@@ -642,6 +661,84 @@ function updateMisplacedActions() {
     if (label) label.textContent = n > 0 ? `${n} selected` : '';
 
     updateMoveButton();
+}
+
+async function moveSelectedMisplacedToCustom(targetIdOverride = null) {
+    const scanSelect = document.getElementById('scan-target-playlist');
+    const mainSelect = document.getElementById('target-playlist');
+    const targetId = targetIdOverride || scanSelect?.value || mainSelect?.value;
+    const targetName = allPlaylists.find(p => p.id === targetId)?.title || targetId || 'destination playlist';
+
+    const combinedVideoIds = new Set([...selectedMisplaced, ...selectedVideos]);
+    if (combinedVideoIds.size === 0) {
+        toast('Select one or more misplaced videos first', 'warning');
+        return;
+    }
+    if (!targetId) {
+        toast('Select a destination playlist first', 'warning');
+        return;
+    }
+
+    if (!confirm(`Move ${combinedVideoIds.size} video(s) to "${targetName}"?\n(Channel mapping rules will stay unchanged. AI will learn from this move)`)) {
+        return;
+    }
+
+    toast(`Moving ${combinedVideoIds.size} video(s) to "${DOMPurify.sanitize(targetName)}"...`, 'info');
+    let successCount = 0;
+    const videoIdArray = Array.from(combinedVideoIds);
+
+    for (const vid of videoIdArray) {
+        const mItem = currentScanResults.misplaced?.find(x => x.video_id === vid);
+        const v = allVideos.find(x => x.video_id === vid || x.id === vid);
+        const title = mItem?.title || v?.title || '';
+        const channelTitle = mItem?.channel || v?.channel_title || '';
+        const channelId = mItem?.channel_id || v?.channel_id || '';
+
+        try {
+            const resp = await fetch('/api/maintenance/action', {
+                method: 'POST',
+                headers: await authHeaders(),
+                body: JSON.stringify({
+                    action: 'move',
+                    type: 'misplaced',
+                    video_id: vid,
+                    playlist_id: playlistId,
+                    target_playlist_id: targetId,
+                    video_title: title,
+                    channel_title: channelTitle,
+                    channel_id: channelId
+                })
+            });
+            const result = await resp.json();
+            if (resp.ok && (result.status === 'success' || result.status === 'ok')) {
+                successCount++;
+            } else if (result.quota_exceeded) {
+                toast('Quota limit reached. Move paused.', 'warning', 8000);
+                break;
+            }
+        } catch (e) {
+            console.error('Error moving misplaced video:', e);
+        }
+    }
+
+    if (successCount > 0) {
+        toast(`Successfully moved ${successCount} video(s) to "${DOMPurify.sanitize(targetName)}"! (Channel mappings unchanged, AI learned from this move)`, 'success', 6000);
+        
+        currentScanResults.misplaced = (currentScanResults.misplaced || []).filter(mv => !videoIdArray.includes(mv.video_id));
+        selectedMisplaced.clear();
+        selectedVideos.clear();
+
+        document.querySelectorAll('.misplaced-checkbox, .video-checkbox').forEach(cb => cb.checked = false);
+
+        filterScanResults();
+        updateScanSummary();
+        updateMisplacedActions();
+        updateMoveButton();
+        syncSelectAllState();
+        await loadPlaylist();
+    } else {
+        toast('Failed to move selected videos', 'error');
+    }
 }
 
 async function clearScanResults() {

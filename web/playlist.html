@@ -127,11 +127,17 @@
                                     <button id="delete-duplicates-btn" class="hidden bg-red-950/60 hover:bg-red-900/60 border border-red-500/40 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
                                         <i class="fa-solid fa-trash-can"></i> Delete Duplicates
                                     </button>
-                                    <button id="move-misplaced-btn" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Move selected misplaced videos to their rule target playlists">
-                                        <i class="fa-solid fa-share-from-square"></i> Move to Mapped Playlist
+                                    <button id="move-misplaced-btn" class="hidden bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Move selected misplaced videos to their rule target playlists (e.g. 1~Sort)">
+                                        <i class="fa-solid fa-share-from-square text-[#2f8fc9]"></i> Move to Mapped
+                                    </button>
+                                    <select id="scan-target-playlist" onchange="updateMisplacedActions()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded-lg px-2.5 py-1.5 outline-none cursor-pointer focus:border-[#2f8fc9]">
+                                        <option value="">Move selected to...</option>
+                                    </select>
+                                    <button id="move-custom-misplaced-btn" onclick="moveSelectedMisplacedToCustom()" disabled class="opacity-40 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Move selected videos to chosen playlist without changing channel mappings">
+                                        <i class="fa-solid fa-arrow-right-to-bracket"></i> Move Selected
                                     </button>
                                     <button id="keep-misplaced-btn" disabled class="opacity-40 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Keep selected videos in this playlist without changing channel rules">
-                                        <i class="fa-solid fa-anchor text-amber-400"></i> Keep Selected Here
+                                        <i class="fa-solid fa-anchor text-amber-400"></i> Keep Here
                                     </button>
                                     <button id="fix-mapping-btn" disabled class="opacity-40 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Update channel mappings so selected channels permanently belong to this playlist">
                                         <i class="fa-solid fa-map-pin text-yellow-500"></i> Update Channel Mapping
