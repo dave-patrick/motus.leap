@@ -1,11 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-<<<<<<< Updated upstream
   const SHELL_VERSION = '20260723d';
-=======
-  const SHELL_VERSION = '20260720c';
->>>>>>> Stashed changes
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 

@@ -266,13 +266,7 @@ function renderVideos() {
     const container = document.getElementById('videos-list');
     const skeleton = document.getElementById('videos-skeleton');
     const toolbarCard = document.getElementById('playlist-toolbar-card');
-<<<<<<< Updated upstream
-    const skeleton = document.getElementById('videos-skeleton');
-=======
-    
-    if (skeleton) skeleton.classList.add('hidden');
-    if (container) container.classList.remove('hidden');
->>>>>>> Stashed changes
+
     if (!container) return;
 
     container.classList.remove('hidden');
