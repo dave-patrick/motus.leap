@@ -588,6 +588,9 @@ class MaintenanceActionIn(BaseModel):
       playlist_id: str                      (source playlist for remove/move)
       target_playlist_id: str | None        (target for move)
       playlist_item_id: str | None          (if known; otherwise looked up)
+      video_title: str | None = None        (for AI training memory)
+      channel_id: str | None = None         (for AI training memory)
+      channel_title: str | None = None      (for AI training memory)
     """
     action: str
     type: str | None = None
@@ -595,6 +598,9 @@ class MaintenanceActionIn(BaseModel):
     playlist_id: str | None = None
     target_playlist_id: str | None = None
     playlist_item_id: str | None = None
+    video_title: str | None = None
+    channel_id: str | None = None
+    channel_title: str | None = None
 
 
 class MappingIn(BaseModel):
@@ -2081,19 +2087,52 @@ async def _maintenance_apply_one(
 
             # Automatic System Learning: record video content & title training memory
             learned_content = False
-            v_title = record.get("video_title") or record.get("title") or video_id
+            v_title = record.get("video_title") or record.get("title") or ""
             v_channel_id = record.get("channel_id") or ""
-            v_channel_title = record.get("channel_title") or ""
+            v_channel_title = record.get("channel_title") or record.get("channel") or ""
 
-            # Resolve target playlist title
+            # Robust metadata lookup if title or channel was omitted in call
+            if not v_title or v_title == video_id or not v_channel_id:
+                try:
+                    m_data = _load_maintenance_data()
+                    m_records = (m_data.get("misplaced_videos") or []) + (m_data.get("duplicated_videos") or [])
+                    m_found = next((x for x in m_records if x.get("video_id") == video_id), None)
+                    if m_found:
+                        if not v_title or v_title == video_id:
+                            v_title = m_found.get("video_title") or m_found.get("title") or ""
+                        v_channel_id = v_channel_id or m_found.get("channel_id") or ""
+                        v_channel_title = v_channel_title or m_found.get("channel_title") or m_found.get("channel") or ""
+                except Exception as _m_err:
+                    log.warning(f"Maintenance record lookup warning for AI learning: {_m_err}")
+
+            if (not v_title or v_title == video_id or not v_channel_id) and youtube_service:
+                try:
+                    v_cache = await youtube_service._cache.get("all_data")
+                    if v_cache and isinstance(v_cache, dict):
+                        v_list = v_cache.get("videos") or []
+                        v_match = next((x for x in v_list if (isinstance(x, dict) and (x.get("video_id") == video_id or x.get("id") == video_id))), None)
+                        if v_match:
+                            if not v_title or v_title == video_id:
+                                v_title = v_match.get("title") or ""
+                            v_channel_id = v_channel_id or v_match.get("channel_id") or ""
+                            v_channel_title = v_channel_title or v_match.get("channel_title") or ""
+                except Exception as _c_err:
+                    log.warning(f"Cache video lookup warning for AI learning: {_c_err}")
+
+            v_title = v_title or video_id
+
+            # Resolve source & target playlist names
             target_name = target_playlist_id
+            from_name = playlist_id
             try:
                 if youtube_service:
                     all_pls = await youtube_service.list_playlists()
                     for p in all_pls:
-                        if p.get("id") == target_playlist_id:
+                        pid = p.get("id")
+                        if pid == target_playlist_id:
                             target_name = p.get("title") or target_playlist_id
-                            break
+                        if pid == playlist_id:
+                            from_name = p.get("title") or playlist_id
             except Exception:
                 pass
 
@@ -2104,16 +2143,16 @@ async def _maintenance_apply_one(
                     title=v_title,
                     channel_id=v_channel_id,
                     channel_title=v_channel_title,
-                    from_playlist_name=playlist_id,
+                    from_playlist_name=from_name,
                     from_playlist_id=playlist_id,
                     to_playlist_name=target_name,
                     to_playlist_id=target_playlist_id,
-                    source="maintenance_correction"
+                    source="user_move"
                 )
                 learned_content = True
-                log.info(f"[LEARNING] Recorded AI content memory: '{v_title}' => '{target_name}'")
+                log.info(f"[AI LEARNING] Recorded training move: '{v_title}' ({v_channel_title}) from '{from_name}' => '{target_name}'")
             except Exception as learn_err:
-                log.warning(f"[LEARNING] Failed to record AI content memory: {learn_err}")
+                log.warning(f"[AI LEARNING] Failed to record AI content memory: {learn_err}")
 
             for pid in (playlist_id, target_playlist_id):
                 try:
@@ -2182,7 +2221,11 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                 yt_client,
                 action=action,
                 item_type=item_type,
-                record={},
+                record={
+                    "video_title": payload.video_title,
+                    "channel_id": payload.channel_id,
+                    "channel_title": payload.channel_title,
+                },
                 playlist_id=payload.playlist_id,
                 target_playlist_id=payload.target_playlist_id,
                 playlist_item_id=payload.playlist_item_id,

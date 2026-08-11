@@ -366,7 +366,7 @@
                 return;
             }
             const targetName = playlistsMap[targetId] || targetId;
-            if (!confirm(`Are you sure you want to move ${chks.length} selected video(s) to "${targetName}"?`)) return;
+            if (!confirm(`Are you sure you want to move ${chks.length} selected video(s) to "${targetName}"? (Channel mappings will stay unchanged, AI will learn from this move)`)) return;
 
             const btn = document.getElementById('btn-batch-move');
             if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Moving (${chks.length})...`; }
@@ -376,8 +376,20 @@
             for (const chk of chks) {
                 const vid = chk.getAttribute('data-vid');
                 const curId = chk.getAttribute('data-curid');
+                const vTitle = chk.getAttribute('data-title') || '';
+                const cTitle = chk.getAttribute('data-channel') || '';
+                const cId = chk.getAttribute('data-channelid') || '';
                 try {
-                    const res = await maintPost({ action: 'move', type: 'misplaced', video_id: vid, playlist_id: curId, target_playlist_id: targetId });
+                    const res = await maintPost({
+                        action: 'move',
+                        type: 'misplaced',
+                        video_id: vid,
+                        playlist_id: curId,
+                        target_playlist_id: targetId,
+                        video_title: vTitle,
+                        channel_title: cTitle,
+                        channel_id: cId
+                    });
                     if (res && res.quota_exceeded) {
                         toast('Quota limit reached. Batch paused.', 'warning', 8000);
                         break;
@@ -385,7 +397,7 @@
                     successCount++;
                 } catch(e) { break; }
             }
-            toast(`Successfully moved ${successCount} video(s) to "${targetName}"!`, 'success');
+            toast(`Successfully moved ${successCount} video(s) to "${targetName}"! (AI learned from this move)`, 'success', 6000);
             if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Move Selected`; }
             await loadMaintenance();
         }
@@ -586,7 +598,9 @@
 
                 let _checkboxHtml = '';
                 if (type === 'misplaced') {
-                    _checkboxHtml = `<input type="checkbox" class="misplaced-chk w-4 h-4 rounded bg-[#14171f] border-gray-600 text-[#2f8fc9] cursor-pointer self-center flex-shrink-0" data-vid="${_vid}" data-curid="${_fromId}" onchange="updateSelectedCount()">`;
+                    const _chan = DOMPurify.sanitize(item.channel || item.channel_title || '');
+                    const _chanId = DOMPurify.sanitize(item.channel_id || '');
+                    _checkboxHtml = `<input type="checkbox" class="misplaced-chk w-4 h-4 rounded bg-[#14171f] border-gray-600 text-[#2f8fc9] cursor-pointer self-center flex-shrink-0" data-vid="${_vid}" data-curid="${_fromId}" data-title="${_title}" data-channel="${_chan}" data-channelid="${_chanId}" onchange="updateSelectedCount()">`;
                 } else if (type === 'dup') {
                     _checkboxHtml = `<input type="checkbox" class="dup-chk w-4 h-4 rounded bg-[#14171f] border-gray-600 text-[#2f8fc9] cursor-pointer self-center flex-shrink-0" data-vid="${_vid}" data-remsvid="${_removeVid}" data-rempid="${_removePlId}" data-rempli="${_removePli}" onchange="updateSelectedCountDup()">`;
                 }
@@ -666,7 +680,21 @@
         function maintMove(vid, curId, type, selId, btn) {
             const sel = document.getElementById(selId);
             const target = sel ? sel.value : null;
-            maintPost({ action: 'move', type: type, video_id: vid, playlist_id: curId, target_playlist_id: target }, btn);
+            const card = btn ? btn.closest('.flex.flex-col') : null;
+            const chk = card ? card.querySelector('.misplaced-chk') : null;
+            const title = chk?.getAttribute('data-title') || card?.querySelector('h4')?.textContent?.trim() || '';
+            const channelTitle = chk?.getAttribute('data-channel') || '';
+            const channelId = chk?.getAttribute('data-channelid') || '';
+            maintPost({
+                action: 'move',
+                type: type,
+                video_id: vid,
+                playlist_id: curId,
+                target_playlist_id: target,
+                video_title: title,
+                channel_title: channelTitle,
+                channel_id: channelId
+            }, btn);
         }
         // Fix All / Resolve All / Apply All buttons: fix_all with the section's type.
         async function applyMaintenance(type) {
