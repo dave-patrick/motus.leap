@@ -1063,18 +1063,18 @@ function startAgentActivityTracker() {
                 }
             }
         };
-        let wsFailed = false;
+        let reconnectTimer = null;
         ws.onclose = () => {
-            if (!wsFailed) {
-                wsFailed = true;
-                console.warn('[AgentDrawer] WebSocket closed. Will not retry.');
-                if (logEl) logEl.textContent = 'Agent connection closed. Telemetry unavailable.';
+            if (logEl) logEl.textContent = 'Agent reconnecting...';
+            if (!document.hidden && !reconnectTimer) {
+                reconnectTimer = setTimeout(() => {
+                    reconnectTimer = null;
+                    connectWS();
+                }, 3000);
             }
         };
         ws.onerror = () => {
-            wsFailed = true;
-            console.warn('[AgentDrawer] WebSocket error. Will not retry.');
-            if (logEl) logEl.textContent = 'Agent connection failed. Telemetry unavailable.';
+            console.warn('[AgentDrawer] WebSocket error, retrying...');
         };
     }
 
