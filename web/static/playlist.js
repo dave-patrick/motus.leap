@@ -287,6 +287,9 @@ function renderVideos() {
                     Select all
                 </label>
             </div>
+            <button id="fix-mapping-toolbar-btn" onclick="correctMappingForSelected()" class="hidden bg-[#20242c] hover:bg-[#2a2f3a] border border-yellow-500/40 text-yellow-400 hover:text-yellow-300 text-[10px] font-bold px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 cursor-pointer" title="Update channel mappings for selected videos to belong to this playlist">
+                <i class="fa-solid fa-map-pin text-yellow-500"></i> Correct Mapping
+            </button>
             <select id="target-playlist" onchange="updateMoveButton()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1.5 outline-none min-h-[28px] cursor-pointer">
                 <option value="">Move to...</option>
             </select>
@@ -452,16 +455,18 @@ function toggleVideo(videoId, checkbox) {
 
 function updateMoveButton() {
     const moveBtn = document.getElementById('move-btn');
+    const fixMappingToolbarBtn = document.getElementById('fix-mapping-toolbar-btn');
     const countEl = document.getElementById('selected-count');
     const query = document.getElementById('video-search')?.value?.trim() || '';
     const visibleCards = Array.from(document.querySelectorAll('.video-card')).filter(card => isCardVisible(card));
+    const totalSelected = selectedVideos.size + selectedMisplaced.size;
     
     if (countEl) {
-        if (selectedVideos.size > 0) {
+        if (totalSelected > 0) {
             if (query && visibleCards.length > 0) {
-                countEl.textContent = `${selectedVideos.size} of ${visibleCards.length} matched selected`;
+                countEl.textContent = `${totalSelected} of ${visibleCards.length} matched selected`;
             } else {
-                countEl.textContent = `${selectedVideos.size} selected`;
+                countEl.textContent = `${totalSelected} selected`;
             }
             countEl.classList.add('text-[#2f8fc9]', 'font-semibold');
             countEl.classList.remove('text-gray-500');
@@ -470,6 +475,10 @@ function updateMoveButton() {
             countEl.classList.add('text-gray-500');
             countEl.classList.remove('text-[#2f8fc9]', 'font-semibold');
         }
+    }
+
+    if (fixMappingToolbarBtn) {
+        fixMappingToolbarBtn.classList.toggle('hidden', totalSelected === 0);
     }
     
     if (moveBtn) {
@@ -599,14 +608,38 @@ function toggleMisplaced(videoId, checkbox) {
     updateMisplacedActions();
 }
 
+function toggleSelectAllMisplaced(masterCheckbox) {
+    const isChecked = masterCheckbox.checked;
+    document.querySelectorAll('.misplaced-checkbox').forEach(cb => {
+        cb.checked = isChecked;
+        const card = cb.closest('[data-video-id]');
+        const vid = card?.dataset?.videoId;
+        if (vid) {
+            if (isChecked) selectedMisplaced.add(vid);
+            else selectedMisplaced.delete(vid);
+            card.classList.toggle('border-[#2f8fc9]', isChecked);
+        }
+    });
+    updateMisplacedActions();
+}
+
 function updateMisplacedActions() {
     const n = selectedMisplaced.size;
     const keepBtn = document.getElementById('keep-misplaced-btn');
     const fixBtn = document.getElementById('fix-mapping-btn');
+    const masterCb = document.getElementById('select-all-misplaced-cb');
+    const displayedCbs = document.querySelectorAll('.misplaced-checkbox');
+
     if (keepBtn) { keepBtn.disabled = n === 0; keepBtn.classList.toggle('opacity-40', n === 0); }
     if (fixBtn) { fixBtn.disabled = n === 0; fixBtn.classList.toggle('opacity-40', n === 0); }
+
+    if (masterCb && displayedCbs.length > 0) {
+        masterCb.checked = Array.from(displayedCbs).every(cb => cb.checked);
+    }
     const label = document.getElementById('misplaced-selected-count');
     if (label) label.textContent = n > 0 ? `${n} selected` : '';
+
+    updateMoveButton();
 }
 
 async function clearScanResults() {
@@ -657,18 +690,38 @@ async function excludeSelectedMisplaced() {
 }
 
 async function correctMappingForSelected() {
-    if (selectedMisplaced.size === 0) return;
-    // Derive each video's owner channel from the loaded playlist.
-    const channelIds = [];
-    for (const vid of selectedMisplaced) {
-        const v = allVideos.find(x => x.video_id === vid);
-        if (v && v.channel_id && !channelIds.includes(v.channel_id)) channelIds.push(v.channel_id);
-    }
-    if (channelIds.length === 0) {
-        toast('Could not resolve channel(s) for the selected videos', 'error');
+    const combinedVideoIds = new Set([...selectedMisplaced, ...selectedVideos]);
+    if (combinedVideoIds.size === 0) {
+        toast('Select one or more misplaced videos first', 'warning');
         return;
     }
-    toast(`Teaching system: ${channelIds.length} channel(s) belong in this playlist…`, 'info');
+    // Derive each video's owner channel ID
+    const channelIds = [];
+    for (const vid of combinedVideoIds) {
+        const mItem = currentScanResults.misplaced?.find(x => x.video_id === vid);
+        let cid = mItem?.channel_id;
+
+        if (!cid) {
+            const v = allVideos.find(x => x.video_id === vid || x.id === vid);
+            cid = v?.channel_id || v?.snippet?.channelId;
+        }
+
+        if (cid && !channelIds.includes(cid)) {
+            channelIds.push(cid);
+        }
+    }
+
+    if (channelIds.length === 0) {
+        toast('Could not resolve channel ID(s) for the selected videos', 'error');
+        return;
+    }
+
+    const playlistName = document.getElementById('playlist-title')?.textContent?.trim() || playlistId;
+    if (!confirm(`Correct channel mapping for ${channelIds.length} channel(s) to point to "${playlistName}"?\nVideos from these channels will now belong to this playlist.`)) {
+        return;
+    }
+
+    toast(`Updating channel mappings for ${channelIds.length} channel(s)…`, 'info');
     try {
         const resp = await fetch('/api/youtube/misplaced/correct-mapping', {
             method: 'POST',
@@ -677,15 +730,24 @@ async function correctMappingForSelected() {
         });
         const result = await resp.json();
         if (resp.ok && result.status === 'success') {
-            toast('Mapping corrected — these channels now belong here', 'success');
-            currentScanResults.misplaced = currentScanResults.misplaced.filter(mv => {
-                const src = allVideos.find(x => x.video_id === mv.video_id);
-                return !(src && channelIds.includes(src.channel_id));
+            toast(`Mapping corrected — ${channelIds.length} channel(s) now map to this playlist`, 'success');
+            
+            // Remove corrected items from current scan results
+            currentScanResults.misplaced = (currentScanResults.misplaced || []).filter(mv => {
+                const cid = mv.channel_id || allVideos.find(x => x.video_id === mv.video_id)?.channel_id;
+                return !(cid && channelIds.includes(cid));
             });
+
             selectedMisplaced.clear();
+            selectedVideos.clear();
+
+            document.querySelectorAll('.misplaced-checkbox, .video-checkbox').forEach(cb => cb.checked = false);
+
             filterScanResults();
             updateScanSummary();
             updateMisplacedActions();
+            updateMoveButton();
+            syncSelectAllState();
         } else {
             toast(`Failed: ${DOMPurify.sanitize(result.error || result.detail || 'Unknown error')}`, 'error');
         }
@@ -768,6 +830,7 @@ async function scanForMisplaced() {
                         video_id: v.video_id || '',
                         title: v.video_title || v.title || 'Untitled Video',
                         channel: v.channel || '',
+                        channel_id: v.channel_id || (allVideos.find(x => x.video_id === (v.video_id || ''))?.channel_id) || '',
                         thumbnail: v.video_id ? `https://i.ytimg.com/vi/${v.video_id}/hqdefault.jpg` : '',
                         reason: v.reason || 'Misplaced channel',
                         type: 'misplaced',
@@ -864,6 +927,7 @@ function updateScanSummary() {
 function filterScanResults() {
     const filterSelect = document.getElementById('scan-filter');
     const listEl = document.getElementById('scan-results-list');
+    const selectAllContainer = document.getElementById('select-all-misplaced-container');
     if (!listEl) return;
     const filterValue = filterSelect ? filterSelect.value : 'all';
     
@@ -874,6 +938,12 @@ function filterScanResults() {
         displayList = currentScanResults.duplicates;
     } else if (filterValue === 'misplaced') {
         displayList = currentScanResults.misplaced;
+    }
+
+    const hasMisplaced = displayList.some(item => item.type === 'misplaced');
+    if (selectAllContainer) {
+        selectAllContainer.classList.toggle('hidden', !hasMisplaced);
+        selectAllContainer.classList.toggle('flex', hasMisplaced);
     }
     
     if (displayList.length === 0) {

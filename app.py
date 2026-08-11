@@ -967,6 +967,23 @@ async def correct_misplaced_mapping(request: Request):
         mappings[cid] = playlist_id
     config.channel_mappings = mappings
     await config_manager.save(config)
+
+    # Prune updated channel items from maintenance.json misplaced_videos cache
+    _data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
+    m_file = _data_dir / "maintenance.json"
+    if m_file.exists():
+        try:
+            m_data = json.loads(await asyncio.to_thread(m_file.read_text))
+            if isinstance(m_data, dict) and "misplaced_videos" in m_data:
+                cid_set = set(channel_ids)
+                m_data["misplaced_videos"] = [
+                    v for v in m_data.get("misplaced_videos", [])
+                    if not (v.get("channel_id") in cid_set and v.get("current_playlist_id") == playlist_id)
+                ]
+                await asyncio.to_thread(lambda: m_file.write_text(json.dumps(m_data, separators=(',', ':'))))
+        except Exception as m_err:
+            log.warning(f"Failed to update maintenance.json in correct-mapping: {m_err}")
+
     return {"status": "success", "mappings": mappings}
 
 

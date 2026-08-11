@@ -98,6 +98,10 @@
                                     <span id="scan-results-summary" class="text-[9px] text-gray-400 px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
                                 </div>
                                 <div class="flex items-center gap-2">
+                                    <label id="select-all-misplaced-container" class="hidden flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer select-none bg-[#20242c] border border-[#2a2f3a] px-2 py-1 rounded hover:text-white transition-colors">
+                                        <input type="checkbox" id="select-all-misplaced-cb" onchange="toggleSelectAllMisplaced(this)" class="accent-[#2f8fc9]">
+                                        <span>Select All</span>
+                                    </label>
                                     <button id="delete-duplicates-btn" class="hidden bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
                                         <i class="fa-solid fa-trash-can"></i> Delete Duplicates
                                     </button>
@@ -107,8 +111,8 @@
                                     <button id="keep-misplaced-btn" disabled class="opacity-40 bg-[#2a2f3a] hover:bg-[#363c47] text-gray-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
                                         <i class="fa-solid fa-thumbtack"></i> Keep selected here
                                     </button>
-                                    <button id="fix-mapping-btn" disabled class="opacity-40 bg-[#2a2f3a] hover:bg-[#363c47] text-gray-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
-                                        <i class="fa-solid fa-map-pin"></i> Fix mapping
+                                    <button id="fix-mapping-btn" disabled class="opacity-40 bg-[#2a2f3a] hover:bg-[#363c47] text-yellow-400 hover:text-yellow-300 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors cursor-pointer" title="Correct channel mappings for selected misplaced videos to this playlist">
+                                        <i class="fa-solid fa-map-pin text-yellow-500"></i> Correct Mapping for Selected
                                     </button>
                                     <span id="misplaced-selected-count" class="text-[10px] text-[#5ba5d6] font-medium"></span>
                                     <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>
