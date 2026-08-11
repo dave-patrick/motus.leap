@@ -279,24 +279,26 @@ function renderVideos() {
                 <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap" id="video-count-info">${allVideos.length} videos</span>
                 <div class="relative flex-1 max-w-sm">
                     <i class="fa-solid fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-500"></i>
-                    <input type="text" id="video-search" placeholder="Search videos..." oninput="filterVideoList()" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded pl-7 pr-7 py-1.5 outline-none focus:border-[#2f8fc9] transition-colors">
+                    <input type="text" id="video-search" placeholder="Search videos..." oninput="filterVideoList()" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded-lg pl-7 pr-7 py-1.5 outline-none focus:border-[#2f8fc9] transition-colors">
                     <button id="clear-search-btn" onclick="clearVideoSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-[10px] cursor-pointer" title="Clear search"><i class="fa-solid fa-circle-xmark"></i></button>
                 </div>
-                <label class="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer select-none">
+                <label class="flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer select-none bg-[#20242c] border border-[#2a2f3a] px-2.5 py-1 rounded-lg hover:text-white transition-colors ml-1">
                     <input type="checkbox" id="select-all-videos" onchange="toggleSelectAll(this)" class="accent-[#2f8fc9]">
-                    Select all
+                    <span>Select all</span>
                 </label>
             </div>
-            <button id="fix-mapping-toolbar-btn" onclick="correctMappingForSelected()" class="hidden bg-[#20242c] hover:bg-[#2a2f3a] border border-yellow-500/40 text-yellow-400 hover:text-yellow-300 text-[10px] font-bold px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 cursor-pointer" title="Update channel mappings for selected videos to belong to this playlist">
-                <i class="fa-solid fa-map-pin text-yellow-500"></i> Correct Mapping
-            </button>
-            <select id="target-playlist" onchange="updateMoveButton()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1.5 outline-none min-h-[28px] cursor-pointer">
-                <option value="">Move to...</option>
-            </select>
-            <button id="move-btn" onclick="moveSelectedVideos()" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 cursor-pointer">
-                <i class="fa-solid fa-arrow-right-to-bracket"></i> Move
-            </button>
-            <span id="selected-count" class="text-[10px] text-gray-500 whitespace-nowrap"></span>
+            <div class="flex items-center gap-2">
+                <button id="fix-mapping-toolbar-btn" onclick="correctMappingForSelected()" class="hidden bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 hover:text-yellow-300 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer" title="Update channel mappings so selected channels permanently belong to this playlist">
+                    <i class="fa-solid fa-map-pin text-yellow-500"></i> Update Channel Mapping
+                </button>
+                <select id="target-playlist" onchange="updateMoveButton()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded-lg px-2.5 py-1.5 outline-none min-h-[28px] cursor-pointer focus:border-[#2f8fc9]">
+                    <option value="">Move selected to...</option>
+                </select>
+                <button id="move-btn" onclick="moveSelectedVideos()" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i> Move
+                </button>
+                <span id="selected-count" class="text-[10px] text-gray-400 whitespace-nowrap font-medium"></span>
+            </div>
         `;
     }
 

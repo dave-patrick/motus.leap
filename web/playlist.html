@@ -91,42 +91,56 @@
                         </div>
                         
                         <!-- Scan Results Box (hidden initially) -->
-                        <div id="scan-results-box" class="hidden border border-[#2a2f3a] bg-[#16191f] rounded-lg p-3">
-                            <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-[#2a2f3a]">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-[#2f8fc9]"></i> Scan Results</span>
-                                    <span id="scan-results-summary" class="text-[9px] text-gray-400 px-1.5 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
+                        <div id="scan-results-box" class="hidden border border-[#2a2f3a] border-l-4 border-l-[#2f8fc9] bg-[#16191f] rounded-xl p-3.5 space-y-2.5 shadow-md">
+                            <!-- Header Row: Title, Badges, Filter, Clear -->
+                            <div class="flex items-center justify-between pb-2 border-b border-[#2a2f3a]">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <i class="fa-solid fa-clipboard-list text-[#2f8fc9]"></i> Scan Results
+                                    </span>
+                                    <span id="scan-results-summary" class="text-[10px] text-gray-300 font-medium px-2 py-0.5 rounded bg-[#20242c] border border-[#2a2f3a]"></span>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <label id="select-all-misplaced-container" class="hidden flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer select-none bg-[#20242c] border border-[#2a2f3a] px-2 py-1 rounded hover:text-white transition-colors">
-                                        <input type="checkbox" id="select-all-misplaced-cb" onchange="toggleSelectAllMisplaced(this)" class="accent-[#2f8fc9]">
-                                        <span>Select All</span>
-                                    </label>
-                                    <button id="delete-duplicates-btn" class="hidden bg-red-950/50 hover:bg-red-900/50 border border-red-500/30 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
-                                        <i class="fa-solid fa-trash-can"></i> Delete Duplicates
-                                    </button>
-                                    <button id="move-misplaced-btn" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
-                                        <i class="fa-solid fa-share-from-square"></i> Move Misplaced
-                                    </button>
-                                    <button id="keep-misplaced-btn" disabled class="opacity-40 bg-[#2a2f3a] hover:bg-[#363c47] text-gray-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
-                                        <i class="fa-solid fa-thumbtack"></i> Keep selected here
-                                    </button>
-                                    <button id="fix-mapping-btn" disabled class="opacity-40 bg-[#2a2f3a] hover:bg-[#363c47] text-yellow-400 hover:text-yellow-300 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors cursor-pointer" title="Correct channel mappings for selected misplaced videos to this playlist">
-                                        <i class="fa-solid fa-map-pin text-yellow-500"></i> Correct Mapping for Selected
-                                    </button>
-                                    <span id="misplaced-selected-count" class="text-[10px] text-[#5ba5d6] font-medium"></span>
-                                    <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter Results:</label>
-                                    <select id="scan-filter" onchange="filterScanResults()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2.5 py-1 outline-none font-semibold cursor-pointer">
+                                    <label for="scan-filter" class="text-[10px] text-gray-400 font-medium">Filter:</label>
+                                    <select id="scan-filter" onchange="filterScanResults()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none font-semibold cursor-pointer focus:border-[#2f8fc9]">
                                         <option value="all">All Issues</option>
                                         <option value="duplicates">Duplicates only</option>
                                         <option value="misplaced">Misplaced only</option>
                                     </select>
-                                    <button id="clear-results-btn" class="bg-[#2a2f3a] hover:bg-[#363c47] text-gray-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors">
-                                        <i class="fa-solid fa-xmark text-gray-400"></i> Clear Results
+                                    <button id="clear-results-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-400 hover:text-white text-[10px] font-semibold px-2.5 py-1 rounded border border-[#2a2f3a] transition-colors flex items-center gap-1 cursor-pointer" title="Dismiss scan results">
+                                        <i class="fa-solid fa-xmark"></i> Clear
                                     </button>
-                                    </div>
+                                </div>
                             </div>
-                            <div id="scan-results-list" class="space-y-1.5 max-h-48 overflow-y-auto font-mono text-[11px] text-gray-300">
+
+                            <!-- Action Toolbar Row for Scan Items -->
+                            <div id="scan-action-toolbar" class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <div class="flex items-center gap-2">
+                                    <label id="select-all-misplaced-container" class="hidden flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer select-none bg-[#20242c] border border-[#2a2f3a] px-2.5 py-1 rounded-lg hover:text-white transition-colors">
+                                        <input type="checkbox" id="select-all-misplaced-cb" onchange="toggleSelectAllMisplaced(this)" class="accent-[#2f8fc9]">
+                                        <span class="font-medium">Select All Issues</span>
+                                    </label>
+                                    <span id="misplaced-selected-count" class="text-[10px] text-[#2f8fc9] font-semibold"></span>
+                                </div>
+
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button id="delete-duplicates-btn" class="hidden bg-red-950/60 hover:bg-red-900/60 border border-red-500/40 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
+                                        <i class="fa-solid fa-trash-can"></i> Delete Duplicates
+                                    </button>
+                                    <button id="move-misplaced-btn" class="hidden bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Move selected misplaced videos to their rule target playlists">
+                                        <i class="fa-solid fa-share-from-square"></i> Move to Mapped Playlist
+                                    </button>
+                                    <button id="keep-misplaced-btn" disabled class="opacity-40 bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Keep selected videos in this playlist without changing channel rules">
+                                        <i class="fa-solid fa-anchor text-amber-400"></i> Keep Selected Here
+                                    </button>
+                                    <button id="fix-mapping-btn" disabled class="opacity-40 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Update channel mappings so selected channels permanently belong to this playlist">
+                                        <i class="fa-solid fa-map-pin text-yellow-500"></i> Update Channel Mapping
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Scan Results List -->
+                            <div id="scan-results-list" class="space-y-1.5 max-h-56 overflow-y-auto text-[11px] text-gray-300">
                                 <!-- Populated dynamically -->
                             </div>
                         </div>
