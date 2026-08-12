@@ -161,6 +161,24 @@ function viewSystemLogs() {
 
                     <!-- TAB 2: RULES & MAPPINGS -->
                     <div id="tab-content-rules" class="tab-pane hidden space-y-4">
+                        <!-- Playlist Mapping Exceptions Card -->
+                        <div class="bento-card p-4 bg-[#1a1d24] border border-[#2a2f3a] rounded-xl shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-xs font-bold text-white flex items-center gap-2">
+                                        <i class="fa-solid fa-sliders text-[#2f8fc9]"></i> Playlist Mapping Exceptions
+                                    </h3>
+                                    <p class="text-[11px] text-gray-400 mt-0.5">By default, <strong>all playlists are exceptions</strong> (excluded from automatic channel mapping scans). Check only the specific playlists you want to enable for channel mapping.</p>
+                                </div>
+                                <button onclick="saveMappedPlaylistsSettings()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+                                    <i class="fa-solid fa-floppy-disk"></i> Save Preferences
+                                </button>
+                            </div>
+                            <div id="mapped-playlists-checkboxes" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-3 max-h-48 overflow-y-auto p-2 bg-[#14171f] rounded-lg border border-[#2a2f3a]">
+                                <div class="col-span-full text-xs text-gray-500 p-1">Loading playlists...</div>
+                            </div>
+                        </div>
+
                         <div>
                             <div class="bento-card flex flex-col overflow-hidden min-h-[350px] max-h-[75dvh] h-[70dvh]">
                                 <div class="px-4 py-3 border-b border-[#2a2f3a] flex items-center justify-between">
@@ -535,6 +553,55 @@ function viewSystemLogs() {
         let _channels = {};     // channelId -> {title, thumbnail}
         let _playlists = [];    // [{id, title}]
 
+        async function loadMappedPlaylistsSettings() {
+            try {
+                const resp = await fetch('/api/rules/mapped-playlists');
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const mappedSet = new Set(data.mapped_playlists || []);
+                const container = document.getElementById('mapped-playlists-checkboxes');
+                if (!container) return;
+                
+                const playlists = (data.all_playlists && data.all_playlists.length) ? data.all_playlists : _playlists;
+                if (!playlists || !playlists.length) {
+                    container.innerHTML = '<div class="col-span-full text-xs text-gray-500 p-1">No playlists found.</div>';
+                    return;
+                }
+                
+                container.innerHTML = playlists.map(p => {
+                    const isChecked = mappedSet.has(p.id) || mappedSet.has(p.title);
+                    return `
+                        <label class="flex items-center gap-2 p-1.5 rounded hover:bg-[#20242c] text-xs text-gray-300 cursor-pointer">
+                            <input type="checkbox" value="${DOMPurify.sanitize(p.id)}" ${isChecked ? 'checked' : ''} class="opt-in-pl-chk w-3.5 h-3.5 rounded bg-[#20242c] border-gray-600 text-[#2f8fc9]">
+                            <span class="truncate" title="${DOMPurify.sanitize(p.title)}">${DOMPurify.sanitize(p.title)}</span>
+                        </label>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error('Failed to load mapped playlists:', e);
+            }
+        }
+
+        async function saveMappedPlaylistsSettings() {
+            const chks = document.querySelectorAll('.opt-in-pl-chk:checked');
+            const selected = Array.from(chks).map(c => c.value);
+            try {
+                const resp = await authFetch('/api/rules/mapped-playlists', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mapped_playlists: selected })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    toast(`Saved! ${selected.length} playlist(s) enabled for channel mapping. All others remain exceptions.`, 'success');
+                } else {
+                    toast(data.detail || 'Failed to save mapped playlists', 'error');
+                }
+            } catch (e) {
+                toast('Error: ' + e.message, 'error');
+            }
+        }
+
         async function refreshMappingsData() {
             // Pull channels + playlists once so dropdowns/avatars are available.
             try {
@@ -546,6 +613,7 @@ function viewSystemLogs() {
                 const plist = await plistResp.json();
                 (subs.channels || []).forEach(c => { _channels[c.id] = c; });
                 _playlists = plist.playlists || [];
+                await loadMappedPlaylistsSettings();
             } catch (e) { /* non-fatal: mappings still editable by ID */ }
         }
 
@@ -589,6 +657,7 @@ function viewSystemLogs() {
                     _playlists.map(p => `<option value="${p.id}">${DOMPurify.sanitize(p.title)}</option>`).join('');
 
                 renderMappingsList();
+                await loadMappedPlaylistsSettings();
                 // Resolve real names for mapped channels that aren't in subs
                 // (e.g. Auto-mapped channels you watch but didn't subscribe to).
                 enrichChannelNames();

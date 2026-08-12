@@ -107,6 +107,7 @@ class TubeManagerConfig(BaseModel):
     youtube_api_key: SecretStr = Field(default="")
     oauth: YouTubeOAuthConfig = Field(default_factory=YouTubeOAuthConfig)
     channel_mappings: Dict[str, str] = Field(default_factory=dict)
+    mapped_playlists: List[str] = Field(default_factory=list) # Opt-in playlists for channel mapping; all playlists are exceptions by default
     rules: Optional[str] = None
     default_privacy: str = Field(default="private")
     scan_interval: str = Field(default="hourly")

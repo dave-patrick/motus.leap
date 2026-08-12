@@ -576,9 +576,13 @@ class BackgroundWorker:
                             "thumbnail": _best_thumbnail_local(snip.get("thumbnails")),
                         })
                         
-                        # Misplaced video check — videos are never moved into staging/inbox playlists like 1~Sort
+                        # Misplaced video check — only run for playlists explicitly opted-in by user (all playlists are exceptions by default)
+                        opt_in_playlists = getattr(config, 'mapped_playlists', []) or []
+                        opt_in_set = {str(p).lower() for p in opt_in_playlists}
+                        is_playlist_mapped = str(pl_id).lower() in opt_in_set or str(pl_title).lower() in opt_in_set
+
                         owner_channel_id = item.get("snippet", {}).get("videoOwnerChannelId")
-                        if owner_channel_id and owner_channel_id in mappings:
+                        if is_playlist_mapped and owner_channel_id and owner_channel_id in mappings:
                             mapped_playlist_id = mappings[owner_channel_id]
                             if mapped_playlist_id and pl_id != mapped_playlist_id:
                                 mapped_pl_title = playlist_titles.get(mapped_playlist_id, mapped_playlist_id)

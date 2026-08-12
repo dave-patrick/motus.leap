@@ -1002,6 +1002,37 @@ async def clear_all_misplaced_endpoint(request: Request):
     return {"status": "success", "cleared": added, "total_excluded": len(excluded)}
 
 
+@app.get("/api/rules/mapped-playlists", dependencies=[Depends(get_current_user)])
+async def get_mapped_playlists_endpoint():
+    """Get list of playlists explicitly opted-in for automatic channel mapping. All playlists are exceptions by default."""
+    cfg = config_manager.config
+    mapped_pls = getattr(cfg, "mapped_playlists", []) or []
+    all_pls = []
+    if youtube_service:
+        try:
+            res = await youtube_service.list_playlists()
+            all_pls = res.get("playlists", []) if isinstance(res, dict) else res
+        except Exception:
+            pass
+    return {"mapped_playlists": mapped_pls, "all_playlists": all_pls}
+
+
+@app.post("/api/rules/mapped-playlists", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def update_mapped_playlists_endpoint(request: Request):
+    """Update list of playlists enabled for channel mapping. Playlists not listed are treated as exceptions."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    mapped_pls = body.get("mapped_playlists")
+    if isinstance(mapped_pls, list):
+        cfg = config_manager.config
+        cfg.mapped_playlists = [str(p) for p in mapped_pls]
+        config_manager.save_config()
+        return {"status": "success", "mapped_playlists": cfg.mapped_playlists}
+    raise HTTPException(status_code=422, detail="mapped_playlists list required")
+
+
 
 @app.post("/api/youtube/misplaced/correct-mapping", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 @limiter.limit("30/minute")
@@ -1452,9 +1483,19 @@ async def api_maintenance() -> dict[str, Any]:
             ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "").lower()
             return any(kw in tid or kw in ttitle for kw in staging_kws)
 
+        # All playlists are exceptions to channel mapping by default unless explicitly opted-in by user
+        cfg = config_manager.config
+        opt_in_pls = getattr(cfg, 'mapped_playlists', []) or []
+        opt_in_set = {str(p).lower() for p in opt_in_pls}
+
+        def _is_opted_in(item):
+            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
+            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
+            return cid in opt_in_set or ctitle in opt_in_set
+
         for key in ("misplaced_videos", "move_from_x_to_y"):
             if key in data and isinstance(data[key], list):
-                data[key] = [item for item in data[key] if not _is_staging_dst(item)]
+                data[key] = [item for item in data[key] if not _is_staging_dst(item) and _is_opted_in(item)]
 
         restricted_private = set(data.get("restricted_private_videos", []))
         try:
