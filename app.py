@@ -1029,6 +1029,27 @@ async def update_mapped_playlists_endpoint(request: Request):
         cfg = config_manager.config
         cfg.mapped_playlists = [str(p) for p in mapped_pls]
         config_manager.save_config()
+
+        # Dynamically prune maintenance.json so unmapped playlists disappear immediately
+        maintenance = _load_maintenance_data()
+        opt_in_set = {str(p).lower() for p in cfg.mapped_playlists}
+        def _is_opted_in(item):
+            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
+            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
+            return cid in opt_in_set or ctitle in opt_in_set
+
+        for key in ("misplaced_videos", "move_from_x_to_y"):
+            if key in maintenance and isinstance(maintenance[key], list):
+                maintenance[key] = [item for item in maintenance[key] if _is_opted_in(item)]
+        _save_maintenance(maintenance)
+
+        # Broadcast dynamic update to connected clients
+        try:
+            if ws_manager:
+                await ws_manager.broadcast(fast_dumps({"type": "maintenance_updated", "mapped_playlists": cfg.mapped_playlists}))
+        except Exception:
+            pass
+
         return {"status": "success", "mapped_playlists": cfg.mapped_playlists}
     raise HTTPException(status_code=422, detail="mapped_playlists list required")
 

@@ -572,7 +572,7 @@ function viewSystemLogs() {
                     const isChecked = mappedSet.has(p.id) || mappedSet.has(p.title);
                     return `
                         <label class="flex items-center gap-2 p-1.5 rounded hover:bg-[#20242c] text-xs text-gray-300 cursor-pointer">
-                            <input type="checkbox" value="${DOMPurify.sanitize(p.id)}" ${isChecked ? 'checked' : ''} class="opt-in-pl-chk w-3.5 h-3.5 rounded bg-[#20242c] border-gray-600 text-[#2f8fc9]">
+                            <input type="checkbox" value="${DOMPurify.sanitize(p.id)}" ${isChecked ? 'checked' : ''} onchange="saveMappedPlaylistsSettings(true)" class="opt-in-pl-chk w-3.5 h-3.5 rounded bg-[#20242c] border-gray-600 text-[#2f8fc9]">
                             <span class="truncate" title="${DOMPurify.sanitize(p.title)}">${DOMPurify.sanitize(p.title)}</span>
                         </label>
                     `;
@@ -582,7 +582,7 @@ function viewSystemLogs() {
             }
         }
 
-        async function saveMappedPlaylistsSettings() {
+        async function saveMappedPlaylistsSettings(isAuto = false) {
             const chks = document.querySelectorAll('.opt-in-pl-chk:checked');
             const selected = Array.from(chks).map(c => c.value);
             try {
@@ -593,7 +593,7 @@ function viewSystemLogs() {
                 });
                 const data = await resp.json();
                 if (resp.ok) {
-                    toast(`Saved! ${selected.length} playlist(s) enabled for channel mapping. All others remain exceptions.`, 'success');
+                    toast(isAuto ? `Exceptions updated dynamically (${selected.length} mapped)` : `Saved! ${selected.length} playlist(s) enabled for channel mapping. All others remain exceptions.`, 'success');
                 } else {
                     toast(data.detail || 'Failed to save mapped playlists', 'error');
                 }
