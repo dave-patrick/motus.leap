@@ -946,6 +946,62 @@ async def exclude_misplaced_videos(request: Request):
     return {"status": "success", "added": added, "total_excluded": len(excluded)}
 
 
+@app.post("/api/youtube/misplaced/clear-all", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@limiter.limit("10/minute")
+async def clear_all_misplaced_endpoint(request: Request):
+    """Clear all misplaced video suggestions, mark all current videos as correctly placed, and optionally reset channel mappings."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    reset_mappings = body.get("reset_channel_mappings", False)
+    target_playlist_id = body.get("playlist_id")
+
+    maintenance = _load_maintenance_data()
+    misplaced = maintenance.get("misplaced_videos") or []
+    move_x_y = maintenance.get("move_from_x_to_y") or []
+
+    excluded = maintenance.get("not_misplaced") or []
+    seen = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
+
+    all_mis = misplaced + move_x_y
+    if target_playlist_id and target_playlist_id.lower() != "all":
+        all_mis = [v for v in all_mis if v.get("current_playlist_id") == target_playlist_id or v.get("source_playlist_id") == target_playlist_id]
+
+    added = 0
+    for v in all_mis:
+        vid = v.get("video_id") or v.get("id")
+        pid = v.get("current_playlist_id") or v.get("source_playlist_id") or v.get("playlist_id")
+        if vid and pid and (vid, pid) not in seen:
+            excluded.append({"video_id": str(vid), "playlist_id": str(pid)})
+            seen.add((vid, pid))
+            added += 1
+
+    exc_set = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
+    maintenance["misplaced_videos"] = [
+        v for v in misplaced 
+        if (v.get("video_id") or v.get("id"), v.get("current_playlist_id") or v.get("playlist_id")) not in exc_set
+    ]
+    maintenance["move_from_x_to_y"] = [
+        v for v in move_x_y 
+        if (v.get("video_id") or v.get("id"), v.get("source_playlist_id") or v.get("playlist_id")) not in exc_set
+    ]
+    maintenance["not_misplaced"] = excluded
+    _save_maintenance(maintenance)
+
+    if reset_mappings:
+        try:
+            config = config_manager.config
+            config.channel_mappings = {}
+            config_manager.save_config()
+            log.info("[RULES] Channel mappings successfully reset by user")
+        except Exception as _cfg_err:
+            log.warning(f"Error resetting channel mappings: {_cfg_err}")
+
+    return {"status": "success", "cleared": added, "total_excluded": len(excluded)}
+
+
 
 @app.post("/api/youtube/misplaced/correct-mapping", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 @limiter.limit("30/minute")

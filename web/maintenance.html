@@ -151,6 +151,9 @@
                                 <p class="text-[11px] text-gray-400 truncate">Videos in staging/inbox playlists matching AI rules & channel mappings</p>
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
+                                <button onclick="executeLeaveAllInPlace()" id="btn-leave-all" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer" title="Keep all current misplaced videos in their present playlists and dismiss move suggestions">
+                                    <i class="fa-solid fa-anchor text-[10px]"></i> Keep All Here
+                                </button>
                                 <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"><i class="fa-solid fa-check text-[10px]"></i> Fix All</button>
                             </div>
                         </div>
@@ -640,6 +643,38 @@
                 toast(`Error: ${e.message}`, 'error');
             } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-anchor text-[10px]"></i> Leave Selected in Place`; }
+            }
+        }
+
+        async function executeLeaveAllInPlace() {
+            const items = [
+                ...(maintenanceData.misplaced_videos || []),
+                ...(maintenanceData.move_from_x_to_y || [])
+            ];
+            if (!items.length) {
+                toast('No misplaced video suggestions to clear', 'info');
+                return;
+            }
+            const filterText = activePlaylistFilter !== 'all' ? ` in "${playlistsMap[activePlaylistFilter] || activePlaylistFilter}"` : '';
+            if (!confirm(`Are you sure you want to keep all ${items.length} misplaced video(s)${filterText} in their current playlists and dismiss these move suggestions?`)) return;
+
+            const btn = document.getElementById('btn-leave-all');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Keeping All...`; }
+
+            try {
+                const resp = await authFetch('/api/youtube/misplaced/clear-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playlist_id: activePlaylistFilter, reset_channel_mappings: false })
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || data.error || 'Failed to clear misplaced suggestions');
+                toast(`Successfully kept all videos in their current playlists and cleared move suggestions!`, 'success');
+                await loadMaintenance();
+            } catch (e) {
+                toast(`Error: ${e.message}`, 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-anchor text-[10px]"></i> Keep All Here`; }
             }
         }
 
