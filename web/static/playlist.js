@@ -1360,3 +1360,62 @@ async function deleteSingleVideo(videoId, event) {
         toast('Failed to remove video: ' + e.message, 'error');
     }
 }
+
+function exportScanResults(format = 'csv') {
+    const filterSelect = document.getElementById('scan-filter');
+    const filterValue = filterSelect ? filterSelect.value : 'all';
+
+    let list = [];
+    if (filterValue === 'all') {
+        list = [...(currentScanResults.duplicates || []), ...(currentScanResults.misplaced || [])];
+    } else if (filterValue === 'duplicates') {
+        list = currentScanResults.duplicates || [];
+    } else if (filterValue === 'misplaced') {
+        list = currentScanResults.misplaced || [];
+    }
+
+    if (!list.length) {
+        toast(`No ${filterValue} items to export`, 'info');
+        return;
+    }
+
+    const rows = list.map(item => ({
+        issue_type: item.type || (item.mapped_playlist_id ? 'misplaced' : 'duplicate'),
+        video_id: item.video_id || item.videoId || item.id || '',
+        title: item.title || item.video_title || '',
+        channel: item.channel || item.channel_title || '',
+        current_playlist: playlistId || '',
+        recommended_target: item.mapped_playlist_title || item.mapped_playlist_id || '',
+        reason: item.reason || item.details || ''
+    }));
+
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:]/g, '-');
+    const filename = `playlist-${playlistId || 'scan'}-${filterValue}-${stamp}`;
+
+    if (format === 'json') {
+        const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+        downloadBlob(blob, `${filename}.json`);
+    } else {
+        const headers = ['issue_type', 'video_id', 'title', 'channel', 'current_playlist', 'recommended_target', 'reason'];
+        const esc = v => {
+            const s = String(v == null ? '' : v);
+            return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        };
+        const lines = [headers.join(',')];
+        for (const r of rows) lines.push(headers.map(h => esc(r[h])).join(','));
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+        downloadBlob(blob, `${filename}.csv`);
+    }
+    toast(`Exported ${rows.length} ${filterValue} item(s)`, 'success');
+}
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}

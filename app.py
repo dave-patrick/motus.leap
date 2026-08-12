@@ -2250,6 +2250,22 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     # fix_all: apply the given action to every record of the given type.
     maintenance = _load_maintenance_data()
     records = _maintenance_items_by_type(maintenance, item_type)
+
+    if payload.playlist_id and payload.playlist_id.lower() != "all":
+        target_pid = payload.playlist_id
+        filtered = []
+        for rec in records:
+            if item_type == "dup":
+                pids = {cp.get("id") or cp.get("playlist_id") for cp in (rec.get("playlists") or []) if isinstance(cp, dict)}
+                ptitles = {cp.get("title") for cp in (rec.get("playlists") or []) if isinstance(cp, dict) and cp.get("title")}
+                if target_pid in pids or target_pid in ptitles:
+                    filtered.append(rec)
+            else:
+                cur_id = rec.get("current_playlist_id") or rec.get("source_playlist_id")
+                cur_title = rec.get("current_playlist_title") or rec.get("source_playlist_title")
+                if target_pid == cur_id or target_pid == cur_title:
+                    filtered.append(rec)
+        records = filtered
     processed = 0
     succeeded = 0
     failed = 0

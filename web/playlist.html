@@ -107,9 +107,12 @@
                                         <option value="duplicates">Duplicates only</option>
                                         <option value="misplaced">Misplaced only</option>
                                     </select>
-                                    <button id="clear-results-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-400 hover:text-white text-[10px] font-semibold px-2.5 py-1 rounded border border-[#2a2f3a] transition-colors flex items-center gap-1 cursor-pointer" title="Dismiss scan results">
-                                        <i class="fa-solid fa-xmark"></i> Clear
-                                    </button>
+                                    <button onclick="exportScanResults('csv')" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 hover:text-white text-[10px] font-semibold px-2.5 py-1 rounded border border-[#2a2f3a] transition-colors flex items-center gap-1 cursor-pointer" title="Export scan results to CSV">
+                                         <i class="fa-solid fa-download text-[#2f8fc9]"></i> Export
+                                     </button>
+                                     <button id="clear-results-btn" class="bg-[#20242c] hover:bg-[#2a2f3a] text-gray-400 hover:text-white text-[10px] font-semibold px-2.5 py-1 rounded border border-[#2a2f3a] transition-colors flex items-center gap-1 cursor-pointer" title="Dismiss scan results">
+                                         <i class="fa-solid fa-xmark"></i> Clear
+                                     </button>
                                 </div>
                             </div>
 

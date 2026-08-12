@@ -66,11 +66,41 @@
                         <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors">
                             <i class="fa-solid fa-layer-group"></i> Bulk Operations
                         </a>
-                        <button onclick="exportMaintenance('csv')" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors">
-                            <i class="fa-solid fa-file-csv"></i> Export CSV
-                        </button>
-                        <button onclick="exportMaintenance('json')" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors">
-                            <i class="fa-solid fa-file-code"></i> Export JSON
+                        <!-- Export Options Dropdown -->
+                        <div class="relative inline-block text-left" id="export-dropdown-wrapper">
+                            <button onclick="toggleExportMenu()" id="btn-export-menu" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer">
+                                <i class="fa-solid fa-download"></i> Export Data <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                            </button>
+                            <div id="export-menu" class="hidden absolute right-0 mt-2 w-56 rounded-xl bg-[#1a1d24] border border-[#2a2f3a] shadow-xl z-50 py-1.5 text-xs text-gray-300">
+                                <div class="px-3 py-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#2a2f3a]">Export Duplicates</div>
+                                <button onclick="exportMaintenance('csv', 'dup'); toggleExportMenu();" class="w-full text-left px-3 py-1.5 hover:bg-[#2a2f3a] hover:text-white flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-file-csv text-[#2f8fc9]"></i> Duplicates (CSV)</button>
+                                <button onclick="exportMaintenance('json', 'dup'); toggleExportMenu();" class="w-full text-left px-3 py-1.5 hover:bg-[#2a2f3a] hover:text-white flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-file-code text-[#2f8fc9]"></i> Duplicates (JSON)</button>
+                                <div class="px-3 py-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider border-y border-[#2a2f3a] mt-1">Export Misplaced</div>
+                                <button onclick="exportMaintenance('csv', 'misplaced'); toggleExportMenu();" class="w-full text-left px-3 py-1.5 hover:bg-[#2a2f3a] hover:text-white flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-file-csv text-amber-400"></i> Misplaced Videos (CSV)</button>
+                                <button onclick="exportMaintenance('json', 'misplaced'); toggleExportMenu();" class="w-full text-left px-3 py-1.5 hover:bg-[#2a2f3a] hover:text-white flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-file-code text-amber-400"></i> Misplaced Videos (JSON)</button>
+                                <div class="px-3 py-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider border-y border-[#2a2f3a] mt-1">Export All Queue Items</div>
+                                <button onclick="exportMaintenance('csv', 'all'); toggleExportMenu();" class="w-full text-left px-3 py-1.5 hover:bg-[#2a2f3a] hover:text-white flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-file-csv text-green-400"></i> All Items (CSV)</button>
+                                <button onclick="exportMaintenance('json', 'all'); toggleExportMenu();" class="w-full text-left px-3 py-1.5 hover:bg-[#2a2f3a] hover:text-white flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-file-code text-green-400"></i> All Items (JSON)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Playlist Filter Toolbar -->
+                <div class="bento-card p-3.5 px-5 flex flex-wrap items-center justify-between gap-3 bg-[#14171f] border border-[#2a2f3a] rounded-xl shadow-sm">
+                    <div class="flex flex-wrap items-center gap-3 flex-1 min-w-0">
+                        <label for="maintenance-playlist-filter" class="text-xs font-bold text-gray-300 flex items-center gap-2 whitespace-nowrap">
+                            <i class="fa-solid fa-filter text-[#2f8fc9]"></i> Filter by Playlist:
+                        </label>
+                        <select id="maintenance-playlist-filter" onchange="onMaintenanceFilterChange()" class="bg-[#0f1115] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-[#2f8fc9] font-medium max-w-xs flex-1 cursor-pointer">
+                            <option value="all">All Playlists (Default)</option>
+                        </select>
+                        <div id="quick-filter-chips" class="flex flex-wrap items-center gap-1.5"></div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="filter-summary-badge" class="text-[11px] text-gray-400 font-medium px-2.5 py-1 rounded-lg bg-[#20242c] border border-[#2a2f3a] hidden"></span>
+                        <button onclick="resetMaintenanceFilter()" id="btn-reset-filter" class="hidden text-xs text-gray-400 hover:text-white px-2.5 py-1 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] transition-all flex items-center gap-1 cursor-pointer">
+                            <i class="fa-solid fa-xmark"></i> Clear Filter
                         </button>
                     </div>
                 </div>
@@ -86,7 +116,10 @@
                                 </h3>
                                 <p class="text-[11px] text-gray-400 truncate">Videos saved across multiple playlists or re-uploaded</p>
                             </div>
-                            <button onclick="applyMaintenance('dup')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 cursor-pointer"><i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i> Resolve All</button>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <button onclick="exportMaintenance('csv', 'dup')" class="bg-[#2a2f3a] hover:bg-[#374151] text-gray-300 hover:text-white text-xs font-semibold py-1.5 px-2.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Download Duplicates CSV"><i class="fa-solid fa-download text-[10px]"></i> Export CSV</button>
+                                <button onclick="applyMaintenance('dup')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"><i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i> Resolve All</button>
+                            </div>
                         </div>
 
                         <!-- Multiselect Batch Action Bar for Duplicates -->
@@ -118,7 +151,10 @@
                                 </h3>
                                 <p class="text-[11px] text-gray-400 truncate">Videos in staging/inbox playlists matching AI rules & channel mappings</p>
                             </div>
-                            <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 cursor-pointer"><i class="fa-solid fa-check text-[10px]"></i> Fix All</button>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <button onclick="exportMaintenance('csv', 'misplaced')" class="bg-[#2a2f3a] hover:bg-[#374151] text-gray-300 hover:text-white text-xs font-semibold py-1.5 px-2.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Download Misplaced CSV"><i class="fa-solid fa-download text-[10px]"></i> Export CSV</button>
+                                <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"><i class="fa-solid fa-check text-[10px]"></i> Fix All</button>
+                            </div>
                         </div>
 
                         <!-- Multiselect Batch Action Bar -->
@@ -178,6 +214,14 @@
         }
         var maintenanceData = {};
         var playlistsMap = {};
+        var activePlaylistFilter = 'all';
+
+        // Check URL query param e.g. ?playlist_id=... or ?filter=...
+        (function checkUrlFilter() {
+            const params = new URLSearchParams(window.location.search);
+            const initial = params.get('playlist_id') || params.get('filter');
+            if (initial) activePlaylistFilter = initial;
+        })();
         
         async function fetchPlaylistsMap() {
             try {
@@ -201,6 +245,174 @@
             if (!videoId) return 'https://picsum.photos/64/48';
             return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
         }
+
+        function populatePlaylistFilterOptions() {
+            const selectEl = document.getElementById('maintenance-playlist-filter');
+            const chipsEl = document.getElementById('quick-filter-chips');
+            if (!selectEl) return;
+
+            const countsByPlaylist = {}; // key -> { pid, title, dupCount, misCount }
+
+            const dups = maintenanceData.duplicated_videos || [];
+            dups.forEach(item => {
+                (item.playlists || []).forEach(p => {
+                    const pid = p.id || p.playlist_id || '';
+                    const title = playlistsMap[pid] || p.title || pid;
+                    if (!pid && !title) return;
+                    const key = pid || title;
+                    if (!countsByPlaylist[key]) countsByPlaylist[key] = { pid: key, title, dupCount: 0, misCount: 0 };
+                    countsByPlaylist[key].dupCount++;
+                });
+            });
+
+            const misplacedCombined = [
+                ...(maintenanceData.misplaced_videos || []),
+                ...(maintenanceData.move_from_x_to_y || [])
+            ];
+            misplacedCombined.forEach(item => {
+                const pid = item.current_playlist_id || item.source_playlist_id || '';
+                const title = playlistsMap[pid] || item.current_playlist_title || item.source_playlist_title || pid;
+                if (!pid && !title) return;
+                const key = pid || title;
+                if (!countsByPlaylist[key]) countsByPlaylist[key] = { pid: key, title, dupCount: 0, misCount: 0 };
+                countsByPlaylist[key].misCount++;
+            });
+
+            Object.keys(playlistsMap).forEach(pid => {
+                if (!countsByPlaylist[pid]) {
+                    countsByPlaylist[pid] = { pid, title: playlistsMap[pid], dupCount: 0, misCount: 0 };
+                }
+            });
+
+            const list = Object.values(countsByPlaylist);
+            list.sort((a, b) => {
+                const isStagingA = a.title.includes('1~Sort') || a.title.toLowerCase().includes('inbox') || a.pid === 'WL';
+                const isStagingB = b.title.includes('1~Sort') || b.title.toLowerCase().includes('inbox') || b.pid === 'WL';
+                if (isStagingA && !isStagingB) return -1;
+                if (!isStagingA && isStagingB) return 1;
+                const totalA = a.dupCount + a.misCount;
+                const totalB = b.dupCount + b.misCount;
+                if (totalA !== totalB) return totalB - totalA;
+                return a.title.localeCompare(b.title);
+            });
+
+            const curVal = selectEl.value || activePlaylistFilter;
+            let optionsHtml = `<option value="all" ${curVal === 'all' ? 'selected' : ''}>All Playlists (Default)</option>`;
+            list.forEach(p => {
+                const total = p.dupCount + p.misCount;
+                const countsText = total > 0 ? ` (${p.misCount} misplaced, ${p.dupCount} dup)` : '';
+                const isSel = (p.pid === curVal || p.title === curVal) ? 'selected' : '';
+                optionsHtml += `<option value="${DOMPurify.sanitize(p.pid)}" ${isSel}>${DOMPurify.sanitize(p.title)}${countsText}</option>`;
+            });
+            selectEl.innerHTML = optionsHtml;
+
+            if (chipsEl) {
+                const quickList = list.filter(p => (p.dupCount + p.misCount > 0) && (p.title.includes('1~Sort') || p.title.toLowerCase().includes('inbox') || p.pid === 'WL' || p.title.toLowerCase().includes('watch later'))).slice(0, 4);
+                chipsEl.innerHTML = quickList.map(p => {
+                    const isActive = (activePlaylistFilter === p.pid || activePlaylistFilter === p.title);
+                    const chipStyle = isActive
+                        ? 'bg-[#2f8fc9] text-white border-[#2f8fc9]'
+                        : 'bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 border-[#2a2f3a]';
+                    return `<button onclick="setMaintenanceFilter('${DOMPurify.sanitize(p.pid)}')" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${chipStyle} transition-all flex items-center gap-1 cursor-pointer" title="Filter to ${DOMPurify.sanitize(p.title)}">
+                        <i class="fa-solid fa-filter text-[10px]"></i> ${DOMPurify.sanitize(p.title)} (${p.misCount + p.dupCount})
+                    </button>`;
+                }).join('');
+            }
+        }
+
+        function onMaintenanceFilterChange() {
+            const selectEl = document.getElementById('maintenance-playlist-filter');
+            activePlaylistFilter = selectEl ? selectEl.value : 'all';
+            renderFilteredMaintenance();
+        }
+
+        function setMaintenanceFilter(pid) {
+            activePlaylistFilter = pid;
+            const selectEl = document.getElementById('maintenance-playlist-filter');
+            if (selectEl) selectEl.value = pid;
+            renderFilteredMaintenance();
+        }
+
+        function resetMaintenanceFilter() {
+            setMaintenanceFilter('all');
+        }
+
+        function renderFilteredMaintenance() {
+            const resetBtn = document.getElementById('btn-reset-filter');
+            const summaryBadge = document.getElementById('filter-summary-badge');
+            
+            if (resetBtn) resetBtn.classList.toggle('hidden', activePlaylistFilter === 'all');
+
+            const allDups = maintenanceData.duplicated_videos || [];
+            const misplacedCombined = [
+                ...(maintenanceData.misplaced_videos || []),
+                ...(maintenanceData.move_from_x_to_y || [])
+            ];
+
+            let filteredDups = allDups;
+            let filteredMisplaced = misplacedCombined;
+
+            if (activePlaylistFilter !== 'all') {
+                const targetPid = activePlaylistFilter;
+                const targetTitle = playlistsMap[targetPid] || targetPid;
+
+                filteredDups = allDups.filter(item => {
+                    if (!item.playlists || !Array.isArray(item.playlists)) return false;
+                    return item.playlists.some(p => {
+                        const pid = p.id || p.playlist_id || '';
+                        const ptitle = playlistsMap[pid] || p.title || pid;
+                        return pid === targetPid || ptitle === targetTitle || (targetTitle && ptitle.toLowerCase() === targetTitle.toLowerCase());
+                    });
+                });
+
+                filteredMisplaced = misplacedCombined.filter(item => {
+                    const curPid = item.current_playlist_id || item.source_playlist_id || '';
+                    const curTitle = playlistsMap[curPid] || item.current_playlist_title || item.source_playlist_title || curPid;
+                    return curPid === targetPid || curTitle === targetTitle || (targetTitle && curTitle.toLowerCase() === targetTitle.toLowerCase());
+                });
+
+                if (summaryBadge) {
+                    summaryBadge.classList.remove('hidden');
+                    summaryBadge.textContent = `Filtered by: ${targetTitle}`;
+                }
+            } else {
+                if (summaryBadge) summaryBadge.classList.add('hidden');
+            }
+
+            const dBadge = document.getElementById('dup-count-badge');
+            if (dBadge) {
+                dBadge.textContent = activePlaylistFilter === 'all' 
+                    ? allDups.length 
+                    : `${filteredDups.length} of ${allDups.length}`;
+            }
+
+            const mBadge = document.getElementById('misplaced-count-badge');
+            if (mBadge) {
+                mBadge.textContent = activePlaylistFilter === 'all' 
+                    ? misplacedCombined.length 
+                    : `${filteredMisplaced.length} of ${misplacedCombined.length}`;
+            }
+
+            const dupBatchBar = document.getElementById('dup-batch-bar');
+            if (dupBatchBar) {
+                if (filteredDups.length > 0) dupBatchBar.classList.remove('hidden');
+                else dupBatchBar.classList.add('hidden');
+            }
+
+            const batchBar = document.getElementById('misplaced-batch-bar');
+            if (batchBar) {
+                if (filteredMisplaced.length > 0) {
+                    batchBar.classList.remove('hidden');
+                    const batchSel = document.getElementById('batch-target-playlist');
+                    if (batchSel && !batchSel.children.length) batchSel.innerHTML = buildPlaylistOptionsHtml('', 'Select Destination...');
+                } else {
+                    batchBar.classList.add('hidden');
+                }
+            }
+
+            renderQueue('dup-queue', filteredDups, 'dup');
+            renderQueue('misplaced-queue', filteredMisplaced, 'misplaced');
+        }
         
         async function loadMaintenance() {
             try {
@@ -220,40 +432,8 @@
                     privBtn.innerHTML = `<i class="fa-solid fa-box-archive"></i> Move Private Videos to "Check Later" (${privCount})`;
                 }
 
-                const misplacedCombined = [
-                    ...(maintenanceData.misplaced_videos || []),
-                    ...(maintenanceData.move_from_x_to_y || [])
-                ];
-
-                const dupCount = (maintenanceData.duplicated_videos || []).length;
-                const misplacedCount = misplacedCombined.length;
-                const dBadge = document.getElementById('dup-count-badge');
-                if (dBadge) dBadge.textContent = dupCount;
-                const mBadge = document.getElementById('misplaced-count-badge');
-                if (mBadge) mBadge.textContent = misplacedCount;
-
-                const dupBatchBar = document.getElementById('dup-batch-bar');
-                if (dupBatchBar) {
-                    if (dupCount > 0) {
-                        dupBatchBar.classList.remove('hidden');
-                    } else {
-                        dupBatchBar.classList.add('hidden');
-                    }
-                }
-
-                const batchBar = document.getElementById('misplaced-batch-bar');
-                if (batchBar) {
-                    if (misplacedCount > 0) {
-                        batchBar.classList.remove('hidden');
-                        const batchSel = document.getElementById('batch-target-playlist');
-                        if (batchSel) batchSel.innerHTML = buildPlaylistOptionsHtml('', 'Select Destination...');
-                    } else {
-                        batchBar.classList.add('hidden');
-                    }
-                }
-
-                renderQueue('dup-queue', maintenanceData.duplicated_videos || [], 'dup');
-                renderQueue('misplaced-queue', misplacedCombined, 'misplaced');
+                populatePlaylistFilterOptions();
+                renderFilteredMaintenance();
             } catch (e) {
                 console.error(e);
             }
@@ -506,12 +686,20 @@
         function renderQueue(elId, items, type) {
             const el = document.getElementById(elId);
             if (!items || !items.length) { 
+                const isFiltered = activePlaylistFilter !== 'all';
+                const filterTitle = playlistsMap[activePlaylistFilter] || activePlaylistFilter;
+                const emptyTitle = isFiltered 
+                    ? `No items found in "${DOMPurify.sanitize(filterTitle)}"` 
+                    : 'No items found';
+                const emptySub = isFiltered 
+                    ? 'Try clearing your filter or selecting a different playlist.' 
+                    : 'Click <b>Run Scan</b> above to analyze your playlists and detect issues.';
                 el.innerHTML = `<div class="flex flex-col items-center justify-center p-8 text-center text-gray-400 bg-[#20242c]/50 rounded-xl border border-dashed border-[#2a2f3a]">
                     <div class="w-10 h-10 rounded-full bg-[#2f8fc9]/10 text-[#2f8fc9] flex items-center justify-center mb-2">
                         <i class="fa-solid fa-circle-check text-lg"></i>
                     </div>
-                    <span class="text-xs font-semibold text-gray-300">No items found</span>
-                    <span class="text-[11px] text-gray-500 mt-1 max-w-xs">Click <b>Run Scan</b> above to analyze your playlists and detect issues.</span>
+                    <span class="text-xs font-semibold text-gray-300">${emptyTitle}</span>
+                    <span class="text-[11px] text-gray-500 mt-1 max-w-xs">${emptySub}</span>
                 </div>`; 
                 return; 
             }
@@ -698,7 +886,11 @@
         }
         // Fix All / Resolve All / Apply All buttons: fix_all with the section's type.
         async function applyMaintenance(type) {
-            await maintPost({ action: 'fix_all', type: type });
+            const payload = { action: 'fix_all', type: type };
+            if (activePlaylistFilter && activePlaylistFilter !== 'all') {
+                payload.playlist_id = activePlaylistFilter;
+            }
+            await maintPost(payload);
         }
 
         async function removeDeletedVideos() {
@@ -851,51 +1043,107 @@
             }
         }
         
-        // Export the maintenance queue (all types) as CSV or JSON, client-side.
-        function exportMaintenance(format) {
+        function toggleExportMenu() {
+            const menu = document.getElementById('export-menu');
+            if (menu) menu.classList.toggle('hidden');
+        }
+
+        // Close export menu when clicking outside
+        document.addEventListener('click', function(e) {
+            const wrapper = document.getElementById('export-dropdown-wrapper');
+            const menu = document.getElementById('export-menu');
+            if (wrapper && menu && !wrapper.contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+        });
+
+        // Export the maintenance queue (all types, duplicates only, or misplaced only) as CSV or JSON.
+        function exportMaintenance(format, targetType = 'all') {
             if (!maintenanceData || typeof maintenanceData !== 'object') {
                 toast('Nothing to export yet — queue not loaded', 'info');
                 return;
             }
-            const queues = [
-                { type: 'move', items: maintenanceData.move_from_x_to_y || [] },
-                { type: 'duplicate', items: maintenanceData.duplicated_videos || [] },
-                { type: 'misplaced', items: maintenanceData.misplaced_videos || [] }
+
+            const allDups = maintenanceData.duplicated_videos || [];
+            const misplacedCombined = [
+                ...(maintenanceData.misplaced_videos || []),
+                ...(maintenanceData.move_from_x_to_y || [])
             ];
+
+            let dupsToExport = allDups;
+            let misplacedToExport = misplacedCombined;
+
+            // Honor active playlist filter
+            if (activePlaylistFilter && activePlaylistFilter !== 'all') {
+                const targetPid = activePlaylistFilter;
+                const targetTitle = playlistsMap[targetPid] || targetPid;
+
+                dupsToExport = allDups.filter(item => {
+                    if (!item.playlists || !Array.isArray(item.playlists)) return false;
+                    return item.playlists.some(p => {
+                        const pid = p.id || p.playlist_id || '';
+                        const ptitle = playlistsMap[pid] || p.title || pid;
+                        return pid === targetPid || ptitle === targetTitle || (targetTitle && ptitle.toLowerCase() === targetTitle.toLowerCase());
+                    });
+                });
+
+                misplacedToExport = misplacedCombined.filter(item => {
+                    const curPid = item.current_playlist_id || item.source_playlist_id || '';
+                    const curTitle = playlistsMap[curPid] || item.current_playlist_title || item.source_playlist_title || curPid;
+                    return curPid === targetPid || curTitle === targetTitle || (targetTitle && curTitle.toLowerCase() === targetTitle.toLowerCase());
+                });
+            }
+
+            const queues = [];
+            if (targetType === 'all' || targetType === 'dup' || targetType === 'duplicate') {
+                queues.push({ type: 'duplicate', items: dupsToExport });
+            }
+            if (targetType === 'all' || targetType === 'misplaced' || targetType === 'move') {
+                queues.push({ type: 'misplaced', items: misplacedToExport });
+            }
+
             const rows = [];
             for (const q of queues) {
                 for (const item of q.items) {
                     const pls = Array.isArray(item.playlists) ? item.playlists : [];
                     let from = '', to = '';
                     if (q.type === 'misplaced') {
-                        from = item.current_playlist_title || item.current_playlist_id || '';
-                        to = item.mapped_playlist_title || item.mapped_playlist_id || '';
+                        from = playlistsMap[item.current_playlist_id] || item.current_playlist_title || item.current_playlist_id || '';
+                        to = playlistsMap[item.mapped_playlist_id] || item.mapped_playlist_title || item.mapped_playlist_id || '';
                     } else if (q.type === 'move') {
-                        from = item.source_playlist_title || item.source_playlist_id || '';
-                        to = item.target_playlist_title || item.target_playlist_id || '';
+                        from = playlistsMap[item.source_playlist_id] || item.source_playlist_title || item.source_playlist_id || '';
+                        to = playlistsMap[item.target_playlist_id] || item.target_playlist_title || item.target_playlist_id || '';
                     }
                     rows.push({
                         queue_type: q.type,
                         video_id: item.video_id || '',
                         title: item.video_title || item.title || '',
-                        channel: item.channel || '',
+                        channel: item.channel || item.channel_title || '',
                         from_playlist: from,
                         to_playlist: to,
                         copy_count: item.copy_count || '',
                         exact_duplicate: item.exact_duplicate != null ? String(item.exact_duplicate) : '',
-                        all_playlists: pls.map(p => p.title || p.id || '').join(' | ')
+                        all_playlists: pls.map(p => playlistsMap[p.id || p.playlist_id] || p.title || p.id || '').join(' | ')
                     });
                 }
             }
+
             if (!rows.length) {
-                toast('Queue is empty — nothing to export', 'info');
+                const filterName = activePlaylistFilter !== 'all' ? ` for "${playlistsMap[activePlaylistFilter] || activePlaylistFilter}"` : '';
+                const typeName = targetType === 'dup' ? 'duplicate' : (targetType === 'misplaced' ? 'misplaced' : '');
+                toast(`No ${typeName} items to export${filterName}`, 'info');
                 return;
             }
+
             const stamp = new Date().toISOString().slice(0, 19).replace(/[:]/g, '-');
+            const plSlug = activePlaylistFilter !== 'all' ? `-${(playlistsMap[activePlaylistFilter] || activePlaylistFilter).replace(/[^a-zA-Z0-9_-]/g, '_')}` : '';
+            const typeSlug = targetType !== 'all' ? `-${targetType}` : '';
+            const filename = `maintenance-export${typeSlug}${plSlug}-${stamp}`;
+
             if (format === 'json') {
                 const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
-                downloadBlob(blob, `maintenance-export-${stamp}.json`);
-                toast(`Exported ${rows.length} item(s) to JSON`, 'success');
+                downloadBlob(blob, `${filename}.json`);
+                toast(`Exported ${rows.length} ${targetType} item(s) to JSON`, 'success');
             } else {
                 const headers = ['queue_type', 'video_id', 'title', 'channel', 'from_playlist', 'to_playlist', 'copy_count', 'exact_duplicate', 'all_playlists'];
                 const esc = v => {
@@ -906,8 +1154,8 @@
                 const lines = [headersLine];
                 for (const r of rows) lines.push(headers.map(h => esc(r[h])).join(','));
                 const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-                downloadBlob(blob, `maintenance-export-${stamp}.csv`);
-                toast(`Exported ${rows.length} item(s) to CSV`, 'success');
+                downloadBlob(blob, `${filename}.csv`);
+                toast(`Exported ${rows.length} ${targetType} item(s) to CSV`, 'success');
             }
         }
 
