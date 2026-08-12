@@ -742,7 +742,12 @@
                 const _exact = item.exact_duplicate;
                 
                 const _pls = Array.isArray(item.playlists) ? item.playlists : [];
-                const _removePl = _pls[1] || _pls[0] || {};
+                // Target staging playlist copy (e.g. 1~Sort) for removal, preserving category playlist
+                const _removePl = _pls.find(p => {
+                    const pid = String(p.id || p.playlist_id || '').toLowerCase();
+                    const ptitle = String(playlistsMap[p.id || p.playlist_id] || p.title || pid).toLowerCase();
+                    return ptitle.includes('1~sort') || ptitle.includes('inbox') || ptitle.includes('unsorted') || pid === 'wl' || ptitle.includes('watch later');
+                }) || _pls[1] || _pls[0] || {};
                 const _removePlId = _removePl.id || _removePl.playlist_id || '';
                 const _removeVid = _removePl.video_id || item.video_id || '';
                 const _removePli = _removePl.playlist_item_id || '';

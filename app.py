@@ -1992,22 +1992,28 @@ def _maintenance_drop_record(video_id: str, item_type: str) -> None:
         _save_maintenance(maintenance)
 
 
+def _is_staging_playlist_dict(cp) -> bool:
+    if not isinstance(cp, dict):
+        p_str = str(cp).lower()
+        return any(kw in p_str for kw in ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later"))
+    pid = (cp.get("id") or cp.get("playlist_id") or "").lower()
+    ptitle = (cp.get("title") or "").lower()
+    staging_kws = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
+    return any(kw in pid or kw in ptitle for kw in staging_kws)
+
+
 async def _maintenance_apply_one(
-    yt_client,
+    yt_client: Any,
+    *,
     action: str,
     item_type: str,
     record: dict[str, Any],
-    playlist_id: str | None,
-    target_playlist_id: str | None,
-    playlist_item_id: str | None,
-    video_id: str | None,
+    playlist_id: str | None = None,
+    target_playlist_id: str | None = None,
+    playlist_item_id: str | None = None,
+    video_id: str | None = None,
 ) -> dict[str, Any]:
-    """Apply a single action to a single maintenance record.
-
-    Returns a small result dict describing success/failure. Does NOT raise for
-    YouTube errors — callers aggregate failures for the fix_all summary.
-    """
-    # Normalise inputs: prefer explicit args, else pull from the record shape.
+    """Applies a single maintenance action to a single record using yt_client."""
     video_id = video_id or record.get("video_id")
     if not playlist_id:
         playlist_id = record.get("current_playlist_id") or record.get("source_playlist_id")
@@ -2313,12 +2319,14 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
         if item_type == "dup":
             sub_action = "remove"
             copy_playlists = rec.get("playlists", []) or []
-            for idx, cp in enumerate(copy_playlists):
+            # Sort: Category/destination playlists first (0), staging playlists (1~Sort, Inbox, Watch Later) last (1).
+            sorted_copy_playlists = sorted(copy_playlists, key=lambda cp: 1 if _is_staging_playlist_dict(cp) else 0)
+            for idx, cp in enumerate(sorted_copy_playlists):
                 cp_id = cp.get("id") if isinstance(cp, dict) else None
                 if not cp_id:
                     continue
                 if idx == 0:
-                    continue  # keep the primary copy
+                    continue  # Keep the primary copy (Category playlist if available)
                 processed += 1
                 _resolved_item_id = (bulk_item_map.get(cp_id) or {}).get(
                     rec.get("video_id") or ""
