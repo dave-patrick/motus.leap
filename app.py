@@ -994,7 +994,7 @@ async def clear_all_misplaced_endpoint(request: Request):
         try:
             config = config_manager.config
             config.channel_mappings = {}
-            config_manager.save_config()
+            await config_manager.save(config)
             log.info("[RULES] Channel mappings successfully reset by user")
         except Exception as _cfg_err:
             log.warning(f"Error resetting channel mappings: {_cfg_err}")
@@ -1028,7 +1028,7 @@ async def update_mapped_playlists_endpoint(request: Request):
     if isinstance(mapped_pls, list):
         cfg = config_manager.config
         cfg.mapped_playlists = [str(p) for p in mapped_pls]
-        config_manager.save_config()
+        await config_manager.save(cfg)
 
         # Dynamically prune maintenance.json so unmapped playlists disappear immediately
         maintenance = _load_maintenance_data()
