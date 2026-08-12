@@ -1482,6 +1482,33 @@ async def api_maintenance() -> dict[str, Any]:
             log.warning(f"Error reading maintenance.json: {e}")
 
     if youtube_service:
+        # Fallback: If maintenance.json has 0 duplicate records, compute from live cached videos
+        if not data.get("duplicated_videos"):
+            try:
+                videos_data = await youtube_service.get_videos()
+                vids = videos_data.get("videos", []) if isinstance(videos_data, dict) else []
+                if vids:
+                    from services.duplicate_detector import compute_duplicate_groups
+                    groups = compute_duplicate_groups(vids)
+                    data["duplicated_videos"] = [
+                        {
+                            "video_id": g["canonical_video_id"],
+                            "video_title": g["video_title"],
+                            "channel_title": g["channel_title"],
+                            "thumbnail": next((c.get("thumbnail", "") for c in g["copies"] if c.get("thumbnail")), ""),
+                            "variant_ids": g["variant_ids"],
+                            "exact_duplicate": g["exact_duplicate"],
+                            "copy_count": g["copy_count"],
+                            "playlists": g["playlists"],
+                        }
+                        for g in groups
+                    ]
+                    if background_worker:
+                        await background_worker._persist_maintenance(duplicated_videos=data["duplicated_videos"])
+            except Exception as _live_err:
+                log.warning(f"Live duplicate calculation warning in api_maintenance: {_live_err}")
+
+    if youtube_service:
         try:
             pls = await youtube_service.list_playlists()
             title_map = {p.get("id"): p.get("title") for p in (pls.get("playlists") or []) if p.get("id")}
@@ -2414,6 +2441,31 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     # fix_all: apply the given action to every record of the given type.
     maintenance = _load_maintenance_data()
     records = _maintenance_items_by_type(maintenance, item_type)
+
+    if not records and item_type == "dup" and youtube_service:
+        try:
+            videos_data = await youtube_service.get_videos()
+            vids = videos_data.get("videos", []) if isinstance(videos_data, dict) else []
+            if vids:
+                from services.duplicate_detector import compute_duplicate_groups
+                groups = compute_duplicate_groups(vids)
+                records = [
+                    {
+                        "video_id": g["canonical_video_id"],
+                        "video_title": g["video_title"],
+                        "channel_title": g["channel_title"],
+                        "thumbnail": next((c.get("thumbnail", "") for c in g["copies"] if c.get("thumbnail")), ""),
+                        "variant_ids": g["variant_ids"],
+                        "exact_duplicate": g["exact_duplicate"],
+                        "copy_count": g["copy_count"],
+                        "playlists": g["playlists"],
+                    }
+                    for g in groups
+                ]
+                if background_worker:
+                    await background_worker._persist_maintenance(duplicated_videos=records)
+        except Exception as _live_err:
+            log.warning(f"Live duplicate fallback detection failed: {_live_err}")
 
     if payload.playlist_id and payload.playlist_id.lower() != "all":
         target_pid = payload.playlist_id.lower()
