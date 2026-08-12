@@ -66,6 +66,13 @@
                         <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors">
                             <i class="fa-solid fa-layer-group"></i> Bulk Operations
                         </a>
+                        <!-- Export Buttons -->
+                        <button onclick="exportMaintenance('csv')" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer" title="Export current items to CSV">
+                            <i class="fa-solid fa-file-csv"></i> Export CSV
+                        </button>
+                        <button onclick="exportMaintenance('json')" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer" title="Export current items to JSON">
+                            <i class="fa-solid fa-file-code"></i> Export JSON
+                        </button>
                         <!-- Export Options Dropdown -->
                         <div class="relative inline-block text-left" id="export-dropdown-wrapper">
                             <button onclick="toggleExportMenu()" id="btn-export-menu" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer">
@@ -117,7 +124,6 @@
                                 <p class="text-[11px] text-gray-400 truncate">Videos saved across multiple playlists or re-uploaded</p>
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
-                                <button onclick="exportMaintenance('csv', 'dup')" class="bg-[#2a2f3a] hover:bg-[#374151] text-gray-300 hover:text-white text-xs font-semibold py-1.5 px-2.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Download Duplicates CSV"><i class="fa-solid fa-download text-[10px]"></i> Export CSV</button>
                                 <button onclick="applyMaintenance('dup')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"><i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i> Resolve All</button>
                             </div>
                         </div>
@@ -152,7 +158,6 @@
                                 <p class="text-[11px] text-gray-400 truncate">Videos in staging/inbox playlists matching AI rules & channel mappings</p>
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
-                                <button onclick="exportMaintenance('csv', 'misplaced')" class="bg-[#2a2f3a] hover:bg-[#374151] text-gray-300 hover:text-white text-xs font-semibold py-1.5 px-2.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Download Misplaced CSV"><i class="fa-solid fa-download text-[10px]"></i> Export CSV</button>
                                 <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"><i class="fa-solid fa-check text-[10px]"></i> Fix All</button>
                             </div>
                         </div>
@@ -337,6 +342,23 @@
             setMaintenanceFilter('all');
         }
 
+        function itemMatchesPlaylistTarget(candId, candTitle, targetVal) {
+            if (!targetVal || targetVal === 'all') return true;
+            const tId = String(targetVal).trim().toLowerCase();
+            const tTitle = String(playlistsMap[targetVal] || targetVal).trim().toLowerCase();
+
+            const cId = String(candId || '').trim().toLowerCase();
+            const cTitle = String(candTitle || '').trim().toLowerCase();
+
+            if (cId && (cId === tId || cId === tTitle)) return true;
+            if (cTitle && (cTitle === tId || cTitle === tTitle)) return true;
+
+            if (tTitle && cTitle && (cTitle.includes(tTitle) || tTitle.includes(cTitle))) return true;
+            if (tId && cTitle && (cTitle.includes(tId) || tId.includes(cTitle))) return true;
+
+            return false;
+        }
+
         function renderFilteredMaintenance() {
             const resetBtn = document.getElementById('btn-reset-filter');
             const summaryBadge = document.getElementById('filter-summary-badge');
@@ -353,22 +375,22 @@
             let filteredMisplaced = misplacedCombined;
 
             if (activePlaylistFilter !== 'all') {
-                const targetPid = activePlaylistFilter;
-                const targetTitle = playlistsMap[targetPid] || targetPid;
+                const targetVal = activePlaylistFilter;
+                const targetTitle = playlistsMap[targetVal] || targetVal;
 
                 filteredDups = allDups.filter(item => {
                     if (!item.playlists || !Array.isArray(item.playlists)) return false;
                     return item.playlists.some(p => {
-                        const pid = p.id || p.playlist_id || '';
-                        const ptitle = playlistsMap[pid] || p.title || pid;
-                        return pid === targetPid || ptitle === targetTitle || (targetTitle && ptitle.toLowerCase() === targetTitle.toLowerCase());
+                        const pid = typeof p === 'string' ? p : (p.id || p.playlist_id || '');
+                        const ptitle = typeof p === 'string' ? p : (playlistsMap[pid] || p.title || pid);
+                        return itemMatchesPlaylistTarget(pid, ptitle, targetVal);
                     });
                 });
 
                 filteredMisplaced = misplacedCombined.filter(item => {
                     const curPid = item.current_playlist_id || item.source_playlist_id || '';
-                    const curTitle = playlistsMap[curPid] || item.current_playlist_title || item.source_playlist_title || curPid;
-                    return curPid === targetPid || curTitle === targetTitle || (targetTitle && curTitle.toLowerCase() === targetTitle.toLowerCase());
+                    const curTitle = item.current_playlist_title || item.source_playlist_title || playlistsMap[curPid] || curPid;
+                    return itemMatchesPlaylistTarget(curPid, curTitle, targetVal);
                 });
 
                 if (summaryBadge) {
@@ -416,6 +438,7 @@
         
         async function loadMaintenance() {
             try {
+                await fetchPlaylistsMap();
                 const response = await fetch('/api/maintenance');
                 if (!response.ok) throw new Error('Failed to load maintenance data');
                 maintenanceData = await response.json();
