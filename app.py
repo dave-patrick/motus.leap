@@ -844,9 +844,24 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             # Drop per-playlist "not misplaced" overrides the user has taught us.
             excluded = {(e.get("video_id"), e.get("playlist_id"))
                         for e in (maintenance.get("not_misplaced") or [])}
-            if excluded:
-                mis_videos = [v for v in mis_videos
-                              if (v.get("video_id"), v.get("current_playlist_id")) not in excluded]
+            # Filter out staging targets and playlists not explicitly opted-in by user (all playlists exceptions by default)
+            staging_kws = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
+            def _is_staging_dst(item):
+                tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "").lower()
+                ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "").lower()
+                return any(kw in tid or kw in ttitle for kw in staging_kws)
+
+            cfg = config_manager.config
+            opt_in_pls = getattr(cfg, 'mapped_playlists', []) or []
+            opt_in_set = {str(p).lower() for p in opt_in_pls}
+
+            def _is_opted_in(item):
+                cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
+                ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
+                return cid in opt_in_set or ctitle in opt_in_set
+
+            mis_videos = [v for v in mis_videos if not _is_staging_dst(v) and _is_opted_in(v)]
+
             # Enrich each item with the target playlist's display name so the
             # UI shows the title instead of the raw id. Resolve from the live
             # playlist list; fall back to the stored title, then the id itself.
