@@ -352,6 +352,13 @@
             return false;
         }
 
+        function isStagingDestination(targetId, targetTitle) {
+            const sId = String(targetId || '').toLowerCase();
+            const sTitle = String(targetTitle || '').toLowerCase();
+            const stagingKws = ['1~sort', 'inbox', 'unsorted', 'wl', 'watch later', 'check later'];
+            return stagingKws.some(kw => sId.includes(kw) || sTitle.includes(kw));
+        }
+
         function renderFilteredMaintenance() {
             const resetBtn = document.getElementById('btn-reset-filter');
             const summaryBadge = document.getElementById('filter-summary-badge');
@@ -359,10 +366,15 @@
             if (resetBtn) resetBtn.classList.toggle('hidden', activePlaylistFilter === 'all');
 
             const allDups = maintenanceData.duplicated_videos || [];
+            // Videos must NEVER be moved to 1~Sort or staging playlists
             const misplacedCombined = [
                 ...(maintenanceData.misplaced_videos || []),
                 ...(maintenanceData.move_from_x_to_y || [])
-            ];
+            ].filter(item => {
+                const tid = item.mapped_playlist_id || item.target_playlist_id || '';
+                const ttitle = playlistsMap[tid] || item.mapped_playlist_title || item.target_playlist_title || tid;
+                return !isStagingDestination(tid, ttitle);
+            });
 
             let filteredDups = allDups;
             let filteredMisplaced = misplacedCombined;
@@ -688,13 +700,15 @@
         
         function buildPlaylistOptionsHtml(selectedId, recommendedTitle) {
             const keys = Object.keys(playlistsMap);
-            if (!keys.length) {
-                return `<option value="${DOMPurify.sanitize(selectedId)}" selected>Move to ${DOMPurify.sanitize(recommendedTitle || selectedId)}</option>`;
+            // Videos must NEVER be moved to 1~Sort or staging playlists
+            const validKeys = keys.filter(k => !isStagingDestination(k, playlistsMap[k]));
+            if (!validKeys.length) {
+                return `<option value="" selected>Select Destination...</option>`;
             }
-            const sorted = keys.map(k => ({ id: k, title: playlistsMap[k] || k })).sort((a, b) => a.title.localeCompare(b.title));
+            const sorted = validKeys.map(k => ({ id: k, title: playlistsMap[k] || k })).sort((a, b) => a.title.localeCompare(b.title));
             return sorted.map(p => {
-                const isSel = p.id === selectedId ? 'selected' : '';
-                const recTag = p.id === selectedId ? ' ★ Recommended' : '';
+                const isSel = (p.id === selectedId || p.title === recommendedTitle) ? 'selected' : '';
+                const recTag = isSel ? ' ★ Recommended' : '';
                 return `<option value="${DOMPurify.sanitize(p.id)}" ${isSel}>Move to ${DOMPurify.sanitize(p.title)}${recTag}</option>`;
             }).join('');
         }

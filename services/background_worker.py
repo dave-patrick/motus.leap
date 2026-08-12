@@ -576,20 +576,23 @@ class BackgroundWorker:
                             "thumbnail": _best_thumbnail_local(snip.get("thumbnails")),
                         })
                         
-                        # Misplaced video check
+                        # Misplaced video check — videos are never moved into staging/inbox playlists like 1~Sort
                         owner_channel_id = item.get("snippet", {}).get("videoOwnerChannelId")
                         if owner_channel_id and owner_channel_id in mappings:
                             mapped_playlist_id = mappings[owner_channel_id]
                             if mapped_playlist_id and pl_id != mapped_playlist_id:
                                 mapped_pl_title = playlist_titles.get(mapped_playlist_id, mapped_playlist_id)
-                                misplaced_videos.append({
-                                    "video_id": video_id,
-                                    "video_title": video_title,
-                                    "current_playlist_id": pl_id,
-                                    "current_playlist_title": pl_title,
-                                    "mapped_playlist_id": mapped_playlist_id,
-                                    "mapped_playlist_title": mapped_pl_title
-                                })
+                                staging_kws = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
+                                is_staging_dst = any(kw in str(mapped_playlist_id).lower() or kw in str(mapped_pl_title).lower() for kw in staging_kws)
+                                if not is_staging_dst:
+                                    misplaced_videos.append({
+                                        "video_id": video_id,
+                                        "video_title": video_title,
+                                        "current_playlist_id": pl_id,
+                                        "current_playlist_title": pl_title,
+                                        "mapped_playlist_id": mapped_playlist_id,
+                                        "mapped_playlist_title": mapped_pl_title
+                                    })
                 
                 await self._safe_broadcast({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"})
                 await asyncio.sleep(0.5)

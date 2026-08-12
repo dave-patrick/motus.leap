@@ -1389,6 +1389,17 @@ async def api_maintenance() -> dict[str, Any]:
         except Exception as e:
             log.warning(f"Failed to enrich playlist titles in api_maintenance: {e}")
 
+        # Videos must NEVER be recommended or moved TO staging/inbox playlists like 1~Sort
+        staging_kws = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
+        def _is_staging_dst(item):
+            tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "").lower()
+            ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "").lower()
+            return any(kw in tid or kw in ttitle for kw in staging_kws)
+
+        for key in ("misplaced_videos", "move_from_x_to_y"):
+            if key in data and isinstance(data[key], list):
+                data[key] = [item for item in data[key] if not _is_staging_dst(item)]
+
         restricted_private = set(data.get("restricted_private_videos", []))
         try:
             all_videos = await youtube_service.get_videos()
