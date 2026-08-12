@@ -297,7 +297,7 @@
                 return a.title.localeCompare(b.title);
             });
 
-            const curVal = selectEl.value || activePlaylistFilter;
+            const curVal = activePlaylistFilter;
             let optionsHtml = `<option value="all" ${curVal === 'all' ? 'selected' : ''}>All Playlists (Default)</option>`;
             list.forEach(p => {
                 const total = p.dupCount + p.misCount;
@@ -306,6 +306,7 @@
                 optionsHtml += `<option value="${DOMPurify.sanitize(p.pid)}" ${isSel}>${DOMPurify.sanitize(p.title)}${countsText}</option>`;
             });
             selectEl.innerHTML = optionsHtml;
+            selectEl.value = curVal;
 
             if (chipsEl) {
                 const quickList = list.filter(p => (p.dupCount + p.misCount > 0) && (p.title.includes('1~Sort') || p.title.toLowerCase().includes('inbox') || p.pid === 'WL' || p.title.toLowerCase().includes('watch later'))).slice(0, 4);
@@ -324,13 +325,13 @@
         function onMaintenanceFilterChange() {
             const selectEl = document.getElementById('maintenance-playlist-filter');
             activePlaylistFilter = selectEl ? selectEl.value : 'all';
+            populatePlaylistFilterOptions();
             renderFilteredMaintenance();
         }
 
         function setMaintenanceFilter(pid) {
             activePlaylistFilter = pid;
-            const selectEl = document.getElementById('maintenance-playlist-filter');
-            if (selectEl) selectEl.value = pid;
+            populatePlaylistFilterOptions();
             renderFilteredMaintenance();
         }
 
