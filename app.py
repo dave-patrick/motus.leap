@@ -2098,10 +2098,24 @@ def _maintenance_items_by_type(maintenance: dict[str, Any], item_type: str) -> l
     """Return the list of maintenance records for a given type key."""
     if item_type == "dup":
         return maintenance.get("duplicated_videos", [])
-    if item_type == "misplaced":
-        return maintenance.get("misplaced_videos", [])
-    if item_type == "move":
-        return maintenance.get("move_from_x_to_y", [])
+    if item_type in ("misplaced", "move"):
+        recs = maintenance.get("misplaced_videos", []) if item_type == "misplaced" else maintenance.get("move_from_x_to_y", [])
+        staging_kws = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
+        def _is_staging_dst(item):
+            tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "").lower()
+            ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "").lower()
+            return any(kw in tid or kw in ttitle for kw in staging_kws)
+
+        cfg = config_manager.config
+        opt_in_pls = getattr(cfg, 'mapped_playlists', []) or []
+        opt_in_set = {str(p).lower() for p in opt_in_pls}
+
+        def _is_opted_in(item):
+            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
+            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
+            return cid in opt_in_set or ctitle in opt_in_set
+
+        return [v for v in recs if not _is_staging_dst(v) and _is_opted_in(v)]
     return []
 
 
@@ -2402,17 +2416,17 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     records = _maintenance_items_by_type(maintenance, item_type)
 
     if payload.playlist_id and payload.playlist_id.lower() != "all":
-        target_pid = payload.playlist_id
+        target_pid = payload.playlist_id.lower()
         filtered = []
         for rec in records:
             if item_type == "dup":
-                pids = {cp.get("id") or cp.get("playlist_id") for cp in (rec.get("playlists") or []) if isinstance(cp, dict)}
-                ptitles = {cp.get("title") for cp in (rec.get("playlists") or []) if isinstance(cp, dict) and cp.get("title")}
+                pids = {str(cp.get("id") or cp.get("playlist_id") or "").lower() for cp in (rec.get("playlists") or []) if isinstance(cp, dict)}
+                ptitles = {str(cp.get("title") or "").lower() for cp in (rec.get("playlists") or []) if isinstance(cp, dict) and cp.get("title")}
                 if target_pid in pids or target_pid in ptitles:
                     filtered.append(rec)
             else:
-                cur_id = rec.get("current_playlist_id") or rec.get("source_playlist_id")
-                cur_title = rec.get("current_playlist_title") or rec.get("source_playlist_title")
+                cur_id = str(rec.get("current_playlist_id") or rec.get("source_playlist_id") or "").lower()
+                cur_title = str(rec.get("current_playlist_title") or rec.get("source_playlist_title") or "").lower()
                 if target_pid == cur_id or target_pid == cur_title:
                     filtered.append(rec)
         records = filtered
