@@ -815,6 +815,13 @@
                     }).join('') + `</div>`;
                 }
 
+                const _keepPl = _pls.find(p => {
+                    const pid = p.id || p.playlist_id || '';
+                    return pid !== _removePlId;
+                }) || _pls[0] || {};
+                const _keepPlTitle = playlistsMap[_keepPl.id || _keepPl.playlist_id] || _keepPl.title || 'Category';
+                const _removePlTitle = playlistsMap[_removePlId] || _removePl.title || 'Staging Copy';
+
                 const optionsHtml = buildPlaylistOptionsHtml(_toId, _to);
 
                 let _controls = '';
@@ -829,11 +836,11 @@
                     </div>`;
                 } else if (type === 'dup') {
                     _controls = `<div class="flex items-center gap-2 mt-2">
-                        <button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Keep in category playlist & remove copy from staging">
-                            <i class="fa-solid fa-bookmark"></i> Keep in Category
+                        <button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Keep copy in ${DOMPurify.sanitize(_keepPlTitle)} and remove copy from ${DOMPurify.sanitize(_removePlTitle)}">
+                            <i class="fa-solid fa-bookmark"></i> Keep in ${DOMPurify.sanitize(_keepPlTitle)}
                         </button>
-                        <button onclick="maintRemove('${_removeVid}', '${_removePlId}', 'dup', this, '${_removePli}')" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer" title="Deletes the duplicate copy from your staging/inbox playlist (e.g. 1~Sort) while preserving the main copy in your category playlist">
-                            <i class="fa-solid fa-trash-can"></i> Remove Staging Copy
+                        <button onclick="maintRemove('${_removeVid}', '${_removePlId}', 'dup', this, '${_removePli}')" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer" title="Deletes the duplicate copy from ${DOMPurify.sanitize(_removePlTitle)} while preserving the copy in ${DOMPurify.sanitize(_keepPlTitle)}">
+                            <i class="fa-solid fa-trash-can"></i> Remove ${DOMPurify.sanitize(_removePlTitle)} Copy
                         </button>
                     </div>`;
                 } else if (type === 'misplaced') {
