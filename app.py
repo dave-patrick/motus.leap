@@ -2483,7 +2483,7 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
         filtered = []
         for rec in records:
             if item_type == "dup":
-                pids = {str(cp.get("id") or cp.get("playlist_id") or "").lower() for cp in (rec.get("playlists") or []) if isinstance(cp, dict)}
+                pids = {str(cp.get("id") or cp.get("playlist_id") if isinstance(cp, dict) else cp).lower() for cp in (rec.get("playlists") or [])}
                 ptitles = {str(cp.get("title") or "").lower() for cp in (rec.get("playlists") or []) if isinstance(cp, dict) and cp.get("title")}
                 if target_pid in pids or target_pid in ptitles:
                     filtered.append(rec)
@@ -2510,7 +2510,7 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     for _rec in records:
         if item_type == "dup":
             for _cp in (_rec.get("playlists") or []):
-                _pid = _cp.get("id") if isinstance(_cp, dict) else None
+                _pid = (_cp.get("id") or _cp.get("playlist_id")) if isinstance(_cp, dict) else str(_cp)
                 if _pid:
                     _src_pids.add(_pid)
         else:
@@ -2545,15 +2545,16 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
             # Sort: Category/destination playlists first (0), staging playlists (1~Sort, Inbox, Watch Later) last (1).
             sorted_copy_playlists = sorted(copy_playlists, key=lambda cp: 1 if _is_staging_playlist_dict(cp) else 0)
             for idx, cp in enumerate(sorted_copy_playlists):
-                cp_id = cp.get("id") if isinstance(cp, dict) else None
+                cp_id = (cp.get("id") or cp.get("playlist_id")) if isinstance(cp, dict) else str(cp)
                 if not cp_id:
                     continue
                 if idx == 0:
                     continue  # Keep the primary copy (Category playlist if available)
+
+                copy_vid = (cp.get("video_id") if isinstance(cp, dict) else None) or rec.get("video_id")
+                copy_item_id = (cp.get("playlist_item_id") if isinstance(cp, dict) else None) or (bulk_item_map.get(cp_id) or {}).get(copy_vid)
+
                 processed += 1
-                _resolved_item_id = (bulk_item_map.get(cp_id) or {}).get(
-                    rec.get("video_id") or ""
-                )
                 try:
                     res = await _maintenance_apply_one(
                         yt_client,
@@ -2562,12 +2563,17 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                         record=rec,
                         playlist_id=cp_id,
                         target_playlist_id=None,
-                        playlist_item_id=_resolved_item_id,
-                        video_id=rec.get("video_id"),
+                        playlist_item_id=copy_item_id,
+                        video_id=copy_vid,
                     )
                     if res.get("status") == "ok":
                         succeeded += 1
                     else:
+                        failed += 1
+                        errors.append(res.get("error", "unknown error"))
+                        if res.get("quota_exceeded"):
+                            quota_hit = True
+                            break
                         failed += 1
                         errors.append(res.get("error", "unknown error"))
                         if res.get("quota_exceeded"):
