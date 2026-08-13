@@ -2470,6 +2470,7 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                         "exact_duplicate": g["exact_duplicate"],
                         "copy_count": g["copy_count"],
                         "playlists": g["playlists"],
+                        "copies": g.get("copies", []),
                     }
                     for g in groups
                 ]
@@ -2505,11 +2506,11 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
     # of one API read per record. A list call returns up to 50 items; for a
     # queue of N records spread across M playlists this drops the resolve reads
     # from N to M (often 1) — the single biggest read saving in fix_all.
-    bulk_item_map: dict[str, dict[str, str]] = {}
+    bulk_item_map: dict[str, dict[str, list[str]]] = {}
     _src_pids: set[str] = set()
     for _rec in records:
         if item_type == "dup":
-            for _cp in (_rec.get("playlists") or []):
+            for _cp in (_rec.get("copies") or _rec.get("playlists") or []):
                 _pid = (_cp.get("id") or _cp.get("playlist_id")) if isinstance(_cp, dict) else str(_cp)
                 if _pid:
                     _src_pids.add(_pid)
@@ -2518,7 +2519,7 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
             if _pid:
                 _src_pids.add(_pid)
     for _pid in _src_pids:
-        _mapping: dict[str, str] = {}
+        _mapping: dict[str, list[str]] = {}
         try:
             _pt = None
             while True:
@@ -2527,8 +2528,9 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                     _snip = _it.get("snippet", {}) or {}
                     _rid = _snip.get("resourceId", {}) or {}
                     _vid = _rid.get("videoId")
-                    if _vid:
-                        _mapping[_vid] = _it.get("id")
+                    _item_id = _it.get("id")
+                    if _vid and _item_id:
+                        _mapping.setdefault(_vid, []).append(_item_id)
                 _pt = _resp.get("nextPageToken")
                 if not _pt:
                     break
@@ -2536,12 +2538,18 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
             log.warning(f"Fix2 bulk resolve failed for playlist {_pid}: {_map_err}")
         bulk_item_map[_pid] = _mapping
 
+    used_item_ids: set[str] = set()
     for rec in records:
         if quota_hit:
             break
         if item_type == "dup":
             sub_action = "remove"
-            copy_playlists = rec.get("playlists", []) or []
+            copies_list = rec.get("copies") or []
+            playlists_list = rec.get("playlists") or []
+            copy_playlists = copies_list if len(copies_list) >= len(playlists_list) else playlists_list
+            if not copy_playlists:
+                copy_playlists = playlists_list
+
             # Sort: Category/destination playlists first (0), staging playlists (1~Sort, Inbox, Watch Later) last (1).
             sorted_copy_playlists = sorted(copy_playlists, key=lambda cp: 1 if _is_staging_playlist_dict(cp) else 0)
             for idx, cp in enumerate(sorted_copy_playlists):
@@ -2552,7 +2560,16 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                     continue  # Keep the primary copy (Category playlist if available)
 
                 copy_vid = (cp.get("video_id") if isinstance(cp, dict) else None) or rec.get("video_id")
-                copy_item_id = (cp.get("playlist_item_id") if isinstance(cp, dict) else None) or (bulk_item_map.get(cp_id) or {}).get(copy_vid)
+                copy_item_id = cp.get("playlist_item_id") if isinstance(cp, dict) else None
+
+                if not copy_item_id and copy_vid:
+                    avail_ids = (bulk_item_map.get(cp_id) or {}).get(copy_vid, [])
+                    for cand_id in avail_ids:
+                        if cand_id not in used_item_ids:
+                            copy_item_id = cand_id
+                            break
+                if copy_item_id:
+                    used_item_ids.add(copy_item_id)
 
                 processed += 1
                 try:
@@ -2569,11 +2586,6 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                     if res.get("status") == "ok":
                         succeeded += 1
                     else:
-                        failed += 1
-                        errors.append(res.get("error", "unknown error"))
-                        if res.get("quota_exceeded"):
-                            quota_hit = True
-                            break
                         failed += 1
                         errors.append(res.get("error", "unknown error"))
                         if res.get("quota_exceeded"):

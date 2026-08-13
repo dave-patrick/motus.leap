@@ -620,6 +620,7 @@ class BackgroundWorker:
                     "exact_duplicate": g["exact_duplicate"],
                     "copy_count": g["copy_count"],
                     "playlists": g["playlists"],
+                    "copies": g.get("copies", []),
                 })
                     
             # Build move suggestions
