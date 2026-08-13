@@ -151,17 +151,15 @@ def compute_duplicate_groups(
                 seen_ids.add(vid)
                 variant_ids.append(vid)
 
-        # Playlists: every distinct playlist a copy lives in.
+        # Playlists: every copy instance represented in the cluster.
         playlists = []
-        seen_pls: set = set()
         for c in copies:
-            pl_id = c["playlist_id"]
-            if pl_id and pl_id not in seen_pls:
-                seen_pls.add(pl_id)
+            pl_id = c.get("playlist_id")
+            if pl_id:
                 playlists.append({
                     "id": pl_id,
-                    "title": c["playlist_title"],
-                    "video_id": c["video_id"],
+                    "title": c.get("playlist_title", ""),
+                    "video_id": c.get("video_id", ""),
                     "playlist_item_id": c.get("playlist_item_id", "")
                 })
 

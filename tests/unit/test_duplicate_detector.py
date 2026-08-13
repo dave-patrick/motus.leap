@@ -115,3 +115,19 @@ def test_copies_sorted_largest_first():
     groups = compute_duplicate_groups(videos)
     assert len(groups) == 1
     assert groups[0]["copy_count"] == 3
+
+
+def test_intra_playlist_duplicates():
+    """A video duplicated inside the SAME playlist includes all copy instances in playlists array."""
+    videos = [
+        {"video_id": "v1", "title": "Duplicated In Same PL", "playlist_id": "pl1", "playlist_title": "Maker", "playlist_item_id": "item1"},
+        {"video_id": "v1", "title": "Duplicated In Same PL", "playlist_id": "pl1", "playlist_title": "Maker", "playlist_item_id": "item2"},
+    ]
+    groups = compute_duplicate_groups(videos)
+    assert len(groups) == 1
+    g = groups[0]
+    assert g["copy_count"] == 2
+    assert len(g["playlists"]) == 2
+    assert g["playlists"][0]["playlist_item_id"] == "item1"
+    assert g["playlists"][1]["playlist_item_id"] == "item2"
+
