@@ -328,7 +328,7 @@ class YouTubeService:
         await self._cache.set(key, value, ttl=ttl)
 
     async def _cache_invalidate_playlist(self, playlist_id: str) -> None:
-        """Remove cached data for a specific playlist from memory and disk."""
+        """Remove cached data for a specific playlist from memory and disk, including global all_data."""
         # Invalidate memory cache entries matching this playlist
         async with self._cache._lock:
             keys_to_remove = self._playlist_keys.get(playlist_id, set())
@@ -336,17 +336,18 @@ class YouTubeService:
                 await self._cache._evict(key)
             if playlist_id in self._playlist_keys:
                 del self._playlist_keys[playlist_id]
+            await self._cache._evict("all_data")
 
-        # Invalidate disk cache files for this playlist
-        disk_keys = [f"playlist_videos_{playlist_id}"]
+        # Invalidate disk cache files for this playlist and global all_data cache
+        disk_keys = [f"playlist_videos_{playlist_id}", "all_data"]
         for key in disk_keys:
             cache_file = self._user_data_dir / f"{key}.json"
             try:
                 if await asyncio.to_thread(cache_file.exists):
                     await asyncio.to_thread(cache_file.unlink)
-                    log.info(f"Invalidated disk cache for playlist {playlist_id}")
+                    log.info(f"Invalidated disk cache for {key}")
             except Exception as e:
-                log.warning(f"Failed to remove disk cache for playlist {playlist_id}: {e}")
+                log.warning(f"Failed to remove disk cache for {key}: {e}")
 
     def _playlist_item_to_dict(self, item: dict[str, Any]) -> dict[str, Any]:
         """Normalize a YouTube playlist API item for the UI."""
