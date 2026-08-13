@@ -154,6 +154,9 @@
                                 <button onclick="executeLeaveAllInPlace()" id="btn-leave-all" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer" title="Keep all current misplaced videos in their present playlists and dismiss move suggestions">
                                     <i class="fa-solid fa-anchor text-[10px]"></i> Keep All Here
                                 </button>
+                                <button onclick="resetExemptions()" id="btn-reset-exemptions" class="bg-[#2a2f3a] hover:bg-gray-700 text-gray-300 text-xs font-medium py-1.5 px-3 rounded-lg border border-[#374151] transition-all flex items-center gap-1.5 cursor-pointer" title="Reset all 'Keep Here' exemptions so previously hidden misplaced videos show up again">
+                                    <i class="fa-solid fa-rotate-left text-[10px]"></i> Reset Exemptions
+                                </button>
                                 <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"><i class="fa-solid fa-check text-[10px]"></i> Fix All</button>
                             </div>
                         </div>
@@ -716,6 +719,24 @@
             } catch (e) {
                 toast(`Error: ${e.message}`, 'error');
                 if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-anchor text-[10px]"></i> Leave Here`; }
+            }
+        }
+
+        async function resetExemptions() {
+            if (!confirm("Are you sure you want to reset all 'Keep Here' exemptions? This will allow previously exempted misplaced videos to show up in the Maintenance queue again.")) return;
+            const btn = document.getElementById('btn-reset-exemptions');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Resetting...`; }
+            try {
+                toast("Resetting exemptions and rescanning misplaced videos...", "info", 5000);
+                const resp = await authFetch('/api/youtube/misplaced/reset-exemptions', { method: 'POST' });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || 'Failed to reset exemptions');
+                toast(`Successfully reset ${data.reset_count || 0} exemption(s)! Rescanning misplaced videos...`, 'success', 6000);
+                await loadMaintenance();
+            } catch (e) {
+                toast(`Error: ${e.message}`, 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-rotate-left text-[10px]"></i> Reset Exemptions`; }
             }
         }
 

@@ -1039,6 +1039,24 @@ async def clear_all_misplaced_endpoint(request: Request):
     return {"status": "success", "cleared": added, "total_excluded": len(excluded)}
 
 
+@app.post("/api/youtube/misplaced/reset-exemptions", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+@limiter.limit("10/minute")
+async def reset_misplaced_exemptions_endpoint(request: Request):
+    """Reset all 'Keep Here' exemptions so misplaced videos can be re-evaluated and displayed."""
+    maintenance = _load_maintenance_data()
+    before_count = len(maintenance.get("not_misplaced") or [])
+    maintenance["not_misplaced"] = []
+    _save_maintenance(maintenance)
+
+    if background_worker:
+        try:
+            background_worker.enqueue_job("scan_misplaced")
+        except Exception:
+            pass
+
+    return {"status": "success", "reset_count": before_count}
+
+
 @app.get("/api/rules/mapped-playlists", dependencies=[Depends(get_current_user)])
 async def get_mapped_playlists_endpoint():
     """Get list of playlists explicitly opted-in for automatic channel mapping. All playlists are exceptions by default."""
