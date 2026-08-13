@@ -11,7 +11,7 @@ except Exception as e:
     import sys
     print(f"[WARN] load_dotenv failed: {e}", file=sys.stderr)
 import logging
-from core.logger import setup_logging
+from core.logger import setup_logging, get_log_file_path
 log = logging.getLogger(__name__)
 
 import asyncio
@@ -177,9 +177,8 @@ async def lifespan(app: FastAPI):
     global youtube_service, worker
 
     # Set up file logging
-    log_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "tube_manager.log"
+    log_file = get_log_file_path()
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     setup_logging(log_file=log_file)
 
     # Quota ledger: track YouTube API units spent per UTC day so we can defer
@@ -856,6 +855,8 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             opt_in_set = {str(p).lower() for p in opt_in_pls}
 
             def _is_opted_in(item):
+                if not opt_in_set:
+                    return True
                 cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
                 ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
                 return cid in opt_in_set or ctitle in opt_in_set
@@ -982,7 +983,13 @@ async def clear_all_misplaced_endpoint(request: Request):
 
     all_mis = misplaced + move_x_y
     if target_playlist_id and target_playlist_id.lower() != "all":
-        all_mis = [v for v in all_mis if v.get("current_playlist_id") == target_playlist_id or v.get("source_playlist_id") == target_playlist_id]
+        tpid = target_playlist_id.lower()
+        all_mis = [v for v in all_mis if tpid in (
+            str(v.get("current_playlist_id") or "").lower(),
+            str(v.get("source_playlist_id") or "").lower(),
+            str(v.get("mapped_playlist_id") or "").lower(),
+            str(v.get("target_playlist_id") or "").lower()
+        )]
 
     added = 0
     for v in all_mis:
@@ -1552,6 +1559,8 @@ async def api_maintenance() -> dict[str, Any]:
         opt_in_set = {str(p).lower() for p in opt_in_pls}
 
         def _is_opted_in(item):
+            if not opt_in_set:
+                return True
             cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
             ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
             return cid in opt_in_set or ctitle in opt_in_set
@@ -2138,6 +2147,8 @@ def _maintenance_items_by_type(maintenance: dict[str, Any], item_type: str) -> l
         opt_in_set = {str(p).lower() for p in opt_in_pls}
 
         def _is_opted_in(item):
+            if not opt_in_set:
+                return True
             cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
             ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
             return cid in opt_in_set or ctitle in opt_in_set
@@ -2479,7 +2490,9 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
             else:
                 cur_id = str(rec.get("current_playlist_id") or rec.get("source_playlist_id") or "").lower()
                 cur_title = str(rec.get("current_playlist_title") or rec.get("source_playlist_title") or "").lower()
-                if target_pid == cur_id or target_pid == cur_title:
+                tgt_id = str(rec.get("mapped_playlist_id") or rec.get("target_playlist_id") or "").lower()
+                tgt_title = str(rec.get("mapped_playlist_title") or rec.get("target_playlist_title") or "").lower()
+                if target_pid in (cur_id, cur_title, tgt_id, tgt_title):
                     filtered.append(rec)
         records = filtered
     processed = 0
@@ -4819,7 +4832,7 @@ async def diagnostics_oauth_user() -> dict[str, Any]:
 @app.get("/api/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def get_system_logs():
     """Get recent system logs from the log file."""
-    log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
+    log_file = get_log_file_path()
     if not log_file.exists():
         return {
             "logs": [],
@@ -4827,8 +4840,8 @@ async def get_system_logs():
             "total": 0,
         }
     try:
-        lines = await asyncio.to_thread(log_file.read_text)
-        lines = lines.strip().split("\n")
+        lines = await asyncio.to_thread(lambda: log_file.read_text(encoding="utf-8", errors="ignore"))
+        lines = [l for l in lines.strip().split("\n") if l.strip()]
         last_200 = lines[-200:] if len(lines) > 200 else lines
         return {
             "logs": last_200,
@@ -4846,7 +4859,7 @@ async def get_system_logs():
 @app.post("/api/system/logs/clear", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def clear_system_logs():
     """Clear system log file."""
-    log_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "tube_manager.log"
+    log_file = get_log_file_path()
     try:
         if log_file.exists():
             await asyncio.to_thread(log_file.write_text, "")
@@ -4858,12 +4871,7 @@ async def clear_system_logs():
 @app.get("/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def system_logs_page():
     """System logs viewer page."""
-    data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
-    log_file = data_dir / "tube_manager.log"
-    if not log_file.exists():
-        local_log = Path("tube_manager.log")
-        if local_log.exists():
-            log_file = local_log
+    log_file = get_log_file_path()
 
     logs_html = ""
     if log_file.exists():
@@ -4996,9 +5004,12 @@ async def system_logs_page():
             if (el) el.scrollTo({{ top: 0, behavior: 'smooth' }});
         }}
 
+        let activeFilter = 'ALL';
+
         function filterLogs(level, btn) {{
+            activeFilter = level;
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            if (btn) btn.classList.add('active');
             document.querySelectorAll('.log-line').forEach(line => {{
                 if (level === 'ALL' || line.dataset.level === level) {{
                     line.style.display = '';
@@ -5007,6 +5018,44 @@ async def system_logs_page():
                 }}
             }});
         }}
+
+        async function fetchLogs() {{
+            try {{
+                const resp = await fetch('/api/system/logs');
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (!data.logs) return;
+                const container = document.getElementById('log-container');
+                if (!container) return;
+                
+                const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+                let html = '';
+                for (const line of data.logs) {{
+                    const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    let level = "OTHER";
+                    let style = "";
+                    if (line.includes("ERROR") || line.includes("CRITICAL")) {{
+                        level = "ERROR";
+                        style = 'style="color:#ff6b6b"';
+                    }} else if (line.includes("WARNING")) {{
+                        level = "WARNING";
+                        style = 'style="color:#ffa94d"';
+                    }} else if (line.includes("INFO")) {{
+                        level = "INFO";
+                        style = 'style="color:#69db7c"';
+                    }} else if (line.includes("DEBUG")) {{
+                        level = "DEBUG";
+                        style = 'style="color:#74c0fc"';
+                    }}
+                    const disp = (activeFilter === 'ALL' || level === activeFilter) ? '' : 'display:none;';
+                    html += `<div class="log-line" data-level="${{level}}" ${{style}} style="${{disp}}">${{escaped}}</div>`;
+                }}
+                container.innerHTML = html || '<div class="text-gray-500">No logs.</div>';
+                if (isAtBottom) scrollToBottom();
+            }} catch(e) {{}}
+        }}
+
+        setInterval(fetchLogs, 3000);
 
         async function clearLogs(btn) {{
             if (!confirm('Clear all system logs?')) return;

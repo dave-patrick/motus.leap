@@ -269,14 +269,30 @@
             const misplacedCombined = [
                 ...(maintenanceData.misplaced_videos || []),
                 ...(maintenanceData.move_from_x_to_y || [])
-            ];
+            ].filter(item => {
+                const tid = item.mapped_playlist_id || item.target_playlist_id || '';
+                const ttitle = playlistsMap[tid] || item.mapped_playlist_title || item.target_playlist_title || tid;
+                return !isStagingDestination(tid, ttitle);
+            });
+
             misplacedCombined.forEach(item => {
-                const pid = item.current_playlist_id || item.source_playlist_id || '';
-                const title = playlistsMap[pid] || item.current_playlist_title || item.source_playlist_title || pid;
-                if (!pid && !title) return;
-                const key = pid || title;
-                if (!countsByPlaylist[key]) countsByPlaylist[key] = { pid: key, title, dupCount: 0, misCount: 0 };
-                countsByPlaylist[key].misCount++;
+                const curPid = item.current_playlist_id || item.source_playlist_id || '';
+                const curTitle = item.current_playlist_title || item.source_playlist_title || playlistsMap[curPid] || curPid;
+                const tgtPid = item.mapped_playlist_id || item.target_playlist_id || '';
+                const tgtTitle = item.mapped_playlist_title || item.target_playlist_title || playlistsMap[tgtPid] || tgtPid;
+
+                const keys = new Set();
+                if (curPid) keys.add(curPid);
+                else if (curTitle) keys.add(curTitle);
+
+                if (tgtPid) keys.add(tgtPid);
+                else if (tgtTitle) keys.add(tgtTitle);
+
+                keys.forEach(key => {
+                    const title = playlistsMap[key] || (key === curPid ? curTitle : tgtTitle) || key;
+                    if (!countsByPlaylist[key]) countsByPlaylist[key] = { pid: key, title, dupCount: 0, misCount: 0 };
+                    countsByPlaylist[key].misCount++;
+                });
             });
 
             Object.keys(playlistsMap).forEach(pid => {
@@ -309,7 +325,7 @@
             selectEl.value = curVal;
 
             if (chipsEl) {
-                const quickList = list.filter(p => (p.dupCount + p.misCount > 0) && (p.title.includes('1~Sort') || p.title.toLowerCase().includes('inbox') || p.pid === 'WL' || p.title.toLowerCase().includes('watch later'))).slice(0, 4);
+                const quickList = list.filter(p => (p.dupCount + p.misCount > 0)).slice(0, 6);
                 chipsEl.innerHTML = quickList.map(p => {
                     const isActive = (activePlaylistFilter === p.pid || activePlaylistFilter === p.title);
                     const chipStyle = isActive
@@ -347,11 +363,14 @@
             const cId = String(candId || '').trim().toLowerCase();
             const cTitle = String(candTitle || '').trim().toLowerCase();
 
+            if (!cId && !cTitle) return false;
+
             if (cId && (cId === tId || cId === tTitle)) return true;
             if (cTitle && (cTitle === tId || cTitle === tTitle)) return true;
 
-            if (tTitle && cTitle && (cTitle.includes(tTitle) || tTitle.includes(cTitle))) return true;
-            if (tId && cTitle && (cTitle.includes(tId) || tId.includes(cTitle))) return true;
+            if (tTitle.length >= 3 && cTitle.length >= 3) {
+                if (cTitle === tTitle || cTitle.includes(tTitle)) return true;
+            }
 
             return false;
         }
@@ -399,7 +418,10 @@
                 filteredMisplaced = misplacedCombined.filter(item => {
                     const curPid = item.current_playlist_id || item.source_playlist_id || '';
                     const curTitle = item.current_playlist_title || item.source_playlist_title || playlistsMap[curPid] || curPid;
-                    return itemMatchesPlaylistTarget(curPid, curTitle, targetVal);
+                    const tgtPid = item.mapped_playlist_id || item.target_playlist_id || '';
+                    const tgtTitle = item.mapped_playlist_title || item.target_playlist_title || playlistsMap[tgtPid] || tgtPid;
+                    return itemMatchesPlaylistTarget(curPid, curTitle, targetVal) ||
+                           itemMatchesPlaylistTarget(tgtPid, tgtTitle, targetVal);
                 });
 
                 if (summaryBadge) {
@@ -1168,7 +1190,11 @@
                 misplacedToExport = misplacedCombined.filter(item => {
                     const curPid = item.current_playlist_id || item.source_playlist_id || '';
                     const curTitle = playlistsMap[curPid] || item.current_playlist_title || item.source_playlist_title || curPid;
-                    return curPid === targetPid || curTitle === targetTitle || (targetTitle && curTitle.toLowerCase() === targetTitle.toLowerCase());
+                    const tgtPid = item.mapped_playlist_id || item.target_playlist_id || '';
+                    const tgtTitle = playlistsMap[tgtPid] || item.mapped_playlist_title || item.target_playlist_title || tgtPid;
+
+                    return itemMatchesPlaylistTarget(curPid, curTitle, targetPid) ||
+                           itemMatchesPlaylistTarget(tgtPid, tgtTitle, targetPid);
                 });
             }
 

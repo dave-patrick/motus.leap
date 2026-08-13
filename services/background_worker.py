@@ -853,7 +853,9 @@ class BackgroundWorker:
             log.error(f"Failed to persist live scan result: {e}")
 
     async def _safe_broadcast(self, msg_dict):
-        """Broadcast helper that safely handles missing or failing manager."""
+        """Broadcast helper that safely handles missing or failing manager and logs message to system logger."""
+        if isinstance(msg_dict, dict) and msg_dict.get("message"):
+            log.info(str(msg_dict["message"]))
         if not self.manager or not hasattr(self.manager, "broadcast"):
             return
         try:

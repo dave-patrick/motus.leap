@@ -5,6 +5,23 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+def get_log_file_path() -> Path:
+    """Resolve the active log file path consistently across dev and production environments."""
+    import os
+    env_dir = os.getenv("TUBE_MANAGER_DATA_DIR")
+    if env_dir:
+        return Path(env_dir) / "tube_manager.log"
+    if Path("data").exists():
+        return Path("data") / "tube_manager.log"
+    if Path("/app/data").exists():
+        return Path("/app/data") / "tube_manager.log"
+    d = Path("data")
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return d / "tube_manager.log"
+
 def setup_logging(log_level: str = "INFO", log_file: Optional[Path] = None) -> logging.Logger:
     """Set up logging configuration for the application.
 
@@ -13,9 +30,7 @@ def setup_logging(log_level: str = "INFO", log_file: Optional[Path] = None) -> l
         log_file: Optional path to a log file
     """
     if log_file is None:
-        import os
-        data_dir = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data"))
-        log_file = data_dir / "tube_manager.log"
+        log_file = get_log_file_path()
 
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     date_format = "%Y-%m-%d %H:%M:%S"
