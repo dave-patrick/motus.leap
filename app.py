@@ -1580,9 +1580,18 @@ async def api_maintenance() -> dict[str, Any]:
             ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
             return cid in opt_in_set or ctitle in opt_in_set
 
+        excluded = {
+            (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id")))
+            for e in (data.get("not_misplaced") or []) if e
+        }
         for key in ("misplaced_videos", "move_from_x_to_y"):
             if key in data and isinstance(data[key], list):
-                data[key] = [item for item in data[key] if not _is_staging_dst(item) and _is_opted_in(item)]
+                data[key] = [
+                    item for item in data[key]
+                    if not _is_staging_dst(item)
+                    and _is_opted_in(item)
+                    and (str(item.get("video_id") or item.get("id")), str(item.get("current_playlist_id") or item.get("source_playlist_id") or item.get("playlist_id"))) not in excluded
+                ]
 
         restricted_private = set(data.get("restricted_private_videos", []))
         try:
