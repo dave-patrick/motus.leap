@@ -2586,18 +2586,22 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
                     if res.get("status") == "ok":
                         succeeded += 1
                     else:
-                        failed += 1
-                        errors.append(res.get("error", "unknown error"))
-                        if res.get("quota_exceeded"):
+                        err_msg = res.get("error", "unknown error")
+                        is_quota = res.get("quota_exceeded") or res.get("status") == "quota_deferred" or "quota" in str(err_msg).lower()
+                        if is_quota:
                             quota_hit = True
+                            errors.append(err_msg)
                             break
+                        failed += 1
+                        errors.append(err_msg)
                 except Exception as e:
-                    failed += 1
                     err_str = str(e)
-                    errors.append(err_str)
                     if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:
                         quota_hit = True
+                        errors.append(err_str)
                         break
+                    failed += 1
+                    errors.append(err_str)
             continue
         # misplaced / move
         sub_action = "remove"
@@ -2618,18 +2622,22 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
             if res.get("status") == "ok":
                 succeeded += 1
             else:
-                failed += 1
-                errors.append(res.get("error", "unknown error"))
-                if res.get("quota_exceeded"):
+                err_msg = res.get("error", "unknown error")
+                is_quota = res.get("quota_exceeded") or res.get("status") == "quota_deferred" or "quota" in str(err_msg).lower()
+                if is_quota:
                     quota_hit = True
+                    errors.append(err_msg)
                     break
+                failed += 1
+                errors.append(err_msg)
         except Exception as e:
-            failed += 1
             err_str = str(e)
-            errors.append(err_str)
             if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:
                 quota_hit = True
+                errors.append(err_str)
                 break
+            failed += 1
+            errors.append(err_str)
 
     if quota_hit:
         return {
