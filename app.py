@@ -938,26 +938,32 @@ async def exclude_misplaced_videos(request: Request):
 
     maintenance = _load_maintenance_data()
     excluded = maintenance.get("not_misplaced") or []
-    seen = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
+    seen = {
+        (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id")))
+        for e in excluded if e and (e.get("video_id") or e.get("id")) and (e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id"))
+    }
     added = 0
     for vid, pid in to_exclude:
-        key = (vid, pid)
+        key = (str(vid), str(pid))
         if key not in seen:
-            excluded.append({"video_id": vid, "playlist_id": pid})
+            excluded.append({"video_id": str(vid), "playlist_id": str(pid)})
             seen.add(key)
             added += 1
 
-    exc_set = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
+    exc_set = {
+        (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id")))
+        for e in excluded if e and (e.get("video_id") or e.get("id")) and (e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id"))
+    }
     misplaced = maintenance.get("misplaced_videos") or []
     move_x_y = maintenance.get("move_from_x_to_y") or []
 
     maintenance["misplaced_videos"] = [
         v for v in misplaced 
-        if (v.get("video_id") or v.get("id"), v.get("current_playlist_id") or v.get("playlist_id")) not in exc_set
+        if (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("playlist_id"))) not in exc_set
     ]
     maintenance["move_from_x_to_y"] = [
         v for v in move_x_y 
-        if (v.get("video_id") or v.get("id"), v.get("source_playlist_id") or v.get("playlist_id")) not in exc_set
+        if (str(v.get("video_id") or v.get("id")), str(v.get("source_playlist_id") or v.get("playlist_id"))) not in exc_set
     ]
 
     maintenance["not_misplaced"] = excluded
@@ -982,7 +988,10 @@ async def clear_all_misplaced_endpoint(request: Request):
     move_x_y = maintenance.get("move_from_x_to_y") or []
 
     excluded = maintenance.get("not_misplaced") or []
-    seen = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
+    seen = {
+        (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id")))
+        for e in excluded if e and (e.get("video_id") or e.get("id")) and (e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id"))
+    }
 
     all_mis = misplaced + move_x_y
     if target_playlist_id and target_playlist_id.lower() != "all":
@@ -996,21 +1005,24 @@ async def clear_all_misplaced_endpoint(request: Request):
 
     added = 0
     for v in all_mis:
-        vid = v.get("video_id") or v.get("id")
-        pid = v.get("current_playlist_id") or v.get("source_playlist_id") or v.get("playlist_id")
+        vid = str(v.get("video_id") or v.get("id") or "")
+        pid = str(v.get("current_playlist_id") or v.get("source_playlist_id") or v.get("playlist_id") or "")
         if vid and pid and (vid, pid) not in seen:
-            excluded.append({"video_id": str(vid), "playlist_id": str(pid)})
+            excluded.append({"video_id": vid, "playlist_id": pid})
             seen.add((vid, pid))
             added += 1
 
-    exc_set = {(e.get("video_id"), e.get("playlist_id")) for e in excluded}
+    exc_set = {
+        (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id")))
+        for e in excluded if e and (e.get("video_id") or e.get("id")) and (e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id"))
+    }
     maintenance["misplaced_videos"] = [
         v for v in misplaced 
-        if (v.get("video_id") or v.get("id"), v.get("current_playlist_id") or v.get("playlist_id")) not in exc_set
+        if (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("playlist_id"))) not in exc_set
     ]
     maintenance["move_from_x_to_y"] = [
         v for v in move_x_y 
-        if (v.get("video_id") or v.get("id"), v.get("source_playlist_id") or v.get("playlist_id")) not in exc_set
+        if (str(v.get("video_id") or v.get("id")), str(v.get("source_playlist_id") or v.get("playlist_id"))) not in exc_set
     ]
     maintenance["not_misplaced"] = excluded
     _save_maintenance(maintenance)
