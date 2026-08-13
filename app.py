@@ -1067,9 +1067,22 @@ async def update_mapped_playlists_endpoint(request: Request):
         cfg.mapped_playlists = [str(p) for p in mapped_pls]
         await config_manager.save(cfg)
 
+        # Build comprehensive opt_in_set containing both IDs and titles
+        opt_in_set = {str(p).lower() for p in cfg.mapped_playlists}
+        if youtube_service:
+            try:
+                pls = await youtube_service.list_playlists()
+                for p in (pls.get("playlists") or []):
+                    pid = str(p.get("id") or "").lower()
+                    ptitle = str(p.get("title") or "").lower()
+                    if pid in opt_in_set or ptitle in opt_in_set:
+                        if pid: opt_in_set.add(pid)
+                        if ptitle: opt_in_set.add(ptitle)
+            except Exception:
+                pass
+
         # Dynamically prune maintenance.json so unmapped playlists disappear immediately
         maintenance = _load_maintenance_data()
-        opt_in_set = {str(p).lower() for p in cfg.mapped_playlists}
         def _is_opted_in(item):
             cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
             ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
@@ -1079,6 +1092,13 @@ async def update_mapped_playlists_endpoint(request: Request):
             if key in maintenance and isinstance(maintenance[key], list):
                 maintenance[key] = [item for item in maintenance[key] if _is_opted_in(item)]
         _save_maintenance(maintenance)
+
+        # Trigger an immediate background scan for misplaced videos with the new mapping rules
+        if background_worker:
+            try:
+                background_worker.enqueue_job("scan_misplaced")
+            except Exception as e:
+                log.warning(f"Could not enqueue scan_misplaced job: {e}")
 
         # Broadcast dynamic update to connected clients
         try:
