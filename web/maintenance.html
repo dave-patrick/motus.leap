@@ -421,10 +421,7 @@
                 filteredMisplaced = misplacedCombined.filter(item => {
                     const curPid = item.current_playlist_id || item.source_playlist_id || '';
                     const curTitle = item.current_playlist_title || item.source_playlist_title || playlistsMap[curPid] || curPid;
-                    const tgtPid = item.mapped_playlist_id || item.target_playlist_id || '';
-                    const tgtTitle = item.mapped_playlist_title || item.target_playlist_title || playlistsMap[tgtPid] || tgtPid;
-                    return itemMatchesPlaylistTarget(curPid, curTitle, targetVal) ||
-                           itemMatchesPlaylistTarget(tgtPid, tgtTitle, targetVal);
+                    return itemMatchesPlaylistTarget(curPid, curTitle, targetVal);
                 });
 
                 if (summaryBadge) {
