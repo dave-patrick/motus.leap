@@ -635,14 +635,28 @@ class BackgroundWorker:
                     "target_playlist_title": mv["mapped_playlist_title"]
                 })
                 
+            maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
+            not_misplaced = []
+            if maintenance_file.exists():
+                try:
+                    prior = json.loads(await asyncio.to_thread(maintenance_file.read_text))
+                    not_misplaced = prior.get("not_misplaced") or []
+                except Exception:
+                    pass
+
+            exc_set = {(str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id"))) for e in not_misplaced if e}
+            if exc_set:
+                misplaced_videos = [v for v in misplaced_videos if (str(v.get("video_id")), str(v.get("current_playlist_id"))) not in exc_set]
+                move_suggestions = [m for m in move_suggestions if (str(m.get("video_id")), str(m.get("source_playlist_id"))) not in exc_set]
+
             # Save maintenance analysis
             maintenance_data = {
                 "move_from_x_to_y": move_suggestions,
                 "duplicated_videos": duplicated_videos,
                 "misplaced_videos": misplaced_videos,
+                "not_misplaced": not_misplaced,
                 "info": f"Analysis complete on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}. Found {len(duplicated_videos)} duplicates and {len(misplaced_videos)} misplaced videos."
             }
-            maintenance_file = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "maintenance.json"
             try:
                 await asyncio.to_thread(maintenance_file.parent.mkdir, parents=True, exist_ok=True)
                 await asyncio.to_thread(maintenance_file.write_text, fast_dumps(maintenance_data, indent=2))

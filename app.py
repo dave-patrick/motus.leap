@@ -861,7 +861,10 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
                 ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
                 return cid in opt_in_set or ctitle in opt_in_set
 
-            mis_videos = [v for v in mis_videos if not _is_staging_dst(v) and _is_opted_in(v)]
+            mis_videos = [
+                v for v in mis_videos
+                if not _is_staging_dst(v) and _is_opted_in(v) and (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("playlist_id"))) not in excluded
+            ]
 
             # Enrich each item with the target playlist's display name so the
             # UI shows the title instead of the raw id. Resolve from the live
@@ -2153,7 +2156,11 @@ def _maintenance_items_by_type(maintenance: dict[str, Any], item_type: str) -> l
             ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
             return cid in opt_in_set or ctitle in opt_in_set
 
-        return [v for v in recs if not _is_staging_dst(v) and _is_opted_in(v)]
+        excluded = {(str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id"))) for e in (maintenance.get("not_misplaced") or []) if e}
+        return [
+            v for v in recs
+            if not _is_staging_dst(v) and _is_opted_in(v) and (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("source_playlist_id") or v.get("playlist_id"))) not in excluded
+        ]
     return []
 
 
