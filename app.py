@@ -183,7 +183,7 @@ async def lifespan(app: FastAPI):
 
     # Quota ledger: track YouTube API units spent per UTC day so we can defer
     # mutations near the daily cap instead of burning the remainder and failing.
-    _quota_ledger.configure(log_dir)
+    _quota_ledger.configure(log_file.parent)
 
     config = await config_manager.load()
     youtube_service = YouTubeService(config)
