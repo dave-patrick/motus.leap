@@ -2335,23 +2335,74 @@ async def _maintenance_apply_one(
             target_playlist_id = target_playlist_id or record.get(
                 "mapped_playlist_id"
             ) or record.get("target_playlist_id")
-            if not playlist_id:
-                return {"status": "error", "action": "move", "error": "missing source playlist_id"}
             if not target_playlist_id:
                 return {"status": "error", "action": "move", "error": "missing target_playlist_id"}
-            # 1 delete (source) + 1 insert (target) = 2 ops (100 quota units).
-            item_id = await _maintenance_resolve_item_id(
-                yt_client, playlist_id, video_id, playlist_item_id
-            )
-            if not item_id:
-                return {"status": "error", "action": "move",
-                        "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
-            # Quota guard: a move is 2 mutations (delete + insert = 100 units).
-            if not _quota_ledger.ledger().can_spend(100):
-                return _quota_ledger.ledger().deferred_result("move", 100, video_id)
-            yt_client.remove_video_from_playlist_item(item_id)
-            yt_client.add_video_to_playlist(target_playlist_id, video_id)
-            _quota_ledger.ledger().spend(100)
+
+            source_pids: list[str] = []
+            if item_type == "dup":
+                # Find all current copies of this duplicate video
+                dup_copies = record.get("copies") or record.get("playlists") or []
+                if not dup_copies:
+                    try:
+                        m_data = _load_maintenance_data()
+                        m_dups = m_data.get("duplicated_videos") or []
+                        m_match = next((d for d in m_dups if d.get("video_id") == video_id), None)
+                        if m_match:
+                            dup_copies = m_match.get("copies") or m_match.get("playlists") or []
+                    except Exception:
+                        pass
+
+                for cp in dup_copies:
+                    pid = (cp.get("id") or cp.get("playlist_id")) if isinstance(cp, dict) else str(cp)
+                    if pid and pid not in source_pids:
+                        source_pids.append(pid)
+                if playlist_id and playlist_id not in source_pids:
+                    source_pids.append(playlist_id)
+
+                if not source_pids:
+                    return {"status": "error", "action": "move", "error": "missing source playlist_id"}
+
+                already_in_target = target_playlist_id in source_pids
+                pids_to_remove = [p for p in source_pids if p != target_playlist_id]
+                ops_needed = (0 if already_in_target else 1) + len(pids_to_remove)
+                quota_needed = ops_needed * 50
+
+                if not _quota_ledger.ledger().can_spend(quota_needed):
+                    return _quota_ledger.ledger().deferred_result("move", quota_needed, video_id)
+
+                # Add to target playlist if not already there
+                if not already_in_target:
+                    yt_client.add_video_to_playlist(target_playlist_id, video_id)
+                    _quota_ledger.ledger().spend(50)
+
+                # Remove from all copies that are not the target
+                for src_pid in pids_to_remove:
+                    try:
+                        item_id = await _maintenance_resolve_item_id(
+                            yt_client, src_pid, video_id, playlist_item_id if src_pid == playlist_id else None
+                        )
+                        if item_id:
+                            yt_client.remove_video_from_playlist_item(item_id)
+                            _quota_ledger.ledger().spend(50)
+                    except Exception as del_err:
+                        log.warning(f"Error removing duplicate copy {video_id} from {src_pid}: {del_err}")
+
+            else:
+                if not playlist_id:
+                    return {"status": "error", "action": "move", "error": "missing source playlist_id"}
+                # 1 delete (source) + 1 insert (target) = 2 ops (100 quota units).
+                item_id = await _maintenance_resolve_item_id(
+                    yt_client, playlist_id, video_id, playlist_item_id
+                )
+                if not item_id:
+                    return {"status": "error", "action": "move",
+                            "error": f"playlistItem id not found for video {video_id} in playlist {playlist_id}"}
+                # Quota guard: a move is 2 mutations (delete + insert = 100 units).
+                if not _quota_ledger.ledger().can_spend(100):
+                    return _quota_ledger.ledger().deferred_result("move", 100, video_id)
+                yt_client.remove_video_from_playlist_item(item_id)
+                yt_client.add_video_to_playlist(target_playlist_id, video_id)
+                _quota_ledger.ledger().spend(100)
 
             # Automatic System Learning: record video content & title training memory
             learned_content = False
@@ -2391,7 +2442,7 @@ async def _maintenance_apply_one(
 
             # Resolve source & target playlist names
             target_name = target_playlist_id
-            from_name = playlist_id
+            from_name = playlist_id or (source_pids[0] if (item_type == "dup" and source_pids) else "")
             try:
                 if youtube_service:
                     all_pls = await youtube_service.list_playlists()
@@ -2399,8 +2450,8 @@ async def _maintenance_apply_one(
                         pid = p.get("id")
                         if pid == target_playlist_id:
                             target_name = p.get("title") or target_playlist_id
-                        if pid == playlist_id:
-                            from_name = p.get("title") or playlist_id
+                        if pid == from_name:
+                            from_name = p.get("title") or from_name
             except Exception:
                 pass
 
@@ -2412,7 +2463,7 @@ async def _maintenance_apply_one(
                     channel_id=v_channel_id,
                     channel_title=v_channel_title,
                     from_playlist_name=from_name,
-                    from_playlist_id=playlist_id,
+                    from_playlist_id=playlist_id or (source_pids[0] if (item_type == "dup" and source_pids) else ""),
                     to_playlist_name=target_name,
                     to_playlist_id=target_playlist_id,
                     source="user_move"
@@ -2422,15 +2473,18 @@ async def _maintenance_apply_one(
             except Exception as learn_err:
                 log.warning(f"[AI LEARNING] Failed to record AI content memory: {learn_err}")
 
-            for pid in (playlist_id, target_playlist_id):
-                try:
-                    await youtube_service._cache_invalidate_playlist(pid)
-                except Exception:
-                    pass
+            pids_to_invalidate = set([target_playlist_id, playlist_id] + (source_pids if item_type == "dup" else []))
+            for pid in pids_to_invalidate:
+                if pid:
+                    try:
+                        await youtube_service._cache_invalidate_playlist(pid)
+                    except Exception:
+                        pass
 
             _maintenance_drop_record(video_id, item_type)
             return {"status": "ok", "action": "move", "video_id": video_id,
-                    "source": playlist_id, "target": target_playlist_id, "learned": learned_content}
+                    "source": playlist_id or (source_pids[0] if (item_type == "dup" and source_pids) else ""),
+                    "target": target_playlist_id, "learned": learned_content}
     except Exception as exc:
         err_str = str(exc)
         if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:

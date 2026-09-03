@@ -317,3 +317,76 @@ class TestMaintenanceActionEndpoint:
         assert body["processed"] == 2
         assert body["succeeded"] == 2
         assert fake_client.remove_video_from_playlist_item.call_count == 2
+
+    def test_move_duplicate_to_new_playlist_removes_all_copies(self, monkeypatch, tmp_path):
+        """Moving a duplicate to a new playlist (e.g. AI) inserts into target and removes all existing copies."""
+        mfile = tmp_path / "maintenance.json"
+        mfile.write_text(
+            '{"duplicated_videos": ['
+            '{"video_id": "vid_dup_123", "video_title": "AI Agents Video", '
+            '"playlists": [{"id": "PL_sort_1111111", "title": "1~Sort"}, {"id": "PL_ent_2222222", "title": "Entertainment"}]}'
+            '], "misplaced_videos": [], "move_from_x_to_y": []}'
+        )
+        monkeypatch.setenv("TUBE_MANAGER_DATA_DIR", str(tmp_path))
+        fake_client = Mock()
+        fake_client.find_playlist_item_id = Mock(side_effect=["item_sort", "item_ent"])
+        fake_client.remove_video_from_playlist_item = Mock(return_value={})
+        fake_client.add_video_to_playlist = Mock(return_value={"id": "new_ai_item"})
+        self._patch_youtube(monkeypatch, fake_client)
+
+        r = self.client.post(
+            "/api/maintenance/action",
+            json={
+                "action": "move",
+                "type": "dup",
+                "video_id": "vid_dup_123",
+                "playlist_id": "PL_sort_1111111",
+                "target_playlist_id": "PL_ai_33333333",
+            },
+            headers=self.auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "success"
+        assert body["action"] == "move"
+        # Added to AI
+        fake_client.add_video_to_playlist.assert_called_once_with("PL_ai_33333333", "vid_dup_123")
+        # Removed from both 1~Sort and Entertainment
+        assert fake_client.remove_video_from_playlist_item.call_count == 2
+
+    def test_move_duplicate_to_existing_copy_removes_other_copy_only(self, monkeypatch, tmp_path):
+        """Moving a duplicate to one of its existing playlists (e.g. Entertainment) removes other copies without re-inserting."""
+        mfile = tmp_path / "maintenance.json"
+        mfile.write_text(
+            '{"duplicated_videos": ['
+            '{"video_id": "vid_dup_123", "video_title": "AI Agents Video", '
+            '"playlists": [{"id": "PL_sort_1111111", "title": "1~Sort"}, {"id": "PL_ent_2222222", "title": "Entertainment"}]}'
+            '], "misplaced_videos": [], "move_from_x_to_y": []}'
+        )
+        monkeypatch.setenv("TUBE_MANAGER_DATA_DIR", str(tmp_path))
+        fake_client = Mock()
+        fake_client.find_playlist_item_id = Mock(return_value="item_sort")
+        fake_client.remove_video_from_playlist_item = Mock(return_value={})
+        fake_client.add_video_to_playlist = Mock()
+        self._patch_youtube(monkeypatch, fake_client)
+
+        r = self.client.post(
+            "/api/maintenance/action",
+            json={
+                "action": "move",
+                "type": "dup",
+                "video_id": "vid_dup_123",
+                "playlist_id": "PL_sort_1111111",
+                "target_playlist_id": "PL_ent_2222222",
+            },
+            headers=self.auth_headers,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "success"
+        assert body["action"] == "move"
+        # Not re-added to Entertainment since it's already there
+        fake_client.add_video_to_playlist.assert_not_called()
+        # Removed from 1~Sort
+        fake_client.remove_video_from_playlist_item.assert_called_once_with("item_sort")
+

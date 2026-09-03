@@ -35,7 +35,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-base font-bold text-white leading-none">motus.leap</h1>
-            <p className="text-[10px] text-gray-400 mt-0.5">YouTube Playlist Agent v2.0</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">motus.leap v2.0</p>
           </div>
         </div>
 

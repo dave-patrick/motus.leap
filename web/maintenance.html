@@ -127,12 +127,17 @@
                                 <input type="checkbox" id="chk-select-all-dup" onchange="toggleSelectAllDup(this)" class="w-4 h-4 rounded bg-[#2a2f3a] border-gray-600 text-[#2f8fc9] cursor-pointer">
                                 <label for="chk-select-all-dup" class="text-gray-300 font-semibold cursor-pointer">Select All (<span id="selected-dup-count" class="text-[#2f8fc9] font-bold">0</span>)</label>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <button onclick="executeBatchKeepDup()" id="btn-batch-keep-dup" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                            <div class="flex items-center gap-2 flex-1 max-w-xl justify-end flex-wrap">
+                                <button onclick="executeBatchKeepDup()" id="btn-batch-keep-dup" class="bg-[#2a2f3a] hover:bg-[#323946] text-gray-300 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[#374151] transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap" title="Dismiss selected duplicates without moving">
                                     <i class="fa-solid fa-bookmark text-[10px]"></i> Keep Selected
                                 </button>
-                                <button onclick="executeBatchRemoveDup()" id="btn-batch-remove-dup" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
-                                    <i class="fa-solid fa-trash-can text-[10px]"></i> Remove Selected Copies
+                                <button onclick="executeBatchRemoveDup()" id="btn-batch-remove-dup" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap" title="Remove staging copies for selected duplicates">
+                                    <i class="fa-solid fa-trash-can text-[10px]"></i> Remove Staging Copies
+                                </button>
+                                <select id="dup-batch-target-playlist" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-2.5 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9] min-w-[140px] max-w-[180px]">
+                                </select>
+                                <button onclick="executeBatchMoveDup()" id="btn-batch-move-dup" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                                    <i class="fa-solid fa-arrow-right"></i> Move Selected
                                 </button>
                             </div>
                         </div>
@@ -448,8 +453,13 @@
 
             const dupBatchBar = document.getElementById('dup-batch-bar');
             if (dupBatchBar) {
-                if (filteredDups.length > 0) dupBatchBar.classList.remove('hidden');
-                else dupBatchBar.classList.add('hidden');
+                if (filteredDups.length > 0) {
+                    dupBatchBar.classList.remove('hidden');
+                    const dupBatchSel = document.getElementById('dup-batch-target-playlist');
+                    if (dupBatchSel && !dupBatchSel.children.length) dupBatchSel.innerHTML = buildPlaylistOptionsHtml('', '', 'Move to Destination...');
+                } else {
+                    dupBatchBar.classList.add('hidden');
+                }
             }
 
             const batchBar = document.getElementById('misplaced-batch-bar');
@@ -567,6 +577,55 @@
             }
             toast(`Processed ${successCount} duplicate copy(ies)!`, 'success');
             if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-trash-can text-[10px]"></i> Remove Selected Copies`; }
+            await loadMaintenance();
+        }
+
+        async function executeBatchMoveDup() {
+            const chks = Array.from(document.querySelectorAll('.dup-chk:checked'));
+            if (!chks.length) {
+                toast('Please check at least one duplicate video to move', 'warning');
+                return;
+            }
+            const sel = document.getElementById('dup-batch-target-playlist');
+            const targetId = sel ? sel.value : '';
+            if (!targetId) {
+                toast('Please select a destination playlist', 'warning');
+                return;
+            }
+            const targetName = playlistsMap[targetId] || targetId;
+            if (!confirm(`Are you sure you want to move ${chks.length} selected duplicate video(s) to "${targetName}" and remove copies from other playlists?`)) return;
+
+            const btn = document.getElementById('btn-batch-move-dup');
+            if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Moving (${chks.length})...`; }
+
+            toast(`Moving ${chks.length} video(s) to "${targetName}"...`, 'info', 5000);
+            let successCount = 0;
+            for (const chk of chks) {
+                const vid = chk.getAttribute('data-vid');
+                const curId = chk.getAttribute('data-rempid') || chk.getAttribute('data-curid') || '';
+                const vTitle = chk.getAttribute('data-title') || '';
+                const cTitle = chk.getAttribute('data-channel') || '';
+                const cId = chk.getAttribute('data-channelid') || '';
+                try {
+                    const res = await maintPost({
+                        action: 'move',
+                        type: 'dup',
+                        video_id: vid,
+                        playlist_id: curId,
+                        target_playlist_id: targetId,
+                        video_title: vTitle,
+                        channel_title: cTitle,
+                        channel_id: cId
+                    });
+                    if (res && res.quota_exceeded) {
+                        toast('Quota limit reached. Batch paused.', 'warning', 8000);
+                        break;
+                    }
+                    successCount++;
+                } catch(e) { break; }
+            }
+            toast(`Successfully moved ${successCount} duplicate video(s) to "${targetName}"! (AI learned from this move)`, 'success', 6000);
+            if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Move Selected`; }
             await loadMaintenance();
         }
         
@@ -774,7 +833,7 @@
             }
         }
         
-        function buildPlaylistOptionsHtml(selectedId, recommendedTitle) {
+        function buildPlaylistOptionsHtml(selectedId, recommendedTitle, placeholderText = 'Select Destination...') {
             const keys = Object.keys(playlistsMap);
             // Videos must NEVER be moved to 1~Sort or staging playlists
             const validKeys = keys.filter(k => !isStagingDestination(k, playlistsMap[k]));
@@ -782,11 +841,15 @@
                 return `<option value="" selected>Select Destination...</option>`;
             }
             const sorted = validKeys.map(k => ({ id: k, title: playlistsMap[k] || k })).sort((a, b) => a.title.localeCompare(b.title));
-            return sorted.map(p => {
-                const isSel = (p.id === selectedId || p.title === recommendedTitle) ? 'selected' : '';
+            let hasSelection = false;
+            const options = sorted.map(p => {
+                const isSel = Boolean((selectedId && p.id === selectedId) || (recommendedTitle && p.title.toLowerCase() === recommendedTitle.toLowerCase()));
+                if (isSel) hasSelection = true;
                 const recTag = isSel ? ' ★ Recommended' : '';
-                return `<option value="${DOMPurify.sanitize(p.id)}" ${isSel}>Move to ${DOMPurify.sanitize(p.title)}${recTag}</option>`;
-            }).join('');
+                return `<option value="${DOMPurify.sanitize(p.id)}" ${isSel ? 'selected' : ''}>Move to ${DOMPurify.sanitize(p.title)}${recTag}</option>`;
+            });
+            const placeholder = `<option value="" ${!hasSelection ? 'selected' : ''}>${DOMPurify.sanitize(placeholderText)}</option>`;
+            return placeholder + options.join('');
         }
 
         function renderQueue(elId, items, type) {
@@ -863,7 +926,18 @@
                 const _keepPlTitle = playlistsMap[_keepPl.id || _keepPl.playlist_id] || _keepPl.title || 'Category';
                 const _removePlTitle = playlistsMap[_removePlId] || _removePl.title || 'Staging Copy';
 
-                const optionsHtml = buildPlaylistOptionsHtml(_toId, _to);
+                let _recTitle = _to;
+                if (type === 'dup' && !_recTitle) {
+                    const vTitleLower = (_title || '').toLowerCase();
+                    const matchedKey = Object.keys(playlistsMap).find(k => {
+                        const pName = (playlistsMap[k] || '').toLowerCase();
+                        if (pName.length < 2 || isStagingDestination(k, pName)) return false;
+                        const regex = new RegExp(`\\b${pName.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'i');
+                        return regex.test(vTitleLower);
+                    });
+                    if (matchedKey) _recTitle = playlistsMap[matchedKey];
+                }
+                const optionsHtml = buildPlaylistOptionsHtml(_toId, _recTitle, 'Select Destination Playlist...');
 
                 let _controls = '';
                 if (type === 'move') {
@@ -871,28 +945,38 @@
                         <select id="${_selId}" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
                             ${optionsHtml}
                         </select>
-                        <button onclick="maintMove('${item.video_id}', '${item.source_playlist_id}', 'move', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                        <button onclick="maintMove('${item.video_id}', '${item.source_playlist_id}', 'move', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap">
                             <i class="fa-solid fa-arrow-right"></i> Move
                         </button>
                     </div>`;
                 } else if (type === 'dup') {
-                    _controls = `<div class="flex items-center gap-2 mt-2">
-                        <button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Keep copy in ${DOMPurify.sanitize(_keepPlTitle)} and remove copy from ${DOMPurify.sanitize(_removePlTitle)}">
-                            <i class="fa-solid fa-bookmark"></i> Keep in ${DOMPurify.sanitize(_keepPlTitle)}
-                        </button>
-                        <button onclick="maintRemove('${_removeVid}', '${_removePlId}', 'dup', this, '${_removePli}')" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer" title="Deletes the duplicate copy from ${DOMPurify.sanitize(_removePlTitle)} while preserving the copy in ${DOMPurify.sanitize(_keepPlTitle)}">
-                            <i class="fa-solid fa-trash-can"></i> Remove ${DOMPurify.sanitize(_removePlTitle)} Copy
-                        </button>
+                    _controls = `<div class="flex flex-col gap-2 mt-2 pt-2 border-t border-[#2a2f3a]/60">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <button onclick="maintKeep('${item.video_id}', 'dup', this)" class="bg-[#2a2f3a] hover:bg-[#323946] text-gray-200 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Keep copy in ${DOMPurify.sanitize(_keepPlTitle)} and remove copy from ${DOMPurify.sanitize(_removePlTitle)}">
+                                <i class="fa-solid fa-bookmark text-[#2f8fc9]"></i> Keep in ${DOMPurify.sanitize(_keepPlTitle)}
+                            </button>
+                            <button onclick="maintRemove('${_removeVid}', '${_removePlId}', 'dup', this, '${_removePli}')" class="bg-[#2a2f3a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-[#374151] text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer" title="Deletes the duplicate copy from ${DOMPurify.sanitize(_removePlTitle)} while preserving the copy in ${DOMPurify.sanitize(_keepPlTitle)}">
+                                <i class="fa-solid fa-trash-can"></i> Remove ${DOMPurify.sanitize(_removePlTitle)} Copy
+                            </button>
+                        </div>
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-1">
+                            <select id="${_selId}" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
+                                ${optionsHtml}
+                            </select>
+                            <button onclick="maintMove('${item.video_id}', '${_removePlId}', 'dup', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap" title="Move to chosen playlist and remove all other duplicate copies">
+                                <i class="fa-solid fa-arrow-right"></i> Move to Playlist
+                            </button>
+                        </div>
                     </div>`;
                 } else if (type === 'misplaced') {
                     _controls = `<div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-2">
                         <select id="${_selId}" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9]">
                             ${optionsHtml}
                         </select>
-                        <button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer">
+                        <button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap">
                             <i class="fa-solid fa-arrow-right"></i> Move
                         </button>
-                        <button onclick="maintLeaveInPlace('${item.video_id}', '${item.current_playlist_id}', this)" class="bg-[#2a2f3a] hover:bg-amber-500/20 text-gray-300 hover:text-amber-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer" title="Keep this video in its current playlist and stop flagging it as misplaced">
+                        <button onclick="maintLeaveInPlace('${item.video_id}', '${item.current_playlist_id}', this)" class="bg-[#2a2f3a] hover:bg-amber-500/20 text-gray-300 hover:text-amber-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap" title="Keep this video in its current playlist and stop flagging it as misplaced">
                             <i class="fa-solid fa-anchor text-[10px]"></i> Leave Here
                         </button>
                     </div>`;
@@ -903,12 +987,12 @@
                     : '';
 
                 let _checkboxHtml = '';
+                const _chan = DOMPurify.sanitize(item.channel || item.channel_title || '');
+                const _chanId = DOMPurify.sanitize(item.channel_id || '');
                 if (type === 'misplaced') {
-                    const _chan = DOMPurify.sanitize(item.channel || item.channel_title || '');
-                    const _chanId = DOMPurify.sanitize(item.channel_id || '');
                     _checkboxHtml = `<input type="checkbox" class="misplaced-chk w-4 h-4 rounded bg-[#14171f] border-gray-600 text-[#2f8fc9] cursor-pointer self-center flex-shrink-0" data-vid="${_vid}" data-curid="${_fromId}" data-title="${_title}" data-channel="${_chan}" data-channelid="${_chanId}" onchange="updateSelectedCount()">`;
                 } else if (type === 'dup') {
-                    _checkboxHtml = `<input type="checkbox" class="dup-chk w-4 h-4 rounded bg-[#14171f] border-gray-600 text-[#2f8fc9] cursor-pointer self-center flex-shrink-0" data-vid="${_vid}" data-remsvid="${_removeVid}" data-rempid="${_removePlId}" data-rempli="${_removePli}" onchange="updateSelectedCountDup()">`;
+                    _checkboxHtml = `<input type="checkbox" class="dup-chk w-4 h-4 rounded bg-[#14171f] border-gray-600 text-[#2f8fc9] cursor-pointer self-center flex-shrink-0" data-vid="${_vid}" data-curid="${_removePlId}" data-remsvid="${_removeVid}" data-rempid="${_removePlId}" data-rempli="${_removePli}" data-title="${_title}" data-channel="${_chan}" data-channelid="${_chanId}" onchange="updateSelectedCountDup()">`;
                 }
 
                 return `
@@ -986,8 +1070,12 @@
         function maintMove(vid, curId, type, selId, btn) {
             const sel = document.getElementById(selId);
             const target = sel ? sel.value : null;
+            if (!target) {
+                toast('Please select a destination playlist', 'warning');
+                return;
+            }
             const card = btn ? btn.closest('.flex.flex-col') : null;
-            const chk = card ? card.querySelector('.misplaced-chk') : null;
+            const chk = card ? (card.querySelector('.misplaced-chk') || card.querySelector('.dup-chk')) : null;
             const title = chk?.getAttribute('data-title') || card?.querySelector('h4')?.textContent?.trim() || '';
             const channelTitle = chk?.getAttribute('data-channel') || '';
             const channelId = chk?.getAttribute('data-channelid') || '';
