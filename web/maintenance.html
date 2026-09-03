@@ -396,53 +396,25 @@
             const tgtPid = item.mapped_playlist_id || item.target_playlist_id || '';
             const tgtTitle = (playlistsMap[tgtPid] || item.mapped_playlist_title || item.target_playlist_title || '').toLowerCase().trim();
 
-            if (!vtitle || !curTitle || isStagingDestination(curPid, curTitle)) return false;
+            if (!curTitle || isStagingDestination(curPid, curTitle)) return false;
 
-            // Direct playlist name match (e.g. 'Star Wars', 'Aviation', 'Woodworking')
-            if (curTitle.length >= 3 && vtitle.includes(curTitle)) {
-                // Star Wars exception: allowed to move ONLY if genuine music video or cosplay
-                if (curTitle.includes('star wars')) {
-                    if ((vtitle.includes('music video') || vtitle.includes('official audio')) && tgtTitle.includes('music')) return false;
-                    if (vtitle.includes('cosplay') && tgtTitle.includes('cosplay')) return false;
-                }
+            // Star Wars exception: allowed to move ONLY if genuine music video or cosplay
+            if (curTitle.includes('star wars')) {
+                if ((vtitle.includes('music video') || vtitle.includes('official audio')) && tgtTitle.includes('music')) return false;
+                if (vtitle.includes('cosplay') && tgtTitle.includes('cosplay')) return false;
                 return true;
             }
 
-            // Word-level matching for current playlist title (e.g. 'wood' in 'woodworking')
-            const curWords = curTitle.match(/[a-z0-9]+/g) || [];
-            const hasStemMatch = curWords.some(w => w.length >= 4 && vtitle.includes(w));
-
-            // Known topic keywords for user library
-            const swWords = ['jedi', 'sith', 'vader', 'skywalker', 'ahsoka', 'mandalorian', 'grogu', 'andor', 'kenobi', 'clone wars', 'force storm', 'darth', 'tatooine'];
-            const avWords = ['airplane', 'fighter jet', 'dogfight', 'cockpit', 'boeing', 'airbus', 'f-16', 'f-15', 'f-22', 'f-35'];
-            const wwWords = ['woodwork', 'joinery', 'carpentry', 'router table', 'table saw', 'dining table', 'wood shop'];
-            const trWords = ['tacoma', 'toyota tacoma', 'pickup truck', 'f-150', 'silverado'];
-            const bfWords = ['sasquatch', 'cryptid', 'yeti'];
-
-            let hasTopicMatch = false;
-            if (curTitle.includes('star wars') && swWords.some(w => vtitle.includes(w))) {
-                if ((vtitle.includes('music video') || vtitle.includes('official audio')) && tgtTitle.includes('music')) return false;
-                if (vtitle.includes('cosplay') && tgtTitle.includes('cosplay')) return false;
-                hasTopicMatch = true;
-            } else if (curTitle.includes('aviation') && avWords.some(w => vtitle.includes(w))) {
-                hasTopicMatch = true;
-            } else if (curTitle.includes('woodworking') && wwWords.some(w => vtitle.includes(w))) {
-                hasTopicMatch = true;
-            } else if (curTitle.includes('truck') && trWords.some(w => vtitle.includes(w))) {
-                hasTopicMatch = true;
-            } else if (curTitle.includes('bigfoot') && bfWords.some(w => vtitle.includes(w))) {
-                hasTopicMatch = true;
-            }
-
-            return hasStemMatch || hasTopicMatch;
+            // All other category playlists (Music, Woodworking, Productivity Stuff, AI, etc.) are settled homes!
+            return true;
         }
 
         function isPlaylistEligibleForChannelMapping(pid, title) {
-            if (isStagingDestination(pid, title)) return true;
-            const mappedList = maintenanceData.mapped_playlists || [];
-            if (!mappedList || mappedList.length === 0) return false;
-            const mappedSet = new Set(mappedList.map(p => String(p).toLowerCase().trim()));
-            return mappedSet.has(String(pid || '').toLowerCase().trim()) || mappedSet.has(String(title || '').toLowerCase().trim());
+            // ONLY staging/inbox playlists (1~Sort, Inbox, Unsorted, Watch Later, WL, Check Later)
+            // are eligible sources for channel mapping moves.
+            // Settled category playlists (Music, Woodworking, Productivity Stuff, AI, Star Wars, etc.)
+            // are NEVER eligible to have videos moved out of them.
+            return isStagingDestination(pid, title);
         }
 
         function renderFilteredMaintenance() {

@@ -156,50 +156,16 @@ def is_video_protected_in_current_playlist(
     if not video_title or not current_ptitle:
         return False
 
-    # Staging/inbox playlists (1~Sort, Inbox, etc.) are never protected
+    # Staging/inbox playlists (1~Sort, Inbox, Unsorted, Watch Later, WL, Check Later)
+    # are NEVER protected; they are meant to be sorted into categories.
     if is_staging_playlist(current_pid, current_ptitle):
         return False
 
-    cur_title_lower = current_ptitle.lower().strip()
-    v_title_lower = video_title.lower()
+    cur_title_lower = str(current_ptitle or "").lower().strip()
     tgt_title_lower = str(target_ptitle or "").lower().strip()
 
-    # 1. Direct Playlist Name Match
-    # If the video title contains the current playlist's name (e.g. 'Star Wars', 'Aviation', 'Woodworking')
-    if len(cur_title_lower) >= 3:
-        if cur_title_lower in ("ai", "pi"):
-            cur_matches_name = bool(re.search(r'\b' + re.escape(cur_title_lower) + r'\b', v_title_lower))
-        else:
-            cur_matches_name = cur_title_lower in v_title_lower
-    else:
-        cur_matches_name = bool(re.search(r'\b' + re.escape(cur_title_lower) + r'\b', v_title_lower))
-
-    # Also match significant words from playlist title (e.g. 'wood' from 'woodworking')
-    cur_title_words = [w for w in re.findall(r'[a-zA-Z0-9]+', cur_title_lower) if len(w) >= 4]
-    cur_matches_word = any(re.search(r'\b' + re.escape(w) + r'\b', v_title_lower) for w in cur_title_words)
-
-    # 2. Topic Keyword Match
-    cur_keywords = set()
-    for topic_key, kws in TOPIC_KEYWORDS.items():
-        if topic_key in cur_title_lower or cur_title_lower in topic_key:
-            cur_keywords.update(kws)
-
-    # Enrich with keywords from config.ai_rules if available
-    if config and hasattr(config, 'ai_rules') and config.ai_rules:
-        for rule in config.ai_rules:
-            r_target = str(rule.target_playlist or "").lower()
-            r_name = str(rule.name or rule.playlist_name or "").lower()
-            if (current_pid and str(current_pid).lower() == r_target) or (r_name and r_name in cur_title_lower):
-                desc_words = [w for w in re.sub(r'[^\w\s]', ' ', (rule.description or "").lower()).split() if len(w) >= 3]
-                cur_keywords.update(desc_words)
-
-    cur_matches_keywords = _matches_keywords(video_title, cur_keywords) if cur_keywords else False
-
-    if not cur_matches_name and not cur_matches_word and not cur_matches_keywords:
-        return False
-
-    # 3. Exception Checking
-    # For Star Wars: 'UNLESS it is a music video or a cosplay video'
+    # Special Star Wars exception requested by user:
+    # "anything star wars should always be in star wars playlist UNLESS it is a music video or a cosplay video"
     if "star wars" in cur_title_lower:
         is_music_vid = _matches_keywords(video_title, TOPIC_KEYWORDS["music videos"])
         is_cosplay = _matches_keywords(video_title, TOPIC_KEYWORDS["cosplay"])
@@ -214,19 +180,8 @@ def is_video_protected_in_current_playlist(
         # Otherwise, protect Star Wars video in Star Wars!
         return True
 
-    # For other playlists:
-    # If the video title matches its CURRENT playlist, and does NOT have explicit
-    # keywords for the target playlist, it is protected in its current playlist.
-    tgt_keywords = set()
-    for topic_key, kws in TOPIC_KEYWORDS.items():
-        if topic_key in tgt_title_lower or tgt_title_lower in topic_key:
-            tgt_keywords.update(kws)
-
-    tgt_matches = _matches_keywords(video_title, tgt_keywords) if tgt_keywords else False
-    if (cur_matches_name or cur_matches_word or cur_matches_keywords) and not tgt_matches:
-        return True
-
-    # If it matches both current playlist and target playlist, prefer keeping in current playlist!
+    # For ALL other category playlists (Music, Woodworking, Productivity Stuff, AI, Aviation, etc.):
+    # They are settled destination categories. Any video in them is PROTECTED IN PLACE.
     return True
 
 

@@ -69,6 +69,30 @@ class TestPlaylistProtection:
         assert is_video_protected_in_current_playlist(
             "DJI Avata 2 FPV Drone Mountain Dive", "pl_dr", "Drones", "pl_tech", "Tech"
         ) is True
+        # Music (User's exact cases from screenshot)
+        assert is_video_protected_in_current_playlist(
+            "Why Gen-X Metalheads Aged Better Than Everyone Else", "pl_music", "Music", "pl_mv", "Music Videos"
+        ) is True
+        assert is_video_protected_in_current_playlist(
+            "To Hell & Back - The Erik Grönwall Story", "pl_music", "Music", "pl_mv", "Music Videos"
+        ) is True
+        assert is_video_protected_in_current_playlist(
+            "14 MINUTES OF PURE EPICNESS! Wintersun - Sons Of Winter And Stars FI REACTION! \U0001f44f\U0001f918", "pl_music", "Music", "pl_mv", "Music Videos"
+        ) is True
+        assert is_video_protected_in_current_playlist(
+            "Metallica - MTV Europe Tour Reports ReVisited (1992-1996)", "pl_music", "Music", "pl_conc", "Concerts"
+        ) is True
+        assert is_video_protected_in_current_playlist(
+            "Metallica - 1987 TV Interview w/ James & Jason (Monsters of Rock Nuremberg)", "pl_music", "Music", "pl_conc", "Concerts"
+        ) is True
+        # Productivity Stuff
+        assert is_video_protected_in_current_playlist(
+            "Get Ready for the Copilot Super App", "pl_prod", "Productivity Stuff", "pl_ent", "Entertainment"
+        ) is True
+        # AI
+        assert is_video_protected_in_current_playlist(
+            "Stop Wasting Time & Master Openclaw in 12 Min", "pl_ai", "AI", "pl_ent", "Entertainment"
+        ) is True
 
     def test_config_ai_rules_custom_keywords_honored(self):
         cfg = TubeManagerConfig()
