@@ -90,9 +90,9 @@ class TestPlaylistProtection:
         assert is_playlist_opted_in("pl_inbox", "Inbox", []) is True
         assert is_playlist_opted_in("pl_sort", "1~Sort", ["Other"]) is True
 
-        # Unconfigured opt_in_list allows all playlists (protection handled by is_video_protected_in_current_playlist)
-        assert is_playlist_opted_in("pl_sw", "Star Wars", []) is True
-        assert is_playlist_opted_in("pl_av", "Aviation", []) is True
+        # Category playlists are exceptions by default when opt_in_list is empty
+        assert is_playlist_opted_in("pl_sw", "Star Wars", []) is False
+        assert is_playlist_opted_in("pl_av", "Aviation", []) is False
 
         # Configured opt_in_list restricts non-staging playlists strictly to selected ones
         assert is_playlist_opted_in("pl_sw", "Star Wars", ["Aviation"]) is False

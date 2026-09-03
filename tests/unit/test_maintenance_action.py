@@ -270,8 +270,8 @@ class TestMaintenanceActionEndpoint:
         mfile.write_text(
             '{"duplicated_videos": [], '
             '"misplaced_videos": ['
-            '{"video_id": "vM1", "current_playlist_id": "PLM1aaaaaaaaaa", "mapped_playlist_id": "PLMXaaaaaaaaaa"},'
-            '{"video_id": "vM2", "current_playlist_id": "PLM2aaaaaaaaaa", "mapped_playlist_id": "PLMXaaaaaaaaaa"}'
+            '{"video_id": "vM1", "current_playlist_id": "1~Sort", "mapped_playlist_id": "PLMXaaaaaaaaaa"},'
+            '{"video_id": "vM2", "current_playlist_id": "1~Sort", "mapped_playlist_id": "PLMXaaaaaaaaaa"}'
             '], "move_from_x_to_y": []}'
         )
         monkeypatch.setenv("TUBE_MANAGER_DATA_DIR", str(tmp_path))
@@ -297,8 +297,8 @@ class TestMaintenanceActionEndpoint:
         mfile.write_text(
             '{"duplicated_videos": [], "misplaced_videos": [], '
             '"move_from_x_to_y": ['
-            '{"video_id": "vO1", "source_playlist_id": "PLO1aaaaaaaaaa", "target_playlist_id": "PLOXaaaaaaaaaa"},'
-            '{"video_id": "vO2", "source_playlist_id": "PLO2aaaaaaaaaa", "target_playlist_id": "PLOXaaaaaaaaaa"}'
+            '{"video_id": "vO1", "source_playlist_id": "1~Sort", "target_playlist_id": "PLOXaaaaaaaaaa"},'
+            '{"video_id": "vO2", "source_playlist_id": "1~Sort", "target_playlist_id": "PLOXaaaaaaaaaa"}'
             ']}'
         )
         monkeypatch.setenv("TUBE_MANAGER_DATA_DIR", str(tmp_path))

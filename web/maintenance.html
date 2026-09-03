@@ -275,9 +275,11 @@
                 ...(maintenanceData.misplaced_videos || []),
                 ...(maintenanceData.move_from_x_to_y || [])
             ].filter(item => {
+                const curPid = item.current_playlist_id || item.source_playlist_id || '';
+                const curTitle = item.current_playlist_title || item.source_playlist_title || playlistsMap[curPid] || curPid;
                 const tid = item.mapped_playlist_id || item.target_playlist_id || '';
                 const ttitle = playlistsMap[tid] || item.mapped_playlist_title || item.target_playlist_title || tid;
-                return !isStagingDestination(tid, ttitle) && !isVideoMatchingCurrentPlaylist(item);
+                return !isStagingDestination(tid, ttitle) && isPlaylistEligibleForChannelMapping(curPid, curTitle) && !isVideoMatchingCurrentPlaylist(item);
             });
 
             misplacedCombined.forEach(item => {
@@ -435,6 +437,14 @@
             return hasStemMatch || hasTopicMatch;
         }
 
+        function isPlaylistEligibleForChannelMapping(pid, title) {
+            if (isStagingDestination(pid, title)) return true;
+            const mappedList = maintenanceData.mapped_playlists || [];
+            if (!mappedList || mappedList.length === 0) return false;
+            const mappedSet = new Set(mappedList.map(p => String(p).toLowerCase().trim()));
+            return mappedSet.has(String(pid || '').toLowerCase().trim()) || mappedSet.has(String(title || '').toLowerCase().trim());
+        }
+
         function renderFilteredMaintenance() {
             const resetBtn = document.getElementById('btn-reset-filter');
             const summaryBadge = document.getElementById('filter-summary-badge');
@@ -447,9 +457,11 @@
                 ...(maintenanceData.misplaced_videos || []),
                 ...(maintenanceData.move_from_x_to_y || [])
             ].filter(item => {
+                const curPid = item.current_playlist_id || item.source_playlist_id || '';
+                const curTitle = playlistsMap[curPid] || item.current_playlist_title || item.source_playlist_title || curPid;
                 const tid = item.mapped_playlist_id || item.target_playlist_id || '';
                 const ttitle = playlistsMap[tid] || item.mapped_playlist_title || item.target_playlist_title || tid;
-                return !isStagingDestination(tid, ttitle) && !isVideoMatchingCurrentPlaylist(item);
+                return !isStagingDestination(tid, ttitle) && isPlaylistEligibleForChannelMapping(curPid, curTitle) && !isVideoMatchingCurrentPlaylist(item);
             });
 
             let filteredDups = allDups;
@@ -1345,9 +1357,11 @@
                 ...(maintenanceData.misplaced_videos || []),
                 ...(maintenanceData.move_from_x_to_y || [])
             ].filter(item => {
+                const curPid = item.current_playlist_id || item.source_playlist_id || '';
+                const curTitle = playlistsMap[curPid] || item.current_playlist_title || item.source_playlist_title || curPid;
                 const tid = item.mapped_playlist_id || item.target_playlist_id || '';
                 const ttitle = playlistsMap[tid] || item.mapped_playlist_title || item.target_playlist_title || tid;
-                return !isStagingDestination(tid, ttitle) && !isVideoMatchingCurrentPlaylist(item);
+                return !isStagingDestination(tid, ttitle) && isPlaylistEligibleForChannelMapping(curPid, curTitle) && !isVideoMatchingCurrentPlaylist(item);
             });
 
             let dupsToExport = allDups;

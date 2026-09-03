@@ -233,17 +233,16 @@ def is_video_protected_in_current_playlist(
 def is_playlist_opted_in(pid: Optional[str], title: Optional[str], opt_in_list: Optional[List[str]]) -> bool:
     """Check if a playlist is eligible for channel mapping moves.
     
-    - Staging/inbox playlists are ALWAYS eligible.
-    - If opt_in_list is configured (not empty), only staging playlists and playlists
-      explicitly listed in opt_in_list are eligible.
-    - If opt_in_list is empty/unconfigured, all playlists are checked, but videos
-      matching their current playlist are safeguarded by is_video_protected_in_current_playlist.
+    - Staging/inbox playlists (1~Sort, Inbox, Unsorted, Watch Later, WL, Check Later)
+      are ALWAYS eligible.
+    - Category playlists are exceptions by default, and ONLY eligible if explicitly
+      present in opt_in_list.
     """
     if is_staging_playlist(pid, title):
         return True
 
     if not opt_in_list:
-        return True
+        return False
 
     opt_set = {str(p).lower().strip() for p in opt_in_list if p}
     s_pid = str(pid or "").lower().strip()

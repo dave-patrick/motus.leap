@@ -1648,6 +1648,7 @@ async def api_maintenance() -> dict[str, Any]:
         }
         for key in ("misplaced_videos", "move_from_x_to_y"):
             if key in data and isinstance(data[key], list):
+                orig_len = len(data[key])
                 data[key] = [
                     item for item in data[key]
                     if not _is_staging_dst(item)
@@ -1655,6 +1656,10 @@ async def api_maintenance() -> dict[str, Any]:
                     and not _is_protected(item)
                     and (str(item.get("video_id") or item.get("id")), str(item.get("current_playlist_id") or item.get("source_playlist_id") or item.get("playlist_id"))) not in excluded
                 ]
+                if len(data[key]) != orig_len:
+                    _save_maintenance(data)
+
+        data["mapped_playlists"] = opt_in_pls
 
         restricted_private = set(data.get("restricted_private_videos", []))
         try:
