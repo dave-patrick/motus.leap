@@ -277,7 +277,7 @@
             ].filter(item => {
                 const tid = item.mapped_playlist_id || item.target_playlist_id || '';
                 const ttitle = playlistsMap[tid] || item.mapped_playlist_title || item.target_playlist_title || tid;
-                return !isStagingDestination(tid, ttitle);
+                return !isStagingDestination(tid, ttitle) && !isVideoMatchingCurrentPlaylist(item);
             });
 
             misplacedCombined.forEach(item => {
@@ -387,6 +387,54 @@
             return stagingKws.some(kw => sId.includes(kw) || sTitle.includes(kw));
         }
 
+        function isVideoMatchingCurrentPlaylist(item) {
+            const vtitle = (item.video_title || item.title || '').toLowerCase().trim();
+            const curPid = item.current_playlist_id || item.source_playlist_id || '';
+            const curTitle = (playlistsMap[curPid] || item.current_playlist_title || item.source_playlist_title || '').toLowerCase().trim();
+            const tgtPid = item.mapped_playlist_id || item.target_playlist_id || '';
+            const tgtTitle = (playlistsMap[tgtPid] || item.mapped_playlist_title || item.target_playlist_title || '').toLowerCase().trim();
+
+            if (!vtitle || !curTitle || isStagingDestination(curPid, curTitle)) return false;
+
+            // Direct playlist name match (e.g. 'Star Wars', 'Aviation', 'Woodworking')
+            if (curTitle.length >= 3 && vtitle.includes(curTitle)) {
+                // Star Wars exception: allowed to move ONLY if genuine music video or cosplay
+                if (curTitle.includes('star wars')) {
+                    if ((vtitle.includes('music video') || vtitle.includes('official audio')) && tgtTitle.includes('music')) return false;
+                    if (vtitle.includes('cosplay') && tgtTitle.includes('cosplay')) return false;
+                }
+                return true;
+            }
+
+            // Word-level matching for current playlist title (e.g. 'wood' in 'woodworking')
+            const curWords = curTitle.match(/[a-z0-9]+/g) || [];
+            const hasStemMatch = curWords.some(w => w.length >= 4 && vtitle.includes(w));
+
+            // Known topic keywords for user library
+            const swWords = ['jedi', 'sith', 'vader', 'skywalker', 'ahsoka', 'mandalorian', 'grogu', 'andor', 'kenobi', 'clone wars', 'force storm', 'darth', 'tatooine'];
+            const avWords = ['airplane', 'fighter jet', 'dogfight', 'cockpit', 'boeing', 'airbus', 'f-16', 'f-15', 'f-22', 'f-35'];
+            const wwWords = ['woodwork', 'joinery', 'carpentry', 'router table', 'table saw', 'dining table', 'wood shop'];
+            const trWords = ['tacoma', 'toyota tacoma', 'pickup truck', 'f-150', 'silverado'];
+            const bfWords = ['sasquatch', 'cryptid', 'yeti'];
+
+            let hasTopicMatch = false;
+            if (curTitle.includes('star wars') && swWords.some(w => vtitle.includes(w))) {
+                if ((vtitle.includes('music video') || vtitle.includes('official audio')) && tgtTitle.includes('music')) return false;
+                if (vtitle.includes('cosplay') && tgtTitle.includes('cosplay')) return false;
+                hasTopicMatch = true;
+            } else if (curTitle.includes('aviation') && avWords.some(w => vtitle.includes(w))) {
+                hasTopicMatch = true;
+            } else if (curTitle.includes('woodworking') && wwWords.some(w => vtitle.includes(w))) {
+                hasTopicMatch = true;
+            } else if (curTitle.includes('truck') && trWords.some(w => vtitle.includes(w))) {
+                hasTopicMatch = true;
+            } else if (curTitle.includes('bigfoot') && bfWords.some(w => vtitle.includes(w))) {
+                hasTopicMatch = true;
+            }
+
+            return hasStemMatch || hasTopicMatch;
+        }
+
         function renderFilteredMaintenance() {
             const resetBtn = document.getElementById('btn-reset-filter');
             const summaryBadge = document.getElementById('filter-summary-badge');
@@ -401,7 +449,7 @@
             ].filter(item => {
                 const tid = item.mapped_playlist_id || item.target_playlist_id || '';
                 const ttitle = playlistsMap[tid] || item.mapped_playlist_title || item.target_playlist_title || tid;
-                return !isStagingDestination(tid, ttitle);
+                return !isStagingDestination(tid, ttitle) && !isVideoMatchingCurrentPlaylist(item);
             });
 
             let filteredDups = allDups;
@@ -1296,7 +1344,11 @@
             const misplacedCombined = [
                 ...(maintenanceData.misplaced_videos || []),
                 ...(maintenanceData.move_from_x_to_y || [])
-            ];
+            ].filter(item => {
+                const tid = item.mapped_playlist_id || item.target_playlist_id || '';
+                const ttitle = playlistsMap[tid] || item.mapped_playlist_title || item.target_playlist_title || tid;
+                return !isStagingDestination(tid, ttitle) && !isVideoMatchingCurrentPlaylist(item);
+            });
 
             let dupsToExport = allDups;
             let misplacedToExport = misplacedCombined;

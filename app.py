@@ -843,27 +843,39 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             # Drop per-playlist "not misplaced" overrides the user has taught us.
             excluded = {(e.get("video_id"), e.get("playlist_id"))
                         for e in (maintenance.get("not_misplaced") or [])}
-            # Filter out staging targets and playlists not explicitly opted-in by user (all playlists exceptions by default)
-            staging_kws = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
+            from services.playlist_protection import (
+                is_staging_playlist,
+                is_playlist_opted_in,
+                is_video_protected_in_current_playlist
+            )
+
             def _is_staging_dst(item):
-                tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "").lower()
-                ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "").lower()
-                return any(kw in tid or kw in ttitle for kw in staging_kws)
+                tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "")
+                ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "")
+                return is_staging_playlist(tid, ttitle)
 
             cfg = config_manager.config
             opt_in_pls = getattr(cfg, 'mapped_playlists', []) or []
-            opt_in_set = {str(p).lower() for p in opt_in_pls}
 
             def _is_opted_in(item):
-                if not opt_in_set:
-                    return True
-                cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
-                ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
-                return cid in opt_in_set or ctitle in opt_in_set
+                cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "")
+                ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "")
+                return is_playlist_opted_in(cid, ctitle, opt_in_pls)
+
+            def _is_protected(item):
+                vtitle = str(item.get("video_title") or item.get("title") or "")
+                cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "")
+                ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "")
+                tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "")
+                ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "")
+                return is_video_protected_in_current_playlist(vtitle, cid, ctitle, tid, ttitle, cfg)
 
             mis_videos = [
                 v for v in mis_videos
-                if not _is_staging_dst(v) and _is_opted_in(v) and (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("playlist_id"))) not in excluded
+                if not _is_staging_dst(v)
+                and _is_opted_in(v)
+                and not _is_protected(v)
+                and (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("playlist_id"))) not in excluded
             ]
 
             # Enrich each item with the target playlist's display name so the
@@ -999,8 +1011,12 @@ async def clear_all_misplaced_endpoint(request: Request):
         all_mis = [v for v in all_mis if tpid in (
             str(v.get("current_playlist_id") or "").lower(),
             str(v.get("source_playlist_id") or "").lower(),
+            str(v.get("current_playlist_title") or "").lower(),
+            str(v.get("source_playlist_title") or "").lower(),
             str(v.get("mapped_playlist_id") or "").lower(),
-            str(v.get("target_playlist_id") or "").lower()
+            str(v.get("target_playlist_id") or "").lower(),
+            str(v.get("mapped_playlist_title") or "").lower(),
+            str(v.get("target_playlist_title") or "").lower()
         )]
 
     added = 0
@@ -1599,24 +1615,32 @@ async def api_maintenance() -> dict[str, Any]:
         except Exception as e:
             log.warning(f"Failed to enrich playlist titles in api_maintenance: {e}")
 
-        # Videos must NEVER be recommended or moved TO staging/inbox playlists like 1~Sort
-        staging_kws = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
-        def _is_staging_dst(item):
-            tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "").lower()
-            ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "").lower()
-            return any(kw in tid or kw in ttitle for kw in staging_kws)
+        from services.playlist_protection import (
+            is_staging_playlist,
+            is_playlist_opted_in,
+            is_video_protected_in_current_playlist
+        )
 
-        # All playlists are exceptions to channel mapping by default unless explicitly opted-in by user
+        def _is_staging_dst(item):
+            tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "")
+            ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "")
+            return is_staging_playlist(tid, ttitle)
+
         cfg = config_manager.config
         opt_in_pls = getattr(cfg, 'mapped_playlists', []) or []
-        opt_in_set = {str(p).lower() for p in opt_in_pls}
 
         def _is_opted_in(item):
-            if not opt_in_set:
-                return True
-            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
-            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
-            return cid in opt_in_set or ctitle in opt_in_set
+            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "")
+            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "")
+            return is_playlist_opted_in(cid, ctitle, opt_in_pls)
+
+        def _is_protected(item):
+            vtitle = str(item.get("video_title") or item.get("title") or "")
+            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "")
+            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "")
+            tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "")
+            ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "")
+            return is_video_protected_in_current_playlist(vtitle, cid, ctitle, tid, ttitle, cfg)
 
         excluded = {
             (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id") or e.get("source_playlist_id")))
@@ -1628,6 +1652,7 @@ async def api_maintenance() -> dict[str, Any]:
                     item for item in data[key]
                     if not _is_staging_dst(item)
                     and _is_opted_in(item)
+                    and not _is_protected(item)
                     and (str(item.get("video_id") or item.get("id")), str(item.get("current_playlist_id") or item.get("source_playlist_id") or item.get("playlist_id"))) not in excluded
                 ]
 
@@ -2198,27 +2223,40 @@ def _maintenance_items_by_type(maintenance: dict[str, Any], item_type: str) -> l
         return maintenance.get("duplicated_videos", [])
     if item_type in ("misplaced", "move"):
         recs = maintenance.get("misplaced_videos", []) if item_type == "misplaced" else maintenance.get("move_from_x_to_y", [])
-        staging_kws = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
+        from services.playlist_protection import (
+            is_staging_playlist,
+            is_playlist_opted_in,
+            is_video_protected_in_current_playlist
+        )
+
         def _is_staging_dst(item):
-            tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "").lower()
-            ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "").lower()
-            return any(kw in tid or kw in ttitle for kw in staging_kws)
+            tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "")
+            ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "")
+            return is_staging_playlist(tid, ttitle)
 
         cfg = config_manager.config
         opt_in_pls = getattr(cfg, 'mapped_playlists', []) or []
-        opt_in_set = {str(p).lower() for p in opt_in_pls}
 
         def _is_opted_in(item):
-            if not opt_in_set:
-                return True
-            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "").lower()
-            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "").lower()
-            return cid in opt_in_set or ctitle in opt_in_set
+            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "")
+            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "")
+            return is_playlist_opted_in(cid, ctitle, opt_in_pls)
+
+        def _is_protected(item):
+            vtitle = str(item.get("video_title") or item.get("title") or "")
+            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "")
+            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "")
+            tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "")
+            ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "")
+            return is_video_protected_in_current_playlist(vtitle, cid, ctitle, tid, ttitle, cfg)
 
         excluded = {(str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id"))) for e in (maintenance.get("not_misplaced") or []) if e}
         return [
             v for v in recs
-            if not _is_staging_dst(v) and _is_opted_in(v) and (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("source_playlist_id") or v.get("playlist_id"))) not in excluded
+            if not _is_staging_dst(v)
+            and _is_opted_in(v)
+            and not _is_protected(v)
+            and (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("source_playlist_id") or v.get("playlist_id"))) not in excluded
         ]
     return []
 

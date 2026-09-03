@@ -576,27 +576,35 @@ class BackgroundWorker:
                             "thumbnail": _best_thumbnail_local(snip.get("thumbnails")),
                         })
                         
-                        # Misplaced video check — only run for playlists explicitly opted-in by user (all playlists are exceptions by default)
+                        from services.playlist_protection import (
+                            is_playlist_opted_in,
+                            is_video_protected_in_current_playlist,
+                            is_staging_playlist
+                        )
+
+                        # Misplaced video check — only run for playlists eligible for channel mapping (staging or user opt-in)
                         opt_in_playlists = getattr(config, 'mapped_playlists', []) or []
-                        opt_in_set = {str(p).lower() for p in opt_in_playlists}
-                        is_playlist_mapped = str(pl_id).lower() in opt_in_set or str(pl_title).lower() in opt_in_set
+                        is_playlist_mapped = is_playlist_opted_in(pl_id, pl_title, opt_in_playlists)
 
                         owner_channel_id = item.get("snippet", {}).get("videoOwnerChannelId")
                         if is_playlist_mapped and owner_channel_id and owner_channel_id in mappings:
                             mapped_playlist_id = mappings[owner_channel_id]
                             if mapped_playlist_id and pl_id != mapped_playlist_id:
                                 mapped_pl_title = playlist_titles.get(mapped_playlist_id, mapped_playlist_id)
-                                staging_kws = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
-                                is_staging_dst = any(kw in str(mapped_playlist_id).lower() or kw in str(mapped_pl_title).lower() for kw in staging_kws)
+                                is_staging_dst = is_staging_playlist(mapped_playlist_id, mapped_pl_title)
                                 if not is_staging_dst:
-                                    misplaced_videos.append({
-                                        "video_id": video_id,
-                                        "video_title": video_title,
-                                        "current_playlist_id": pl_id,
-                                        "current_playlist_title": pl_title,
-                                        "mapped_playlist_id": mapped_playlist_id,
-                                        "mapped_playlist_title": mapped_pl_title
-                                    })
+                                    # Protect videos that rightfully belong in their current playlist
+                                    if not is_video_protected_in_current_playlist(
+                                        video_title, pl_id, pl_title, mapped_playlist_id, mapped_pl_title, config
+                                    ):
+                                        misplaced_videos.append({
+                                            "video_id": video_id,
+                                            "video_title": video_title,
+                                            "current_playlist_id": pl_id,
+                                            "current_playlist_title": pl_title,
+                                            "mapped_playlist_id": mapped_playlist_id,
+                                            "mapped_playlist_title": mapped_pl_title
+                                        })
                 
                 await self._safe_broadcast({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"})
                 await asyncio.sleep(0.5)
@@ -926,6 +934,23 @@ class BackgroundWorker:
         count = 0
         misplaced_videos = []
         if self.youtube_service and hasattr(self.youtube_service, 'config') and hasattr(self.youtube_service.config, 'channel_mappings'):
+            from services.playlist_protection import (
+                is_playlist_opted_in,
+                is_video_protected_in_current_playlist,
+                is_staging_playlist
+            )
+            config = self.youtube_service.config
+            opt_in_playlists = getattr(config, 'mapped_playlists', []) or []
+            
+            playlist_titles = {}
+            try:
+                pls_data = await self.youtube_service.list_playlists()
+                for p in (pls_data.get("playlists") or []):
+                    if p.get("id"):
+                        playlist_titles[p.get("id")] = p.get("title", p.get("id"))
+            except Exception:
+                pass
+
             videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
             videos = videos_data.get("videos", [])
             for v in videos:
@@ -933,17 +958,32 @@ class BackgroundWorker:
                     continue
                 channel_id = v.get("channel_id")
                 playlist_id_v = v.get("playlist_id")
+                pl_title_v = v.get("playlist_title") or playlist_titles.get(playlist_id_v, playlist_id_v)
+                v_title = v.get("title", "")
+
+                # Only evaluate playlists eligible for channel mapping moves (staging or user opt-in)
+                if not is_playlist_opted_in(playlist_id_v, pl_title_v, opt_in_playlists):
+                    continue
+
                 if channel_id and playlist_id_v:
                     for ch, target_pl in self.youtube_service.config.channel_mappings.items():
                         if channel_id == ch and target_pl and target_pl != playlist_id_v:
+                            target_title = playlist_titles.get(target_pl, target_pl)
+                            if is_staging_playlist(target_pl, target_title):
+                                continue
+                            if is_video_protected_in_current_playlist(
+                                v_title, playlist_id_v, pl_title_v, target_pl, target_title, config
+                            ):
+                                continue
+
                             count += 1
                             misplaced_videos.append({
                                 "video_id": v.get("video_id"),
-                                "video_title": v.get("title", ""),
+                                "video_title": v_title,
                                 "current_playlist_id": playlist_id_v,
-                                "current_playlist_title": v.get("playlist_title", playlist_id_v),
+                                "current_playlist_title": pl_title_v,
                                 "mapped_playlist_id": target_pl,
-                                "mapped_playlist_title": target_pl,
+                                "mapped_playlist_title": target_title,
                             })
                             break
         await self._safe_broadcast({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"})
