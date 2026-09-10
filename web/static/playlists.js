@@ -99,8 +99,18 @@ async function loadPlaylists() {
 }
 
 async function fetchWatchLaterCount() {
-    // YouTube Data API v3 does not expose Watch Later playlist items — the WL
-    // card already shows an em-dash by design. Nothing to fetch.
+    try {
+        const resp = await authFetch('/api/youtube/watch-later-count');
+        if (resp && resp.ok) {
+            const data = await resp.json();
+            if (data && data.count != null) {
+                const countEl = document.querySelector('[data-count-id="WL"]');
+                if (countEl) countEl.textContent = `${data.count} video${data.count !== 1 ? 's' : ''}`;
+            }
+        }
+    } catch (e) {
+        console.warn('Could not fetch Watch Later count:', e);
+    }
 }
 
 function thumbMarkup(p) {

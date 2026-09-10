@@ -1326,7 +1326,17 @@ class YouTubeService:
                 return {"videos": [], "error": all_data["error"]}
             return {"videos": all_data.get("videos", [])}
         
-        # 2. Check disk cache for this specific playlist first unless force_refresh is requested
+        # 2. Special handling for Watch Later ('WL') which YouTube Data API v3 does not allow fetching via API
+        if playlist_id.upper() == "WL":
+            try:
+                from services.watch_later_service import load_watch_later_videos
+                wl_videos = load_watch_later_videos()
+                if wl_videos:
+                    return {"videos": wl_videos, "cached": True, "is_watch_later": True}
+            except Exception as e:
+                log.warning(f"Failed to load Watch Later videos from snapshot: {e}")
+
+        # 3. Check disk cache for this specific playlist first unless force_refresh is requested
         disk_cached = await self._load_from_disk(f"playlist_videos_{playlist_id}", max_age_days=365)
         if disk_cached is not None and not force_refresh:
             log.info(f"Using disk-cached videos for playlist {playlist_id}")

@@ -776,6 +776,14 @@ async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: b
         playlist_id: If provided, filter by specific playlist
         force_refresh: If True, bypass cache
     """
+    if playlist_id and playlist_id.upper() == "WL":
+        try:
+            from services.watch_later_service import load_watch_later_videos
+            wl_videos = load_watch_later_videos()
+            return {"videos": wl_videos, "cached": True, "is_watch_later": True}
+        except Exception as e:
+            logger.warning(f"Error loading watch later videos: {e}")
+
     if not youtube_service:
         return {"videos": [], "error": "YouTube service not initialized"}
     
@@ -1249,6 +1257,15 @@ async def api_playlists(request: Request, force_refresh: bool = False) -> dict[s
 @app.get("/api/youtube/watch-later-count", dependencies=[Depends(get_current_user)])
 async def api_watch_later_count() -> dict[str, Any]:
     """Return the number of videos in the authenticated user's Watch Later playlist."""
+    # Check local snapshot first to avoid failing on Google Data API v3 WL restriction
+    try:
+        from services.watch_later_service import load_watch_later_videos
+        vlist = load_watch_later_videos(allow_browser=False)
+        if vlist:
+            return {"count": len(vlist)}
+    except Exception:
+        pass
+
     if not youtube_service:
         return {"count": None, "error": "YouTube service not available"}
     yt_client = youtube_service.get_client(require_oauth=True)
@@ -2870,7 +2887,15 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
                 for it in fetched if isinstance(it, dict) and it.get("contentDetails", {}).get("videoId")
             ]
         except Exception as e:
-            log.error(f"Live fetch failed for source playlist {source_pid}: {e}")
+            log.warning(f"Live API fetch failed for source playlist {source_pid}: {e}")
+
+    # Fallback to local snapshot for Watch Later if API returned 0 items
+    if not vlist and (source_pid == "WL" or "watch later" in str(source_pid).lower()):
+        try:
+            from services.watch_later_service import load_watch_later_videos
+            vlist = load_watch_later_videos(allow_browser=False)
+        except Exception as snap_err:
+            log.warning(f"Snapshot fallback for Watch Later failed: {snap_err}")
 
     if not vlist:
         return {"status": "ok", "moved": 0, "message": "No videos found in Watch Later to move"}
@@ -2944,6 +2969,94 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
         "failed": failed_count,
         "message": f"Successfully moved {moved_count} video(s) from Watch Later to '{target_title}'!"
     }
+
+
+class AutoSortWatchLaterIn(BaseModel):
+    items: list[dict[str, Any]]
+    remove_from_watch_later: bool = False
+
+
+@app.get("/api/maintenance/watch-later-preview", dependencies=[Depends(get_current_user)])
+async def api_watch_later_preview(allow_browser: bool = False) -> dict[str, Any]:
+    """Return a preview of Watch Later videos categorized into target playlists."""
+    from services.watch_later_service import preview_watch_later_sorting
+    extra_pls = {}
+    if youtube_service:
+        try:
+            pl_resp = await youtube_service.list_playlists()
+            pls = pl_resp.get("playlists", []) if isinstance(pl_resp, dict) else (pl_resp if isinstance(pl_resp, list) else [])
+            for p in pls:
+                if isinstance(p, dict):
+                    pid = p.get("id")
+                    title = p.get("title") or p.get("name")
+                    if pid and title:
+                        extra_pls[title] = pid
+        except Exception as ple:
+            log.warning(f"Could not load playlists for watch-later preview: {ple}")
+
+    try:
+        return preview_watch_later_sorting(allow_browser=allow_browser, extra_playlists=extra_pls)
+    except Exception as e:
+        log.error(f"Error generating Watch Later preview: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "items": [],
+            "total_count": 0,
+            "classified_count": 0,
+            "unclassified_count": 0,
+            "category_summary": [],
+            "unmatched_channels": [],
+            "available_categories": []
+        }
+
+
+@app.post("/api/maintenance/auto-sort-watch-later", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def api_auto_sort_watch_later(payload: AutoSortWatchLaterIn) -> dict[str, Any]:
+    """Auto-sort selected Watch Later videos into their matched destination playlists."""
+    if not payload.items:
+        return {"status": "ok", "moved": 0, "failed": 0, "message": "No items selected to sort."}
+
+    yt_client = None
+    if youtube_service:
+        try:
+            yt_client = youtube_service.get_client(require_oauth=True)
+        except Exception as ce:
+            log.warning(f"Could not acquire OAuth YouTube client: {ce}")
+
+    driver = None
+    if payload.remove_from_watch_later or not yt_client:
+        try:
+            from core.actions import get_browser
+            driver = get_browser()
+        except Exception as be:
+            log.warning(f"Browser unavailable for Watch Later removal: {be}")
+
+    from services.watch_later_service import execute_auto_sort
+    try:
+        result = await execute_auto_sort(
+            items=payload.items,
+            yt_client=yt_client,
+            remove_from_source=payload.remove_from_watch_later,
+            driver=driver
+        )
+
+        # Invalidate cache for all affected target playlists
+        target_pids = {it.get("target_playlist_id") for it in payload.items if it.get("target_playlist_id")}
+        if youtube_service:
+            for pid in target_pids:
+                try:
+                    await youtube_service._cache_invalidate_playlist(pid)
+                except Exception:
+                    pass
+
+        return result
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
 
 
 # Mappings endpoints

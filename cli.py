@@ -208,7 +208,11 @@ def parse_rules():
     return channel_map, category_to_id
 
 @app.command()
-def auto_sort(input_file: str = None, limit: int = 20):
+def auto_sort(
+    input_file: str = typer.Option(None, "--input-file", "-f", help="Path to input JSON file with videos"),
+    limit: int = typer.Option(20, "--limit", "-l", help="Max videos to move"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview moves without modifying YouTube playlists"),
+):
     """Scan Watch Later (or use input file) and move videos based on rules."""
     from core import get_browser
     channel_map, category_to_id = parse_rules()
@@ -217,20 +221,37 @@ def auto_sort(input_file: str = None, limit: int = 20):
         typer.secho("Missing rules or channel mappings!", fg=typer.colors.RED)
         raise typer.Exit(code=1)
         
-    driver = get_browser()
+    driver = None
     try:
+        videos = []
         if input_file and os.path.exists(input_file):
             typer.echo(f"Loading videos from {input_file}...")
             with open(input_file, 'r', encoding='utf-8') as f:
                 videos = json.load(f)
+        elif not input_file and dry_run and os.path.exists("watch_later_snapshot.json"):
+            typer.echo("Dry run: Loading videos from watch_later_snapshot.json...")
+            with open("watch_later_snapshot.json", 'r', encoding='utf-8') as f:
+                videos = json.load(f)
         else:
-            typer.echo("Fetching full Watch Later playlist (WL)...")
-            videos = list_videos_in_playlist("https://www.youtube.com/playlist?list=WL", driver=driver)
+            try:
+                driver = get_browser()
+            except Exception as be:
+                if os.path.exists("watch_later_snapshot.json"):
+                    typer.secho(f"Could not connect to browser ({be}). Falling back to watch_later_snapshot.json...", fg=typer.colors.YELLOW)
+                    with open("watch_later_snapshot.json", 'r', encoding='utf-8') as f:
+                        videos = json.load(f)
+                else:
+                    typer.secho(f"Browser error: {be}", fg=typer.colors.RED)
+                    raise typer.Exit(code=1)
+
             if not videos:
-                typer.secho("Watch Later is empty!", fg=typer.colors.GREEN)
-                return
-            with open("watch_later_snapshot.json", "w", encoding="utf-8") as f:
-                json.dump(videos, f, indent=2, ensure_ascii=False)
+                typer.echo("Fetching full Watch Later playlist (WL)...")
+                videos = list_videos_in_playlist("https://www.youtube.com/playlist?list=WL", driver=driver)
+                if not videos:
+                    typer.secho("Watch Later is empty!", fg=typer.colors.GREEN)
+                    return
+                with open("watch_later_snapshot.json", "w", encoding="utf-8") as f:
+                    json.dump(videos, f, indent=2, ensure_ascii=False)
             
         # Report channels with multiple videos
         from collections import Counter
@@ -297,12 +318,12 @@ def auto_sort(input_file: str = None, limit: int = 20):
                 # Rule 2: Music videos
                 elif matches(["official music video", "official video", "music video", "lyric video", "official audio", "official lyric", "official visualizer", "musicvideo", "lyrics video", "(official)"]):
                     target_cat = "Music Videos"
-                # Rule 3: AI keywords
-                elif matches([" ai ", "gpt", "claude", "gemini", "notebooklm", "llm", "artificial intelligence"]):
-                    target_cat = "AI"
-                # Rule 4: Star Wars keywords
+                # Rule 3: Star Wars keywords
                 elif matches(["star wars", "vader", "kenobi", "darth", "jedi", "darth maul", "coruscant", "skywalker", "ahsoka", "mandalorian", "grogu", "yoda", "sith", "galactic empire", "rebel alliance", "lightsaber"]):
                     target_cat = "Star Wars"
+                # Rule 4: AI keywords
+                elif matches([" ai ", "gpt", "claude", "gemini", "notebooklm", "llm", "artificial intelligence"]):
+                    target_cat = "AI"
                 # Rule 6: 3D Printing keywords
                 elif matches(["3d print", "slicing", "ender 3", "bambu", "voron", "3d printing"]):
                     target_cat = "3D Printing Watch"
@@ -348,16 +369,22 @@ def auto_sort(input_file: str = None, limit: int = 20):
                         break
             
             if target_cat and target_cat in category_to_id:
-                typer.echo(f"Moving '{title}' to {target_cat}...")
-                try:
-                    move_video(url, "Watch Later", target_cat, driver=driver)
+                if dry_run:
+                    typer.secho(f"  [DRY RUN] Would move '{title}' ({channel}) -> {target_cat} (ID: {category_to_id[target_cat]})", fg=typer.colors.CYAN)
                     moved_count += 1
-                    import random
-                    sleep_time = random.randint(30, 60)
-                    typer.echo(f"  Move successful. Sleeping {sleep_time}s to mimic human behavior...")
-                    time.sleep(sleep_time)
-                except Exception as e:
-                    typer.secho(f"  Failed: {e}", fg=typer.colors.RED)
+                else:
+                    typer.echo(f"Moving '{title}' to {target_cat}...")
+                    try:
+                        if not driver:
+                            driver = get_browser()
+                        move_video(url, "Watch Later", target_cat, driver=driver)
+                        moved_count += 1
+                        import random
+                        sleep_time = random.randint(30, 60)
+                        typer.echo(f"  Move successful. Sleeping {sleep_time}s to mimic human behavior...")
+                        time.sleep(sleep_time)
+                    except Exception as e:
+                        typer.secho(f"  Failed: {e}", fg=typer.colors.RED)
             else:
                 channel_map_lower = {k.lower(): v for k, v in channel_map.items()}
                 channel_lower = channel.lower()
@@ -374,9 +401,14 @@ def auto_sort(input_file: str = None, limit: int = 20):
                     with open("pending_channels.txt", "a", encoding="utf-8") as pf:
                         pf.write(f"{channel}\n")
                 
-        typer.secho("Auto-sort complete!", fg=typer.colors.GREEN)
+        status_msg = f"Auto-sort {'preview' if dry_run else 'execution'} complete! Processed {moved_count} video(s)."
+        typer.secho(status_msg, fg=typer.colors.GREEN, bold=True)
     finally:
-        driver.quit()
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     app()
