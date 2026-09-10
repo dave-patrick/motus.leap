@@ -64,6 +64,7 @@ def load_watch_later_videos(allow_browser: bool = False, driver=None) -> List[Di
     if allow_browser:
         try:
             from core.actions import get_browser, list_videos_in_playlist
+            os.environ.setdefault("DISABLE_CAMOFOX", "1")
             browser = driver or get_browser()
             try:
                 live_vids = list_videos_in_playlist("https://www.youtube.com/playlist?list=WL", driver=browser)

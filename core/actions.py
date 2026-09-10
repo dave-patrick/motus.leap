@@ -1697,18 +1697,36 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
         # Give page brief settle time before querying
         time.sleep(2)
         
-        # Wait for initial load
+        # Wait for initial load (increase timeout for slower connections)
         try:
-            WebDriverWait(driver, 90).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "ytd-playlist-video-renderer"))
-            )
+            try:
+                WebDriverWait(driver, 180).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "ytd-playlist-video-list-renderer ytd-playlist-video-renderer"))
+                )
+            except TimeoutException as te:
+                # Save page source for debugging
+                try:
+                    debug_path = os.path.join(os.path.dirname(__file__), "..", "..", "brain", "c9733ae4-4d18-4040-9445-32434e416f75", "watch_later_debug.html")
+                    with open(debug_path, "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    print(f"Saved page source for debugging to {debug_path}")
+                except Exception as e:
+                    print(f"Failed to save page source: {e}")
+                # Still try to capture screenshot as before
+                try:
+                    driver.save_screenshot("debug_timeout_wl.png")
+                except Exception as se:
+                    print(f"Failed to capture debug screenshot: {se}")
+                # Continue without raising – may still have some videos loaded.
         except TimeoutException:
-            print("Timeout waiting for playlist video elements. Saving screenshot to debug_timeout_wl.png...")
+            print("Timeout waiting for playlist video elements (extended). Saving screenshot to debug_timeout_wl.png...")
             try:
                 driver.save_screenshot("debug_timeout_wl.png")
             except Exception as se:
                 print(f"Failed to capture debug screenshot: {se}")
-            return []
+            # Continue without raising – may still have some videos loaded.
+            # No return here, proceed to collect whatever is present.
+
 
         # Get initial count of loaded videos
         initial_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")
