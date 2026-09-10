@@ -2898,11 +2898,14 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
         try:
             from services.watch_later_service import load_watch_later_videos
             vlist = load_watch_later_videos(allow_browser=False)
+            if not vlist:
+                # Attempt browser scan if authenticated
+                vlist = load_watch_later_videos(allow_browser=True)
         except Exception as snap_err:
             log.warning(f"Snapshot fallback for Watch Later failed: {snap_err}")
 
     if not vlist:
-        return {"status": "ok", "moved": 0, "message": "No videos found in Watch Later to move"}
+        return {"status": "ok", "moved": 0, "message": "No videos found in Watch Later to move. Try clicking 'Rescan' to extract latest videos from your browser session."}
 
     moved_count = 0
     failed_count = 0
@@ -3002,7 +3005,29 @@ async def api_watch_later_preview(allow_browser: bool = False) -> dict[str, Any]
             log.warning(f"Could not load playlists for watch-later preview: {ple}")
 
     try:
-        return preview_watch_later_sorting(allow_browser=allow_browser, extra_playlists=extra_pls)
+        preview_res = preview_watch_later_sorting(allow_browser=allow_browser, extra_playlists=extra_pls)
+        # If preview found 0 items, check if youtube_service has any cached WL videos
+        if (not preview_res.get("items") or preview_res.get("total_count", 0) == 0) and youtube_service:
+            try:
+                cached_wl = await youtube_service.get_videos("WL")
+                raw_vids = cached_wl.get("videos", []) if isinstance(cached_wl, dict) else (cached_wl if isinstance(cached_wl, list) else [])
+                if raw_vids:
+                    # Save into watch_later_snapshot.json so service can read it
+                    from services.watch_later_service import DATA_DIR, BASE_DIR, _normalize_videos
+                    norm = _normalize_videos(raw_vids)
+                    if norm:
+                        for d in [DATA_DIR, BASE_DIR]:
+                            try:
+                                os.makedirs(d, exist_ok=True)
+                                with open(os.path.join(d, "watch_later_snapshot.json"), "w", encoding="utf-8") as f:
+                                    json.dump(norm, f, indent=2, ensure_ascii=False)
+                            except Exception:
+                                pass
+                        preview_res = preview_watch_later_sorting(allow_browser=False, extra_playlists=extra_pls)
+            except Exception as wle:
+                log.warning(f"Fallback check of youtube_service for WL videos failed: {wle}")
+
+        return preview_res
     except Exception as e:
         log.error(f"Error generating Watch Later preview: {e}")
         return {

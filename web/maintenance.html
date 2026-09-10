@@ -1454,7 +1454,23 @@
             }
 
             if (!data.items || data.items.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">No videos found in Watch Later snapshot.</td></tr>`;
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center py-10 text-gray-400">
+                            <div class="flex flex-col items-center justify-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-cloud-arrow-down"></i>
+                                </div>
+                                <div class="text-sm font-semibold text-white">No Watch Later Videos Found</div>
+                                <p class="text-xs text-gray-400 max-w-md">
+                                    Google's API does not expose Watch Later directly. Click below to trigger a live browser scan and pull all 200+ videos directly from your account.
+                                </p>
+                                <button onclick="openAutoSortWatchLaterModal(true)" class="mt-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-md cursor-pointer transition-all">
+                                    <i class="fa-solid fa-arrows-rotate"></i> Scan Watch Later with Browser
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
                 updateWlSortButton();
                 return;
             }

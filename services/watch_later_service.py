@@ -14,7 +14,10 @@ from typing import Any, Dict, List, Optional, Tuple
 log = logging.getLogger(__name__)
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DATA_DIR = os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")
 SNAPSHOT_FILES = [
+    os.path.join(DATA_DIR, "watch_later_snapshot.json"),
+    os.path.join(DATA_DIR, "watch_later_fresh.json"),
     os.path.join(BASE_DIR, "watch_later_snapshot.json"),
     os.path.join(BASE_DIR, "watch_later_fresh.json"),
 ]
@@ -33,8 +36,30 @@ def extract_video_id(url_or_id: str) -> Optional[str]:
     return None
 
 
+def get_all_snapshot_candidate_paths() -> List[str]:
+    """Return all possible snapshot paths in priority order across DATA_DIR, users dirs, and BASE_DIR."""
+    candidates = list(SNAPSHOT_FILES)
+    # Check users subdirectories in DATA_DIR (e.g. /app/data/users/{user_id}/...)
+    users_dir = os.path.join(DATA_DIR, "users")
+    if os.path.exists(users_dir):
+        try:
+            for entry in os.scandir(users_dir):
+                if entry.is_dir():
+                    candidates.append(os.path.join(entry.path, "watch_later_snapshot.json"))
+                    candidates.append(os.path.join(entry.path, "watch_later_fresh.json"))
+                    candidates.append(os.path.join(entry.path, "playlist_videos_WL.json"))
+        except Exception as e:
+            log.warning(f"Error scanning users_dir for Watch Later: {e}")
+    # Also check BASE_DIR/data if present
+    base_data = os.path.join(BASE_DIR, "data")
+    if os.path.exists(base_data):
+        candidates.append(os.path.join(base_data, "watch_later_snapshot.json"))
+        candidates.append(os.path.join(base_data, "watch_later_fresh.json"))
+    return candidates
+
+
 def load_watch_later_videos(allow_browser: bool = False, driver=None) -> List[Dict[str, Any]]:
-    """Load Watch Later videos from local snapshot files, or live browser if requested."""
+    """Load Watch Later videos from local snapshot files, persistent disk cache, or live browser if requested."""
     # 1. Live browser extraction if requested and available
     if allow_browser:
         try:
@@ -43,9 +68,15 @@ def load_watch_later_videos(allow_browser: bool = False, driver=None) -> List[Di
             try:
                 live_vids = list_videos_in_playlist("https://www.youtube.com/playlist?list=WL", driver=browser)
                 if live_vids:
-                    snap_path = os.path.join(BASE_DIR, "watch_later_snapshot.json")
-                    with open(snap_path, "w", encoding="utf-8") as f:
-                        json.dump(live_vids, f, indent=2, ensure_ascii=False)
+                    # Save to both DATA_DIR and BASE_DIR
+                    for out_dir in [DATA_DIR, BASE_DIR]:
+                        try:
+                            os.makedirs(out_dir, exist_ok=True)
+                            snap_path = os.path.join(out_dir, "watch_later_snapshot.json")
+                            with open(snap_path, "w", encoding="utf-8") as f:
+                                json.dump(live_vids, f, indent=2, ensure_ascii=False)
+                        except Exception:
+                            pass
                     return _normalize_videos(live_vids)
             finally:
                 if not driver and browser:
@@ -56,16 +87,64 @@ def load_watch_later_videos(allow_browser: bool = False, driver=None) -> List[Di
         except Exception as be:
             log.warning(f"Live Watch Later browser scan failed, falling back to snapshot: {be}")
 
-    # 2. Local snapshot files
-    for snap_path in SNAPSHOT_FILES:
+    # 2. Local snapshot files across DATA_DIR, users dirs, and BASE_DIR
+    for snap_path in get_all_snapshot_candidate_paths():
         if os.path.exists(snap_path):
             try:
                 with open(snap_path, "r", encoding="utf-8") as f:
                     raw = json.load(f)
                 if isinstance(raw, list) and raw:
                     return _normalize_videos(raw)
+                elif isinstance(raw, dict) and raw.get("videos") and isinstance(raw["videos"], list):
+                    return _normalize_videos(raw["videos"])
             except Exception as fe:
                 log.warning(f"Failed to read snapshot {snap_path}: {fe}")
+
+    # 3. Check all_data.json caches for any videos tagged with playlist_id == 'WL'
+    for candidate_dir in [DATA_DIR, BASE_DIR]:
+        all_data_path = os.path.join(candidate_dir, "all_data.json")
+        if os.path.exists(all_data_path):
+            try:
+                with open(all_data_path, "r", encoding="utf-8") as f:
+                    all_d = json.load(f)
+                if isinstance(all_d, dict) and "videos" in all_d:
+                    wl_vids = [
+                        v for v in all_d["videos"]
+                        if isinstance(v, dict) and (
+                            str(v.get("playlist_id", "")).upper() == "WL" or
+                            "watch later" in str(v.get("playlist_name", "")).lower()
+                        )
+                    ]
+                    if wl_vids:
+                        return _normalize_videos(wl_vids)
+            except Exception as e:
+                log.warning(f"Failed reading all_data.json for WL videos from {all_data_path}: {e}")
+
+    # Check users/*/all_data.json
+    users_dir = os.path.join(DATA_DIR, "users")
+    if os.path.exists(users_dir):
+        try:
+            for entry in os.scandir(users_dir):
+                if entry.is_dir():
+                    user_all = os.path.join(entry.path, "all_data.json")
+                    if os.path.exists(user_all):
+                        try:
+                            with open(user_all, "r", encoding="utf-8") as f:
+                                all_d = json.load(f)
+                            if isinstance(all_d, dict) and "videos" in all_d:
+                                wl_vids = [
+                                    v for v in all_d["videos"]
+                                    if isinstance(v, dict) and (
+                                        str(v.get("playlist_id", "")).upper() == "WL" or
+                                        "watch later" in str(v.get("playlist_name", "")).lower()
+                                    )
+                                ]
+                                if wl_vids:
+                                    return _normalize_videos(wl_vids)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
 
     return []
 
@@ -100,14 +179,23 @@ def _normalize_videos(raw_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return normalized
 
 
+def _find_data_file(filename: str) -> Optional[str]:
+    """Find a configuration or data file in DATA_DIR or BASE_DIR."""
+    for d in [DATA_DIR, BASE_DIR]:
+        p = os.path.join(d, filename)
+        if os.path.exists(p):
+            return p
+    return None
+
+
 def load_rules_and_mappings() -> Tuple[Dict[str, str], Dict[str, str]]:
     """Parse channel mappings and category-to-playlist ID mappings."""
     channel_map = {}
     category_to_id = {}
 
     # 1. yt_category_channel_map.txt
-    ch_map_path = os.path.join(BASE_DIR, "yt_category_channel_map.txt")
-    if os.path.exists(ch_map_path):
+    ch_map_path = _find_data_file("yt_category_channel_map.txt")
+    if ch_map_path:
         try:
             with open(ch_map_path, "r", encoding="utf-8") as f:
                 for line in f:
@@ -119,11 +207,11 @@ def load_rules_and_mappings() -> Tuple[Dict[str, str], Dict[str, str]]:
                             if ch and cat:
                                 channel_map[ch] = cat
         except Exception as e:
-            log.warning(f"Error loading channel map: {e}")
+            log.warning(f"Error loading channel map from {ch_map_path}: {e}")
 
     # 2. yt_rules.promptinclude.md (category -> playlist ID)
-    rules_path = os.path.join(BASE_DIR, "yt_rules.promptinclude.md")
-    if os.path.exists(rules_path):
+    rules_path = _find_data_file("yt_rules.promptinclude.md")
+    if rules_path:
         try:
             with open(rules_path, "r", encoding="utf-8") as f:
                 for line in f:
@@ -136,11 +224,11 @@ def load_rules_and_mappings() -> Tuple[Dict[str, str], Dict[str, str]]:
                             if m:
                                 category_to_id[cat_name] = m.group(1)
         except Exception as e:
-            log.warning(f"Error loading promptinclude rules: {e}")
+            log.warning(f"Error loading promptinclude rules from {rules_path}: {e}")
 
     # 3. playlists_urls.json (additional active playlists)
-    urls_path = os.path.join(BASE_DIR, "playlists_urls.json")
-    if os.path.exists(urls_path):
+    urls_path = _find_data_file("playlists_urls.json")
+    if urls_path:
         try:
             with open(urls_path, "r", encoding="utf-8") as f:
                 urls = json.load(f)
@@ -151,11 +239,11 @@ def load_rules_and_mappings() -> Tuple[Dict[str, str], Dict[str, str]]:
                         pid = url.split("list=")[1].split("&")[0]
                         category_to_id[name] = pid
         except Exception as e:
-            log.warning(f"Error loading playlists_urls.json: {e}")
+            log.warning(f"Error loading playlists_urls.json from {urls_path}: {e}")
 
     # 4. categorized_playlists.json (check for 1~Sort / To Sort / Inbox)
-    cat_pl_path = os.path.join(BASE_DIR, "categorized_playlists.json")
-    if os.path.exists(cat_pl_path):
+    cat_pl_path = _find_data_file("categorized_playlists.json")
+    if cat_pl_path:
         try:
             with open(cat_pl_path, "r", encoding="utf-8") as f:
                 cat_pls = json.load(f)
@@ -175,7 +263,7 @@ def load_rules_and_mappings() -> Tuple[Dict[str, str], Dict[str, str]]:
                             else:
                                 category_to_id[name] = pid
         except Exception as e:
-            log.warning(f"Error loading categorized_playlists.json: {e}")
+            log.warning(f"Error loading categorized_playlists.json from {cat_pl_path}: {e}")
 
     return channel_map, category_to_id
 
@@ -460,7 +548,7 @@ async def execute_auto_sort(
             log.error(f"Failed to auto-sort video {vid}: {e}")
 
     if successfully_moved_ids:
-        for snap_path in SNAPSHOT_FILES:
+        for snap_path in get_all_snapshot_candidate_paths():
             if os.path.exists(snap_path):
                 try:
                     with open(snap_path, "r", encoding="utf-8") as f:
