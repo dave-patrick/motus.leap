@@ -61,24 +61,43 @@ class RemoveDuplicatesRequest(BaseModel):
 def get_playlists(user=Depends(get_current_user)):
     report_path = get_user_file_path("playlists_report.json", user)
     playlists = load_cached_playlist_report(report_path)
-    if playlists:
-        try:
-            if isinstance(playlists, list):
-                def sort_key(p):
-                    name = p.get("name", "")
-                    if name.lower() == "watch later":
-                        return (0, "")
-                    return (1, name.lower())
-                playlists = list(playlists)
-                playlists.sort(key=sort_key)
-                for p in playlists:
-                    if isinstance(p, dict):
-                        p["title"] = p.get("title") or p.get("name") or "Untitled"
-                        p["name"] = p.get("name") or p.get("title") or "Untitled"
-            return playlists
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error reading playlists report: {e}")
-    return []
+    if not playlists or not isinstance(playlists, list):
+        playlists = []
+
+    try:
+        playlists = list(playlists)
+        # Ensure 1~Sort is present
+        has_sort = any(p.get("id") == "PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy" or (p.get("name") and p.get("name", "").lower() in ("1~sort", "1sort", "to sort")) for p in playlists if isinstance(p, dict))
+        if not has_sort:
+            playlists.append({
+                "name": "1~Sort",
+                "title": "1~Sort",
+                "url": "https://www.youtube.com/playlist?list=PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy",
+                "id": "PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy",
+                "videos": [],
+                "video_count": 0
+            })
+        else:
+            for p in playlists:
+                if isinstance(p, dict) and (p.get("id") == "PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy" or (p.get("name") and p.get("name", "").lower() in ("1~sort", "1sort", "to sort"))):
+                    p["name"] = "1~Sort"
+                    p["title"] = "1~Sort"
+
+        def sort_key(p):
+            name = p.get("name", "")
+            if name.lower() == "watch later":
+                return (0, "")
+            if name.lower() in ("1~sort", "1sort"):
+                return (1, "")
+            return (2, name.lower())
+        playlists.sort(key=sort_key)
+        for p in playlists:
+            if isinstance(p, dict):
+                p["title"] = p.get("title") or p.get("name") or "Untitled"
+                p["name"] = p.get("name") or p.get("title") or "Untitled"
+        return playlists
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading playlists report: {e}")
 
 @router.get("/videos")
 def get_playlist_videos(playlist_url: str, refresh: bool = False, user=Depends(get_current_user)):

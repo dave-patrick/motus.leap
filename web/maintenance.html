@@ -1300,7 +1300,11 @@
         async function openAutoSortWatchLaterModal(forceBrowser = false) {
             const modal = document.getElementById('move-watch-later-modal');
             const sel = document.getElementById('wl-target-playlist');
-            if (sel) sel.innerHTML = buildPlaylistOptionsHtml('', 'Select Target Playlist...', 'Select Target Playlist...', true);
+            if (sel) sel.innerHTML = buildPlaylistOptionsHtml('PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy', '1~Sort', 'Select Target Playlist...', true);
+            const batchSel = document.getElementById('wl-batch-target-select');
+            if (batchSel) {
+                batchSel.innerHTML = `<option value="">Select playlist to apply...</option><optgroup label="Inbox & Triage"><option value="PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy" data-cat="1~Sort">1~Sort</option></optgroup>`;
+            }
             if (modal) modal.classList.remove('hidden');
             switchWlTab('auto-sort');
 
@@ -1350,12 +1354,6 @@
 
             const tbody = document.getElementById('wl-video-table-body');
             if (!tbody) return;
-
-            if (!data.items || data.items.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">No videos found in Watch Later snapshot.</td></tr>`;
-                updateWlSortButton();
-                return;
-            }
 
             const availableCats = data.available_categories || [];
 
@@ -1453,6 +1451,12 @@
                 singleMoveSel.innerHTML = `<option value="">Select Target Playlist...</option>` +
                     (stagingDestinations.length > 0 ? `<optgroup label="Inbox & Triage">` + stagingDestinations.map(d => `<option value="${escapeHtml(d.playlist_id)}" ${d.category === '1~Sort' ? 'selected' : ''}>Move to ${escapeHtml(d.category)} ★ Recommended</option>`).join('') + `</optgroup>` : '') +
                     (standardDestinations.length > 0 ? `<optgroup label="Category Playlists">` + standardDestinations.map(d => `<option value="${escapeHtml(d.playlist_id)}">Move to ${escapeHtml(d.category)}</option>`).join('') + `</optgroup>` : '');
+            }
+
+            if (!data.items || data.items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">No videos found in Watch Later snapshot.</td></tr>`;
+                updateWlSortButton();
+                return;
             }
 
             tbody.innerHTML = data.items.map((item, idx) => {

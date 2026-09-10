@@ -3,6 +3,7 @@ When categorizing or moving videos for the user, use the following rules to assi
 
 | Video type | Playlist | Playlist ID |
 |---|---|---|
+| **1~Sort** (inbox, triage, to sort, unorganized videos) | 1~Sort | `PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy` |
 | **Music Videos** (single songs/music videos) | Music Videos | `PL7y0zeb_CORJPWvCa3H1PgYo6weywtEYO` |
 | **AI-related** (artificial intelligence, ML, LLMs, AI tools/news) | AI | `PL7y0zeb_CORL1pSvjlwSusYNmG6KoRJup` |
 | **Mobile** (smartphones, iOS, Android, phone reviews, comparisons, Samsung Galaxy devices/watches/buds/phones) | Mobile | `PL7y0zeb_CORIpkrNA-VHc-QwaSjPAgCgj` |

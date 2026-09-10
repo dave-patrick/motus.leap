@@ -1039,6 +1039,14 @@ function populateTargetPlaylists(excludeName) {
     defaultOpt.textContent = '-- Select Playlist --';
     select.appendChild(defaultOpt);
     
+    const hasSort = allPlaylists.some(p => (p.name || '').toLowerCase().includes('1~sort') || (p.name || '').toLowerCase() === 'to sort');
+    if (!hasSort && (!excludeName || !excludeName.toLowerCase().includes('1~sort'))) {
+        const sortOpt = document.createElement('option');
+        sortOpt.value = '1~Sort';
+        sortOpt.textContent = '1~Sort';
+        select.appendChild(sortOpt);
+    }
+
     allPlaylists.forEach(p => {
         if (p.name.toLowerCase() !== excludeName.toLowerCase()) {
             const opt = document.createElement('option');
