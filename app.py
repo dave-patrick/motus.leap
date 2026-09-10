@@ -762,7 +762,11 @@ async def api_playlist_names():
     try:
         data = await youtube_service.list_playlists()
         playlists = data.get("playlists", [])
-        return {"playlists": [{"id": p["id"], "title": p["title"], "video_count": p.get("video_count", 0)} for p in playlists]}
+        def _clean_title(pid: str, title: str) -> str:
+            if pid == "PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy" or (title and title.lower() in ("to sort", "1sort", "1~sort")):
+                return "1~Sort"
+            return title
+        return {"playlists": [{"id": p["id"], "title": _clean_title(p.get("id", ""), p.get("title", "")), "video_count": p.get("video_count", 0)} for p in playlists]}
     except Exception as e:
         log.warning(f"Failed to load playlist names: {e}")
         return {"playlists": []}
@@ -2990,7 +2994,10 @@ async def api_watch_later_preview(allow_browser: bool = False) -> dict[str, Any]
                     pid = p.get("id")
                     title = p.get("title") or p.get("name")
                     if pid and title:
-                        extra_pls[title] = pid
+                        if pid == "PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy" or title.lower() in ("to sort", "1sort", "1~sort"):
+                            extra_pls["1~Sort"] = pid
+                        else:
+                            extra_pls[title] = pid
         except Exception as ple:
             log.warning(f"Could not load playlists for watch-later preview: {ple}")
 

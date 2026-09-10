@@ -169,11 +169,11 @@ def load_rules_and_mappings() -> Tuple[Dict[str, str], Dict[str, str]]:
                         elif item.get("id"):
                             pid = item.get("id")
                         if name and pid:
-                            category_to_id[name] = pid
-                            # If name is 'To Sort' or variations, also map '1~Sort'
                             clean_name = name.lower()
-                            if any(k in clean_name for k in ["to sort", "1~sort", "1sort"]):
+                            if any(k in clean_name for k in ["to sort", "1~sort", "1sort"]) or pid == "PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy":
                                 category_to_id["1~Sort"] = pid
+                            else:
+                                category_to_id[name] = pid
         except Exception as e:
             log.warning(f"Error loading categorized_playlists.json: {e}")
 
@@ -321,7 +321,15 @@ def preview_watch_later_sorting(
     if extra_playlists and isinstance(extra_playlists, dict):
         for name, pid in extra_playlists.items():
             if name and pid:
-                category_to_id[name] = pid
+                clean_name = name.lower()
+                if any(k in clean_name for k in ["to sort", "1~sort", "1sort"]) or pid == "PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy":
+                    category_to_id["1~Sort"] = pid
+                else:
+                    category_to_id[name] = pid
+
+    # Always ensure 1~Sort is present as an available staging destination
+    if "1~Sort" not in category_to_id:
+        category_to_id["1~Sort"] = "PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy"
 
     classified_items = []
     unclassified_items = []
@@ -351,9 +359,17 @@ def preview_watch_later_sorting(
             if channel:
                 unmatched_channels.add(channel)
 
+    # Clean up duplicate names pointing to the 1~Sort playlist id
+    cleaned_categories = {}
+    for cat, pid in category_to_id.items():
+        if pid == "PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy" or any(k in cat.lower() for k in ["to sort", "1~sort", "1sort"]):
+            cleaned_categories["1~Sort"] = pid
+        else:
+            cleaned_categories[cat] = pid
+
     available_categories = sorted([
         {"category": cat, "playlist_id": pid}
-        for cat, pid in category_to_id.items()
+        for cat, pid in cleaned_categories.items()
     ], key=lambda x: x["category"].lower())
 
     return {

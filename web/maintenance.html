@@ -245,6 +245,10 @@
             } catch (e) {
                 console.warn('Failed to fetch playlists map:', e);
             }
+            // Ensure 1~Sort is known in playlistsMap
+            if (!playlistsMap['PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy'] || playlistsMap['PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy'].toLowerCase() === 'to sort') {
+                playlistsMap['PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy'] = '1~Sort';
+            }
         }
 
         function maintenanceThumb(videoId) {
@@ -863,6 +867,9 @@
         }
         
         function buildPlaylistOptionsHtml(selectedId, recommendedTitle, placeholderText = 'Select Destination...', allowStaging = false) {
+            if (allowStaging && (!playlistsMap['PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy'] || playlistsMap['PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy'].toLowerCase() === 'to sort')) {
+                playlistsMap['PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy'] = '1~Sort';
+            }
             const keys = Object.keys(playlistsMap);
             // Videos must NEVER be moved to 1~Sort or staging playlists during maintenance scan fixes,
             // but moving into 1~Sort or staging is completely valid when triaging Watch Later!
@@ -1355,16 +1362,29 @@
             // Combine backend rule categories with all library playlists in playlistsMap
             // Make sure 1~Sort and user staging playlists are always available
             const categoryMap = new Map();
+            // Pre-seed 1~Sort as primary staging destination
+            categoryMap.set('PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy', '1~Sort');
+
             availableCats.forEach(ac => {
                 if (ac.category && ac.playlist_id) {
-                    categoryMap.set(ac.playlist_id, ac.category);
+                    const pid = ac.playlist_id;
+                    const cat = ac.category;
+                    const isSort = pid === 'PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy' || ['1~sort', '1sort', 'to sort'].some(k => cat.toLowerCase().includes(k));
+                    if (isSort) {
+                        categoryMap.set('PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy', '1~Sort');
+                    } else if (!categoryMap.has(pid)) {
+                        categoryMap.set(pid, cat);
+                    }
                 }
             });
             Object.entries(playlistsMap || {}).forEach(([pid, title]) => {
                 const sId = String(pid || '').toLowerCase();
                 const sTitle = String(title || '').toLowerCase();
                 if (sId !== 'wl' && !sTitle.includes('watch later')) {
-                    if (!categoryMap.has(pid)) {
+                    const isSort = pid === 'PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy' || ['1~sort', '1sort', 'to sort'].some(k => sTitle.includes(k));
+                    if (isSort) {
+                        categoryMap.set('PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy', '1~Sort');
+                    } else if (!categoryMap.has(pid)) {
                         categoryMap.set(pid, title);
                     }
                 }
@@ -1377,8 +1397,9 @@
             categoryMap.forEach((title, pid) => {
                 const sTitle = title.toLowerCase();
                 const sId = pid.toLowerCase();
-                const isStaging = sTitle.includes('1~sort') || sTitle.includes('1sort') || sTitle.includes('to sort') || sTitle.includes('inbox') || sId.includes('sort');
-                const destObj = { playlist_id: pid, category: title };
+                const isStaging = pid === 'PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy' || sTitle.includes('1~sort') || sTitle.includes('1sort') || sTitle.includes('to sort') || sTitle.includes('inbox') || sId.includes('sort');
+                const finalTitle = (pid === 'PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy' || sTitle.includes('to sort')) ? '1~Sort' : title;
+                const destObj = { playlist_id: pid, category: finalTitle };
                 if (isStaging) {
                     stagingDestinations.push(destObj);
                 } else {
@@ -1386,7 +1407,14 @@
                 }
             });
 
-            stagingDestinations.sort((a, b) => a.category.localeCompare(b.category));
+            // Guarantee 1~Sort is at index 0 of stagingDestinations
+            stagingDestinations.sort((a, b) => {
+                const aIs1Sort = a.playlist_id === 'PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy' || a.category.toLowerCase().includes('1~sort');
+                const bIs1Sort = b.playlist_id === 'PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy' || b.category.toLowerCase().includes('1~sort');
+                if (aIs1Sort && !bIs1Sort) return -1;
+                if (!aIs1Sort && bIs1Sort) return 1;
+                return a.category.localeCompare(b.category);
+            });
             standardDestinations.sort((a, b) => a.category.localeCompare(b.category));
 
             // Helper to build options HTML for row target or batch select
@@ -1417,6 +1445,14 @@
                 batchSelect.innerHTML = `<option value="">Select playlist to apply...</option>` + 
                     (stagingDestinations.length > 0 ? `<optgroup label="Inbox & Triage">` + stagingDestinations.map(d => `<option value="${escapeHtml(d.playlist_id)}" data-cat="${escapeHtml(d.category)}">${escapeHtml(d.category)}</option>`).join('') + `</optgroup>` : '') +
                     (standardDestinations.length > 0 ? `<optgroup label="Category Playlists">` + standardDestinations.map(d => `<option value="${escapeHtml(d.playlist_id)}" data-cat="${escapeHtml(d.category)}">${escapeHtml(d.category)}</option>`).join('') + `</optgroup>` : '');
+            }
+
+            // Also populate single move dropdown with 1~Sort prominently featured
+            const singleMoveSel = document.getElementById('wl-target-playlist');
+            if (singleMoveSel) {
+                singleMoveSel.innerHTML = `<option value="">Select Target Playlist...</option>` +
+                    (stagingDestinations.length > 0 ? `<optgroup label="Inbox & Triage">` + stagingDestinations.map(d => `<option value="${escapeHtml(d.playlist_id)}" ${d.category === '1~Sort' ? 'selected' : ''}>Move to ${escapeHtml(d.category)} ★ Recommended</option>`).join('') + `</optgroup>` : '') +
+                    (standardDestinations.length > 0 ? `<optgroup label="Category Playlists">` + standardDestinations.map(d => `<option value="${escapeHtml(d.playlist_id)}">Move to ${escapeHtml(d.category)}</option>`).join('') + `</optgroup>` : '');
             }
 
             tbody.innerHTML = data.items.map((item, idx) => {
