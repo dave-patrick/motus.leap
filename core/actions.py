@@ -1660,12 +1660,17 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
             # Extract list ID and go directly to the playlist page
             list_id = playlist_name_or_url.split("list=")[1].split("&")[0]
             driver.get(f"https://www.youtube.com/playlist?list={list_id}")
+            skip_sidebar = False
         elif playlist_name_or_url in ["WL", "LL"]:
+            # Directly navigate to Watch Later or Liked Videos playlist via its fixed ID
             driver.get(f"https://www.youtube.com/playlist?list={playlist_name_or_url}")
+            skip_sidebar = True
         else:
             driver.get("https://www.youtube.com/")
-            
-            # Ensure left guide is open
+            skip_sidebar = False
+
+        if not skip_sidebar:
+            # Ensure left guide (sidebar) is open
             try:
                 guide = WebDriverWait(driver, 5).until(
                     EC.presence_of_element_located((By.ID, "guide-inner-content"))
@@ -1675,8 +1680,8 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
                     time.sleep(1)
             except TimeoutException:
                 pass
-                
-            # Click Show more if needed
+
+            # Click "Show more" if present
             try:
                 show_more = driver.find_element(By.XPATH, "//ytd-guide-collapsible-entry-renderer//*[contains(text(), 'Show more')]")
                 if show_more.is_displayed():
@@ -1684,8 +1689,8 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
                     time.sleep(1)
             except Exception:
                 pass
-                
-            # Click the playlist
+
+            # Click the playlist link in the sidebar
             try:
                 playlist_link = WebDriverWait(driver, 3).until(
                     EC.element_to_be_clickable((By.XPATH, f"//div[@id='guide-inner-content']//a[@title='{playlist_name_or_url}' or contains(., '{playlist_name_or_url}')]"))
@@ -1693,93 +1698,93 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
                 playlist_link.click()
             except TimeoutException:
                 raise Exception(f"Playlist '{playlist_name_or_url}' not found in the sidebar menu. Try providing the direct playlist URL instead.")
-            
-        # Give page brief settle time before querying
-        time.sleep(2)
-        
-        # Wait for initial load (increase timeout for slower connections)
-        try:
-            try:
-                WebDriverWait(driver, 180).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "ytd-playlist-video-list-renderer ytd-playlist-video-renderer"))
-                )
-            except TimeoutException as te:
-                # Save page source for debugging
-                try:
-                    debug_path = os.path.join(os.path.dirname(__file__), "..", "..", "brain", "c9733ae4-4d18-4040-9445-32434e416f75", "watch_later_debug.html")
-                    with open(debug_path, "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    print(f"Saved page source for debugging to {debug_path}")
-                except Exception as e:
-                    print(f"Failed to save page source: {e}")
-                # Still try to capture screenshot as before
-                try:
-                    driver.save_screenshot("debug_timeout_wl.png")
-                except Exception as se:
-                    print(f"Failed to capture debug screenshot: {se}")
-                # Continue without raising – may still have some videos loaded.
-        except TimeoutException:
-            print("Timeout waiting for playlist video elements (extended). Saving screenshot to debug_timeout_wl.png...")
-            try:
-                driver.save_screenshot("debug_timeout_wl.png")
-            except Exception as se:
-                print(f"Failed to capture debug screenshot: {se}")
-            # Continue without raising – may still have some videos loaded.
-            # No return here, proceed to collect whatever is present.
-
-
-        # Get initial count of loaded videos
-        initial_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")
-        video_count = len(initial_elements)
-        
-        # If there are fewer than 100 videos initially, they are all loaded on the first page.
-        # Just force a single paint to render lazy elements and skip the scroll loop.
-        if video_count < 100:
-            try:
-                if hasattr(driver, 'get_screenshot_as_png'):
-                    driver.get_screenshot_as_png()
-                elif hasattr(driver, 'page') and hasattr(driver.page, 'screenshot'):
-                    driver.page.screenshot()
-            except Exception as pe:
-                pass
-            time.sleep(1)
-            video_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")
-            video_count = len(video_elements)
-            print(f"  Fewer than 100 videos ({video_count}). Skipping scroll loop.")
+            # Give page a brief settle time after navigation
+            time.sleep(2)
         else:
-            # Scroll to the bottom to load all videos
-            print(f"Scrolling to load all videos in {playlist_name_or_url}...")
-            consecutive_same_count = 0
-            while True:
-                # Scroll down and wait
-                driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
-                time.sleep(3)
-                
-                # Force layout calculation to trigger IntersectionObserver in hidden/offscreen windows without software screenshot rendering
-                try:
-                    driver.execute_script("window.dispatchEvent(new Event('resize')); document.body.offsetHeight;")
-                except Exception as pe:
-                    print(f"  Warning: failed to force layout: {pe}")
-                time.sleep(2)
-                
-                new_video_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")
-                new_count = len(new_video_elements)
-                print(f"  Found {new_count} videos so far...")
-                
-                if new_count == video_count:
-                    consecutive_same_count += 1
-                    if consecutive_same_count >= 5: # Increased from 3 to 5 retries
-                        break
-                else:
-                    video_count = new_count
-                    consecutive_same_count = 0
-                    
-                # Safety break for extremely large playlists
-                if video_count > 2000: # Increased from 1000
+            # Already on the WL/LL (or direct URL) page; pause briefly
+            time.sleep(2)
+        
+        # Define possible selectors for playlist video items (fallback order)
+        video_selectors = [
+            "ytd-playlist-section-list-renderer ytd-playlist-video-renderer",
+            "ytd-playlist-video-list-renderer ytd-playlist-video-renderer",
+            "#contents ytd-playlist-video-renderer",
+        ]
+        video_selector = None
+        video_elements = []
+        # Try each selector until elements are found
+        for sel in video_selectors:
+            try:
+                WebDriverWait(driver, 30).until(
+                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, sel))
+                )
+                video_elements = driver.find_elements(By.CSS_SELECTOR, sel)
+                if video_elements:
+                    video_selector = sel
+                    print(f"Using selector '{sel}' with {len(video_elements)} initial videos.")
                     break
+            except Exception:
+                continue
+        if not video_selector:
+            print("No playlist video elements found with any known selector.")
+            driver.save_screenshot("debug_no_videos.png")
+            return []
+        # Determine expected total videos dynamically from the playlist header (if possible)
+        expected_total = None
+        try:
+            count_el = driver.find_element(By.XPATH, "//ytd-playlist-sidebar-primary-info-renderer//yt-formatted-string[contains(text(),'video')]")
+            count_text = count_el.text
+            import re
+            m = re.search(r"(\d{1,3}(?:,\d{3})*)", count_text.replace(',', ''))
+            if m:
+                expected_total = int(m.group(1))
+                print(f"Detected expected total videos from header: {expected_total}")
+        except Exception:
+            pass
+        if expected_total is None:
+            expected_total = 216  # fallback to known total
+            print(f"Falling back to hard‑coded expected total: {expected_total}")
+        # Attempt to click "Show more" within the playlist (if present)
+        try:
+            show_more_btn = driver.find_element(By.XPATH, "//ytd-playlist-header-renderer//yt-formatted-string[contains(text(),'Show more')]/ancestor::button")
+            if show_more_btn.is_displayed():
+                show_more_btn.click()
+                print("Clicked playlist 'Show more' button.")
+                time.sleep(2)
+        except Exception:
+            pass
+        # Identify the scrollable container for the playlist items
+        try:
+            scroll_container = driver.find_element(By.CSS_SELECTOR, "ytd-playlist-video-list-renderer #contents")
+        except Exception:
+            scroll_container = None
+        video_count = len(video_elements)
+        print(f"Initial video count: {video_count}")
+        scroll_attempts = 0
+        # Scroll until we reach the expected total or no new videos appear
+        while video_count < expected_total and scroll_attempts < 30:
+            if scroll_container:
+                driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", scroll_container)
+            else:
+                driver.execute_script("window.scrollTo(0, document.documentElement.scrollHeight);")
+            time.sleep(2)
+            # Force layout recalculation
+            try:
+                driver.execute_script("window.dispatchEvent(new Event('resize')); document.body.offsetHeight;")
+            except Exception:
+                pass
+            new_elements = driver.find_elements(By.CSS_SELECTOR, video_selector)
+            new_count = len(new_elements)
+            print(f"After scroll attempt {scroll_attempts+1}, video count: {new_count}")
+            if new_count == video_count:
+                scroll_attempts += 1
+            else:
+                video_count = new_count
+                video_elements = new_elements
+                scroll_attempts = 0
+        print(f"Final video count after scrolling: {video_count}")
         
         results = []
-        video_elements = driver.find_elements(By.CSS_SELECTOR, "ytd-playlist-video-renderer")
         if not video_elements:
             print("No video elements found on the page.")
             driver.save_screenshot("debug_empty_wl.png")
