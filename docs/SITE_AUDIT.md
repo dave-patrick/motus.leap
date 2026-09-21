@@ -37,7 +37,7 @@ These are recommendations, not claims that the features have been implemented.
 
 ## Verification and limits
 
-- Python regression suite: **335 passed** on Python 3.12. Production undefined-name gate and compilation passed.
+- Python regression suite: **338 passed** on Python 3.12. Production undefined-name gate and compilation passed.
 - JavaScript: **6 behavioral regressions passed**; **21 source/inline-script blocks** passed syntax checks.
 - Source inspection covers page form labels; it does not establish WCAG conformance.
 - The cloud browser refused the local preview URL (`ERR_BLOCKED_BY_CLIENT`). No
