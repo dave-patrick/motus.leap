@@ -750,6 +750,7 @@ async def logout(
         token = request.cookies.get("token")
 
     if token:
+        revoke_token(token)
         token_hash = _hash_token(token)
         user_sessions.pop(token_hash, None)
         await _save_sessions(user_sessions)
@@ -1350,4 +1351,3 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
 
 # Call this at startup to ensure a default admin user exists
 # But make sure it's awaited if called from an async context or run in a thread
-

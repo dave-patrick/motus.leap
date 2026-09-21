@@ -919,6 +919,7 @@ class YouTubeService:
         all_items = []
         page_token = None
         consecutive_errors = 0
+        max_consecutive_errors = 3
         unbounded = max_items <= 0
 
         while unbounded or len(all_items) < max_items:
@@ -1503,6 +1504,3 @@ class YouTubeService:
                     updated = True
             if updated:
                 await self._save_to_disk(key, data)
-
-        return all_data
-

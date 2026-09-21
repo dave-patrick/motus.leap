@@ -95,7 +95,7 @@ async def health_check() -> Dict[str, Any]:
                 "status": "ok",
                 "size_bytes": cache_size,
             }
-            if PROMETHEPUS_AVAILABLE:
+            if PROMETHEUS_AVAILABLE:
                 DISK_CACHE_SIZE.set(cache_size)
         else:
             checks["checks"]["disk_cache"] = {"status": "not_initialized"}

@@ -24,7 +24,7 @@ import re
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends
@@ -77,6 +77,9 @@ from models.task import Task, TaskStatus, TaskPriority
 # Service imports
 from services.youtube_service import YouTubeService, _best_thumbnail
 from services import quota_ledger as _quota_ledger
+
+if TYPE_CHECKING:
+    from services.background_worker import BackgroundWorker
 # Setup logging
 
 # Paths
@@ -248,6 +251,7 @@ async def lifespan(app: FastAPI):
                 if getattr(config, "ai_auto_apply_mappings", False):
                     log.info("[NIGHTLY] Running auto-apply mappings job...")
                     from services.ai_classifier import get_channel_mapping_suggestions
+                    suggestions = await get_channel_mapping_suggestions()
                     excluded = set(getattr(config, "excluded_playlists", []) or [])
                     for s in suggestions:
                         if s.get("playlist_id") in excluded:
@@ -786,7 +790,7 @@ async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: b
             wl_videos = load_watch_later_videos()
             return {"videos": wl_videos, "cached": True, "is_watch_later": True}
         except Exception as e:
-            logger.warning(f"Error loading watch later videos: {e}")
+            log.warning(f"Error loading watch later videos: {e}")
 
     if not youtube_service:
         return {"videos": [], "error": "YouTube service not initialized"}
@@ -1148,8 +1152,7 @@ async def update_mapped_playlists_endpoint(request: Request):
 
         # Broadcast dynamic update to connected clients
         try:
-            if ws_manager:
-                await ws_manager.broadcast(fast_dumps({"type": "maintenance_updated", "mapped_playlists": cfg.mapped_playlists}))
+            await manager.broadcast(fast_dumps({"type": "maintenance_updated", "mapped_playlists": cfg.mapped_playlists}))
         except Exception:
             pass
 
@@ -2554,7 +2557,7 @@ async def _maintenance_apply_one(
         if "quotaExceeded" in err_str or "quota" in err_str.lower() or "403" in err_str:
             log.warning(f"[QUOTA] YouTube API daily quota exceeded during maintenance '{action}': {err_str}")
             return {"status": "error", "quota_exceeded": True, "action": action, "video_id": video_id,
-                    "error": "YouTube API daily quota limit reached (10,000 units/day). Google resets quota daily."}
+                    "error": f"YouTube API daily quota limit reached ({_quota_ledger.DAILY_CAP:,} units/day). Google resets quota daily."}
         log.error(f"[MAINTENANCE] Error during '{action}': {err_str}")
         return {"status": "error", "action": action, "video_id": video_id, "error": err_str}
 
@@ -2830,7 +2833,7 @@ async def api_maintenance_action(payload: MaintenanceActionIn) -> dict[str, Any]
             "processed": processed,
             "succeeded": succeeded,
             "failed": failed,
-            "error": f"YouTube API daily quota limit reached (10,000 units/day). Processed {succeeded} item(s) before limit. Google resets quota daily.",
+            "error": f"YouTube API daily quota limit reached ({_quota_ledger.DAILY_CAP:,} units/day). Processed {succeeded} item(s) before limit. Google resets quota daily.",
             "errors": errors[:25],
         }
 
@@ -3731,22 +3734,19 @@ async def youtube_status():
     }
 
 
-@app.get("/api/youtube/debug-status")
+@app.get(
+    "/api/youtube/debug-status",
+    dependencies=[Depends(check_role([RoleEnum.ADMIN]))],
+)
 async def youtube_debug_status():
-    """Diagnostic: show masked token state for debugging connection status."""
+    """Return non-sensitive connection diagnostics to administrators."""
     config = config_manager.config
-    def _mask(v):
-        s = str(v) if v else ""
-        if len(s) <= 8:
-            return repr(s)
-        return f"{s[:4]}...{s[-4:]} (len={len(s)})"
     return {
-        "refresh_token": _mask(config.oauth.refresh_token),
-        "access_token": _mask(config.oauth.access_token),
+        "has_refresh_token": _is_real_token(config.oauth.refresh_token),
+        "has_access_token": _is_real_token(config.oauth.access_token),
         "refresh_is_real": _is_real_token(config.oauth.refresh_token),
         "access_is_real": _is_real_token(config.oauth.access_token),
-        "youtube_api_key_type": type(_secret_val(config.youtube_api_key)).__name__,
-        "config_file": str(config_manager._path),
+        "api_key_configured": _is_real_token(config.youtube_api_key),
     }
 
 

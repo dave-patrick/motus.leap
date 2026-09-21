@@ -2,7 +2,7 @@
 
 Why this exists
 ---------------
-motus.leap's daily YouTube Data API budget is 10,000 units (1 unit per read,
+motus.leap's daily YouTube Data API budget is configurable (1 unit per read,
 50 per playlistItems mutation). When that's spent, every subsequent call
 returns 403 quotaExceeded and any in-flight batch dies mid-way. This module
 tracks units spent *per UTC day* on disk so that:
@@ -27,17 +27,27 @@ Design notes
 from __future__ import annotations
 
 import json
+import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-# Google's default YouTube Data API daily quota.
-DAILY_CAP = 10_000
-# Stop authorising new mutations once we've used this much; the remainder is
-# reserved for the read calls a flow still has to make to report status.
-SAFE_MARGIN = 1_000
-SOFT_CAP = DAILY_CAP - SAFE_MARGIN  # 9_000
+def _positive_int_env(name: str, default: int) -> int:
+    """Read a positive integer setting without breaking app startup."""
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+# This project's approved quota is 1.5 million units/day. Keep it configurable
+# so deployments with a different Google Cloud quota do not require a code edit.
+DAILY_CAP = _positive_int_env("YOUTUBE_DAILY_QUOTA", 1_500_000)
+# Reserve 5% (at least 1,000 units) for status reads and in-flight work.
+SAFE_MARGIN = min(DAILY_CAP - 1, max(1_000, DAILY_CAP // 20))
+SOFT_CAP = DAILY_CAP - SAFE_MARGIN
 
 _LEDGER_FILE = "quota_ledger.json"
 _lock = threading.Lock()

@@ -6,6 +6,7 @@ import pytest
 from api import auth as auth_module
 from api.auth import create_access_token
 from services.youtube_service import _extract_quota_reason
+from services import quota_ledger
 
 
 def _seed_user(monkeypatch, sub: str = "qg") -> dict:
@@ -70,3 +71,8 @@ def test_extract_quota_reason():
     nq = Resp({"error": {"errors": [{"reason": "forbidden"}]}})
     assert _extract_quota_reason(nq) == "forbidden"
     assert _extract_quota_reason(Resp({"foo": 1})) is None
+
+
+def test_quota_guard_matches_approved_daily_quota():
+    assert quota_ledger.DAILY_CAP == 1_500_000
+    assert quota_ledger.SOFT_CAP == 1_425_000

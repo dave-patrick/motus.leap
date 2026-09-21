@@ -4,7 +4,7 @@ An automated agent for managing YT playlists using browser automation and OAuth 
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
+![License](https://img.shields.io/badge/License-Apache--2.0-green.svg)
 
 <h2 align="center">Automated YouTube Playlist Orchestrator</h2>
 
@@ -34,7 +34,7 @@ An automated agent for managing YT playlists using browser automation and OAuth 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.9+
+- Python 3.11+
 - Chromium browser (installed automatically via Playwright)
 
 ### Install
@@ -48,10 +48,14 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
+The quota guard defaults to this project's approved 1,500,000 YouTube API
+units per day. Deployments with a different allowance can set
+`YOUTUBE_DAILY_QUOTA` to their approved daily limit.
+
 ### Run Server
 
 ```bash
-python server.py
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 Then open `http://localhost:8000`.
@@ -60,5 +64,4 @@ Then open `http://localhost:8000`.
 
 ## 📄 License
 
-MIT — see [LICENSE](LICENSE)
-
+Apache-2.0 — see [LICENSE](LICENSE)
