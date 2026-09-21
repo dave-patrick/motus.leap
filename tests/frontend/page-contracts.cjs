@@ -17,3 +17,10 @@ test('compiled CSS stays within the production asset budget', () => {
   const bytes = fs.statSync('web/static/tailwind.css').size;
   assert.ok(bytes < 400_000, `tailwind.css is ${bytes} bytes`);
 });
+
+test('global shell header is distinct from page section headers', () => {
+  const shell = fs.readFileSync('web/static/shared-shell.js', 'utf8');
+  assert.match(shell, /id="shell-header"/);
+  assert.match(shell, /getElementById\('shell-header'\)/);
+  assert.doesNotMatch(shell, /let header = document\.querySelector\('header'\)/);
+});

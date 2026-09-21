@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260922a';
+  const SHELL_VERSION = '20260922b';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -15,7 +15,7 @@
   function shellHeader() {
     const path = window.location.pathname;
     const settingsActive = path === '/settings' ? 'text-[#2f8fc9] border-[#2f8fc9]/40' : 'text-gray-400 border-[#2a2f3a]';
-    return `<header class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center justify-between border-b border-[#2a2f3a] shrink-0 z-20">
+    return `<header id="shell-header" class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center justify-between border-b border-[#2a2f3a] shrink-0 z-20">
         <a href="/dashboard" class="flex items-center gap-4 pl-14 md:pl-0 flex-1 cursor-pointer hover:opacity-90 transition-opacity no-underline" title="Go to Dashboard">
           <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="site-logo" style="height:62px;width:auto;object-fit:contain;">
           <h1 class="text-[27px] md:text-[43px] font-semibold tracking-tight flex items-baseline leading-none site-title">
@@ -276,20 +276,26 @@
   }
 
   function ensureShellLayout() {
-    // 1) Header — create if the page has none (shared-shell is the single source).
-    let header = document.querySelector('header');
+    // 1) Global header — keep it above both the sidebar and main content.
+    // Page content may use semantic <header> elements, so identify the shell
+    // header by ID/version instead of taking the first header in the document.
+    let header = document.getElementById('shell-header') || document.querySelector('header[data-shell-version]');
     if (!header) {
       const tmp = document.createElement('template');
       tmp.innerHTML = shellHeader().trim();
       header = tmp.content.firstElementChild;
       header.dataset.shellVersion = SHELL_VERSION;
       document.body.insertBefore(header, document.body.firstChild);
-    } else if (!header.dataset.shellVersion) {
+    } else if (header.dataset.shellVersion !== SHELL_VERSION) {
       const tmp = document.createElement('template');
       tmp.innerHTML = shellHeader().trim();
       const newHeader = tmp.content.firstElementChild;
       newHeader.dataset.shellVersion = SHELL_VERSION;
       header.parentNode.replaceChild(newHeader, header);
+      header = newHeader;
+    }
+    if (header.parentElement !== document.body || header !== document.body.firstElementChild) {
+      document.body.insertBefore(header, document.body.firstElementChild);
     }
 
     // 2) Sidebar — create if absent.
