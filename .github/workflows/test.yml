@@ -36,5 +36,12 @@ jobs:
       - name: Run Mypy Type Check
         run: mypy . --ignore-missing-imports || true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Frontend behavior regressions
+        run: node --test tests/frontend/audit-regressions.cjs
+
       - name: Run Pytest
         run: pytest --cov=. --cov-report=xml

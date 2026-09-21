@@ -215,3 +215,15 @@ def test_extract_quota_reason_unaffected():
     assert _extract_quota_reason(Resp({"error": {"errors": [{"reason": "quotaExceeded"}]}})) == "quotaExceeded"
     assert _extract_quota_reason(Resp({"error": {"errors": [{"reason": "forbidden"}]}})) == "forbidden"
     assert _extract_quota_reason(Resp({"foo": 1})) is None
+
+
+@pytest.mark.asyncio
+async def test_full_sync_does_not_truncate_after_200_playlists(tmp_path, monkeypatch):
+    service = _make_service(tmp_path, monkeypatch)
+    playlists = [{"id": f"PL{i:03d}", "snippet": {"title": f"List {i:03d}"}, "contentDetails": {"itemCount": 1}} for i in range(201)]
+    videos = {p['id']: [{"id": f"item{i}", "snippet": {"title": "Video"}, "contentDetails": {"videoId": f"video{i}"}}] for i, p in enumerate(playlists)}
+    client = _fake_client(playlists=playlists, per_playlist=videos)
+    service.get_client = lambda require_oauth=False: client
+    result = await service._fetch_all_data_impl(force_refresh=True)
+    assert len(result['videos']) == 201
+    assert client.list_videos.call_count == 201

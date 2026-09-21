@@ -562,7 +562,7 @@ async function moveSelectedVideos() {
         toast('Moving… waiting for YouTube to apply', 'info');
         const status = await pollOperation(result.operation_id);
         if (status.status === 'completed') {
-            const ok = status.succeeded || videoIds.length;
+            const ok = status.succeeded ?? 0;
             const failed = status.failed || 0;
             if (failed > 0) {
                 toast(`Moved ${ok} video(s) to "${DOMPurify.sanitize(targetName)}" (${failed} failed)`, 'warning', 6000);
@@ -571,7 +571,8 @@ async function moveSelectedVideos() {
             }
 
             // Immediately remove moved videos from in-memory list and DOM
-            const movedSet = new Set(videoIds);
+            // Without per-item results, never hide videos whose move may have failed.
+            const movedSet = new Set(failed === 0 && ok === videoIds.length ? videoIds : []);
             allVideos = allVideos.filter(v => !movedSet.has(v.video_id));
             document.querySelectorAll('.video-card').forEach(card => {
                 if (movedSet.has(card.dataset.videoId)) {
@@ -579,7 +580,7 @@ async function moveSelectedVideos() {
                 }
             });
 
-            selectedVideos.clear();
+            movedSet.forEach(videoId => selectedVideos.delete(videoId));
             filterVideoList();
             updateMoveButton();
         } else if (status.status === 'failed') {

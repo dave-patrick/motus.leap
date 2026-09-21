@@ -17,26 +17,17 @@
     return null;
   }
   
-  const token = getCookie('token') || localStorage.getItem('token');
-  if (!token) {
-    window.location.href = '/auth';
-    return;
-  }
-
-  // Auto-sync token from localStorage to cookie if it's missing in cookies
-  if (!getCookie('token') && localStorage.getItem('token')) {
-    document.cookie = `token=${localStorage.getItem('token')}; path=/; max-age=604800; SameSite=Lax`;
-  }
-
   function clearAuthAndRedirect() {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+        ['motus_v2.1_playlists', 'cached_playlists', 'cached_subscriptions', 'quota_exceeded'].forEach(key => localStorage.removeItem(key));
     document.cookie = 'token=; path=/; max-age=0';
     window.location.href = '/auth';
   }
 
-  window.logout = function logout() {
-    clearAuthAndRedirect();
+  window.logout = async function logout() {
+    if (typeof window.logoutUser === "function") return window.logoutUser();
+    throw new Error("Sign-out is not ready. Please reload the page.");
   };
 
   function validateToken(attempt) {

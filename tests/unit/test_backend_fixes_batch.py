@@ -154,8 +154,14 @@ class TestM5MisplacedDetection:
         mock_youtube_service.get_videos = MagicMock(side_effect=fake_get_videos)
 
         # Wire channel_mappings onto the service so scan_misplaced reads them.
-        mock_youtube_service.config = MagicMock()
+        from models.config import TubeManagerConfig
+        mock_youtube_service.config = TubeManagerConfig(mapped_playlists=["plX"])
         mock_youtube_service.config.channel_mappings = mappings
+        # This regression exercises a staging playlist: settled categories are
+        # intentionally protected even when their channel maps elsewhere.
+        mock_youtube_service.list_playlists = AsyncMock(return_value={
+            "playlists": [{"id": "plX", "title": "Inbox"}, {"id": "plTarget", "title": "Target"}]
+        })
 
         import app as _app
         _app.youtube_service = mock_youtube_service

@@ -23,11 +23,13 @@ async function loadSubscriptions() {
         const subResp = await authFetch('/api/subscriptions');
         const data = await subResp.json();
         if (!subResp.ok || data.error) throw new Error(data.error || 'Failed to load subscriptions');
-        localStorage.setItem('cached_subscriptions', JSON.stringify(data));
+        try { localStorage.setItem('cached_subscriptions', JSON.stringify(data)); } catch (_) { /* Storage unavailable; live data still renders. */ }
         renderSubscriptionsList(data.channels || []);
+        return true;
     } catch (e) {
         list.innerHTML = `<div class="col-span-full text-center text-red-400 py-8">Error: ${DOMPurify.sanitize(e.message || 'Failed to load subscriptions due to a network error.')}</div>`;
         toast(`Error: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
+        return false;
     }
 }
 
@@ -63,8 +65,7 @@ function renderSubscriptionsList(channels) {
 
 async function refreshSubscriptions() {
     try {
-        await loadSubscriptions();
-        toast('Subscriptions refreshed successfully', 'success');
+        if (await loadSubscriptions()) toast('Subscriptions refreshed successfully', 'success');
     } catch (e) {
         toast(`Failed to refresh subscriptions: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
     }

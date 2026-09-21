@@ -1,6 +1,7 @@
 """Centralized logging configuration for motus.leap."""
 
 import logging
+from logging.handlers import RotatingFileHandler
 import sys
 from pathlib import Path
 from typing import Optional
@@ -11,10 +12,10 @@ def get_log_file_path() -> Path:
     env_dir = os.getenv("TUBE_MANAGER_DATA_DIR")
     if env_dir:
         return Path(env_dir) / "tube_manager.log"
-    if Path("data").exists():
-        return Path("data") / "tube_manager.log"
     if Path("/app/data").exists():
         return Path("/app/data") / "tube_manager.log"
+    if Path("data").exists():
+        return Path("data") / "tube_manager.log"
     d = Path("data")
     try:
         d.mkdir(parents=True, exist_ok=True)
@@ -39,7 +40,7 @@ def setup_logging(log_level: str = "INFO", log_file: Optional[Path] = None) -> l
     if log_file:
         try:
             log_file.parent.mkdir(parents=True, exist_ok=True)
-            handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+            handlers.append(RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"))
         except Exception as e:
             sys.stderr.write(f"[WARN] Failed to setup FileHandler for {log_file}: {e}\n")
 
@@ -60,3 +61,15 @@ def setup_logging(log_level: str = "INFO", log_file: Optional[Path] = None) -> l
         logging.getLogger(logger_name).setLevel(getattr(logging, log_level.upper(), logging.INFO))
 
     return logging.getLogger("tube_manager")
+
+def read_log_tail(path: Path, limit: int = 200, max_bytes: int = 262144) -> list[str]:
+    """Read a bounded recent tail rather than loading the entire server log."""
+    with path.open("rb") as stream:
+        stream.seek(0, 2)
+        size = stream.tell()
+        offset = max(0, size - max_bytes)
+        stream.seek(offset)
+        if offset:
+            stream.readline()  # discard an incomplete leading line
+        text = stream.read(max_bytes).decode("utf-8", errors="replace")
+    return [line for line in text.splitlines() if line.strip()][-limit:]

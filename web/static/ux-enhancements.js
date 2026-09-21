@@ -74,7 +74,7 @@ function showLoadingOverlay(message = "Loading...") {
         <div class="bg-gray-800 rounded-lg p-6 flex flex-col items-center gap-4 shadow-2xl">
             <div class="w-12 h-12 border-4 border-[#2f8fc9] border-t-transparent rounded-full animate-spin"></div>
             <p class="text-white font-medium">${escapeHtml(message)}</p>
-            <button onclick="hideLoadingOverlay()" class="text-gray-400 hover:text-white text-sm">Cancel</button>
+            <button onclick="hideLoadingOverlay()" class="text-gray-400 hover:text-white text-sm">Hide progress</button>
         </div>
     `;
     document.body.appendChild(overlay);
@@ -134,6 +134,8 @@ function hideButtonLoading(buttonId) {
  */
 function showErrorToast(title, message, action = null, actionCallback = null) {
     const toast = document.createElement('div');
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
     toast.className = 'fixed top-24 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex flex-col gap-2 max-w-md';
     toast.innerHTML = `
         <div class="flex items-start gap-3">
@@ -144,7 +146,7 @@ function showErrorToast(title, message, action = null, actionCallback = null) {
                 <h4 class="font-bold text-lg">${escapeHtml(title)}</h4>
                 <p class="text-sm text-red-100">${escapeHtml(message)}</p>
             </div>
-            <button onclick="this.parentElement.parentElement.remove()" class="flex-shrink-0 text-red-200 hover:text-white">
+            <button aria-label="Dismiss notification" onclick="this.parentElement.parentElement.remove()" class="flex-shrink-0 text-red-200 hover:text-white">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
@@ -171,11 +173,13 @@ function showErrorToast(title, message, action = null, actionCallback = null) {
  */
 function showSuccessToast(message) {
     const toast = document.createElement('div');
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
     toast.className = 'fixed top-24 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex items-center gap-3 max-w-md';
     toast.innerHTML = `
         <i class="fa-solid fa-circle-check text-xl"></i>
         <p class="font-medium">${escapeHtml(message)}</p>
-        <button onclick="this.parentElement.remove()" class="flex-shrink-0 text-green-200 hover:text-white">
+        <button aria-label="Dismiss notification" onclick="this.parentElement.remove()" class="flex-shrink-0 text-green-200 hover:text-white">
             <i class="fa-solid fa-xmark"></i>
         </button>
     `;
@@ -196,11 +200,13 @@ function showSuccessToast(message) {
  */
 function showInfoToast(message) {
     const toast = document.createElement('div');
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
     toast.className = 'fixed top-24 right-4 bg-[#2f8fc9] text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-in-right flex items-center gap-3 max-w-md';
     toast.innerHTML = `
         <i class="fa-solid fa-circle-info text-xl"></i>
         <p class="font-medium">${escapeHtml(message)}</p>
-        <button onclick="this.parentElement.remove()" class="flex-shrink-0 text-[#a8d4f0] hover:text-white">
+        <button aria-label="Dismiss notification" onclick="this.parentElement.remove()" class="flex-shrink-0 text-[#a8d4f0] hover:text-white">
             <i class="fa-solid fa-xmark"></i>
         </button>
     `;
@@ -812,6 +818,7 @@ function initSystemActivityController() {
         if (document.hidden) {
             stopStatsPolling();
         } else {
+            connectWS();
             startStatsPolling();
         }
     });
@@ -994,6 +1001,8 @@ window.toggleAgentCard = function() {
 
 
 function startAgentActivityTracker() {
+    if (window.__agentTrackerStarted) return;
+    window.__agentTrackerStarted = true;
     const pillStatus = document.getElementById('agent-pill-status');
     const pillDot = document.getElementById('agent-pill-dot');
     const logEl = document.getElementById('agent-log');
@@ -1001,6 +1010,8 @@ function startAgentActivityTracker() {
 
     let ws = null;
     function connectWS() {
+        if (typeof window.connectWebSocket === 'function') return; // dashboard owns its stream
+        if (ws && [WebSocket.OPEN, WebSocket.CONNECTING].includes(ws.readyState)) return;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         try {
             const token = localStorage.getItem('token') || '';
@@ -1027,11 +1038,16 @@ function startAgentActivityTracker() {
                 }
                 return;
             }
+            if (msg.type === 'ping') {
+                ws.send(JSON.stringify({type: 'pong'}));
+                return;
+            }
+            if (msg.type === 'pong') return;
             if (msg.type === 'log' || msg.message || msg.text) {
                 const text = msg.message || msg.text || '';
                 if (logEl) logEl.textContent = text;
                 if (typeof window.logConsole === 'function' && text) {
-                    window.logConsole(text, 'info');
+                    window.logConsole(text, msg.level || (text.startsWith('[ERROR]') ? 'error' : 'info'));
                 }
 
                 const logContent = document.getElementById('agent-drawer-log-content');
@@ -1126,6 +1142,7 @@ function startAgentActivityTracker() {
         if (document.hidden) {
             stopStatsPolling();
         } else {
+            connectWS();
             startStatsPolling();
         }
     });
@@ -1360,12 +1377,18 @@ function dockPanel(opts) {
 }
 window.logConsole = function (text, type = 'info') {
     const consoleOutput = document.getElementById('console-output');
-    if (!consoleOutput) return;
+    if (!consoleOutput) {
+        const pending = window.__pendingConsoleLogs ||= [];
+        pending.push([text, type]);
+        if (pending.length > 100) pending.shift();
+        return;
+    }
     const line = document.createElement('div');
     const time = new Date().toLocaleTimeString();
     line.className = `console-line ${type}`;
     line.textContent = `[${time}] ${text}`;
     consoleOutput.appendChild(line);
+    while (consoleOutput.children.length > 500) consoleOutput.firstElementChild.remove();
     consoleOutput.scrollTop = consoleOutput.scrollHeight;
 };
 
@@ -1472,13 +1495,15 @@ window.logConsole = function (text, type = 'info') {
                 </div>
             </div>
             <!-- Log output -->
-            <div id="console-output" class="flex-1 bg-[#0a0c10] p-4 font-mono text-[11px] text-gray-400 overflow-y-auto space-y-1">
+            <div id="console-output" role="log" aria-label="Agent logs" aria-live="polite" class="flex-1 bg-[#0a0c10] p-4 font-mono text-[11px] text-gray-400 overflow-y-auto space-y-1">
                 <div class="console-line info">Console ready.</div>
             </div>
         `;
 
         document.body.appendChild(panel);
 
+        for (const [text, type] of (window.__pendingConsoleLogs || [])) window.logConsole(text, type);
+        window.__pendingConsoleLogs = [];
         // ---- Events ----
         btn.addEventListener('click', _openConsole);
         overlay.addEventListener('click', () => _closeConsole(panel));
@@ -1487,7 +1512,7 @@ window.logConsole = function (text, type = 'info') {
         // Copy button
         panel.querySelector('#btn-copy-console').addEventListener('click', function () {
             const lines = Array.from(
-                document.querySelectorAll('#console-output .console-line, #console-output div')
+                document.querySelectorAll('#console-output .console-line')
             ).map(el => el.textContent.trim()).filter(Boolean);
             navigator.clipboard.writeText(lines.join('\n')).then(() => {
                 if (typeof toast === 'function') toast('Logs copied', 'success');
@@ -1525,6 +1550,33 @@ window.logConsole = function (text, type = 'info') {
         const o = document.getElementById('live-console-overlay');
         if (p) p.classList.remove('translate-x-full');
         if (o) o.classList.remove('hidden');
+        if (p && !p.dataset.historyLoaded) {
+            p.dataset.historyLoaded = 'loading';
+            const request = typeof authFetch === 'function' ? authFetch : fetch;
+            request('/api/system/logs').then(async response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                const out = document.getElementById('console-output');
+                if (!out) return;
+                const history = document.createElement('div');
+                history.className = 'console-history border-b border-gray-700 pb-2 mb-2';
+                const heading = document.createElement('div');
+                heading.textContent = 'Recent server logs (before opening console)';
+                history.appendChild(heading);
+                for (const text of data.logs || []) {
+                    const line = document.createElement('div');
+                    line.className = 'console-line';
+                    line.textContent = text;
+                    history.appendChild(line);
+                }
+                if (data.info) window.logConsole(data.info, 'warn');
+                out.prepend(history);
+                p.dataset.historyLoaded = 'true';
+            }).catch(error => {
+                delete p.dataset.historyLoaded;
+                window.logConsole('Unable to load recent logs: ' + error.message, 'error');
+            });
+        }
     }
 
 

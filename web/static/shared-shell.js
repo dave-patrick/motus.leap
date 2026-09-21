@@ -280,6 +280,21 @@
     // 3) Ensure <main> or content container lives inside a flex shell that also contains the sidebar.
     const main = document.querySelector('main') || document.querySelector('.container') || document.getElementById('app-container');
     if (!main) return;
+    main.id ||= 'main-content';
+    main.setAttribute('tabindex', '-1');
+    if (!document.getElementById('skip-to-content')) {
+      const skip = document.createElement('a');
+      skip.id = 'skip-to-content';
+      skip.className = 'skip-link';
+      skip.href = '#' + main.id;
+      skip.textContent = 'Skip to main content';
+      document.body.prepend(skip);
+    }
+    aside.querySelector('nav')?.setAttribute('aria-label', 'Main navigation');
+    aside.querySelectorAll('a').forEach(link => {
+      if (new URL(link.href).pathname === window.location.pathname) link.setAttribute('aria-current', 'page');
+    });
+
 
     const container = main.parentElement;
     const containerIsShell = container && (
@@ -422,7 +437,6 @@
     } else {
       injectOnce();
     }
-    document.addEventListener('DOMContentLoaded', injectOnce);
   }
 
   init();

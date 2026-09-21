@@ -11,7 +11,7 @@ except Exception as e:
     import sys
     print(f"[WARN] load_dotenv failed: {e}", file=sys.stderr)
 import logging
-from core.logger import setup_logging, get_log_file_path
+from core.logger import setup_logging, get_log_file_path, read_log_tail
 log = logging.getLogger(__name__)
 
 import asyncio
@@ -276,6 +276,9 @@ async def lifespan(app: FastAPI):
     # Shutdown
     log.info("motus.leap shutting down")
     await shutdown_http_client()
+    from services.ai_classifier import close_classifier_client
+    await close_classifier_client()
+    await worker.stop()
 
 
 # =============================================================================
@@ -465,17 +468,8 @@ async def add_compression(request: Request, call_next):
     # H9/H17 FIX: Add ETag and Cache-Control headers for static assets
     path = request.url.path
     if path.startswith("/static/"):
-        is_versioned = "?v=" in path or any(ext in path for ext in [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff2"])
-        # H10 FIX: Versioned assets get long cache, non-versioned get stale-while-revalidate
-        if is_versioned:
-            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-        else:
-            response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
-        # H9 FIX: Add ETag for conditional requests (skip for versioned)
-        if not is_versioned and response.status_code == 200 and hasattr(response, 'body'):
-            etag = hashlib.md5(response.body).hexdigest()
-            response.headers["ETag"] = f'"{etag}"'
-    
+        response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+
     return response
 
 
@@ -1508,7 +1502,7 @@ async def duplicate_playlist_endpoint(payload: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/youtube/playlistitems/delete", dependencies=[Depends(get_current_user)])
+@app.post("/api/youtube/playlistitems/delete", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def delete_playlist_item_endpoint(payload: dict):
     playlist_item_id = payload.get("playlist_item_id")
     playlist_id = payload.get("playlist_id")
@@ -1710,7 +1704,7 @@ async def api_maintenance() -> dict[str, Any]:
     return data
 
 
-@app.post("/api/maintenance/remove-deleted", dependencies=[Depends(get_current_user)])
+@app.post("/api/maintenance/remove-deleted", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def api_maintenance_remove_deleted(allow_uncached: bool = False):
     """Scan all playlists and remove deleted/unavailable videos.
 
@@ -1884,7 +1878,7 @@ async def api_maintenance_remove_deleted(allow_uncached: bool = False):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/maintenance/move-private", dependencies=[Depends(get_current_user)])
+@app.post("/api/maintenance/move-private", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def api_maintenance_move_private(allow_uncached: bool = False):
     """Move all private videos to a new or existing playlist 'Check Later'.
 
@@ -4190,6 +4184,8 @@ async def _discover_models_for_type(conn: ProviderConnection, api_key: str) -> d
                 break
             body_snippet = resp.text[:120].strip().replace("\n", " ")
             last_err = f"HTTP {resp.status_code}: {body_snippet}"
+            if resp.status_code not in {429, 500, 502, 503, 504}:
+                break
             if attempt < 2:
                 await asyncio.sleep(1.5 * (attempt + 1))
         except Exception as e:
@@ -5174,13 +5170,12 @@ async def get_system_logs():
             "total": 0,
         }
     try:
-        lines = await asyncio.to_thread(lambda: log_file.read_text(encoding="utf-8", errors="ignore"))
-        lines = [l for l in lines.strip().split("\n") if l.strip()]
-        last_200 = lines[-200:] if len(lines) > 200 else lines
+        last_200 = await asyncio.to_thread(read_log_tail, log_file, 200)
         return {
             "logs": last_200,
-            "total": len(lines),
+            "total": len(last_200),
             "returned": len(last_200),
+            "scope": "recent_tail",
         }
     except Exception as e:
         return {
@@ -5190,7 +5185,7 @@ async def get_system_logs():
         }
 
 
-@app.post("/api/system/logs/clear", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
+@app.post("/api/system/logs/clear", dependencies=[Depends(get_current_user), Depends(verify_origin), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
 async def clear_system_logs():
     """Clear system log file."""
     log_file = get_log_file_path()
@@ -5210,9 +5205,7 @@ async def system_logs_page():
     logs_html = ""
     if log_file.exists():
         try:
-            content = await asyncio.to_thread(lambda: log_file.read_text(encoding="utf-8", errors="ignore"))
-            lines = [l for l in content.strip().split("\n") if l.strip()]
-            last_lines = lines[-500:] if len(lines) > 500 else lines
+            last_lines = await asyncio.to_thread(read_log_tail, log_file, 500)
             for line in last_lines:
                 escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 level = "OTHER"
@@ -5571,7 +5564,13 @@ async def test_webhook(body: dict):
 async def websocket_terminal(websocket: WebSocket):
     """WebSocket endpoint for terminal interaction."""
     # Validate token from query param before accepting connection
-    token = websocket.query_params.get("token")
+    if websocket.headers.get("origin"):
+        try:
+            await verify_origin(websocket)
+        except HTTPException:
+            await websocket.close(code=4003, reason="Untrusted origin")
+            return
+    token = websocket.query_params.get("token") or websocket.cookies.get("token")
     if not token:
         await websocket.close(code=4001, reason="Missing authentication token")
         return

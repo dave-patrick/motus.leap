@@ -246,7 +246,7 @@ class YouTubeService:
 
     async def _save_to_disk(self, key: str, data: Any) -> None:
         """Save data to persistent disk storage asynchronously."""
-        full_key = f"{self._get_user_id()}_{key}"
+        full_key = str(self._user_data_dir.resolve() / f"{key}.json")
         _mem_cache.pop(full_key, None)
         try:
             cache_file = self._user_data_dir / f"{key}.json"
@@ -266,10 +266,10 @@ class YouTubeService:
                 retained longer than the allowed window. Enforces the YouTube API
                 Services Developer Policy III.E.4a-g (30-day data-retention cap).
         """
-        full_key = f"{self._get_user_id()}_{key}"
+        full_key = str(self._user_data_dir.resolve() / f"{key}.json")
         if full_key in _mem_cache:
             ts, val = _mem_cache[full_key]
-            if time.time() - ts < 300:
+            if time.time() - ts < 300 and (max_age_days is None or not is_stale(self._user_data_dir / f"{key}.json", max_age_days)):
                 return val
             else:
                 _mem_cache.pop(full_key, None)
@@ -281,6 +281,8 @@ class YouTubeService:
                     log.info(f"Disk cache {key} older than {max_age_days}d — treating as stale miss")
                     return None
                 data = await asyncio.to_thread(lambda: json.loads(cache_file.read_text()))
+                if len(_mem_cache) >= 128:
+                    _mem_cache.pop(next(iter(_mem_cache)))
                 _mem_cache[full_key] = (time.time(), data)
                 return data
         except Exception as e:
@@ -331,7 +333,8 @@ class YouTubeService:
         """Remove cached data for a specific playlist from memory and disk, including global all_data."""
         # Invalidate memory cache entries matching this playlist
         async with self._cache._lock:
-            keys_to_remove = self._playlist_keys.get(playlist_id, set())
+            keys_to_remove = set(self._playlist_keys.get(playlist_id, set()))
+            keys_to_remove.add(f"playlist_videos_{playlist_id}")
             for key in list(keys_to_remove):
                 await self._cache._evict(key)
             if playlist_id in self._playlist_keys:
@@ -341,6 +344,7 @@ class YouTubeService:
         # Invalidate disk cache files for this playlist and global all_data cache
         disk_keys = [f"playlist_videos_{playlist_id}", "all_data"]
         for key in disk_keys:
+            _mem_cache.pop(str(self._user_data_dir.resolve() / f"{key}.json"), None)
             cache_file = self._user_data_dir / f"{key}.json"
             try:
                 if await asyncio.to_thread(cache_file.exists):
@@ -1179,18 +1183,12 @@ class YouTubeService:
             videos = []
             total_duration = 0
             
-            # Fetch the FULL library — no artificial cap that silently truncates
-            # large libraries. The previous caps (10/50 playlists, 500/2000 videos)
-            # dropped ~80% of a 9,287-video / 61-playlist library, so duplicate
-            # scans run against the synced cache undercounted badly. Both values
-            # now exceed the largest known library with headroom. The per-playlist
-            # fetch still paginates fully and we stay sequential (Semaphore(1))
-            # below to keep Render's heap safe.
-            max_playlists = 200 if force_refresh else 150
-            max_total_videos = 12000 if force_refresh else 10000
-
-            # Use semaphore to limit concurrent playlist fetches (configurable to avoid heap corruption)
-            concurrency = int(os.getenv("TUBE_MANAGER_FETCH_CONCURRENCY", "3"))
+            # Cover every playlist; do not silently truncate a full-library scan.
+            # Bound active work to protect the server even with a larger quota.
+            try:
+                concurrency = max(1, min(5, int(os.getenv("TUBE_MANAGER_FETCH_CONCURRENCY", "3"))))
+            except ValueError:
+                concurrency = 3
             semaphore = asyncio.Semaphore(concurrency)
             
             async def fetch_playlist_videos(playlist):
@@ -1210,7 +1208,7 @@ class YouTubeService:
                         current_count = int(playlist.get("video_count", 0) or 0)
                     except (TypeError, ValueError):
                         current_count = -1
-                    cached = await self._load_from_disk(cache_key)
+                    cached = await self._load_from_disk(cache_key, max_age_days=30)
                     if cached is not None and current_count >= 0 and len(cached) == current_count:
                         log.info(f"[FETCH] Playlist {pl_id} unchanged ({current_count} vids) — using disk cache, skipping API")
                         return cached
@@ -1235,8 +1233,7 @@ class YouTubeService:
                                 continue
                         # PERSIST immediately — so a quota death after this
                         # playlist still leaves it on disk for the next run.
-                        if playlist_videos:
-                            await self._save_to_disk(cache_key, playlist_videos)
+                        await self._save_to_disk(cache_key, playlist_videos)
                         return playlist_videos
                     except ssl.SSLError as e:
                         log.warning(f"SSL error fetching videos for playlist {pl_id}: {e}. Skipping playlist.")
@@ -1251,7 +1248,7 @@ class YouTubeService:
             # Create tasks for playlists with concurrency control (max 5 parallel playlist fetches)
             sem = asyncio.Semaphore(5)
             completed_playlists = 0
-            total_target = len(playlists[:max_playlists])
+            total_target = len(playlists)
 
             async def sem_fetch_playlist_videos(pl):
                 nonlocal completed_playlists
@@ -1262,7 +1259,7 @@ class YouTubeService:
                         log.info(f"[FETCH] Progress: {completed_playlists}/{total_target} playlists fetched")
                     return res
 
-            playlist_tasks = [sem_fetch_playlist_videos(pl) for pl in playlists[:max_playlists]]
+            playlist_tasks = [sem_fetch_playlist_videos(pl) for pl in playlists]
             try:
                 playlist_results: list = await asyncio.gather(*playlist_tasks, return_exceptions=True)
             except Exception as e:
@@ -1286,8 +1283,6 @@ class YouTubeService:
                 for video in playlist_videos:
                     total_duration += video["duration_seconds"]
                     videos.append(video)
-                if len(videos) >= max_total_videos:
-                    break
             
             result["videos"] = videos
             result["stats"]["total_duration_seconds"] = total_duration
@@ -1463,6 +1458,7 @@ class YouTubeService:
             await self._cache.set(f"playlist_videos_{pid}", v_list, timedelta(hours=6))
 
         log.info(f"[CACHE] Direct scan cache updated: {len(normalized_playlists)} playlists, {total_videos} videos saved (zero extra API calls).")
+        return all_data
 
     async def _sync_playlist_video_counts(self, playlists: list[dict]) -> list[dict]:
         """Ensure video_count in each playlist dict reflects accurate counts from individual playlist caches or all_data."""

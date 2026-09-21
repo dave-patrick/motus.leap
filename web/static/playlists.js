@@ -75,7 +75,7 @@ async function loadPlaylists() {
             thumbnail: p.thumbnail || (p.videos && p.videos[0] ? p.videos[0].thumbnail : ''),
             url: p.url || (p.id ? `https://www.youtube.com/playlist?list=${p.id}` : '')
         }));
-        localStorage.setItem(CLIENT_CACHE_KEY, JSON.stringify(allPlaylists));
+        try { localStorage.setItem(CLIENT_CACHE_KEY, JSON.stringify(allPlaylists)); } catch (_) { /* Render valid data even when browser storage is full. */ }
         renderPlaylistsGrid(allPlaylists);
 
         // Fetch real Watch Later video count in the background (system playlist, not in API response)

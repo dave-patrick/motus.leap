@@ -13,18 +13,27 @@ function toast(message, type = 'info', duration = 4000) {
 function createToastContainer() {
     const container = document.createElement('div');
     container.id = 'toast-container';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-relevant', 'additions');
     container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 w-80';
     document.body.appendChild(container);
     return container;
 }
 
-function logoutUser() {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
-    document.cookie = 'token=; path=/; max-age=0; SameSite=Strict';
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;';
-    window.location.href = '/auth';
+async function logoutUser() {
+    try {
+        const response = await fetch('/api/auth/logout', {
+            method: 'POST', credentials: 'same-origin', headers: await authHeaders()
+        });
+        if (!response.ok && response.status !== 401) throw new Error('Sign-out failed. Please retry.');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        ['motus_v2.1_playlists', 'cached_playlists', 'cached_subscriptions', 'quota_exceeded'].forEach(key => localStorage.removeItem(key));
+        document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
+        window.location.href = '/auth';
+    } catch (error) {
+        toast(error.message || 'Unable to sign out. Check your connection and retry.', 'error', 8000);
+    }
 }
 
 function getCookie(name) {
@@ -71,6 +80,7 @@ async function authFetch(url, options = {}) {
         // Clear authentication
         localStorage.removeItem('user');
         localStorage.removeItem('token');
+        ['motus_v2.1_playlists', 'cached_playlists', 'cached_subscriptions', 'quota_exceeded'].forEach(key => localStorage.removeItem(key));
         document.cookie = 'token=; path=/; max-age=0';
         document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
         document.cookie = 'token=; path=/; max-age=0; SameSite=Strict';

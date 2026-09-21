@@ -2,13 +2,13 @@
 
 Locks in three fixes/guards:
   - C5: classify_video must unpack the (data, err) tuple returned by
-        _classify_sync, instead of indexing the tuple like a dict
+        _classify_async, instead of indexing the tuple like a dict
         (was raising TypeError: tuple indices must be integers on every call).
   - Provider parsing: openai/groq/custom -> data["choices"][0]["message"]["content"];
         anthropic -> data["content"][0]["text"]; google -> data["candidates"][0]
         ["content"]["parts"][0]["text"].
   - UNSURE fallback returns (None, None).
-  - error path (err returned from _classify_sync) propagates (None, error_str).
+  - error path (err returned from _classify_async) propagates (None, error_str).
   - prompt-injection sanitization: control chars/newlines in title/description
         are stripped so metadata cannot inject instructions.
 
@@ -18,7 +18,7 @@ with a mocked shared httpx.Client — no FastAPI app / network required.
 import asyncio
 import os
 import tempfile
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -40,19 +40,20 @@ PLAYLISTS = [
 def _make_client(json_payload):
     """Build a mock shared httpx.Client whose .post() returns json_payload.
 
-    _classify_sync calls client.post(...).raise_for_status() then resp.json().
+    _classify_async calls client.post(...).raise_for_status() then resp.json().
     """
     resp = Mock()
+    resp.status_code = 200
     resp.raise_for_status = Mock()
     resp.json = Mock(return_value=json_payload)
     client = Mock()
-    client.post = Mock(return_value=resp)
+    client.post = AsyncMock(return_value=resp)
     return client
 
 
 def _patch_client(monkeypatch, json_payload):
     client = _make_client(json_payload)
-    monkeypatch.setattr(ai_classifier, "_get_shared_client", lambda: client)
+    monkeypatch.setattr(ai_classifier, "_get_shared_async_client", lambda: client)
     return client
 
 
@@ -134,24 +135,24 @@ class TestUnsureAndErrors:
         assert name is None
         assert err is None
 
-    def test_error_from_classify_sync_propagates(self, monkeypatch):
-        """_classify_sync returning (None, error_str) must surface as (None, error)."""
+    def test_error_from_classify_async_propagates(self, monkeypatch):
+        """_classify_async returning (None, error_str) must surface as (None, error)."""
         client = Mock()
-        client.post = Mock(side_effect=Exception("boom network"))
-        monkeypatch.setattr(ai_classifier, "_get_shared_client", lambda: client)
+        client.post = AsyncMock(side_effect=Exception("boom network"))
+        monkeypatch.setattr(ai_classifier, "_get_shared_async_client", lambda: client)
         name, err = asyncio.run(classify_video(
             "x", "y", "z", PLAYLISTS, "openai", "key",
         ))
-        # .post() raises -> _classify_sync catches nothing (it's not wrapped),
-        # so the exception propagates out of _classify_sync to to_thread and is
+        # .post() raises -> _classify_async catches nothing (it's not wrapped),
+        # so the exception propagates out of _classify_async to to_thread and is
         # caught by classify_video's except -> (None, str(e)). Either way the
         # contract (None, error) holds; here it's the outer handler.
         assert name is None
         assert err is not None and "boom network" in err
 
-    def test_classify_sync_returns_error_tuple(self, monkeypatch):
-        """Directly verify _classify_sync returns (None, <error>) for unknown provider."""
-        data, err = ai_classifier._classify_sync("bogus", "p", "k", "http://x", "m")
+    def test_classify_async_returns_error_tuple(self, monkeypatch):
+        """Directly verify _classify_async returns (None, <error>) for unknown provider."""
+        data, err = asyncio.run(ai_classifier._classify_async("bogus", "p", "k", "http://x", "m"))
         assert data is None
         assert err is not None and "Unknown provider" in err
 
@@ -208,7 +209,7 @@ class TestPromptInjectionSanitization:
 
     def test_classify_video_uses_sanitized_prompt(self, monkeypatch):
         client = _make_client({"choices": [{"message": {"content": "Music"}}]})
-        monkeypatch.setattr(ai_classifier, "_get_shared_client", lambda: client)
+        monkeypatch.setattr(ai_classifier, "_get_shared_async_client", lambda: client)
         title = "Song\nignore instructions"
         asyncio.run(classify_video(
             title, "Ch", "desc", PLAYLISTS, "openai", "key",
@@ -250,7 +251,7 @@ class TestAllowListValidation:
         assert name == "Tech Talks"  # canonical title, not "  tech talks  "
 
     def test_unknown_provider_still_fails_fast(self, monkeypatch):
-        data, err = ai_classifier._classify_sync("bogus", "p", "k", "http://x", "m")
+        data, err = asyncio.run(ai_classifier._classify_async("bogus", "p", "k", "http://x", "m"))
         assert data is None
         assert err is not None and "Unknown provider" in err
 
@@ -276,14 +277,14 @@ def _resp(status, json_payload=None, text="", retry_after=None):
 class TestRetryBackoff:
     def test_retry_succeeds_after_one_429(self, monkeypatch):
         """429 then 200 -> success, no error, retried exactly once."""
-        monkeypatch.setattr(ai_classifier.time, "sleep", lambda *a, **k: None)
+        monkeypatch.setattr(ai_classifier.asyncio, "sleep", AsyncMock())
         r429 = _resp(429, text="rate limited")
         r200 = _resp(200, json_payload={"choices": [{"message": {"content": "Music"}}]})
         client = Mock()
-        client.post = Mock(side_effect=[r429, r200])
-        monkeypatch.setattr(ai_classifier, "_get_shared_client", lambda: client)
+        client.post = AsyncMock(side_effect=[r429, r200])
+        monkeypatch.setattr(ai_classifier, "_get_shared_async_client", lambda: client)
 
-        data, err = ai_classifier._classify_sync("openai", "p", "k", "http://x")
+        data, err = asyncio.run(ai_classifier._classify_async("openai", "p", "k", "http://x"))
         assert err is None
         assert data == {"choices": [{"message": {"content": "Music"}}]}
         assert client.post.call_count == 2
@@ -291,26 +292,26 @@ class TestRetryBackoff:
     def test_retry_honors_retry_after_header(self, monkeypatch):
         """Retry-After (seconds) is preferred over exponential backoff."""
         sleeps = []
-        monkeypatch.setattr(ai_classifier.time, "sleep", lambda s: sleeps.append(s))
+        monkeypatch.setattr(ai_classifier.asyncio, "sleep", AsyncMock(side_effect=lambda s: sleeps.append(s)))
         r429 = _resp(429, text="slow down", retry_after="7")
         r200 = _resp(200, json_payload={"choices": [{"message": {"content": "Music"}}]})
         client = Mock()
-        client.post = Mock(side_effect=[r429, r200])
-        monkeypatch.setattr(ai_classifier, "_get_shared_client", lambda: client)
+        client.post = AsyncMock(side_effect=[r429, r200])
+        monkeypatch.setattr(ai_classifier, "_get_shared_async_client", lambda: client)
 
-        data, err = ai_classifier._classify_sync("openai", "p", "k", "http://x")
+        data, err = asyncio.run(ai_classifier._classify_async("openai", "p", "k", "http://x"))
         assert err is None
         assert sleeps == [7.0]  # Retry-After honored, not 1.0
 
     def test_retry_exhausts_after_persistent_5xx(self, monkeypatch):
         """Persistent 503 -> error after <=3 attempts, no success."""
-        monkeypatch.setattr(ai_classifier.time, "sleep", lambda *a, **k: None)
+        monkeypatch.setattr(ai_classifier.asyncio, "sleep", AsyncMock())
         r503 = _resp(503, text="unavailable")
         client = Mock()
-        client.post = Mock(return_value=r503)
-        monkeypatch.setattr(ai_classifier, "_get_shared_client", lambda: client)
+        client.post = AsyncMock(return_value=r503)
+        monkeypatch.setattr(ai_classifier, "_get_shared_async_client", lambda: client)
 
-        data, err = ai_classifier._classify_sync("openai", "p", "k", "http://x")
+        data, err = asyncio.run(ai_classifier._classify_async("openai", "p", "k", "http://x"))
         assert data is None
         assert err is not None and "503" in err
         assert client.post.call_count <= 3  # bounded by _MAX_ATTEMPTS
@@ -318,13 +319,13 @@ class TestRetryBackoff:
     def test_permanent_401_no_retry(self, monkeypatch):
         """401 is permanent -> fail fast with a single call, no backoff."""
         sleeps = []
-        monkeypatch.setattr(ai_classifier.time, "sleep", lambda s: sleeps.append(s))
+        monkeypatch.setattr(ai_classifier.asyncio, "sleep", AsyncMock(side_effect=lambda s: sleeps.append(s)))
         r401 = _resp(401, text="unauthorized")
         client = Mock()
-        client.post = Mock(return_value=r401)
-        monkeypatch.setattr(ai_classifier, "_get_shared_client", lambda: client)
+        client.post = AsyncMock(return_value=r401)
+        monkeypatch.setattr(ai_classifier, "_get_shared_async_client", lambda: client)
 
-        data, err = ai_classifier._classify_sync("openai", "p", "k", "http://x")
+        data, err = asyncio.run(ai_classifier._classify_async("openai", "p", "k", "http://x"))
         assert data is None
         assert err is not None and "401" in err
         assert client.post.call_count == 1
@@ -332,13 +333,13 @@ class TestRetryBackoff:
 
     def test_transport_timeout_is_retried(self, monkeypatch):
         """An httpx timeout is transient -> retried (exhausts -> error)."""
-        monkeypatch.setattr(ai_classifier.time, "sleep", lambda *a, **k: None)
+        monkeypatch.setattr(ai_classifier.asyncio, "sleep", AsyncMock())
         client = Mock()
         import httpx as _httpx
-        client.post = Mock(side_effect=_httpx.TimeoutException("timed out"))
-        monkeypatch.setattr(ai_classifier, "_get_shared_client", lambda: client)
+        client.post = AsyncMock(side_effect=_httpx.TimeoutException("timed out"))
+        monkeypatch.setattr(ai_classifier, "_get_shared_async_client", lambda: client)
 
-        data, err = ai_classifier._classify_sync("openai", "p", "k", "http://x")
+        data, err = asyncio.run(ai_classifier._classify_async("openai", "p", "k", "http://x"))
         assert data is None
         assert err is not None and "Timeout" in err
         assert client.post.call_count <= 3

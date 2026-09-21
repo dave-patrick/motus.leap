@@ -264,3 +264,14 @@ a.nav-item:active {
     max-height: 90dvh !important;
     overflow-y: auto;
 }
+
+/* Keep keyboard navigation visible and avoid off-screen menus taking focus. */
+.skip-link { position: fixed; top: -100px; left: 12px; z-index: 1000;
+  padding: 12px 20px; color: #fff; background: #164e73; border-radius: 6px; }
+.skip-link:focus { top: 12px; }
+#toast-container { max-width: calc(100vw - 2rem); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important; transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important; }
+}

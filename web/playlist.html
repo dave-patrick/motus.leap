@@ -133,7 +133,7 @@
                                     <button id="move-misplaced-btn" class="hidden bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Move selected misplaced videos to their rule target playlists (e.g. 1~Sort)">
                                         <i class="fa-solid fa-share-from-square text-[#2f8fc9]"></i> Move to Mapped
                                     </button>
-                                    <select id="scan-target-playlist" onchange="updateMisplacedActions()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded-lg px-2.5 py-1.5 outline-none cursor-pointer focus:border-[#2f8fc9]">
+                                    <select id="scan-target-playlist" aria-label="Destination for scan results" onchange="updateMisplacedActions()" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded-lg px-2.5 py-1.5 outline-none cursor-pointer focus:border-[#2f8fc9]">
                                         <option value="">Move selected to...</option>
                                     </select>
                                     <button id="move-custom-misplaced-btn" onclick="moveSelectedMisplacedToCustom()" disabled class="opacity-40 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Move selected videos to chosen playlist without changing channel mappings">

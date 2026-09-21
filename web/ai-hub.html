@@ -109,23 +109,23 @@
                     <div class="space-y-3">
                         <div>
                             <label class="text-[10px] text-gray-400 mb-1 block">Name</label>
-                            <input id="job-name" placeholder="Every day at 3am, scan 1sort for duplicates" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                            <input id="job-name" aria-label="Scheduled job name" placeholder="Every day at 3am, scan 1sort for duplicates" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                         </div>
                         <div>
                             <label class="text-[10px] text-gray-400 mb-1 block">Describe in plain language (optional)</label>
                             <div class="flex gap-2">
-                                <input id="job-nl" placeholder="e.g., every day at 3am rescan for duplicates" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                                <input id="job-nl" aria-label="Describe the schedule" placeholder="e.g., every day at 3am rescan for duplicates" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                                 <button id="job-parse" type="button" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-2 rounded-lg whitespace-nowrap">Parse with AI</button>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">Cron (5-field)</label>
-                                <input id="job-cron" placeholder="0 3 * * *" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                                <input id="job-cron" aria-label="Cron schedule" placeholder="0 3 * * *" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-400 mb-1 block">Task type</label>
-                                <select id="job-task" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                                <select id="job-task" aria-label="Scheduled task" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                                     <option value="scan_duplicates">scan_duplicates</option>
                                     <option value="scan_misplaced">scan_misplaced</option>
                                     <option value="apply_rules">apply_rules</option>
@@ -138,7 +138,7 @@
                         <div id="job-priv-warn" class="hidden text-[11px] text-[#ca8a04]"><i class="fas fa-triangle-exclamation"></i> Destructive task — requires confirm at creation.</div>
                         <div>
                             <label class="text-[10px] text-gray-400 mb-1 block">Playlist ID (for task, if needed)</label>
-                            <input id="job-playlist" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                            <input id="job-playlist" aria-label="Playlist for scheduled task" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                         </div>
                         <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="job-enabled" class="accent-[#2f8fc9]" checked> Enabled</label>
                         <div class="flex gap-2">
@@ -166,10 +166,10 @@
                 <div id="prov-step1">
                     <div class="space-y-3">
                         <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label>
-                            <input id="prov-name" placeholder="My Groq" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                            <input id="prov-name" aria-label="Provider name" placeholder="My Groq" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                         </div>
                         <div><label class="text-[10px] text-gray-400 mb-1 block">Provider Type</label>
-                            <select id="prov-type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                            <select id="prov-type" aria-label="Provider type" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                                 <optgroup label="Hosted (managed API key)">
                                     <option value="openai">OpenAI — GPT-4o, o1, o3…</option>
                                     <option value="anthropic">Anthropic — Claude 3.5 / 4…</option>
@@ -190,7 +190,7 @@
                                 <span>Base URL</span>
                                 <span id="prov-base-lock" class="text-[9px] text-gray-600">pre-filled · override if needed</span>
                             </label>
-                            <input id="prov-base" placeholder="https://api.example.com" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                            <input id="prov-base" aria-label="Provider base URL" placeholder="https://api.example.com" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                         </div>
                         <div id="prov-presets" class="hidden">
                             <div class="text-[10px] text-gray-400 mb-2">Quick presets — click to fill:</div>
@@ -243,7 +243,7 @@
                             </div>
                         </div>
                         <div><label class="text-[10px] text-gray-400 mb-1 block">API Key <span id="prov-key-optional" class="text-gray-600">(optional for local)</span></label>
-                            <input id="prov-key" type="password" placeholder="sk-…" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
+                            <input id="prov-key" aria-label="Provider API key" type="password" placeholder="sk-…" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]">
                         </div>
                         <button id="prov-connect" class="w-full bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Connect &amp; Discover Models</button>
                         <div id="prov-step1-msg" class="text-[11px]"></div>
@@ -278,10 +278,10 @@
                     <button id="rule-modal-close" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
                 </div>
                 <div class="space-y-3">
-                    <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label><input id="rule-name" placeholder="Synthwave rule" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
-                    <div><label class="text-[10px] text-gray-400 mb-1 block">Target Playlist ID</label><input id="rule-playlist" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
-                    <div><label class="text-[10px] text-gray-400 mb-1 block">Role Description</label><textarea id="rule-desc" rows="3" placeholder="Route synthwave music videos to the Synthwave playlist." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-[11px] rounded px-3 py-2 outline-none resize-none"></textarea></div>
-                    <div><label class="text-[10px] text-gray-400 mb-1 block">Model (optional — uses default if blank)</label><input id="rule-model" placeholder="llama-3.3-70b-versatile" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+                    <div><label class="text-[10px] text-gray-400 mb-1 block">Name</label><input id="rule-name" aria-label="Rule name" placeholder="Synthwave rule" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+                    <div><label class="text-[10px] text-gray-400 mb-1 block">Target Playlist ID</label><input id="rule-playlist" aria-label="Rule destination playlist" placeholder="PLxxxxxxxxxxxx" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
+                    <div><label class="text-[10px] text-gray-400 mb-1 block">Role Description</label><textarea id="rule-desc" aria-label="Rule description" rows="3" placeholder="Route synthwave music videos to the Synthwave playlist." class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-[11px] rounded px-3 py-2 outline-none resize-none"></textarea></div>
+                    <div><label class="text-[10px] text-gray-400 mb-1 block">Model (optional — uses default if blank)</label><input id="rule-model" aria-label="Classification model" placeholder="llama-3.3-70b-versatile" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-200 font-mono text-xs rounded px-3 py-2 outline-none min-h-[44px]"></div>
                     <label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="rule-enabled" class="accent-[#2f8fc9]" checked> Enabled</label>
                     <div id="rule-conflict" class="hidden text-[11px] text-[#dc2626] bg-[#dc2626]/10 border border-[#dc2626]/30 rounded p-2"></div>
                     <div class="flex gap-2">

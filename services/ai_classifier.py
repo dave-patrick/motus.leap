@@ -16,26 +16,6 @@ import httpx
 
 log = logging.getLogger(__name__)
 
-# Shared httpx.Client for connection reuse (M8)
-_shared_client: Optional[httpx.Client] = None
-
-
-def _get_shared_client() -> httpx.Client:
-    """Get or create the shared httpx.Client.
-
-    Timeout lowered from 30.0s to 20.0s (MoA concern): classify responses are
-    tiny (max_tokens=50), so 20s is comfortably safe. NOTE (documented limitation,
-    not a regression): /api/ai/classify caps concurrency at asyncio.Semaphore(5).
-    Under Render's proxy, a batch of >5 videos still serializes into waves; a wave
-    that exceeds the proxy's request timeout can still 504. Keeping the 20s timeout
-    realistic for single calls; very large batches should move to a background job.
-    """
-    global _shared_client
-    if _shared_client is None or _shared_client.is_closed:
-        _shared_client = httpx.Client(timeout=20.0)
-    return _shared_client
-
-
 # Retry / backoff configuration (MoA gate #3 / Gwen gap c).
 _MAX_ATTEMPTS = 3
 _TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
@@ -65,6 +45,14 @@ def _get_shared_async_client() -> httpx.AsyncClient:
     if _shared_async_client is None or _shared_async_client.is_closed:
         _shared_async_client = httpx.AsyncClient(timeout=20.0)
     return _shared_async_client
+
+
+async def close_classifier_client() -> None:
+    """Release pooled connections when the application shuts down."""
+    global _shared_async_client
+    if _shared_async_client is not None:
+        await _shared_async_client.aclose()
+        _shared_async_client = None
 
 
 async def _classify_async(provider: str, prompt: str, api_key: str, endpoint: str, model: str = "default",

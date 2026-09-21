@@ -74,7 +74,7 @@ function viewSystemLogs() {
                                     <div class="space-y-4">
                                         <div>
                                             <label class="text-[10px] text-gray-400 mb-1 block">Default Playlist Privacy</label>
-                                            <select id="default-privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                            <select id="default-privacy" aria-label="Default playlist privacy" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                                 <option value="private">Private</option>
                                                 <option value="unlisted">Unlisted</option>
                                                 <option value="public">Public</option>
@@ -82,7 +82,7 @@ function viewSystemLogs() {
                                         </div>
                                         <div>
                                             <label class="text-[10px] text-gray-400 mb-1 block">Storage</label>
-                                            <select id="scan-interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                            <select id="scan-interval" aria-label="Scan interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                                 <option value="15min">Every 15 minutes</option>
                                                 <option value="hourly" selected>Every hour</option>
                                                 <option value="6hour">Every 6 hours</option>
@@ -91,7 +91,7 @@ function viewSystemLogs() {
                                         </div>
                                         <div>
                                             <label class="text-[10px] text-gray-400 mb-1 block">Max Concurrent Operations</label>
-                                            <input type="number" id="max-concurrent" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
+                                            <input type="number" id="max-concurrent" aria-label="Maximum concurrent tasks" value="3" min="1" max="10" class="w-20 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                         </div>
 
                                         <div class="pt-2 border-t border-[#2a2f3a] space-y-2">
@@ -187,21 +187,21 @@ function viewSystemLogs() {
                                 </div>
                                 <div class="p-3 border-b border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
                                     <div class="flex gap-2">
-                                        <input id="mapping-search" type="text" placeholder="Filter channels..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]" oninput="renderMappingsList()">
+                                        <input id="mapping-search" aria-label="Search channel mappings" type="text" placeholder="Filter channels..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]" oninput="renderMappingsList()">
                                         <button onclick="loadChannelMappings()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Load Subs</button>
                                         <button onclick="autoMapFromPlaylists()" title="Scan videos already in your playlists and map each channel to the playlist it appears in most" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded whitespace-nowrap">Auto-map</button>
                                         <button onclick="backfillNames()" title="Harvest real channel names from your playlists' videos (no extra API quota)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded whitespace-nowrap">Resolve names</button>
                                     </div>
                                     <div class="flex gap-2">
-                                        <input id="new-channel-id" type="text" placeholder="Channel ID (e.g. UC...)" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]">
-                                        <select id="new-playlist-id" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]"></select>
+                                        <input id="new-channel-id" aria-label="Channel ID to map" type="text" placeholder="Channel ID (e.g. UC...)" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]">
+                                        <select id="new-playlist-id" aria-label="Destination playlist ID" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]"></select>
                                         <button onclick="addMappingRow()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-3 py-1.5 rounded whitespace-nowrap">+ Add</button>
                                     </div>
                                 </div>
                                 <div id="selection-bar" class="hidden items-center gap-2 px-3 py-2 bg-[#2f8fc9]/10 border-b border-[#2f8fc9]/30 text-xs shrink-0">
                                     <span id="sel-count" class="text-[#7fc4ee] font-semibold">0 selected</span>
                                     <div class="flex-1"></div>
-                                    <select id="sel-playlist" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none max-w-[180px]"></select>
+                                    <select id="sel-playlist" aria-label="Playlist for channel mapping" class="bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[10px] rounded px-2 py-1 outline-none max-w-[180px]"></select>
                                     <button onclick="applyToSelected()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white px-2 py-1 rounded whitespace-nowrap">Set playlist</button>
                                     <button onclick="removeSelected()" class="text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-400/40 whitespace-nowrap">Remove</button>
                                     <button onclick="clearSelection()" class="text-gray-400 hover:text-white px-2 py-1 whitespace-nowrap">Clear</button>
@@ -221,7 +221,7 @@ function viewSystemLogs() {
                                         <summary class="cursor-pointer text-[11px] text-gray-400 hover:text-gray-200 select-none">Bulk import by name ▾</summary>
                                         <div class="mt-2 flex flex-col gap-2">
                                             <p class="text-[10px] text-gray-500">Paste <code>Channel Name : Playlist Name</code> lines (one per row). Names resolve against your connected YouTube account. Reports unmatched rows.</p>
-                                            <textarea id="bulk-import-text" rows="5" placeholder="3D Musketeers : 3D Printing Watch&#10;12 News : Arizona" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded px-2 py-1.5 outline-none font-mono resize-y"></textarea>
+                                            <textarea id="bulk-import-text" aria-label="Channel mappings to import" rows="5" placeholder="3D Musketeers : 3D Printing Watch&#10;12 News : Arizona" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded px-2 py-1.5 outline-none font-mono resize-y"></textarea>
                                             <button onclick="importBulkMappings()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs py-1.5 rounded">Import &amp; Resolve</button>
                                             <div id="bulk-import-report" class="text-[10px] text-gray-400 whitespace-pre-wrap"></div>
                                         </div>

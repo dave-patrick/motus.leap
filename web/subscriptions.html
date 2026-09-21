@@ -72,7 +72,7 @@
             <div class="flex flex-col gap-3">
                 <div>
                     <label class="text-[10px] text-gray-300">Channel ID or URL</label>
-                    <input id="sub-id" type="text" class="mt-1 w-full bg-[#0f1115] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2f8fc9]" placeholder="UCxxxx... or channel link">
+                    <input id="sub-id" aria-label="Channel ID or URL" type="text" class="mt-1 w-full bg-[#0f1115] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2f8fc9]" placeholder="UCxxxx... or channel link">
                 </div>
                 <button onclick="submitSubscribe()" class="mt-2 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Subscribe</button>
             </div>
@@ -96,7 +96,7 @@
                     <div class="bento-card p-4"><div class="text-[10px] text-gray-400">Misplaced</div><div class="text-xs text-gray-200" id="sub-maint-misplaced">-</div></div>
                 </div>
                 <div class="text-[10px] text-gray-400" id="sub-maint-note"></div>
-                <div class="hidden items-center gap-2 text-[10px] text-gray-300" id="sub-maint-next"><input type="checkbox" class="rounded bg-[#20242c] border border-[#2a2f3a]"> Queue cleanup for this playlist</div>
+                <div class="hidden items-center gap-2 text-[10px] text-gray-300" id="sub-maint-next"><input aria-label="Queue cleanup for this playlist" type="checkbox" class="rounded bg-[#20242c] border border-[#2a2f3a]"> Queue cleanup for this playlist</div>
             </div>
         </div>
     </div>

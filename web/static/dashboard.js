@@ -3,10 +3,7 @@
 // and crashed logConsole() on the first WS log. Resolve lazily instead.
 var token = localStorage.getItem('token') || '';
 
-// Redirect to auth if no token present
-if (!token) {
-    window.location.href = '/auth';
-}
+// HttpOnly cookie sessions are validated by auth-check.js.
 
 var ws = null;
 var pingInterval = null;
@@ -20,9 +17,11 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
         try {
             const resp = await fetch(url, options);
             if (resp.ok) return resp;
-            if (resp.status < 500) return resp; // Don't retry client errors
+            if (resp.status < 500 || i === retries - 1) return resp;
+            if (!['GET', 'HEAD'].includes((options.method || 'GET').toUpperCase())) return resp;
+            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
         } catch (e) {
-            if (i === retries - 1) throw e;
+            if (i === retries - 1 || !['GET', 'HEAD'].includes((options.method || 'GET').toUpperCase())) throw e;
             await new Promise(r => setTimeout(r, 1000 * (i + 1)));
         }
     }
@@ -36,6 +35,7 @@ function logConsole(text, type = 'info') {
     line.className = `console-line ${type}`;
     line.textContent = `[${time}] ${text}`;
     consoleOutput.appendChild(line);
+    while (consoleOutput.children.length > 500) consoleOutput.firstElementChild.remove();
 }
 window.logConsole = logConsole;
 
@@ -92,7 +92,7 @@ async function loadDashboardStats() {
         // Backend returns status:'not_ready' when the maintenance cache is
         // absent (no Full Playlist Sync yet, or quota guard blocked live scan).
         // Surface that honestly instead of a misleading "Clean".
-        const notReady = dupJson.status === 'not_ready' || misJson.status === 'not_ready';
+        const notReady = !dupResp?.ok || !misResp?.ok || dupJson.status === 'not_ready' || misJson.status === 'not_ready';
         const dupCount = notReady ? 0 : (dupJson.duplicates || 0);
         const misCount = notReady ? 0 : (misJson.misplaced?.length || 0);
         const dupEl = document.getElementById('stat-duplicates');
@@ -123,7 +123,7 @@ async function loadDashboardStats() {
 
 // Handle OAuth popup callback messages
 window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'youtube-oauth-success') {
+    if (e.origin === window.location.origin && e.data && e.data.type === 'youtube-oauth-success') {
         // Extract token from URL if provided
         const params = new URLSearchParams(window.location.search);
         const token = params.get('token') || e.data.token;
@@ -446,9 +446,12 @@ async function runScan() {
 
 // Poll /api/stats while a scan is believed to be running, stopping once idle.
 let scanVerifyTimer = null;
+let scanVerifyInFlight = false;
 function startScanVerifyPoll() {
     if (scanVerifyTimer) return; // already polling
     scanVerifyTimer = setInterval(async () => {
+        if (document.hidden || scanVerifyInFlight) return;
+        scanVerifyInFlight = true;
         try {
             const r = await apiCall('/api/stats').catch(() => null);
             if (!r || !r.ok) return;
@@ -470,6 +473,7 @@ function startScanVerifyPoll() {
                 loadScanDetails();
             }
         } catch { /* ignore */ }
+        finally { scanVerifyInFlight = false; }
     }, 2000);
     // Stop the poll on its own after 90s no matter what (safety net).
     setTimeout(() => {

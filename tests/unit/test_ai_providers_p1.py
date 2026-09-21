@@ -14,7 +14,7 @@ import sys
 import tempfile
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -87,11 +87,8 @@ def _make_httpx_client(status=200, payload=None, side_effect=None):
     else:
         resp.json = Mock(side_effect=ValueError("no json"))
     client = Mock()
-    client.get = Mock(return_value=resp)
-    ctx = Mock()
-    ctx.__enter__ = Mock(return_value=client)
-    ctx.__exit__ = Mock(return_value=False)
-    fake = Mock(return_value=ctx)
+    client.get = AsyncMock(return_value=resp)
+    fake = Mock(return_value=client)
     return fake, resp
 
 
@@ -204,7 +201,7 @@ class TestDiscoverModels:
                 {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
             ],
         })
-        monkeypatch.setattr(httpx, "Client", fake)
+        monkeypatch.setattr("core.http_client.get_http_client", fake)
 
         conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
             "name": "OA", "type": "openai", "api_key": "sk-x"})
@@ -221,7 +218,7 @@ class TestDiscoverModels:
 
     def test_discover_auth_error_401(self, monkeypatch):
         fake, resp = _make_httpx_client(status=401)
-        monkeypatch.setattr(httpx, "Client", fake)
+        monkeypatch.setattr("core.http_client.get_http_client", fake)
         conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
             "name": "OA", "type": "openai", "api_key": "bad"})
         pid = conn.json()["id"]
@@ -235,7 +232,7 @@ class TestDiscoverModels:
 
     def test_discover_404_falls_back_to_manual(self, monkeypatch):
         fake, resp = _make_httpx_client(status=404)
-        monkeypatch.setattr(httpx, "Client", fake)
+        monkeypatch.setattr("core.http_client.get_http_client", fake)
         conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
             "name": "OA", "type": "openai", "api_key": "k"})
         pid = conn.json()["id"]
@@ -246,7 +243,7 @@ class TestDiscoverModels:
 
     def test_discover_non_json_falls_back(self, monkeypatch):
         fake, resp = _make_httpx_client(status=200, payload=None)
-        monkeypatch.setattr(httpx, "Client", fake)
+        monkeypatch.setattr("core.http_client.get_http_client", fake)
         conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
             "name": "OA", "type": "openai", "api_key": "k"})
         pid = conn.json()["id"]
@@ -257,7 +254,7 @@ class TestDiscoverModels:
         # anthropic must NOT hit the network -> monkeypatched Client must be
         # unused (we assert it is never called).
         fake, resp = _make_httpx_client(payload={"object": "list", "data": []})
-        monkeypatch.setattr(httpx, "Client", fake)
+        monkeypatch.setattr("core.http_client.get_http_client", fake)
         conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
             "name": "AN", "type": "anthropic", "api_key": "k"})
         pid = conn.json()["id"]
@@ -271,7 +268,7 @@ class TestDiscoverModels:
 
     def test_google_skips_probe_returns_manual(self, monkeypatch):
         fake, resp = _make_httpx_client(payload={"object": "list", "data": []})
-        monkeypatch.setattr(httpx, "Client", fake)
+        monkeypatch.setattr("core.http_client.get_http_client", fake)
         conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
             "name": "GG", "type": "google", "api_key": "k"})
         pid = conn.json()["id"]
@@ -295,7 +292,7 @@ class TestSelectModels:
             "object": "list",
             "data": [{"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"}],
         })
-        monkeypatch.setattr(httpx, "Client", fake)
+        monkeypatch.setattr("core.http_client.get_http_client", fake)
         conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
             "name": "OA", "type": "openai", "api_key": "sk-x"})
         pid = conn.json()["id"]
@@ -322,7 +319,7 @@ class TestSelectModels:
             "object": "list",
             "data": [{"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"}],
         })
-        monkeypatch.setattr(httpx, "Client", fake)
+        monkeypatch.setattr("core.http_client.get_http_client", fake)
         conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
             "name": "OA", "type": "openai", "api_key": "sk-x"})
         pid = conn.json()["id"]
@@ -356,7 +353,7 @@ class TestDeleteProvider:
             "object": "list",
             "data": [{"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"}],
         })
-        monkeypatch.setattr(httpx, "Client", fake)
+        monkeypatch.setattr("core.http_client.get_http_client", fake)
         conn = CLIENT.post("/api/ai/providers", headers=AUTH, json={
             "name": "OA", "type": "openai", "api_key": "sk-x"})
         pid = conn.json()["id"]
