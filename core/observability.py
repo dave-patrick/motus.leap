@@ -3,10 +3,11 @@
 import os
 import time
 import logging
+import re
 from typing import Any, Dict
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 
 try:
     import sentry_sdk
@@ -71,19 +72,22 @@ async def health_check() -> Dict[str, Any]:
 
     # Check database
     try:
-        from services.db import db
-        if db:
-            await db.get_stats()
-            checks["checks"]["database"] = {"status": "ok"}
-        else:
-            checks["checks"]["database"] = {"status": "not_initialized"}
+        import asyncio
+        from services.db import db_engine
+
+        def _probe_database() -> None:
+            with db_engine._get_connection() as connection:
+                connection.execute("SELECT 1").fetchone()
+
+        await asyncio.to_thread(_probe_database)
+        checks["checks"]["database"] = {"status": "ok"}
     except Exception as e:
         checks["checks"]["database"] = {"status": "error", "error": str(e)}
         checks["status"] = "degraded"
 
     # Check disk cache
     try:
-        from core.config_manager import config_manager
+        from app import config_manager
         if config_manager.config:
             data_dir = os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")
             cache_size = 0
@@ -119,7 +123,7 @@ async def health_check() -> Dict[str, Any]:
 async def readiness_check() -> Dict[str, Any]:
     """Check if the app is ready to serve requests."""
     try:
-        from core.config_manager import config_manager
+        from app import config_manager
         if not config_manager.config:
             return {"status": "not_ready", "reason": "Configuration not loaded"}
 
@@ -140,12 +144,19 @@ async def liveness_check() -> Dict[str, Any]:
 def metrics_endpoint():
     """Prometheus metrics endpoint."""
     if not PROMETHEUS_AVAILABLE:
-        return JSONResponse({"error": "Prometheus not available"}, status_code=503)
+        return Response("Prometheus not available", status_code=503, media_type="text/plain")
 
-    return JSONResponse(
+    return Response(
         content=generate_latest(),
         media_type=CONTENT_TYPE_PROMETHEUS,
     )
+
+
+def _metric_path(path: str) -> str:
+    """Bound metric cardinality by replacing common resource identifiers."""
+    path = re.sub(r"/[0-9a-f]{24,64}(?=/|$)", "/:id", path, flags=re.I)
+    path = re.sub(r"/(PL|UC)[A-Za-z0-9_-]{10,}(?=/|$)", "/:youtube_id", path)
+    return path
 
 
 class MetricsMiddleware:
@@ -160,7 +171,7 @@ class MetricsMiddleware:
             return
 
         method = scope["method"]
-        path = scope["path"]
+        path = _metric_path(scope["path"])
 
         start_time = time.time()
 

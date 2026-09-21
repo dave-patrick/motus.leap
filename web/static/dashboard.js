@@ -67,6 +67,8 @@ async function loadStats() {
             if (elPlaylists) elPlaylists.textContent = s.total_playlists ?? '--';
             if (elVideos) elVideos.textContent = s.total_videos ?? '--';
             if (elSubs) elSubs.textContent = s.total_subscriptions ?? '--';
+            renderQuota(s.quota || {});
+            renderJobProgress(s.job_progress || {});
         }
     } catch (e) {
         console.warn('Failed to load stats', e);
@@ -181,6 +183,10 @@ function connectWebSocket() {
                 applyWorkerStatus(msg);
                 return;
             }
+            if (msg.type === 'job_progress') {
+                renderJobProgress(msg);
+                return;
+            }
             logConsole(msg.text || msg.message || JSON.stringify(msg), msg.level || 'info');
         } catch {
             logConsole(event.data, 'info');
@@ -270,6 +276,41 @@ function initDashboardPage() {
     connectWebSocket();
     loadScanDetails();
 }
+
+function renderQuota(quota) {
+    const value = document.getElementById('stat-quota');
+    const detail = document.getElementById('quota-detail');
+    const used = Number(quota.used || 0);
+    const cap = Number(quota.daily_cap || 0);
+    if (value) value.textContent = cap ? `${(used / cap * 100).toFixed(1)}%` : '—';
+    if (detail) detail.textContent = cap ? `${used.toLocaleString()} / ${cap.toLocaleString()} units` : 'Locally tracked';
+}
+
+function renderJobProgress(job) {
+    const progress = document.getElementById('job-progress-text');
+    const videos = document.getElementById('job-videos-examined');
+    const completed = Number(job.completed || 0);
+    const total = Number(job.total || 0);
+    if (progress) progress.textContent = total ? `${completed} / ${total}` : (job.state || 'idle');
+    if (videos) videos.textContent = Number(job.videos_examined || 0).toLocaleString();
+}
+
+function renderAttention({notReady, dupCount, misCount}) {
+    const summary = document.getElementById('attention-summary');
+    const action = document.getElementById('attention-action');
+    if (!summary || !action) return;
+    if (notReady) {
+        summary.textContent = 'Your library has not been fully reconciled yet. Run Full Playlist Sync.';
+        action.textContent = 'Run sync'; action.href = '#'; action.classList.remove('hidden');
+        action.onclick = event => { event.preventDefault(); callAction('sync_playlists'); };
+    } else if (dupCount + misCount > 0) {
+        summary.textContent = `${dupCount} duplicate copies and ${misCount} misplaced videos are ready for review.`;
+        action.textContent = 'Review queue'; action.href = '/maintenance'; action.onclick = null; action.classList.remove('hidden');
+    } else {
+        summary.textContent = 'Your library is reconciled and no placement issues need review.';
+        action.classList.add('hidden');
+    }
+}
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initDashboardPage);
 } else {
@@ -298,6 +339,9 @@ async function loadScanDetails() {
         const dupCount = notReady ? 0 : (dupData.duplicates || 0);
         const misCount = notReady ? 0 : (misData.misplaced?.length || misData.count || 0);
         const totalIssues = dupCount + misCount;
+        renderQuota(statsData.quota || {});
+        renderJobProgress(statsData.job_progress || {});
+        renderAttention({notReady, dupCount, misCount});
 
         // Last scan time from server (or "Never" if not yet scanned)
         const lastScan = statsData.last_scan || 'Never';

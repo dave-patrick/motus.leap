@@ -10,8 +10,7 @@
     <link rel="manifest" href="/static/manifest.json">
     <link rel="apple-touch-icon" href="/static/logo_icon.png">
         <script src="/static/shared-shell.js?v=20260720c"></script>
-<link rel="preconnect" href="https://cdn.tailwindcss.com">
-<script src="https://cdn.tailwindcss.com" defer></script>
+    <link rel="stylesheet" href="/static/tailwind.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720c">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -246,14 +245,19 @@
                 return;
             }
 
+            const payload = {
+                video_ids: videoIds,
+                target_playlist_id: targetPlaylist,
+                source_playlist_id: sourcePlaylist || null
+            };
+            const preview = await fetch('/api/bulk/preview/move', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            }).then(r => r.json());
+            if (!confirm(`Move ${preview.total_items} videos? Estimated quota: ${preview.estimated_quota_units.toLocaleString()} units.`)) return;
             const response = await fetch('/api/bulk/move', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    video_ids: videoIds,
-                    target_playlist_id: targetPlaylist,
-                    source_playlist_id: sourcePlaylist || null
-                })
+                headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+                body: JSON.stringify(payload)
             });
 
             const result = await response.json();
@@ -274,17 +278,16 @@
                 return;
             }
 
-            if (!confirm('Are you sure you want to delete these videos? This cannot be undone.')) {
-                return;
-            }
+            const payload = { video_ids: videoIds, playlist_id: playlist };
+            const preview = await fetch('/api/bulk/preview/delete', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            }).then(r => r.json());
+            if (!confirm(`Remove ${preview.total_items} videos from this playlist? Estimated quota: ${preview.estimated_quota_units.toLocaleString()} units. This cannot be undone automatically.`)) return;
 
             const response = await fetch('/api/bulk/delete', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    video_ids: videoIds,
-                    playlist_id: playlist
-                })
+                headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+                body: JSON.stringify(payload)
             });
 
             const result = await response.json();
@@ -308,7 +311,7 @@
 
             const response = await fetch('/api/bulk/tag', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
                 body: JSON.stringify({
                     video_ids: videoIds,
                     tags: tagList,
@@ -380,12 +383,18 @@
                                     <span class="text-[9px] ${_statusClass}">${_status}</span>
                                 </div>
                                 <div class="text-[9px] text-gray-500 mb-2">${op.processed}/${op.total_items} items</div>
+                                ${op.failed ? `<div class="text-[9px] text-red-400 mb-2">${op.failed} failed · details preserved</div><button data-retry-operation="${op.operation_id}" class="retry-operation text-[9px] text-[#2f8fc9] mb-2">Retry failed</button>` : ''}
                                 <div class="w-full bg-[#20242c] rounded-full h-1">
                                     <div class="bg-[#2f8fc9] h-1 rounded-full" style="width: ${op.total_items > 0 ? (op.processed / op.total_items * 100) : 0}%"></div>
                                 </div>
                             </div>
                         `;
                     }).join('');
+                    queueEl.querySelectorAll('.retry-operation').forEach(button => button.addEventListener('click', async () => {
+                        const response = await fetch(`/api/bulk/operations/${button.dataset.retryOperation}/retry`, {method: 'POST', headers: {'X-CSRF-Protect': '1'}});
+                        if (!response.ok) alert((await response.json()).detail || 'Retry failed');
+                        refreshOperations();
+                    }));
                 }
 
                 document.getElementById('stat-total').textContent = data.operations.length;

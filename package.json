@@ -1,0 +1,10 @@
+{
+  "name": "motus-leap-web",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i web/static/tailwind-input.css -o web/static/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

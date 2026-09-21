@@ -9,8 +9,7 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
     <link rel="manifest" href="/static/manifest.json">
         <script src="/static/shared-shell.js?v=20260720c"></script>
-<link rel="preconnect" href="https://cdn.tailwindcss.com">
-<script src="https://cdn.tailwindcss.com" defer></script>
+    <link rel="stylesheet" href="/static/tailwind.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720c">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1048,6 +1047,11 @@
                 const _locationSub = (_from && _to) 
                     ? `<div class="text-xs text-gray-400 mt-1 flex items-center gap-1.5"><span class="text-red-400 font-medium">${_from}</span> <i class="fa-solid fa-arrow-right text-[10px] text-gray-500"></i> <span class="text-green-400 font-semibold">${_to}</span></div>` 
                     : '';
+                const _explanation = type === 'misplaced' ? `<div class="mt-2 rounded-lg bg-[#14171f] border border-[#2a2f3a] px-3 py-2 text-[10px] text-gray-400">
+                    <span class="text-gray-200 font-semibold">Why:</span> ${DOMPurify.sanitize(item.match_reason || 'Channel mapping rule')}
+                    <span class="mx-1">·</span><span class="text-gray-200 font-semibold">Confidence:</span> ${Math.round(Number(item.confidence ?? 1) * 100)}%
+                    <span class="mx-1">·</span>${DOMPurify.sanitize(item.protection_reason || 'No keep-in-place protection matched')}
+                </div>` : '';
 
                 let _checkboxHtml = '';
                 const _chan = DOMPurify.sanitize(item.channel || item.channel_title || '');
@@ -1072,6 +1076,7 @@
                         </div>
                     </div>
                     ${_playlistBadges}
+                    ${_explanation}
                     ${_controls}
                 </div>
                 `;

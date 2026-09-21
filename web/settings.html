@@ -9,8 +9,7 @@
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
     <link rel="manifest" href="/static/manifest.json">
         <script src="/static/shared-shell.js?v=20260720c"></script>
-<link rel="preconnect" href="https://cdn.tailwindcss.com">
-<script src="https://cdn.tailwindcss.com" defer></script>
+    <link rel="stylesheet" href="/static/tailwind.css">
 <script>
 function viewSystemLogs() {
     window.location.href = '/system/logs';
@@ -347,7 +346,7 @@ function viewSystemLogs() {
                     return;
                 }
                 const data = await response.json();
-                console.log('[loadSettings] data:', JSON.stringify({youtube_connected: data.youtube_connected, oauth_refresh_token: (data.oauth_refresh_token||'').substring(0,6)}));
+                console.log('[loadSettings] connection state:', {youtube_connected: data.youtube_connected});
 
                 // Populate form fields (each wrapped defensively)
                 try {
@@ -379,7 +378,7 @@ function viewSystemLogs() {
         }
 
         function updateYouTubeStatusUI(data) {
-            console.log('[YT-STATUS-UI] data received:', JSON.stringify({youtube_connected: data.youtube_connected, oauth_refresh_token: (data.oauth_refresh_token||'').substring(0,6), oauth_access_token: (data.oauth_access_token||'').substring(0,6)}));
+            console.log('[YT-STATUS-UI] connection state:', {youtube_connected: data.youtube_connected});
             const hasTokens = !!data.youtube_connected;
             const title = document.getElementById('yt-status-title');
             const detail = document.getElementById('yt-status-detail');

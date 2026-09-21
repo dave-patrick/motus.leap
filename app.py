@@ -77,6 +77,14 @@ from models.task import Task, TaskStatus, TaskPriority
 # Service imports
 from services.youtube_service import YouTubeService, _best_thumbnail
 from services import quota_ledger as _quota_ledger
+from core.observability import (
+    MetricsMiddleware,
+    health_check as detailed_health_check,
+    init_sentry,
+    liveness_check,
+    metrics_endpoint,
+    readiness_check,
+)
 
 if TYPE_CHECKING:
     from services.background_worker import BackgroundWorker
@@ -306,6 +314,8 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+init_sentry()
+app.add_middleware(MetricsMiddleware)
 
 # Add CORS middleware
 # Get allowed origins from environment or use defaults
@@ -315,11 +325,20 @@ _extra_origins = os.environ.get("EXTRA_ALLOWED_ORIGINS", "").split(",") if os.en
 # Generic error handler to avoid leaking internal paths/stack traces in production responses
 @app.middleware("http")
 async def generic_error_handler(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+    request.state.request_id = request_id
+    started = time.perf_counter()
     try:
-        return await call_next(request)
+        response = await call_next(request)
     except Exception as exc:
-        log.exception("Unhandled exception")
-        return JSONResponse(status_code=500, content={"error": "Internal server error"})
+        log.exception("Unhandled exception request_id=%s", request_id)
+        response = JSONResponse(
+            status_code=500,
+            content={"error": "Internal server error", "request_id": request_id},
+        )
+    response.headers["X-Request-ID"] = request_id
+    response.headers["Server-Timing"] = f'app;dur={(time.perf_counter() - started) * 1000:.1f}'
+    return response
 
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -498,7 +517,7 @@ def _csp_header(strict: bool) -> str:
     # Legacy/permissive (unchanged from before the workstream).
     return (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; "
+        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
         "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         "img-src 'self' https://*.ytimg.com https://yt3.ggpht.com https://picsum.photos; "
@@ -715,6 +734,27 @@ async def health():
     return JSONResponse({"status": "ok"})
 
 
+@app.get("/health/details")
+async def health_details():
+    return await detailed_health_check()
+
+
+@app.get("/ready")
+async def ready():
+    result = await readiness_check()
+    return JSONResponse(result, status_code=200 if result.get("status") == "ready" else 503)
+
+
+@app.get("/live")
+async def live():
+    return await liveness_check()
+
+
+@app.get("/metrics", dependencies=[Depends(check_role([RoleEnum.ADMIN]))])
+async def metrics():
+    return metrics_endpoint()
+
+
 # Single-request endpoint - QUOTA OPTIMIZED
 @app.get("/api/youtube/fetch-all", dependencies=[Depends(get_current_user)])
 @limiter.limit("10/minute")  # Rate limit: 10 requests per minute
@@ -771,7 +811,14 @@ async def api_playlist_names():
 
 
 @app.get("/api/youtube/videos", dependencies=[Depends(get_current_user)])
-async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: bool = False):
+async def get_youtube_videos(
+    playlist_id: Optional[str] = None,
+    force_refresh: bool = False,
+    page: Optional[int] = None,
+    page_size: Optional[int] = None,
+    search: Optional[str] = None,
+    sort: str = "title",
+):
     """Get videos with duration (cached).
 
     Query params:
@@ -782,7 +829,8 @@ async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: b
         try:
             from services.watch_later_service import load_watch_later_videos
             wl_videos = load_watch_later_videos()
-            return {"videos": wl_videos, "cached": True, "is_watch_later": True}
+            result = {"videos": wl_videos, "cached": True, "is_watch_later": True}
+            return _paginate_video_result(result, page, page_size, search, sort)
         except Exception as e:
             log.warning(f"Error loading watch later videos: {e}")
 
@@ -790,7 +838,29 @@ async def get_youtube_videos(playlist_id: Optional[str] = None, force_refresh: b
         return {"videos": [], "error": "YouTube service not initialized"}
     
     result = await youtube_service.get_videos(playlist_id=playlist_id, force_refresh=force_refresh)
-    return result
+    return _paginate_video_result(result, page, page_size, search, sort)
+
+
+def _paginate_video_result(result, page, page_size, search, sort):
+    if page is None and page_size is None and not search:
+        return result
+    videos = list(result.get("videos") or [])
+    if search:
+        needle = search.casefold()
+        videos = [v for v in videos if needle in f"{v.get('title', '')} {v.get('channel_title', '')}".casefold()]
+    reverse = sort.startswith("-")
+    sort_key = sort.lstrip("-")
+    if sort_key not in {"title", "channel_title", "published_at", "video_id"}:
+        raise HTTPException(status_code=400, detail="unsupported video sort")
+    videos.sort(key=lambda v: (v.get(sort_key) is None, v.get(sort_key) or ""), reverse=reverse)
+    size = min(max(page_size or 100, 1), 500)
+    number = max(page or 1, 1)
+    start = (number - 1) * size
+    return {
+        **result,
+        "videos": videos[start:start + size],
+        "pagination": {"page": number, "page_size": size, "total": len(videos), "has_more": start + size < len(videos)},
+    }
 
 
 @app.get("/api/youtube/duplicates", dependencies=[Depends(get_current_user)])
@@ -907,6 +977,9 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
                     _resolved = _stored_title
                 if _resolved:
                     _v["mapped_playlist_title"] = _resolved
+                _v.setdefault("match_reason", "Channel mapping rule")
+                _v.setdefault("confidence", 1.0)
+                _v.setdefault("protection_reason", "No keep-in-place protection matched")
             return {"misplaced": mis_videos, "count": len(mis_videos)}
     except Exception:
         pass
@@ -1242,16 +1315,69 @@ async def stats(request: Request) -> dict[str, Any]:
         "learning_rates": str(channel_mappings_count),
         "cache_hit_rate": cache_hit_rate,
         "last_scan": config.last_scan_time or "Never",
+        "quota": {
+            "used": _quota_ledger.ledger().used_today(),
+            "remaining": _quota_ledger.ledger().remaining(),
+            "daily_cap": _quota_ledger.DAILY_CAP,
+            "soft_cap": _quota_ledger.SOFT_CAP,
+            "scope": "locally tracked operations",
+        },
+        "job_progress": worker.progress_snapshot() if worker else {"state": "idle"},
     }
+
+
+@app.get("/api/quota", dependencies=[Depends(get_current_user)])
+async def api_quota() -> dict[str, Any]:
+    used = _quota_ledger.ledger().used_today()
+    return {
+        "used_units": used,
+        "remaining_operational_units": _quota_ledger.ledger().remaining(),
+        "daily_cap": _quota_ledger.DAILY_CAP,
+        "reserved_units": _quota_ledger.SAFE_MARGIN,
+        "percent_used": round((used / max(_quota_ledger.DAILY_CAP, 1)) * 100, 2),
+        "authoritative": False,
+        "note": "Local estimate; Google Cloud Console remains authoritative.",
+    }
+
+
+@app.get("/api/jobs/current", dependencies=[Depends(get_current_user)])
+async def api_current_job() -> dict[str, Any]:
+    return worker.progress_snapshot() if worker else {"state": "idle", "completed": 0, "total": 0}
 
 
 # Playlists endpoint
 @app.get("/api/playlists", dependencies=[Depends(get_current_user)])
 @limiter.limit("30/minute")
-async def api_playlists(request: Request, force_refresh: bool = False) -> dict[str, Any]:
+async def api_playlists(
+    request: Request,
+    force_refresh: bool = False,
+    page: Optional[int] = None,
+    page_size: Optional[int] = None,
+    search: Optional[str] = None,
+    sort: str = "title",
+) -> dict[str, Any]:
     """Get playlists data."""
     if youtube_service:
-        return await youtube_service.list_playlists(force_refresh=force_refresh)
+        result = await youtube_service.list_playlists(force_refresh=force_refresh)
+        if page is None and page_size is None and not search:
+            return result
+        playlists = list(result.get("playlists") or [])
+        if search:
+            needle = search.casefold()
+            playlists = [p for p in playlists if needle in str(p.get("title") or "").casefold()]
+        reverse = sort.startswith("-")
+        sort_key = sort.lstrip("-")
+        if sort_key not in {"title", "item_count", "id"}:
+            raise HTTPException(status_code=400, detail="sort must be title, item_count, id, or prefixed with -")
+        playlists.sort(key=lambda p: (p.get(sort_key) is None, p.get(sort_key) or ""), reverse=reverse)
+        size = min(max(page_size or 100, 1), 500)
+        number = max(page or 1, 1)
+        start = (number - 1) * size
+        return {
+            **result,
+            "playlists": playlists[start:start + size],
+            "pagination": {"page": number, "page_size": size, "total": len(playlists), "has_more": start + size < len(playlists)},
+        }
     return {"playlists": [], "error": "YouTube service not available"}
 
 
@@ -5236,7 +5362,7 @@ async def system_logs_page():
     <title>System Logs - motus.leap</title>
     <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
     <script src="/static/shared-shell.js?v=20260720b"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/tailwind.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720b">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">

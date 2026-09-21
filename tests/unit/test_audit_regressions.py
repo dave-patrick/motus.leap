@@ -70,6 +70,35 @@ def test_static_js_revalidated_after_deploy():
     assert cached.status_code == 304
 
 
+def test_request_id_and_server_timing_are_returned():
+    client = TestClient(app_module.app)
+    response = client.get('/health', headers={'X-Request-ID': 'audit-request'})
+    assert response.headers['x-request-id'] == 'audit-request'
+    assert response.headers['server-timing'].startswith('app;dur=')
+
+
+def test_quota_and_bulk_preview_are_transparent(authenticated):
+    client, _ = authenticated
+    quota = client.get('/api/quota').json()
+    assert quota['daily_cap'] == 1_500_000
+    assert quota['authoritative'] is False
+    preview = client.post('/api/bulk/preview/delete', json={
+        'video_ids': ['abcdefghijk', 'abcdefghijk'],
+        'playlist_id': 'PLtest',
+    }, headers={'Origin': 'http://localhost:8000'}).json()
+    assert preview['total_items'] == 1
+    assert preview['estimated_quota_units'] == 50
+
+
+def test_video_pagination_search_and_sort():
+    result = app_module._paginate_video_result({"videos": [
+        {"video_id": "2", "title": "Zulu", "channel_title": "B"},
+        {"video_id": "1", "title": "Alpha", "channel_title": "A"},
+    ]}, page=1, page_size=1, search="a", sort="title")
+    assert result['videos'][0]['title'] == 'Alpha'
+    assert result['pagination'] == {'page': 1, 'page_size': 1, 'total': 1, 'has_more': False}
+
+
 def test_shared_shell_resolves_detached_relative_navigation_links():
     source = (app_module.BASE_DIR / 'web' / 'static' / 'shared-shell.js').read_text()
     assert "link.getAttribute('href')" in source

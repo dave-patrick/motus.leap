@@ -7,6 +7,7 @@ from core.utils import fast_dumps
 import logging
 import os
 import traceback
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, List, Dict
@@ -123,7 +124,39 @@ class BackgroundWorker:
         self.current_task_name = None
         self._current_task: Optional[asyncio.Task] = None
         self._cancel_requested = False
+        self._progress_path = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) / "job_progress.json"
+        self._progress: dict[str, Any] = self._load_progress()
+        if self._progress.get("state") == "running":
+            self._progress.update({"state": "interrupted", "message": "Interrupted by service restart; retry is available."})
+            self._save_progress()
         # Playlist cache for AI mode
+
+    def _load_progress(self) -> dict[str, Any]:
+        try:
+            return json.loads(self._progress_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {"state": "idle", "completed": 0, "total": 0, "failures": []}
+
+    def _save_progress(self) -> None:
+        try:
+            self._progress_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self._progress_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self._progress, indent=2), encoding="utf-8")
+            os.replace(tmp, self._progress_path)
+        except Exception as exc:
+            log.warning("[WORKER] Unable to persist job progress: %s", exc)
+
+    def progress_snapshot(self) -> dict[str, Any]:
+        return dict(self._progress)
+
+    async def _record_progress(self, **updates: Any) -> None:
+        self._progress.update(updates)
+        self._progress["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await asyncio.to_thread(self._save_progress)
+        try:
+            await self.manager.broadcast(fast_dumps({"type": "job_progress", **self._progress}))
+        except Exception:
+            pass
 
     async def start(self) -> None:
         """Launch the in-process scheduler ticker (P3).
@@ -400,6 +433,12 @@ class BackgroundWorker:
                 await self._safe_broadcast({"type": "log", "message": f"[AGENT] Starting: {action}"})
 
                 self.current_task_name = action
+                await self._record_progress(
+                    job_id=uuid.uuid4().hex,
+                    action=action, state="running", completed=0, total=0,
+                    videos_examined=0, failures=[], started_at=datetime.now(timezone.utc).isoformat(),
+                    message=f"Starting {action}",
+                )
                 await self._broadcast_status()
 
                 async def _run_handler():
@@ -437,6 +476,7 @@ class BackgroundWorker:
                     await self._current_task
                 except asyncio.CancelledError:
                     await self._safe_broadcast({"type": "log", "message": f"[AGENT] Cancelled: {action}"})
+                    await self._record_progress(state="cancelled", message=f"Cancelled {action}")
                     self.task_queue.task_done()
                     self.current_task_name = None
                     self._current_task = None
@@ -451,8 +491,10 @@ class BackgroundWorker:
                 if self._cancel_requested:
                     await self._safe_broadcast({"type": "log", "message": f"[AGENT] Cancelled: {action}"})
                     self._cancel_requested = False
+                    await self._record_progress(state="cancelled", message=f"Cancelled {action}")
                 else:
                     await self._safe_broadcast({"type": "log", "message": f"[AGENT] Completed: {action}"})
+                    await self._record_progress(state="completed", message=f"Completed {action}")
                 self.task_queue.task_done()
                 self.current_task_name = None
                 await self._broadcast_status()
@@ -464,6 +506,7 @@ class BackgroundWorker:
                 log.error(f"Background task error: {e}")
                 await self._safe_broadcast({"type": "log", "message": f"[ERROR] {str(e)}"})
                 self.current_task_name = None
+                await self._record_progress(state="failed", message=str(e))
                 self.task_queue.task_done()
                 await self._broadcast_status()
 
@@ -511,7 +554,8 @@ class BackgroundWorker:
             playlist_titles = {pl.get("id"): pl.get("snippet", {}).get("title", pl.get("id")) for pl in playlists}
             
             total_videos = 0
-            for pl in playlists:
+            await self._record_progress(total=len(playlists), completed=0, videos_examined=0, failures=[])
+            for playlist_index, pl in enumerate(playlists, start=1):
                 if self._cancel_requested:
                     log.info("[WORKER] Cancel requested during scan — stopping early")
                     await self._safe_broadcast({"type": "log", "message": "[WORKER] Scan cancelled by user"})
@@ -541,6 +585,9 @@ class BackgroundWorker:
                 except Exception as video_err:
                     log.warning(f"[WORKER] Failed to fetch videos for playlist {pl_id}: {video_err}")
                     await self._safe_broadcast({"type": "log", "message": f"[WORKER] Skipping playlist {pl_id}: {video_err}"})
+                    failures = list(self._progress.get("failures") or [])
+                    failures.append({"playlist_id": pl_id, "reason": str(video_err)[:240]})
+                    await self._record_progress(completed=playlist_index, failures=failures)
                     continue
                 items = items_resp.get("items", [])
                 total_videos += len(items)
@@ -603,10 +650,19 @@ class BackgroundWorker:
                                             "current_playlist_id": pl_id,
                                             "current_playlist_title": pl_title,
                                             "mapped_playlist_id": mapped_playlist_id,
-                                            "mapped_playlist_title": mapped_pl_title
+                                            "mapped_playlist_title": mapped_pl_title,
+                                            "match_reason": f"Channel {owner_channel_id} maps to {mapped_pl_title}",
+                                            "confidence": 1.0,
+                                            "protection_reason": "No keep-in-place protection matched",
                                         })
                 
                 await self._safe_broadcast({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"})
+                await self._record_progress(
+                    completed=playlist_index,
+                    videos_examined=total_videos,
+                    current_item=pl_title,
+                    message=f"Scanned {playlist_index} of {len(playlists)} playlists",
+                )
                 await asyncio.sleep(0.5)
             
             await self._safe_broadcast({"type": "log", "message": f"[SCAN] Analyzing {total_videos} videos across {len(playlists)} playlists..."})
@@ -991,6 +1047,9 @@ class BackgroundWorker:
                                 "current_playlist_title": pl_title_v,
                                 "mapped_playlist_id": target_pl,
                                 "mapped_playlist_title": target_title,
+                                "match_reason": f"Channel {channel_id} maps to {target_title}",
+                                "confidence": 1.0,
+                                "protection_reason": "No keep-in-place protection matched",
                             })
                             break
         await self._safe_broadcast({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"})

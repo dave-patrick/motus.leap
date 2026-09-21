@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header, Request
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Dict, Any, Optional
 import json
@@ -14,6 +14,7 @@ import io
 from datetime import datetime
 import base64
 import threading
+import uuid
 from api.auth import get_current_user, verify_origin
 from api.bulk_operations_impl import BulkOperationsService
 from core.config_manager import ConfigManager
@@ -144,7 +145,10 @@ class BulkOperationResponse(BaseModel):
     status: str  # "pending", "in_progress", "completed", "failed"
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    errors: List[str] = []
+    errors: List[str] = Field(default_factory=list)
+    item_results: List[Dict[str, Any]] = Field(default_factory=list)
+    idempotency_key: Optional[str] = None
+    request_payload: Dict[str, Any] = Field(default_factory=dict)
 
 
 class OperationStatusResponse(BaseModel):
@@ -156,7 +160,18 @@ class OperationStatusResponse(BaseModel):
     total_items: int
     succeeded: int
     failed: int
-    errors: List[str] = []
+    errors: List[str] = Field(default_factory=list)
+    item_results: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+def _operation_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex}"
+
+
+def _existing_idempotent_operation(storage, key: Optional[str]):
+    if not key:
+        return None
+    return next((op for op in storage.list_all() if op.idempotency_key == key), None)
 
 
 # =============================================================================
@@ -251,17 +266,22 @@ async def bulk_move_videos(
     background_tasks: BackgroundTasks,
     config: TubeManagerConfig = Depends(get_config),
     config_manager: ConfigManager = Depends(get_config_manager),
-    ops_storage: OperationsStorage = Depends(get_operations_storage)
+    ops_storage: OperationsStorage = Depends(get_operations_storage),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """Bulk move videos between playlists."""
-    operation_id = f"move_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    if existing := _existing_idempotent_operation(ops_storage, idempotency_key):
+        return existing
+    operation_id = _operation_id("move")
 
     operation = BulkOperationResponse(
         operation_id=operation_id,
         operation_type="bulk_move",
         total_items=len(request.video_ids),
         status="pending",
-        started_at=datetime.now()
+        started_at=datetime.now(),
+        idempotency_key=idempotency_key,
+        request_payload=request.model_dump(),
     )
 
     ops_storage.set(operation_id, operation)
@@ -288,17 +308,22 @@ async def bulk_delete_videos(
     background_tasks: BackgroundTasks,
     config: TubeManagerConfig = Depends(get_config),
     config_manager: ConfigManager = Depends(get_config_manager),
-    ops_storage: OperationsStorage = Depends(get_operations_storage)
+    ops_storage: OperationsStorage = Depends(get_operations_storage),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """Bulk delete videos from playlist."""
-    operation_id = f"delete_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    if existing := _existing_idempotent_operation(ops_storage, idempotency_key):
+        return existing
+    operation_id = _operation_id("delete")
 
     operation = BulkOperationResponse(
         operation_id=operation_id,
         operation_type="bulk_delete",
         total_items=len(request.video_ids),
         status="pending",
-        started_at=datetime.now()
+        started_at=datetime.now(),
+        idempotency_key=idempotency_key,
+        request_payload=request.model_dump(),
     )
 
     ops_storage.set(operation_id, operation)
@@ -324,17 +349,22 @@ async def bulk_tag_videos(
     background_tasks: BackgroundTasks,
     config: TubeManagerConfig = Depends(get_config),
     config_manager: ConfigManager = Depends(get_config_manager),
-    ops_storage: OperationsStorage = Depends(get_operations_storage)
+    ops_storage: OperationsStorage = Depends(get_operations_storage),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """Bulk add or remove tags from videos."""
-    operation_id = f"tag_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    if existing := _existing_idempotent_operation(ops_storage, idempotency_key):
+        return existing
+    operation_id = _operation_id("tag")
 
     operation = BulkOperationResponse(
         operation_id=operation_id,
         operation_type=f"bulk_tag_{request.action}",
         total_items=len(request.video_ids),
         status="pending",
-        started_at=datetime.now()
+        started_at=datetime.now(),
+        idempotency_key=idempotency_key,
+        request_payload=request.model_dump(),
     )
 
     ops_storage.set(operation_id, operation)
@@ -420,8 +450,34 @@ async def get_operation_status(operation_id: str, ops_storage: OperationsStorage
         total_items=operation.total_items,
         succeeded=operation.succeeded,
         failed=operation.failed,
-        errors=operation.errors
+        errors=operation.errors,
+        item_results=operation.item_results,
     )
+
+
+@router.post("/preview/move")
+async def preview_bulk_move(request: BulkMoveRequest):
+    unique_ids = list(dict.fromkeys(request.video_ids))
+    return {
+        "operation": "move",
+        "total_items": len(unique_ids),
+        "source_playlist_id": request.source_playlist_id,
+        "target_playlist_id": request.target_playlist_id,
+        "estimated_quota_units": len(unique_ids) * (100 if request.source_playlist_id else 50),
+        "video_ids": unique_ids,
+    }
+
+
+@router.post("/preview/delete")
+async def preview_bulk_delete(request: BulkDeleteRequest):
+    unique_ids = list(dict.fromkeys(request.video_ids))
+    return {
+        "operation": "delete",
+        "total_items": len(unique_ids),
+        "playlist_id": request.playlist_id,
+        "estimated_quota_units": len(unique_ids) * 50,
+        "video_ids": unique_ids,
+    }
 
 
 @router.get("/operations")
@@ -451,6 +507,44 @@ async def cancel_operation(operation_id: str, ops_storage: OperationsStorage = D
     await ops_storage.update_and_save(operation)
 
     return {"message": f"Operation {operation_id} cancelled"}
+
+
+@router.post("/operations/{operation_id}/retry", response_model=BulkOperationResponse)
+async def retry_failed_operation(
+    operation_id: str,
+    background_tasks: BackgroundTasks,
+    config: TubeManagerConfig = Depends(get_config),
+    config_manager: ConfigManager = Depends(get_config_manager),
+    ops_storage: OperationsStorage = Depends(get_operations_storage),
+):
+    original = ops_storage.get(operation_id)
+    if not original:
+        raise HTTPException(status_code=404, detail="Operation not found")
+    failed_ids = [r.get("video_id") for r in original.item_results if r.get("status") == "failed" and r.get("video_id")]
+    if not failed_ids:
+        raise HTTPException(status_code=400, detail="Operation has no failed items to retry")
+    payload = dict(original.request_payload or {})
+    payload["video_ids"] = failed_ids
+    new_id = _operation_id("retry")
+    retry = BulkOperationResponse(
+        operation_id=new_id,
+        operation_type=original.operation_type,
+        total_items=len(failed_ids),
+        status="pending",
+        started_at=datetime.now(),
+        request_payload=payload,
+    )
+    ops_storage.set(new_id, retry)
+    await ops_storage.save()
+    if original.operation_type == "bulk_move":
+        background_tasks.add_task(process_bulk_move, new_id, failed_ids, payload.get("target_playlist_id"), payload.get("source_playlist_id"), config, config_manager, ops_storage)
+    elif original.operation_type == "bulk_delete":
+        background_tasks.add_task(process_bulk_delete, new_id, failed_ids, payload.get("playlist_id"), config, config_manager, ops_storage)
+    elif original.operation_type.startswith("bulk_tag_"):
+        background_tasks.add_task(process_bulk_tag, new_id, failed_ids, payload.get("tags") or [], payload.get("action") or "add", config, config_manager, ops_storage)
+    else:
+        raise HTTPException(status_code=400, detail="This operation type cannot be retried")
+    return retry
 
 
 # =============================================================================
@@ -500,12 +594,15 @@ async def process_bulk_move(
                 success = await service.move_video(video_id, target_playlist_id, source_playlist_id)
                 if success:
                     operation.succeeded += 1
+                    operation.item_results.append({"video_id": video_id, "status": "succeeded"})
                 else:
                     operation.failed += 1
                     operation.errors.append(f"Failed to move {video_id}")
+                    operation.item_results.append({"video_id": video_id, "status": "failed", "reason": "move failed"})
             except Exception as e:
                 operation.failed += 1
                 operation.errors.append(f"Failed to move {video_id}: {str(e)}")
+                operation.item_results.append({"video_id": video_id, "status": "failed", "reason": str(e)})
 
             operation.processed += 1
 
@@ -569,12 +666,15 @@ async def process_bulk_delete(
                 success = await service.delete_video(video_id, playlist_id)
                 if success:
                     operation.succeeded += 1
+                    operation.item_results.append({"video_id": video_id, "status": "succeeded"})
                 else:
                     operation.failed += 1
                     operation.errors.append(f"Failed to delete {video_id}")
+                    operation.item_results.append({"video_id": video_id, "status": "failed", "reason": "delete failed"})
             except Exception as e:
                 operation.failed += 1
                 operation.errors.append(f"Failed to delete {video_id}: {str(e)}")
+                operation.item_results.append({"video_id": video_id, "status": "failed", "reason": str(e)})
 
             operation.processed += 1
             if i % 10 == 0 or i == len(video_ids) - 1:
@@ -633,12 +733,15 @@ async def process_bulk_tag(
                 success = await service.tag_video(video_id, tags, action)
                 if success:
                     operation.succeeded += 1
+                    operation.item_results.append({"video_id": video_id, "status": "succeeded"})
                 else:
                     operation.failed += 1
                     operation.errors.append(f"Failed to {action} tag for {video_id}")
+                    operation.item_results.append({"video_id": video_id, "status": "failed", "reason": f"{action} tag failed"})
             except Exception as e:
                 operation.failed += 1
                 operation.errors.append(f"Failed to {action} tag for {video_id}: {str(e)}")
+                operation.item_results.append({"video_id": video_id, "status": "failed", "reason": str(e)})
 
             operation.processed += 1
             if i % 10 == 0 or i == len(video_ids) - 1:

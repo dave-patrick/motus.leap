@@ -40,8 +40,22 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Verify production CSS build
+        run: |
+          npm ci
+          npm run build:css
+          git diff --exit-code -- web/static/tailwind.css
+
       - name: Frontend behavior regressions
-        run: node --test tests/frontend/audit-regressions.cjs
+        run: node --test tests/frontend/*.cjs
 
       - name: Run Pytest
         run: pytest --cov=. --cov-report=xml
+
+  production-gate:
+    if: github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Approve production deployment
+        run: echo "All supported Python versions, frontend tests, lint, CSS, and pytest checks passed."
