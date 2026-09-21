@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260723d';
+  const SHELL_VERSION = '20260921e';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -292,7 +292,10 @@
     }
     aside.querySelector('nav')?.setAttribute('aria-label', 'Main navigation');
     aside.querySelectorAll('a').forEach(link => {
-      if (new URL(link.href).pathname === window.location.pathname) link.setAttribute('aria-current', 'page');
+      const href = link.getAttribute('href');
+      if (href && new URL(href, window.location.origin).pathname === window.location.pathname) {
+        link.setAttribute('aria-current', 'page');
+      }
     });
 
 
