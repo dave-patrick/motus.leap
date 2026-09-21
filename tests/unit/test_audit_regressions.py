@@ -70,6 +70,13 @@ def test_static_js_revalidated_after_deploy():
     assert cached.status_code == 304
 
 
+def test_shared_shell_resolves_detached_relative_navigation_links():
+    source = (app_module.BASE_DIR / 'web' / 'static' / 'shared-shell.js').read_text()
+    assert "link.getAttribute('href')" in source
+    assert "new URL(href, window.location.origin)" in source
+    assert "new URL(link.href)" not in source
+
+
 def test_websocket_accepts_cookie_session_and_answers_ping(authenticated):
     client, _ = authenticated
     with client.websocket_connect('/ws/terminal', headers={'Origin': 'http://localhost:8000'}) as ws:
