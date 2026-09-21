@@ -241,7 +241,7 @@
             const videoIds = videos.split(/[,\n]/).map(v => v.trim()).filter(v => v);
 
             if (!targetPlaylist || videoIds.length === 0) {
-                alert('Please select target playlist and enter video IDs');
+                toast('Select a destination playlist and enter at least one video ID.', 'warning');
                 return;
             }
 
@@ -262,7 +262,7 @@
 
             const result = await response.json();
             if (result.operation_id) {
-                alert(`Bulk move started! Operation ID: ${result.operation_id}`);
+                toast(`Bulk move started · ${result.operation_id}`, 'success');
                 refreshOperations();
             }
         }
@@ -274,7 +274,7 @@
             const videoIds = videos.split(/[,\n]/).map(v => v.trim()).filter(v => v);
 
             if (!playlist || videoIds.length === 0) {
-                alert('Please select playlist and enter video IDs');
+                toast('Select a playlist and enter at least one video ID.', 'warning');
                 return;
             }
 
@@ -292,7 +292,7 @@
 
             const result = await response.json();
             if (result.operation_id) {
-                alert(`Bulk delete started! Operation ID: ${result.operation_id}`);
+                toast(`Bulk removal started · ${result.operation_id}`, 'success');
                 refreshOperations();
             }
         }
@@ -305,7 +305,7 @@
             const videoIds = videos.split(/[,\n]/).map(v => v.trim()).filter(v => v);
 
             if (tagList.length === 0 || videoIds.length === 0) {
-                alert('Please enter tags and video IDs');
+                toast('Enter at least one tag and one video ID.', 'warning');
                 return;
             }
 
@@ -321,7 +321,7 @@
 
             const result = await response.json();
             if (result.operation_id) {
-                alert(`Bulk tagging started! Operation ID: ${result.operation_id}`);
+                toast(`Bulk tagging started · ${result.operation_id}`, 'success');
                 refreshOperations();
             }
         }
@@ -332,7 +332,7 @@
             const file = document.getElementById('import-file').files[0];
 
             if (!file) {
-                alert('Please select a file to import');
+                toast('Select a CSV or JSON file to import.', 'warning');
                 return;
             }
 
@@ -352,7 +352,7 @@
 
             const result = await response.json();
             if (result.operation_id) {
-                alert(`Import started! Operation ID: ${result.operation_id}`);
+                toast(`Import started · ${result.operation_id}`, 'success');
                 refreshOperations();
             }
         }
@@ -392,7 +392,8 @@
                     }).join('');
                     queueEl.querySelectorAll('.retry-operation').forEach(button => button.addEventListener('click', async () => {
                         const response = await fetch(`/api/bulk/operations/${button.dataset.retryOperation}/retry`, {method: 'POST', headers: {'X-CSRF-Protect': '1'}});
-                        if (!response.ok) alert((await response.json()).detail || 'Retry failed');
+                        if (!response.ok) toast((await response.json()).detail || 'Retry failed', 'error');
+                        else toast('Retry queued', 'success');
                         refreshOperations();
                     }));
                 }

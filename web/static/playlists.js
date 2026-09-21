@@ -2,6 +2,41 @@
 
 // Store all playlists for manage function
 var allPlaylists = [];
+var playlistUiState = {
+    query: '',
+    sort: localStorage.getItem('motus_playlist_sort') || 'smart',
+    view: localStorage.getItem('motus_playlist_view') || 'grid'
+};
+
+function refreshPlaylistView() {
+    renderPlaylistsGrid(allPlaylists);
+}
+
+function setPlaylistView(view) {
+    playlistUiState.view = view === 'list' ? 'list' : 'grid';
+    localStorage.setItem('motus_playlist_view', playlistUiState.view);
+    refreshPlaylistView();
+}
+
+function initPlaylistControls() {
+    const search = document.getElementById('playlist-search');
+    const sort = document.getElementById('playlist-sort');
+    if (search && !search.dataset.wired) {
+        search.dataset.wired = '1';
+        search.addEventListener('input', () => { playlistUiState.query = search.value.trim().toLowerCase(); refreshPlaylistView(); });
+    }
+    if (sort && !sort.dataset.wired) {
+        sort.dataset.wired = '1';
+        sort.value = playlistUiState.sort;
+        sort.addEventListener('change', () => {
+            playlistUiState.sort = sort.value;
+            localStorage.setItem('motus_playlist_sort', sort.value);
+            refreshPlaylistView();
+        });
+    }
+    document.getElementById('playlist-grid-view')?.addEventListener('click', () => setPlaylistView('grid'));
+    document.getElementById('playlist-list-view')?.addEventListener('click', () => setPlaylistView('list'));
+}
 
 // Upgrade a low-res YouTube thumbnail URL to a higher-res variant (no API cost).
 // default.jpg is 120x90; hqdefault.jpg is 480x360; maxresdefault.jpg is 1280x720.
@@ -182,10 +217,41 @@ function renderPlaylistsGrid(playlists) {
         return;
     }
 
-    const sortedPlaylists = sortPlaylistsWithWatchLaterFirst(playlists);
+    let sortedPlaylists = sortPlaylistsWithWatchLaterFirst(playlists);
+    if (playlistUiState.query) {
+        sortedPlaylists = sortedPlaylists.filter(p => (p.title || p.name || '').toLowerCase().includes(playlistUiState.query));
+    }
+    if (playlistUiState.sort !== 'smart') {
+        sortedPlaylists.sort((a, b) => {
+            const titleA = a.title || a.name || '';
+            const titleB = b.title || b.name || '';
+            if (playlistUiState.sort === 'name-desc') return titleB.localeCompare(titleA, undefined, {numeric: true, sensitivity: 'base'});
+            if (playlistUiState.sort === 'count-desc') return Number(b.video_count || 0) - Number(a.video_count || 0) || titleA.localeCompare(titleB);
+            if (playlistUiState.sort === 'count-asc') return Number(a.video_count || 0) - Number(b.video_count || 0) || titleA.localeCompare(titleB);
+            return titleA.localeCompare(titleB, undefined, {numeric: true, sensitivity: 'base'});
+        });
+    }
+
+    const isList = playlistUiState.view === 'list';
+    playlistsList.className = isList ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4';
+    const count = document.getElementById('playlist-result-count');
+    if (count) count.textContent = `${sortedPlaylists.length} playlist${sortedPlaylists.length === 1 ? '' : 's'}`;
+    ['grid', 'list'].forEach(view => {
+        const button = document.getElementById(`playlist-${view}-view`);
+        const active = playlistUiState.view === view;
+        button?.classList.toggle('bg-[#2f8fc9]', active);
+        button?.classList.toggle('text-white', active);
+        button?.classList.toggle('text-gray-400', !active);
+        button?.setAttribute('aria-pressed', String(active));
+    });
+
+    if (!sortedPlaylists.length) {
+        playlistsList.innerHTML = `<div class="col-span-full bento-card p-10 text-center"><i class="fa-solid fa-magnifying-glass text-2xl text-gray-600 mb-3"></i><p class="text-base text-gray-200">No playlists match your search.</p><p class="text-sm text-gray-400 mt-1">Try a different title or clear the search.</p></div>`;
+        return;
+    }
 
     playlistsList.innerHTML = sortedPlaylists.map(p => {
-        const title = p.title || p.name || 'Untitled';
+        const title = DOMPurify.sanitize(p.title || p.name || 'Untitled');
         const playlistId = p.id || (p.url ? (p.url.split('list=')[1] || '').split('&')[0] : '');
         const isWL = (title.toLowerCase() === 'watch later' || playlistId === 'WL');
         const isExcluded = excludedPlaylistsSet.has(playlistId);
@@ -194,12 +260,12 @@ function renderPlaylistsGrid(playlists) {
             : (isExcluded ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/25 font-medium w-fit"><i class="fa-solid fa-shield-halved text-[8px]"></i> Excluded</span>` : '');
 
         return `
-        <a href="/playlist/${playlistId}" class="bento-card p-3 w-full flex flex-row gap-3 items-center cursor-pointer hover:border-[#2a7db8]/50 transition-all relative block min-h-[82px] ${isWL ? 'border-indigo-500/40 bg-indigo-950/10' : (isExcluded ? 'border-amber-500/30 bg-amber-950/10' : '')}">
-          <div class="flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden bg-[#0f1115] border border-[#2a2f3a]">
+        <a href="/playlist/${encodeURIComponent(playlistId)}" class="bento-card p-3 w-full flex ${isList ? 'flex-row items-center min-h-[92px]' : 'flex-col'} gap-3 cursor-pointer hover:border-[#2a7db8]/70 hover:-translate-y-0.5 transition-all relative ${isWL ? 'border-indigo-500/40 bg-indigo-950/10' : (isExcluded ? 'border-amber-500/30 bg-amber-950/10' : '')}">
+          <div class="flex-shrink-0 ${isList ? 'w-28 h-16' : 'w-full h-32'} rounded-lg overflow-hidden bg-[#0f1115] border border-[#2a2f3a]">
             ${thumbMarkup(p)}
           </div>
           <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-            <h3 class="text-base md:text-lg font-semibold ${isWL ? 'text-indigo-400' : 'text-[#2f8fc9]'} truncate">${title}</h3>
+            <h3 class="text-base font-semibold ${isWL ? 'text-indigo-300' : 'text-gray-100'} truncate">${title}</h3>
             ${badgeTag}
             <p class="text-xs text-gray-400" data-count-id="${playlistId}">${isWL ? '&mdash;' : (p.video_count != null ? p.video_count : 0) + ' videos'}</p>
             <div class="flex items-center gap-2 mt-0.5" onclick="event.stopPropagation()">
@@ -417,10 +483,12 @@ function safeLoadPlaylists() {
 }
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
+        initPlaylistControls();
         renderCachedPlaylists(); // paint instantly from cache
         safeLoadPlaylists();     // then fetch fresh
     });
 } else {
+    initPlaylistControls();
     renderCachedPlaylists();
     safeLoadPlaylists();
 }
@@ -453,6 +521,6 @@ async function syncPlaylists(e) {
         console.error("Sync failed:", e);
     } finally {
         btn.disabled = false;
-        btn.innerHTML = "<i class=\"fa-solid fa-sync\"></i> Sync from YouTube";
+        btn.innerHTML = "<i class=\"fa-solid fa-arrows-rotate text-[#6fb6df]\"></i> Sync library";
     }
 }

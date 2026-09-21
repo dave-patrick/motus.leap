@@ -47,12 +47,22 @@
 
         <main class="flex-1 overflow-y-auto p-6 pb-4 bg-[#0f1115]">
             <div class="flex flex-col gap-4 max-w-[1600px] w-full">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 class="text-xl font-bold text-white">Maintenance Queue</h2>
+                <header class="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#6fb6df] mb-2">Organize</p>
+                        <h2 class="page-heading">Maintenance Queue</h2>
+                        <p class="page-description mt-2">Review suggestions before anything moves. Select items, check the reason, then approve a destination or keep them where they are.</p>
+                    </div>
                     <div class="flex flex-wrap items-center gap-2">
-                        <button onclick="runScanFromMaintenance()" id="btn-run-scan" class="px-3.5 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
-                            <i class="fa-solid fa-magnifying-glass"></i> Run Scan
+                        <button onclick="runScanFromMaintenance()" id="btn-run-scan" class="min-h-11 px-4 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-sm font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
+                            <i class="fa-solid fa-magnifying-glass"></i> Refresh suggestions
                         </button>
+                        <a href="/bulk" class="min-h-11 px-4 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#3a414f] text-gray-200 text-sm font-semibold flex items-center gap-2 transition-colors">
+                            <i class="fa-solid fa-layer-group"></i> Bulk operations
+                        </a>
+                        <details class="relative">
+                          <summary class="list-none min-h-11 px-4 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#3a414f] text-gray-200 text-sm font-semibold flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-ellipsis"></i> More actions</summary>
+                          <div class="absolute right-0 mt-2 w-72 p-2 rounded-xl bg-[#1a1d24] border border-[#2a2f3a] shadow-2xl z-50 flex flex-col gap-1">
                         <button onclick="removeDeletedVideos()" id="btn-remove-deleted" class="px-3.5 py-2 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
                             <i class="fa-solid fa-trash-can"></i> Remove Deleted Videos
                         </button>
@@ -62,9 +72,6 @@
                         <button onclick="openAutoSortWatchLaterModal()" id="btn-auto-sort-wl" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
                             <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Sort "Watch Later"
                         </button>
-                        <a href="/bulk" class="px-3.5 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] text-gray-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-colors">
-                            <i class="fa-solid fa-layer-group"></i> Bulk Operations
-                        </a>
                         <!-- Export Options Dropdown -->
                         <div class="relative inline-block text-left" id="export-dropdown-wrapper">
                             <button onclick="toggleExportMenu()" id="btn-export-menu" class="px-3.5 py-2 rounded-lg bg-[#2a2f3a] hover:bg-[#374151] text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer">
@@ -82,8 +89,16 @@
                                 <button onclick="exportMaintenance('json', 'all'); toggleExportMenu();" class="w-full text-left px-3 py-1.5 hover:bg-[#2a2f3a] hover:text-white flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-file-code text-green-400"></i> All Items (JSON)</button>
                             </div>
                         </div>
+                          </div>
+                        </details>
                     </div>
-                </div>
+                </header>
+
+                <section class="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Maintenance review steps">
+                    <div class="bento-card p-4"><div class="text-xs font-bold text-[#6fb6df] mb-1">1 · Review</div><p class="text-sm text-gray-300">Check the title, current playlist, suggestion, and reason.</p></div>
+                    <div class="bento-card p-4"><div class="text-xs font-bold text-[#6fb6df] mb-1">2 · Select</div><p class="text-sm text-gray-300">Choose only the items you want to handle together.</p></div>
+                    <div class="bento-card p-4"><div class="text-xs font-bold text-[#6fb6df] mb-1">3 · Decide</div><p class="text-sm text-gray-300">Move them to a destination or keep them in place.</p></div>
+                </section>
 
                 <!-- Playlist Filter Toolbar -->
                 <div class="bento-card p-3.5 px-5 flex flex-wrap items-center justify-between gap-3 bg-[#14171f] border border-[#2a2f3a] rounded-xl shadow-sm">
@@ -121,7 +136,7 @@
                         </div>
 
                         <!-- Multiselect Batch Action Bar for Duplicates -->
-                        <div id="dup-batch-bar" class="hidden px-5 py-2.5 bg-[#181c24] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div id="dup-batch-bar" class="review-action-bar hidden px-5 py-2.5 bg-[#181c24] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3 text-xs">
                             <div class="flex items-center gap-2">
                                 <input type="checkbox" id="chk-select-all-dup" onchange="toggleSelectAllDup(this)" class="w-4 h-4 rounded bg-[#2a2f3a] border-gray-600 text-[#2f8fc9] cursor-pointer">
                                 <label for="chk-select-all-dup" class="text-gray-300 font-semibold cursor-pointer">Select All (<span id="selected-dup-count" class="text-[#2f8fc9] font-bold">0</span>)</label>
@@ -163,7 +178,7 @@
                         </div>
 
                         <!-- Multiselect Batch Action Bar -->
-                        <div id="misplaced-batch-bar" class="hidden px-5 py-2.5 bg-[#181c24] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div id="misplaced-batch-bar" class="review-action-bar hidden px-5 py-2.5 bg-[#181c24] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3 text-xs">
                             <div class="flex items-center gap-2">
                                 <input type="checkbox" id="chk-select-all-misplaced" onchange="toggleSelectAllMisplaced(this)" class="w-4 h-4 rounded bg-[#2a2f3a] border-gray-600 text-[#2f8fc9] cursor-pointer">
                                 <label for="chk-select-all-misplaced" class="text-gray-300 font-semibold cursor-pointer">Select All (<span id="selected-count" class="text-[#2f8fc9] font-bold">0</span>)</label>

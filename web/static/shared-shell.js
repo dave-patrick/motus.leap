@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260921e';
+  const SHELL_VERSION = '20260922a';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -38,14 +38,17 @@
     const active = (href) => path === href ? 'nav-item active' : 'nav-item';
     const subActive = (href) => path === href || (href !== '/ai' && path.startsWith(href)) ? 'ai-sub active' : 'ai-sub';
     return `<aside id="mobile-sidebar" class="w-60 bg-[#1a1d24] p-3 flex-col border-r border-[#2a2f3a] overflow-y-auto shrink-0 fixed md:static inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 flex">
-        <nav class="flex flex-col gap-1.5">
-          <a href="/dashboard" class="${active('/dashboard')} flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors duration-200"><i class="fas fa-th-large w-5 text-center"></i> Dashboard</a>
-          <a href="/playlists" class="${active('/playlists')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-list-ul w-5 text-center"></i> Playlists</a>
-          <a href="/subscriptions" class="${active('/subscriptions')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fa-solid fa-rss w-5 text-center"></i> Subscriptions</a>
-          <a href="/maintenance" class="${active('/maintenance')} flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 text-sm transition-colors duration-200"><i class="fas fa-wrench w-5 text-center"></i> Maintenance Queue</a>
+        <nav class="flex flex-col gap-1.5 flex-1">
+          <div class="nav-section-label">Overview</div>
+          <a href="/dashboard" class="${active('/dashboard')}" title="Dashboard"><i class="fas fa-th-large w-5 text-center"></i><span class="nav-label">Dashboard</span></a>
+          <div class="nav-section-label mt-3">Library</div>
+          <a href="/playlists" class="${active('/playlists')}" title="Playlists"><i class="fas fa-list-ul w-5 text-center"></i><span class="nav-label">Playlists</span></a>
+          <a href="/subscriptions" class="${active('/subscriptions')}" title="Subscriptions"><i class="fa-solid fa-rss w-5 text-center"></i><span class="nav-label">Subscriptions</span></a>
+          <div class="nav-section-label mt-3">Organize</div>
+          <a href="/maintenance" class="${active('/maintenance')}" title="Maintenance Queue"><i class="fas fa-wrench w-5 text-center"></i><span class="nav-label">Maintenance Queue</span></a>
           <div class="mt-1.5 pt-1.5 border-t border-[#2a2f3a]/40">
             <div class="flex items-center justify-between ai-group-toggle px-4 py-3 rounded-lg text-sm cursor-pointer select-none transition-colors duration-200 ${path.startsWith('/ai') ? 'bg-[#2f8fc9]/10 text-white font-semibold' : 'text-gray-300 hover:text-white hover:bg-[#2a2f3a]'}" data-group="aihub" onclick="toggleAiGroup('aihub')">
-              <a href="/ai" class="flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i> AI Hub</a>
+              <a href="/ai" class="flex items-center gap-3" data-ai="hub"><i class="fas fa-robot w-5 text-center"></i><span class="nav-label">AI Hub</span></a>
               <i class="fas fa-chevron-down text-[10px] text-gray-500 ai-group-chevron"></i>
             </div>
             <div class="ai-group-items flex flex-col gap-1 mt-1" data-group="aihub">
@@ -55,6 +58,9 @@
             </div>
           </div>
         </nav>
+        <button id="sidebar-collapse" class="hidden md:flex items-center gap-3 px-4 py-3 mt-3 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-[#2a2f3a]" aria-label="Collapse navigation" title="Collapse navigation">
+          <i class="fa-solid fa-angles-left w-5 text-center"></i><span class="nav-label">Collapse</span>
+        </button>
       </aside>`;
   }
 
@@ -202,6 +208,14 @@
         font-size: .875rem;
         transition: background-color .2s, color .2s;
       }
+      .nav-section-label {
+        padding: .35rem 1rem;
+        color: #788396;
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+      }
       .nav-item.active {
         background-color: #2f8fc9;
         color: #fff;
@@ -247,6 +261,16 @@
           transform: none !important;
           display: flex !important;
         }
+        #mobile-sidebar { transition: width .2s ease; }
+        #mobile-sidebar.sidebar-collapsed { width: 4.5rem; }
+        #mobile-sidebar.sidebar-collapsed .nav-label,
+        #mobile-sidebar.sidebar-collapsed .nav-section-label,
+        #mobile-sidebar.sidebar-collapsed .ai-group-chevron,
+        #mobile-sidebar.sidebar-collapsed .ai-group-items { display: none !important; }
+        #mobile-sidebar.sidebar-collapsed .nav-item,
+        #mobile-sidebar.sidebar-collapsed .ai-group-toggle,
+        #mobile-sidebar.sidebar-collapsed #sidebar-collapse { justify-content: center; padding-left: .75rem; padding-right: .75rem; }
+        #mobile-sidebar.sidebar-collapsed #sidebar-collapse i { transform: rotate(180deg); }
       }
     </style>`;
   }
@@ -297,6 +321,22 @@
         link.setAttribute('aria-current', 'page');
       }
     });
+
+    const collapseButton = aside.querySelector('#sidebar-collapse');
+    const setCollapsed = (collapsed) => {
+      aside.classList.toggle('sidebar-collapsed', collapsed);
+      collapseButton?.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
+      collapseButton?.setAttribute('title', collapsed ? 'Expand navigation' : 'Collapse navigation');
+    };
+    setCollapsed(localStorage.getItem('motus_sidebar_collapsed') === 'true');
+    if (collapseButton && !collapseButton.dataset.wired) {
+      collapseButton.dataset.wired = '1';
+      collapseButton.addEventListener('click', () => {
+        const next = !aside.classList.contains('sidebar-collapsed');
+        setCollapsed(next);
+        localStorage.setItem('motus_sidebar_collapsed', String(next));
+      });
+    }
 
 
     const container = main.parentElement;

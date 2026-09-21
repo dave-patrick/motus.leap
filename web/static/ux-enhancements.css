@@ -186,6 +186,65 @@ button, a, input, select, textarea {
     --info-color: #2f8fc9;
 }
 
+/* Shared readability and layout rhythm */
+body {
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+main {
+    padding-bottom: 4.5rem !important;
+}
+
+.page-heading {
+    font-size: clamp(1.5rem, 2vw, 2rem);
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.page-description {
+    color: var(--text-secondary);
+    font-size: .925rem;
+    max-width: 46rem;
+}
+
+.section-heading {
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 650;
+}
+
+.control-label {
+    color: var(--text-secondary);
+    font-size: .8rem;
+    font-weight: 600;
+}
+
+.ui-control {
+    min-height: 42px;
+    border: 1px solid var(--border-color);
+    border-radius: .65rem;
+    background: #11141a;
+    color: var(--text-primary);
+    font-size: .875rem;
+}
+
+.ui-control::placeholder { color: #7f8999; }
+
+.review-action-bar {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    box-shadow: 0 8px 18px rgba(8, 10, 14, .32);
+}
+
+@media (max-width: 640px) {
+    body { font-size: 14px; }
+    main { padding-left: 1rem !important; padding-right: 1rem !important; }
+    .page-description { font-size: .875rem; }
+}
+
 /* Docked state styling for AI Chat and Live Console panels */
 #ai-chat-panel.docked,
 #live-console-panel.docked {

@@ -46,6 +46,37 @@
 
         <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0f1115]">
             <div class="flex flex-col gap-4 max-w-[1600px] w-full">
+                <header class="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#6fb6df] mb-2">Library</p>
+                        <h2 class="page-heading">Playlists</h2>
+                        <p class="page-description mt-2">Search, sort, and open your playlists. Your preferred layout is saved on this device.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="openCreatePlaylistModal()" class="min-h-11 px-4 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-sm font-semibold flex items-center gap-2"><i class="fa-solid fa-plus"></i>Create playlist</button>
+                        <button onclick="syncPlaylists(event)" class="min-h-11 px-4 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#3a414f] text-gray-200 text-sm font-semibold flex items-center gap-2"><i class="fa-solid fa-arrows-rotate text-[#6fb6df]"></i>Sync library</button>
+                    </div>
+                </header>
+
+                <section class="bento-card p-3 flex flex-col md:flex-row md:items-center gap-3" aria-label="Playlist browsing controls">
+                    <label class="relative flex-1 min-w-0">
+                        <span class="sr-only">Search playlists</span>
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                        <input id="playlist-search" type="search" class="ui-control w-full pl-10 pr-4" placeholder="Search playlists" autocomplete="off">
+                    </label>
+                    <select id="playlist-sort" class="ui-control px-3 md:w-52" aria-label="Sort playlists">
+                        <option value="smart">Recommended order</option>
+                        <option value="name-asc">Name A–Z</option>
+                        <option value="name-desc">Name Z–A</option>
+                        <option value="count-desc">Most videos</option>
+                        <option value="count-asc">Fewest videos</option>
+                    </select>
+                    <div class="flex p-1 rounded-lg bg-[#11141a] border border-[#2a2f3a]" aria-label="Playlist layout">
+                        <button id="playlist-grid-view" type="button" class="min-w-10 min-h-9 rounded-md text-gray-400" aria-label="Grid view" title="Grid view"><i class="fa-solid fa-grip"></i></button>
+                        <button id="playlist-list-view" type="button" class="min-w-10 min-h-9 rounded-md text-gray-400" aria-label="List view" title="List view"><i class="fa-solid fa-list"></i></button>
+                    </div>
+                    <span id="playlist-result-count" class="text-sm text-gray-400 whitespace-nowrap px-2" aria-live="polite"></span>
+                </section>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-5 hidden" id="playlists-skeleton">
                     <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
                     <div class="space-y-2"><div class="h-24 rounded-lg bg-[#1e222a] animate-pulse"></div><div class="h-3 rounded bg-[#1e222a] animate-pulse"></div><div class="h-3 w-2/3 rounded bg-[#1e222a] animate-pulse"></div></div>
@@ -66,15 +97,15 @@
             </div>
             <div class="flex flex-col gap-3">
                 <div>
-                    <label class="text-[10px] text-gray-300">Title</label>
+                    <label class="control-label">Title</label>
                     <input id="cp-title" aria-label="New playlist title" type="text" class="mt-1 w-full bg-[#0f1115] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2f8fc9]" placeholder="My New Playlist">
                 </div>
                 <div>
-                    <label class="text-[10px] text-gray-300">Description</label>
+                    <label class="control-label">Description</label>
                     <textarea id="cp-desc" aria-label="New playlist description" rows="3" class="mt-1 w-full bg-[#0f1115] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#2f8fc9]" placeholder="Optional description"></textarea>
                 </div>
                 <div>
-                    <label class="text-[10px] text-gray-300">Privacy</label>
+                    <label class="control-label">Privacy</label>
                     <select id="cp-privacy" aria-label="New playlist privacy" class="mt-1 w-full bg-[#0f1115] border border-[#2a2f3a] rounded-lg px-3 py-2 text-sm text-white outline-none">
                         <option value="private">Private</option>
                         <option value="public">Public</option>
@@ -82,6 +113,7 @@
                     </select>
                 </div>
                 <button onclick="submitCreatePlaylist()" class="mt-2 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-medium px-4 py-2 rounded-lg">Create Playlist</button>
+                <p id="cp-error" class="hidden text-sm text-red-300" role="alert"></p>
             </div>
         </div>
     </div>
@@ -95,14 +127,17 @@
         const title = document.getElementById('cp-title').value.trim();
         const description = document.getElementById('cp-desc').value.trim();
         const privacy = document.getElementById('cp-privacy').value;
-        if (!title) return alert('Title is required');
+        const errorEl = document.getElementById('cp-error');
+        errorEl.classList.add('hidden');
+        if (!title) { errorEl.textContent = 'Enter a playlist title.'; errorEl.classList.remove('hidden'); return; }
         const resp = await authFetch('/api/youtube/playlists/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, description, privacy })
         });
-        if (!resp.ok) return alert('Failed to create playlist');
+        if (!resp.ok) { errorEl.textContent = 'The playlist could not be created. Try again.'; errorEl.classList.remove('hidden'); return; }
         closeCreatePlaylistModal();
+        toast('Playlist created', 'success');
         loadPlaylists();
     }
     </script>
