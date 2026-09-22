@@ -266,7 +266,7 @@
                 const failEl = document.getElementById('scan-failures');
                 failEl.classList.toggle('hidden', !failures.length);
                 failEl.textContent = failures.length ? `${failures.length} playlist(s) failed: ${failures.map(f => `${f.playlist_id}: ${f.reason}`).join(' · ')}` : '';
-                document.getElementById('scan-retry-btn').classList.toggle('hidden', !failures.length && !['interrupted','failed'].includes(job.state));
+                document.getElementById('scan-retry-btn').classList.toggle('hidden', !failures.length && !['interrupted','failed','cancelled'].includes(job.state));
             } catch (_) { /* next poll will recover */ }
         }
 

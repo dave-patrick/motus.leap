@@ -1045,6 +1045,10 @@ class BackgroundWorker:
         if self.youtube_service:
             videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
             videos = videos_data.get("videos", [])
+            await self._record_progress(
+                total=1, completed=0, videos_examined=len(videos), failures=[],
+                current_item="Analyzing duplicate groups", message=f"Checking {len(videos)} videos for duplicates",
+            )
             if not videos:
                 await self._safe_broadcast({"type": "log", "message": "[SCAN] Notice: 0 videos found in library cache. Click Full Playlist Sync to fetch library data."})
             else:
@@ -1072,6 +1076,10 @@ class BackgroundWorker:
                         for g in groups
                     ]
                 )
+            await self._record_progress(
+                completed=1, total=1, videos_examined=len(videos), current_item="Complete",
+                message=f"Duplicate scan complete: {duplicates} copies in {len(groups)} groups",
+            )
             return {"duplicates": duplicates, "groups": groups}
 
     async def scan_misplaced(self, payload):
@@ -1081,6 +1089,7 @@ class BackgroundWorker:
         await self._safe_broadcast({"type": "log", "message": f"[SCAN] Scanning for misplaced videos{location}..."})
         count = 0
         misplaced_videos = []
+        videos = []
         if self.youtube_service and hasattr(self.youtube_service, 'config') and hasattr(self.youtube_service.config, 'channel_mappings'):
             from services.playlist_protection import (
                 is_playlist_opted_in,
@@ -1103,8 +1112,18 @@ class BackgroundWorker:
 
             videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
             videos = videos_data.get("videos", [])
+            await self._record_progress(
+                total=len(videos), completed=0, videos_examined=0, failures=[],
+                current_item="Starting misplaced scan", message=f"Checking {len(videos)} videos against sorting rules",
+            )
             seen = set()
-            for v in videos:
+            for video_index, v in enumerate(videos, start=1):
+                if video_index % 50 == 0 or video_index == len(videos):
+                    await self._record_progress(
+                        completed=video_index, total=len(videos), videos_examined=video_index,
+                        current_item=v.get("title") or v.get("video_id") or "Video",
+                        message=f"Checked {video_index} of {len(videos)} videos",
+                    )
                 if playlist_id and v.get("playlist_id") != playlist_id:
                     continue
                 channel_id = v.get("channel_id")
@@ -1157,6 +1176,11 @@ class BackgroundWorker:
                         "protection_reason": "No keep-in-place protection matched",
                     })
         await self._safe_broadcast({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"})
+        if not misplaced_videos and not videos:
+            await self._record_progress(
+                completed=0, total=0, videos_examined=0, current_item="Complete",
+                message="Misplaced scan complete: no matching videos found",
+            )
         # Persist FULL-scan results so the Scan Details card reflects the latest
         # scan (not a stale cluster-scan snapshot). Per-playlist scan skipped.
         if not playlist_id:
