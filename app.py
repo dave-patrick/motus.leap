@@ -923,12 +923,13 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             # Drop per-playlist "not misplaced" overrides the user has taught us.
             from services.playlist_protection import (
                 is_staging_playlist,
+                is_sort_staging_playlist,
                 is_playlist_opted_in,
                 is_video_protected_in_current_playlist
             )
             excluded = {
                 (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id")))
-                for e in (maintenance.get("not_misplaced") or []) if e and not is_staging_playlist(
+                for e in (maintenance.get("not_misplaced") or []) if e and not is_sort_staging_playlist(
                     e.get("playlist_id") or e.get("current_playlist_id"),
                     e.get("playlist_title") or e.get("current_playlist_title"),
                 )
@@ -961,7 +962,7 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
                 and _is_opted_in(v)
                 and not _is_protected(v)
                 and (
-                    is_staging_playlist(v.get("current_playlist_id") or v.get("playlist_id"), v.get("current_playlist_title"))
+                    is_sort_staging_playlist(v.get("current_playlist_id") or v.get("playlist_id"), v.get("current_playlist_title"))
                     or (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("playlist_id"))) not in excluded
                 )
             ]
@@ -1769,6 +1770,7 @@ async def api_maintenance() -> dict[str, Any]:
 
         from services.playlist_protection import (
             is_staging_playlist,
+            is_sort_staging_playlist,
             is_playlist_opted_in,
             is_video_protected_in_current_playlist
         )
@@ -1781,7 +1783,7 @@ async def api_maintenance() -> dict[str, Any]:
         def _is_staging_source(item):
             cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "")
             ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "")
-            return is_staging_playlist(cid, ctitle)
+            return is_sort_staging_playlist(cid, ctitle)
 
         cfg = config_manager.config
         opt_in_pls = getattr(cfg, 'mapped_playlists', []) or []

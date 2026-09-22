@@ -12,11 +12,21 @@ from typing import Any, Dict, List, Optional, Set
 STAGING_KEYWORDS = ("1~sort", "inbox", "unsorted", "watch later", "wl", "check later")
 
 
+def is_sort_staging_playlist(pid: Optional[str], title: Optional[str]) -> bool:
+    """Check whether this is the user's 1~Sort / To Sort staging playlist."""
+    s_pid = str(pid or "").strip().lower()
+    s_title = re.sub(r"[^a-z0-9]", "", str(title or "").lower())
+    return (
+        s_pid == "pl7y0zeb_corjd72rd7pnoaowtdw5k8osy"
+        or s_title in {"1sort", "tosort"}
+    )
+
+
 def is_staging_playlist(pid: Optional[str], title: Optional[str]) -> bool:
     """Check if a playlist is a staging/inbox playlist."""
     s_pid = str(pid or "").lower()
     s_title = str(title or "").lower()
-    return any(kw in s_pid or kw in s_title for kw in STAGING_KEYWORDS)
+    return is_sort_staging_playlist(pid, title) or any(kw in s_pid or kw in s_title for kw in STAGING_KEYWORDS)
 
 
 # Comprehensive topic keyword dictionary for user's library

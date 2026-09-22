@@ -698,7 +698,8 @@ class BackgroundWorker:
                         from services.playlist_protection import (
                             is_playlist_opted_in,
                             is_video_protected_in_current_playlist,
-                            is_staging_playlist
+                            is_staging_playlist,
+                            is_sort_staging_playlist,
                         )
 
                         # Misplaced video check — only run for playlists eligible for channel mapping (staging or user opt-in)
@@ -719,7 +720,7 @@ class BackgroundWorker:
                                 channel_name_rules=channel_name_rules,
                                 category_to_id=category_to_id,
                             )
-                            is_staging_source = is_staging_playlist(pl_id, pl_title)
+                            is_staging_source = is_sort_staging_playlist(pl_id, pl_title)
                             mapped_pl_title = playlist_titles.get(mapped_playlist_id, mapped_playlist_id) if mapped_playlist_id else ""
                             needs_manual_review = is_staging_source and not mapped_playlist_id
                             # Every item in 1~Sort is a staging item. Rules can suggest
@@ -798,10 +799,10 @@ class BackgroundWorker:
                 except Exception:
                     pass
 
-            from services.playlist_protection import is_staging_playlist
+            from services.playlist_protection import is_sort_staging_playlist
             exc_set = {
                 (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id")))
-                for e in not_misplaced if e and not is_staging_playlist(
+                for e in not_misplaced if e and not is_sort_staging_playlist(
                     e.get("playlist_id") or e.get("current_playlist_id"),
                     e.get("current_playlist_title") or playlist_titles.get(e.get("playlist_id") or e.get("current_playlist_id"), ""),
                 )
@@ -1106,7 +1107,8 @@ class BackgroundWorker:
             from services.playlist_protection import (
                 is_playlist_opted_in,
                 is_video_protected_in_current_playlist,
-                is_staging_playlist
+                is_staging_playlist,
+                is_sort_staging_playlist,
             )
             config = self.youtube_service.config
             opt_in_playlists = getattr(config, 'mapped_playlists', []) or []
@@ -1159,7 +1161,7 @@ class BackgroundWorker:
                         channel_name_rules=channel_name_rules,
                         category_to_id=category_to_id,
                     )
-                    is_staging_source = is_staging_playlist(playlist_id_v, pl_title_v)
+                    is_staging_source = is_sort_staging_playlist(playlist_id_v, pl_title_v)
                     if not target_pl and not is_staging_source:
                         continue
                     target_title = playlist_titles.get(target_pl, target_pl) if target_pl else ""

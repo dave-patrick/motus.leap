@@ -3,12 +3,18 @@ from services.playlist_protection import (
     is_video_protected_in_current_playlist,
     is_playlist_opted_in,
     is_staging_playlist,
+    is_sort_staging_playlist,
     TOPIC_KEYWORDS,
 )
 from models.config import AIRule, TubeManagerConfig
 
 
 class TestPlaylistProtection:
+    def test_only_one_sort_gets_unconditional_sort_review(self):
+        assert is_sort_staging_playlist("pl_sort", "1~Sort") is True
+        assert is_sort_staging_playlist("PL7y0zeb_CORJD72rD7pNoAoWtDW5k8oSy", "To Sort") is True
+        assert is_sort_staging_playlist("pl_inbox", "Inbox") is False
+
     def test_staging_playlists_are_never_protected(self):
         assert is_video_protected_in_current_playlist(
             "Star Wars Episode 1", "pl_sort", "1~Sort", "pl_sw", "Star Wars"

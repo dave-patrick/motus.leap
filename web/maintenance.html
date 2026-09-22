@@ -454,6 +454,12 @@
             return stagingKws.some(kw => sId.includes(kw) || sTitle.includes(kw));
         }
 
+        function isSortStagingPlaylist(playlistId, playlistTitle) {
+            const id = String(playlistId || '').toLowerCase();
+            const title = String(playlistTitle || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return id === 'pl7y0zeb_corjd72rd7pnoaowtdw5k8osy' || title === '1sort' || title === 'tosort';
+        }
+
         function isVideoMatchingCurrentPlaylist(item) {
             const vtitle = (item.video_title || item.title || '').toLowerCase().trim();
             const curPid = item.current_playlist_id || item.source_playlist_id || '';
@@ -1126,7 +1132,7 @@
                         <button onclick="maintMove('${item.video_id}', '${item.current_playlist_id}', 'misplaced', '${_selId}', this)" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap">
                             <i class="fa-solid fa-arrow-right"></i> Move
                         </button>
-                        ${isStagingDestination(_fromId, _from) ? '' : `<button onclick="maintLeaveInPlace('${item.video_id}', '${item.current_playlist_id}', this)" class="bg-[#2a2f3a] hover:bg-amber-500/20 text-gray-300 hover:text-amber-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap" title="Keep this video in its current playlist and stop flagging it as misplaced">
+                        ${isSortStagingPlaylist(_fromId, _from) ? '' : `<button onclick="maintLeaveInPlace('${item.video_id}', '${item.current_playlist_id}', this)" class="bg-[#2a2f3a] hover:bg-amber-500/20 text-gray-300 hover:text-amber-400 border border-[#374151] text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap" title="Keep this video in its current playlist and stop flagging it as misplaced">
                             <i class="fa-solid fa-anchor text-[10px]"></i> Leave Here
                         </button>`}
                     </div>`;
