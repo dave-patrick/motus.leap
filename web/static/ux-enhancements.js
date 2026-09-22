@@ -840,14 +840,21 @@ if (document.readyState === 'loading') {
 // SINGLE PAGE APPLICATION (SPA) ROUTER
 // ============================================
 
+function requiresFullPageNavigation(url) {
+    return Boolean(url && (
+        url.startsWith('/settings') ||
+        url.startsWith('/rules') ||
+        url.startsWith('/system') ||
+        url.startsWith('/logs') ||
+        url.startsWith('/maintenance') ||
+        // Playlist pages own page-specific state and initialization. Reloading the
+        // document prevents stale globals and guarantees their data fetch runs.
+        url.startsWith('/playlist')
+    ));
+}
+
 async function navigateSPA(url) {
-    if (url && (
-        url.startsWith('/settings') || 
-        url.startsWith('/rules') || 
-        url.startsWith('/system') || 
-        url.startsWith('/logs') || 
-        url.startsWith('/maintenance')
-    )) {
+    if (requiresFullPageNavigation(url)) {
         window.location.href = url;
         return;
     }
@@ -918,13 +925,6 @@ async function navigateSPA(url) {
             });
         }
 
-        // Also update settings gear active state
-        const settingsGear = document.getElementById('settings-gear-btn');
-        if (settingsGear) {
-            const isSettings = url === '/settings';
-            settingsGear.className = `ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-[#1a1d24] border ${isSettings ? 'text-[#2f8fc9] border-[#2f8fc9]/40' : 'text-gray-400 border-[#2a2f3a]'} hover:text-[#2f8fc9] hover:border-[#2f8fc9]/40 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/20`;
-        }
-
         // Refresh docked panels layout/padding on navigation
         if (typeof updateDockedLayout === 'function') {
             updateDockedLayout();
@@ -947,11 +947,7 @@ document.addEventListener('click', (e) => {
             !href.startsWith('/api') && 
             !href.startsWith('/terms') && 
             !href.startsWith('/privacy') &&
-            !href.startsWith('/settings') &&
-            !href.startsWith('/rules') &&
-            !href.startsWith('/system') &&
-            !href.startsWith('/logs') &&
-            !href.startsWith('/maintenance')) {
+            !requiresFullPageNavigation(href)) {
             e.preventDefault();
             window.history.pushState(null, '', href);
             navigateSPA(href);
@@ -2054,4 +2050,3 @@ if (document.readyState === 'loading') {
         initAIChatWidget();
     }
 })();
-

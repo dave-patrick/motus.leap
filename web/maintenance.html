@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
     <link rel="manifest" href="/static/manifest.json">
-        <script src="/static/shared-shell.js?v=20260720c"></script>
+        <script src="/static/shared-shell.js?v=20260922c"></script>
     <link rel="stylesheet" href="/static/tailwind.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720c">
@@ -37,7 +37,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/global_scripts.js?v=1781919149"></script>
-    <script src="/static/ux-enhancements.js?v=20260720c"></script>
+    <script src="/static/ux-enhancements.js?v=20260922d"></script>
 </head>
 <body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <!-- ===== FULL-WIDTH TOP HEADER ===== -->
@@ -54,8 +54,11 @@
                         <p class="page-description mt-2">Review suggestions before anything moves. Select items, check the reason, then approve a destination or keep them where they are.</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="rescanPlaylistsFromMaintenance()" id="btn-rescan-playlists" class="min-h-11 px-4 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#3a414f] text-gray-200 text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer">
+                            <i class="fa-solid fa-arrows-rotate text-[#6fb6df]"></i> Rescan playlists
+                        </button>
                         <button onclick="runScanFromMaintenance()" id="btn-run-scan" class="min-h-11 px-4 py-2 rounded-lg bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-sm font-semibold flex items-center gap-2 transition-all duration-200 shadow-md cursor-pointer">
-                            <i class="fa-solid fa-magnifying-glass"></i> Refresh suggestions
+                            <i class="fa-solid fa-magnifying-glass"></i> Rescan queue
                         </button>
                         <a href="/bulk" class="min-h-11 px-4 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#3a414f] text-gray-200 text-sm font-semibold flex items-center gap-2 transition-colors">
                             <i class="fa-solid fa-layer-group"></i> Bulk operations
@@ -843,25 +846,49 @@
             }
         }
 
+        async function rescanPlaylistsFromMaintenance() {
+            const btn = document.getElementById('btn-rescan-playlists');
+            const original = btn?.innerHTML;
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rescanning playlists…'; }
+            try {
+                const response = await authFetch('/api/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'sync_playlists' })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.status === 'error') throw new Error(data.error || 'Could not start playlist rescan');
+                toast('Playlist rescan started. Use “Rescan queue” after the sync finishes to rebuild suggestions.', 'success', 7000);
+            } catch (e) {
+                toast(`Playlist rescan error: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = original; }
+            }
+        }
+
         async function runScanFromMaintenance() {
             const btn = document.getElementById('btn-run-scan');
-            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning…'; }
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rescanning queue…'; }
             if (window.logConsole) {
                 window.logConsole('[AGENT] Initiating duplicate & misplaced video scan...');
             }
             try {
                 toast('Starting duplicate & misplaced video scan...', 'info');
-                await fetch('/api/action', {
+                const duplicateResponse = await authFetch('/api/action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'scan_duplicates' })
                 });
-                await fetch('/api/action', {
+                const duplicateData = await duplicateResponse.json().catch(() => ({}));
+                if (!duplicateResponse.ok || duplicateData.status === 'error') throw new Error(duplicateData.error || 'Could not start duplicate scan');
+                const misplacedResponse = await authFetch('/api/action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'scan_misplaced' })
                 });
-                toast('Scan started! Items will populate automatically as findings arrive.', 'success');
+                const misplacedData = await misplacedResponse.json().catch(() => ({}));
+                if (!misplacedResponse.ok || misplacedData.status === 'error') throw new Error(misplacedData.error || 'Could not start misplaced scan');
+                toast('Queue rescan started. Suggestions will update as findings arrive.', 'success');
                 let tries = 0;
                 const timer = setInterval(async () => {
                     tries++;
@@ -871,12 +898,12 @@
                                      (maintenanceData.move_from_x_to_y && maintenanceData.move_from_x_to_y.length > 0);
                     if (tries >= 12 || hasItems) {
                         clearInterval(timer);
-                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Run Scan'; }
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Rescan queue'; }
                     }
                 }, 5000);
             } catch (e) {
                 toast(`Scan error: ${DOMPurify.sanitize(e.message)}`, 'error');
-                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Run Scan'; }
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Rescan queue'; }
             }
         }
         
@@ -964,6 +991,8 @@
                 const _removePlId = _removePl.id || _removePl.playlist_id || '';
                 const _removeVid = _removePl.video_id || item.video_id || '';
                 const _removePli = _removePl.playlist_item_id || '';
+                const _deletePlId = type === 'dup' ? _removePlId : _fromId;
+                const _deletePli = type === 'dup' ? _removePli : (item.playlist_item_id || '');
                 
                 let _playlistBadges = '';
                 if (type === 'dup' && _pls.length > 0) {
@@ -1089,6 +1118,9 @@
                             ${_locationSub}
                             ${type === 'dup' && _copies ? `<div class="text-[11px] font-medium ${_exact ? 'text-yellow-400' : 'text-orange-400'} mt-0.5"><i class="fa-solid fa-copy text-[10px]"></i> ${_copies} copies ${_exact ? '(Exact Duplicate)' : '(Re-upload)'}</div>` : ''}
                         </div>
+                        <button onclick="maintDeleteVideo('${_vid}', '${_deletePlId}', '${type}', this, '${_deletePli}')" class="shrink-0 min-w-9 min-h-9 rounded-lg border border-red-500/40 bg-red-950/40 text-red-300 hover:bg-red-900/60 hover:text-white flex items-center justify-center transition-colors" title="Remove this video from its current playlist" aria-label="Remove video from playlist">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
                     </div>
                     ${_playlistBadges}
                     ${_explanation}
@@ -1148,6 +1180,17 @@
             maintPost({ action: 'keep', type: type, video_id: vid }, btn);
         }
         function maintRemove(vid, plId, type, btn, pliId) {
+            maintPost({ action: 'remove', type: type, video_id: vid, playlist_id: plId, playlist_item_id: pliId || null }, btn);
+        }
+        function maintDeleteVideo(vid, plId, type, btn, pliId) {
+            if (!plId) {
+                toast('The source playlist could not be identified for this video', 'error');
+                return;
+            }
+            const card = btn?.closest('.flex.flex-col');
+            const title = card?.querySelector('h4')?.textContent?.trim() || 'this video';
+            const playlistTitle = playlistsMap[plId] || 'its current playlist';
+            if (!confirm(`Remove "${title}" from "${playlistTitle}"?`)) return;
             maintPost({ action: 'remove', type: type, video_id: vid, playlist_id: plId, playlist_item_id: pliId || null }, btn);
         }
         function maintKeepCopy(vid, targetId, btn) {

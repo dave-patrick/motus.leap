@@ -200,7 +200,7 @@ function renderSingleVideoCard(v) {
                 <div class="absolute top-1.5 left-1.5 z-10" onclick="event.stopPropagation()">
                     <input type="checkbox" class="video-checkbox w-4 h-4 rounded accent-[#2f8fc9] cursor-pointer" onchange="toggleVideo('${vId}', this)" ${selectedVideos.has(vId) ? 'checked' : ''} onclick="event.stopPropagation()">
                 </div>
-                <button onclick="deleteSingleVideo('${vId}', event)" class="absolute top-1.5 right-1.5 bg-red-950/80 hover:bg-red-900 border border-red-500/40 text-red-300 hover:text-white text-[10px] w-6 h-6 rounded flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md z-10 cursor-pointer" title="Remove video from playlist"><i class="fa-solid fa-trash-can text-[10px]"></i></button>
+                <button onclick="deleteSingleVideo('${vId}', event)" class="absolute top-1.5 right-1.5 bg-red-950/90 hover:bg-red-900 border border-red-500/50 text-red-200 hover:text-white text-[10px] w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-md z-10 cursor-pointer" title="Remove video from playlist" aria-label="Remove video from playlist"><i class="fa-solid fa-trash-can text-xs"></i></button>
                 ${selectedVideos.has(vId) ? '<div class="absolute inset-0 border-2 border-[#2f8fc9] rounded-xl pointer-events-none"></div>' : ''}
             </div>
             <div class="p-3 flex flex-col flex-1 relative">
@@ -288,6 +288,9 @@ function renderVideos() {
                 </label>
             </div>
             <div class="flex items-center gap-2">
+                <button id="delete-selected-btn" onclick="deleteSelectedVideos()" class="hidden bg-red-950/60 hover:bg-red-900/70 border border-red-500/40 text-red-200 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-trash-can"></i> Remove selected
+                </button>
                 <button id="fix-mapping-toolbar-btn" onclick="correctMappingForSelected()" class="hidden bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 hover:text-yellow-300 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer" title="Update channel mappings so selected channels permanently belong to this playlist">
                     <i class="fa-solid fa-map-pin text-yellow-500"></i> Update Channel Mapping
                 </button>
@@ -462,6 +465,7 @@ function toggleVideo(videoId, checkbox) {
 
 function updateMoveButton() {
     const moveBtn = document.getElementById('move-btn');
+    const deleteBtn = document.getElementById('delete-selected-btn');
     const fixMappingToolbarBtn = document.getElementById('fix-mapping-toolbar-btn');
     const countEl = document.getElementById('selected-count');
     const query = document.getElementById('video-search')?.value?.trim() || '';
@@ -486,6 +490,13 @@ function updateMoveButton() {
 
     if (fixMappingToolbarBtn) {
         fixMappingToolbarBtn.classList.toggle('hidden', totalSelected === 0);
+    }
+
+    if (deleteBtn) {
+        const canDelete = selectedVideos.size > 0;
+        deleteBtn.classList.toggle('hidden', !canDelete);
+        deleteBtn.classList.toggle('flex', canDelete);
+        deleteBtn.disabled = !canDelete;
     }
     
     if (moveBtn) {
@@ -592,6 +603,47 @@ async function moveSelectedVideos() {
     } catch (e) {
         toast(`Network error: Failed to move videos: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
         console.error('Move videos error:', e);
+    }
+}
+
+async function deleteSelectedVideos() {
+    const videoIds = Array.from(selectedVideos);
+    if (!videoIds.length) {
+        toast('Select one or more videos to remove', 'warning');
+        return;
+    }
+    if (!confirm(`Remove ${videoIds.length} selected video${videoIds.length === 1 ? '' : 's'} from this playlist?`)) return;
+
+    const btn = document.getElementById('delete-selected-btn');
+    const original = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Removing…'; }
+    try {
+        const resp = await fetch('/api/bulk/delete', {
+            method: 'POST',
+            headers: await authHeaders(),
+            body: JSON.stringify({ playlist_id: playlistId, video_ids: videoIds })
+        });
+        const result = await resp.json();
+        if (!resp.ok || !result.operation_id) throw new Error(result.detail || result.error || 'Could not start removal');
+
+        const status = await pollOperation(result.operation_id);
+        if (status.status !== 'completed') throw new Error((status.errors || []).slice(0, 2).join('; ') || 'Removal did not complete');
+
+        const removedIds = new Set((status.item_results || [])
+            .filter(item => item.status === 'succeeded')
+            .map(item => item.video_id));
+        if (!status.item_results?.length && status.failed === 0) videoIds.forEach(id => removedIds.add(id));
+        allVideos = allVideos.filter(video => !removedIds.has(video.video_id));
+        removedIds.forEach(id => selectedVideos.delete(id));
+        renderVideos();
+
+        const failed = status.failed || 0;
+        toast(failed ? `Removed ${removedIds.size} video(s); ${failed} failed` : `Removed ${removedIds.size} video(s) from the playlist`, failed ? 'warning' : 'success', 6000);
+    } catch (e) {
+        toast(`Failed to remove selected videos: ${DOMPurify.sanitize(e.message || 'Unknown error')}`, 'error');
+    } finally {
+        if (btn && document.body.contains(btn)) { btn.disabled = false; btn.innerHTML = original; }
+        updateMoveButton();
     }
 }
 

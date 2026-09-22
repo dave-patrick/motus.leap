@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260922b';
+  const SHELL_VERSION = '20260922c';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -13,8 +13,6 @@
   }
 
   function shellHeader() {
-    const path = window.location.pathname;
-    const settingsActive = path === '/settings' ? 'text-[#2f8fc9] border-[#2f8fc9]/40' : 'text-gray-400 border-[#2a2f3a]';
     return `<header id="shell-header" class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center justify-between border-b border-[#2a2f3a] shrink-0 z-20">
         <a href="/dashboard" class="flex items-center gap-4 pl-14 md:pl-0 flex-1 cursor-pointer hover:opacity-90 transition-opacity no-underline" title="Go to Dashboard">
           <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="site-logo" style="height:62px;width:auto;object-fit:contain;">
@@ -26,7 +24,6 @@
           </h1>
         </a>
         <div class="flex items-center gap-2">
-          <a href="/settings" id="settings-gear-btn" aria-label="Settings" title="Settings" class="ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-[#1a1d24] border ${settingsActive} hover:text-[#2f8fc9] hover:border-[#2f8fc9]/40 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/20"><i class="fa-solid fa-gear text-sm"></i></a>
           <button id="live-console-btn" aria-label="Live Console" title="Live Console" class="ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-[#1a1d24] border border-[#2a2f3a] text-gray-400 hover:text-[#2f8fc9] hover:border-[#2f8fc9]/40 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/20"><i class="fa-solid fa-terminal text-sm"></i></button>
           <button id="ai-chat-btn" aria-label="Open AI chat" title="Open AI chat" class="ml-3 flex items-center justify-center w-10 h-10 rounded-xl bg-transparent border border-transparent transition-all duration-200 hover:scale-105 active:scale-95 shadow-md shadow-black/40"><img src="/static/images/ai-chat-icon.jpg" alt="AI Chat" class="w-full h-full object-cover rounded-xl"></button>
         </div>
@@ -37,8 +34,8 @@
     const path = window.location.pathname;
     const active = (href) => path === href ? 'nav-item active' : 'nav-item';
     const subActive = (href) => path === href || (href !== '/ai' && path.startsWith(href)) ? 'ai-sub active' : 'ai-sub';
-    return `<aside id="mobile-sidebar" class="w-60 bg-[#1a1d24] p-3 flex-col border-r border-[#2a2f3a] overflow-y-auto shrink-0 fixed md:static inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 flex">
-        <nav class="flex flex-col gap-1.5 flex-1">
+    return `<aside id="mobile-sidebar" class="w-60 bg-[#1a1d24] p-3 flex-col border-r border-[#2a2f3a] overflow-hidden shrink-0 fixed md:static inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 flex">
+        <nav class="flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto">
           <div class="nav-section-label">Overview</div>
           <a href="/dashboard" class="${active('/dashboard')}" title="Dashboard"><i class="fas fa-th-large w-5 text-center"></i><span class="nav-label">Dashboard</span></a>
           <div class="nav-section-label mt-3">Library</div>
@@ -58,9 +55,14 @@
             </div>
           </div>
         </nav>
-        <button id="sidebar-collapse" class="hidden md:flex items-center gap-3 px-4 py-3 mt-3 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-[#2a2f3a]" aria-label="Collapse navigation" title="Collapse navigation">
-          <i class="fa-solid fa-angles-left w-5 text-center"></i><span class="nav-label">Collapse</span>
-        </button>
+        <div class="sidebar-footer shrink-0 pt-3 mt-3 border-t border-[#2a2f3a]">
+          <a href="/settings" id="settings-gear-btn" class="${active('/settings')}" aria-label="Settings" title="Settings">
+            <i class="fa-solid fa-gear w-5 text-center"></i><span class="nav-label">Settings</span>
+          </a>
+          <button id="sidebar-collapse" class="hidden md:flex w-full items-center gap-3 px-4 py-3 mt-1 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-[#2a2f3a]" aria-label="Collapse navigation" title="Collapse navigation">
+            <i class="fa-solid fa-angles-left w-5 text-center"></i><span class="nav-label">Collapse</span>
+          </button>
+        </div>
       </aside>`;
   }
 
