@@ -243,6 +243,34 @@ class TestM5MisplacedDetection:
 
         assert result["misplaced"] == 1
 
+    @pytest.mark.asyncio
+    async def test_scan_misplaced_includes_unclassified_staging_video(self):
+        """Every video in 1~Sort needs review, even when no rule picks a target."""
+        worker = self._make_scan_worker({})
+        captured = {}
+
+        async def staging_videos(playlist_id=None, force_refresh=False):
+            return {"videos": [{
+                "video_id": "unclassified123",
+                "playlist_item_id": "PLitem-unclassified",
+                "title": "A weekly update about something obscure",
+                "channel_id": "unmapped-owner",
+                "channel_title": "Unmapped Channel",
+                "playlist_id": "pl_sort",
+                "playlist_title": "1~Sort",
+            }]}
+
+        async def capture_results(misplaced_videos=None, **kwargs):
+            captured["items"] = misplaced_videos or []
+
+        worker.youtube_service.get_videos = MagicMock(side_effect=staging_videos)
+        worker._persist_maintenance = capture_results
+        result = await asyncio.wait_for(worker.scan_misplaced({}), timeout=10)
+
+        assert result["misplaced"] == 1
+        assert captured["items"][0]["match_type"] == "staging_review"
+        assert captured["items"][0]["mapped_playlist_id"] is None
+
 
 @pytest.mark.unit
 class TestM6LRUEvictionOrder:

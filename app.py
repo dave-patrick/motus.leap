@@ -921,13 +921,18 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
             if playlist_id:
                 mis_videos = [v for v in mis_videos if v.get("current_playlist_id") == playlist_id]
             # Drop per-playlist "not misplaced" overrides the user has taught us.
-            excluded = {(e.get("video_id"), e.get("playlist_id"))
-                        for e in (maintenance.get("not_misplaced") or [])}
             from services.playlist_protection import (
                 is_staging_playlist,
                 is_playlist_opted_in,
                 is_video_protected_in_current_playlist
             )
+            excluded = {
+                (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id")))
+                for e in (maintenance.get("not_misplaced") or []) if e and not is_staging_playlist(
+                    e.get("playlist_id") or e.get("current_playlist_id"),
+                    e.get("playlist_title") or e.get("current_playlist_title"),
+                )
+            }
 
             def _is_staging_dst(item):
                 tid = str(item.get("mapped_playlist_id") or item.get("target_playlist_id") or "")
@@ -955,7 +960,10 @@ async def scan_misplaced_endpoint(playlist_id: Optional[str] = None):
                 if not _is_staging_dst(v)
                 and _is_opted_in(v)
                 and not _is_protected(v)
-                and (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("playlist_id"))) not in excluded
+                and (
+                    is_staging_playlist(v.get("current_playlist_id") or v.get("playlist_id"), v.get("current_playlist_title"))
+                    or (str(v.get("video_id") or v.get("id")), str(v.get("current_playlist_id") or v.get("playlist_id"))) not in excluded
+                )
             ]
 
             # Enrich each item with the target playlist's display name so the
@@ -1770,6 +1778,11 @@ async def api_maintenance() -> dict[str, Any]:
             ttitle = str(item.get("mapped_playlist_title") or item.get("target_playlist_title") or "")
             return is_staging_playlist(tid, ttitle)
 
+        def _is_staging_source(item):
+            cid = str(item.get("current_playlist_id") or item.get("source_playlist_id") or "")
+            ctitle = str(item.get("current_playlist_title") or item.get("source_playlist_title") or "")
+            return is_staging_playlist(cid, ctitle)
+
         cfg = config_manager.config
         opt_in_pls = getattr(cfg, 'mapped_playlists', []) or []
 
@@ -1798,7 +1811,10 @@ async def api_maintenance() -> dict[str, Any]:
                     if not _is_staging_dst(item)
                     and _is_opted_in(item)
                     and not _is_protected(item)
-                    and (str(item.get("video_id") or item.get("id")), str(item.get("current_playlist_id") or item.get("source_playlist_id") or item.get("playlist_id"))) not in excluded
+                    and (
+                        _is_staging_source(item)
+                        or (str(item.get("video_id") or item.get("id")), str(item.get("current_playlist_id") or item.get("source_playlist_id") or item.get("playlist_id"))) not in excluded
+                    )
                 ]
                 if len(data[key]) != orig_len:
                     _save_maintenance(data)

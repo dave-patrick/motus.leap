@@ -719,12 +719,17 @@ class BackgroundWorker:
                                 channel_name_rules=channel_name_rules,
                                 category_to_id=category_to_id,
                             )
-                            if mapped_playlist_id:
-                                mapped_pl_title = playlist_titles.get(mapped_playlist_id, mapped_playlist_id)
-                                # Protect videos that rightfully belong in their current playlist.
-                                if not is_video_protected_in_current_playlist(
+                            is_staging_source = is_staging_playlist(pl_id, pl_title)
+                            mapped_pl_title = playlist_titles.get(mapped_playlist_id, mapped_playlist_id) if mapped_playlist_id else ""
+                            needs_manual_review = is_staging_source and not mapped_playlist_id
+                            # Every item in 1~Sort is a staging item. Rules can suggest
+                            # a destination, but an unmatched item still belongs in
+                            # the maintenance queue for the user to place manually.
+                            if mapped_playlist_id or is_staging_source:
+                                protected = bool(mapped_playlist_id) and is_video_protected_in_current_playlist(
                                     video_title, pl_id, pl_title, mapped_playlist_id, mapped_pl_title, config
-                                ):
+                                )
+                                if not protected:
                                     misplaced_videos.append({
                                         "video_id": video_id,
                                         "video_title": video_title,
@@ -735,9 +740,9 @@ class BackgroundWorker:
                                         "current_playlist_title": pl_title,
                                         "mapped_playlist_id": mapped_playlist_id,
                                         "mapped_playlist_title": mapped_pl_title,
-                                        "match_reason": match_reason,
-                                        "match_type": match_type,
-                                        "confidence": 1.0 if match_type in ("channel_id", "exact_channel") else 0.8,
+                                        "match_reason": match_reason or ("1~Sort is a staging playlist; choose a destination to finish sorting." if needs_manual_review else "Sorting rule matched"),
+                                        "match_type": match_type or ("staging_review" if needs_manual_review else "rule"),
+                                        "confidence": (1.0 if match_type in ("channel_id", "exact_channel") else 0.8) if mapped_playlist_id else None,
                                         "protection_reason": "No keep-in-place protection matched",
                                     })
                 
@@ -793,7 +798,14 @@ class BackgroundWorker:
                 except Exception:
                     pass
 
-            exc_set = {(str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id"))) for e in not_misplaced if e}
+            from services.playlist_protection import is_staging_playlist
+            exc_set = {
+                (str(e.get("video_id") or e.get("id")), str(e.get("playlist_id") or e.get("current_playlist_id")))
+                for e in not_misplaced if e and not is_staging_playlist(
+                    e.get("playlist_id") or e.get("current_playlist_id"),
+                    e.get("current_playlist_title") or playlist_titles.get(e.get("playlist_id") or e.get("current_playlist_id"), ""),
+                )
+            }
             if exc_set:
                 misplaced_videos = [v for v in misplaced_videos if (str(v.get("video_id")), str(v.get("current_playlist_id"))) not in exc_set]
                 move_suggestions = [m for m in move_suggestions if (str(m.get("video_id")), str(m.get("source_playlist_id"))) not in exc_set]
@@ -1147,10 +1159,11 @@ class BackgroundWorker:
                         channel_name_rules=channel_name_rules,
                         category_to_id=category_to_id,
                     )
-                    if not target_pl:
+                    is_staging_source = is_staging_playlist(playlist_id_v, pl_title_v)
+                    if not target_pl and not is_staging_source:
                         continue
-                    target_title = playlist_titles.get(target_pl, target_pl)
-                    if is_video_protected_in_current_playlist(
+                    target_title = playlist_titles.get(target_pl, target_pl) if target_pl else ""
+                    if target_pl and is_video_protected_in_current_playlist(
                         v_title, playlist_id_v, pl_title_v, target_pl, target_title, config
                     ):
                         continue
@@ -1170,9 +1183,9 @@ class BackgroundWorker:
                         "current_playlist_title": pl_title_v,
                         "mapped_playlist_id": target_pl,
                         "mapped_playlist_title": target_title,
-                        "match_reason": match_reason,
-                        "match_type": match_type,
-                        "confidence": 1.0 if match_type in ("channel_id", "exact_channel") else 0.8,
+                        "match_reason": match_reason or "1~Sort is a staging playlist; choose a destination to finish sorting.",
+                        "match_type": match_type or "staging_review",
+                        "confidence": (1.0 if match_type in ("channel_id", "exact_channel") else 0.8) if target_pl else None,
                         "protection_reason": "No keep-in-place protection matched",
                     })
         await self._safe_broadcast({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"})
