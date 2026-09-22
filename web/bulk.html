@@ -383,7 +383,8 @@
                                     <span class="text-[9px] ${_statusClass}">${_status}</span>
                                 </div>
                                 <div class="text-[9px] text-gray-500 mb-2">${op.processed}/${op.total_items} items</div>
-                                ${op.failed ? `<div class="text-[9px] text-red-400 mb-2">${op.failed} failed · details preserved</div><button data-retry-operation="${op.operation_id}" class="retry-operation text-[9px] text-[#2f8fc9] mb-2">Retry failed</button>` : ''}
+                                ${op.failed ? `<div class="text-[9px] text-red-400 mb-2">${op.failed} failed</div><button data-retry-operation="${op.operation_id}" class="retry-operation text-[9px] text-[#2f8fc9] mb-2">Retry failed videos</button>` : ''}
+                                ${(op.item_results || []).length ? `<details class="mt-2"><summary class="cursor-pointer text-[9px] text-gray-300">Per-video results (${op.item_results.length})</summary><div class="mt-2 max-h-40 overflow-y-auto space-y-1">${op.item_results.map(result => `<div class="flex justify-between gap-2 text-[9px]"><span class="font-mono text-gray-400">${DOMPurify.sanitize(result.video_id || 'unknown')}</span><span class="${result.status === 'succeeded' ? 'text-green-400' : 'text-red-400'}">${DOMPurify.sanitize(result.status || 'pending')}${result.reason ? ` · ${DOMPurify.sanitize(result.reason)}` : ''}</span></div>`).join('')}</div></details>` : ''}
                                 <div class="w-full bg-[#20242c] rounded-full h-1">
                                     <div class="bg-[#2f8fc9] h-1 rounded-full" style="width: ${op.total_items > 0 ? (op.processed / op.total_items * 100) : 0}%"></div>
                                 </div>

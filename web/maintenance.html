@@ -97,6 +97,15 @@
                     </div>
                 </header>
 
+                <section id="scan-progress-panel" class="hidden rounded-xl border border-[#2a2f3a] bg-[#16191f] p-4" aria-live="polite">
+                    <div class="flex items-center justify-between gap-3">
+                        <div><div id="scan-progress-title" class="text-sm font-semibold text-white">Scan status</div><div id="scan-progress-message" class="text-xs text-gray-400 mt-1"></div></div>
+                        <button id="scan-retry-btn" onclick="retryLastScan()" class="hidden rounded-lg border border-[#3a414f] px-3 py-2 text-xs text-gray-200 hover:bg-[#20242c]">Retry scan</button>
+                    </div>
+                    <div class="mt-3 h-2 rounded-full bg-[#20242c] overflow-hidden"><div id="scan-progress-bar" class="h-full bg-[#2f8fc9] transition-all" style="width:0%"></div></div>
+                    <div id="scan-failures" class="hidden mt-3 text-xs text-red-300"></div>
+                </section>
+
                 <section class="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Maintenance review steps">
                     <div class="bento-card p-4"><div class="text-xs font-bold text-[#6fb6df] mb-1">1 · Review</div><p class="text-sm text-gray-300">Check the title, current playlist, suggestion, and reason.</p></div>
                     <div class="bento-card p-4"><div class="text-xs font-bold text-[#6fb6df] mb-1">2 · Select</div><p class="text-sm text-gray-300">Choose only the items you want to handle together.</p></div>
@@ -238,6 +247,41 @@
         var maintenanceData = {};
         var playlistsMap = {};
         var activePlaylistFilter = 'all';
+
+        async function refreshScanProgress() {
+            try {
+                const response = await fetch('/api/jobs/current');
+                if (!response.ok) return;
+                const job = await response.json();
+                const panel = document.getElementById('scan-progress-panel');
+                const action = String(job.action || '');
+                if (!panel || (!action.includes('scan') && action !== 'sync_playlists' && !['running','interrupted','failed','cancelled'].includes(job.state))) return;
+                panel.classList.remove('hidden');
+                const total = Number(job.total || 0), done = Number(job.completed || 0);
+                const pct = total ? Math.min(100, Math.round(done * 100 / total)) : (job.state === 'completed' ? 100 : 0);
+                document.getElementById('scan-progress-title').textContent = `${job.state || 'idle'}${total ? ` · ${done}/${total} playlists` : ''}${job.videos_examined ? ` · ${job.videos_examined} videos` : ''}`;
+                document.getElementById('scan-progress-message').textContent = job.current_item ? `${job.message || 'Scanning'} · ${job.current_item}` : (job.message || 'Scan details will appear here while the job runs.');
+                document.getElementById('scan-progress-bar').style.width = `${pct}%`;
+                const failures = Array.isArray(job.failures) ? job.failures : [];
+                const failEl = document.getElementById('scan-failures');
+                failEl.classList.toggle('hidden', !failures.length);
+                failEl.textContent = failures.length ? `${failures.length} playlist(s) failed: ${failures.map(f => `${f.playlist_id}: ${f.reason}`).join(' · ')}` : '';
+                document.getElementById('scan-retry-btn').classList.toggle('hidden', !failures.length && !['interrupted','failed'].includes(job.state));
+            } catch (_) { /* next poll will recover */ }
+        }
+
+        async function retryLastScan() {
+            const button = document.getElementById('scan-retry-btn');
+            if (button) { button.disabled = true; button.textContent = 'Retrying…'; }
+            try {
+                const response = await authFetch('/api/action', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'full_cluster_scan'})});
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.status === 'error') throw new Error(data.error || 'Could not restart scan');
+                toast('Scan restarted from the beginning.', 'success');
+                refreshScanProgress();
+            } catch (e) { toast(e.message || 'Retry failed', 'error'); }
+            finally { if (button) { button.disabled = false; button.textContent = 'Retry scan'; } }
+        }
 
         // Check URL query param e.g. ?playlist_id=... or ?filter=...
         (function checkUrlFilter() {
@@ -1092,6 +1136,8 @@
                     ? `<div class="text-xs text-gray-400 mt-1 flex items-center gap-1.5"><span class="text-red-400 font-medium">${_from}</span> <i class="fa-solid fa-arrow-right text-[10px] text-gray-500"></i> <span class="text-green-400 font-semibold">${_to}</span></div>` 
                     : '';
                 const _explanation = type === 'misplaced' ? `<div class="mt-2 rounded-lg bg-[#14171f] border border-[#2a2f3a] px-3 py-2 text-[10px] text-gray-400">
+                    <span class="text-gray-200 font-semibold">Rule:</span> ${DOMPurify.sanitize(item.match_type || 'mapping')}
+                    <span class="mx-1">·</span>
                     <span class="text-gray-200 font-semibold">Why:</span> ${DOMPurify.sanitize(item.match_reason || 'Channel mapping rule')}
                     <span class="mx-1">·</span><span class="text-gray-200 font-semibold">Confidence:</span> ${Math.round(Number(item.confidence ?? 1) * 100)}%
                     <span class="mx-1">·</span>${DOMPurify.sanitize(item.protection_reason || 'No keep-in-place protection matched')}
@@ -1897,6 +1943,8 @@
 async function initMaintenancePage() {
     await fetchPlaylistsMap();
     await loadMaintenance();
+    await refreshScanProgress();
+    setInterval(refreshScanProgress, 2500);
 }
 
 if (document.readyState === 'loading') {

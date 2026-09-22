@@ -16,6 +16,12 @@ var currentScanResults = {
     duplicates: [],
     misplaced: []
 };
+const VIDEO_PAGE_SIZE = 100;
+let videoPage = 0;
+let videoHasMore = false;
+let videoSearchTimer = null;
+let videoSearchQuery = '';
+let videoTotal = 0;
 
 function formatDuration(seconds) {
     seconds = parseInt(seconds) || 0;
@@ -41,6 +47,7 @@ async function rescanPlaylist() {
         }
         
         allVideos = data.videos || [];
+        videoPage = 0; videoHasMore = false; videoSearchQuery = ''; videoTotal = allVideos.length;
         
         toast(`Rescan complete - ${allVideos.length} videos found`, 'success');
         
@@ -53,7 +60,7 @@ async function rescanPlaylist() {
         
         const metaEl = document.getElementById('playlist-meta');
         if (metaEl) metaEl.innerHTML = `
-            ${allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacyBadge}</span>
+            ${videoTotal || allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacyBadge}</span>
         `;
         
         renderVideos();
@@ -133,7 +140,9 @@ async function loadPlaylist() {
         }
 
         // 2. Load the videos inside this playlist
-        const resp = await fetch(`/api/youtube/videos?playlist_id=${playlistId}`);
+        videoPage = 1;
+        videoSearchQuery = '';
+        const resp = await fetch(`/api/youtube/videos?playlist_id=${encodeURIComponent(playlistId)}&page=1&page_size=${VIDEO_PAGE_SIZE}`);
         if (!resp.ok && resp.status !== 403) {
             console.error('Videos API error:', resp.status, resp.statusText);
             const container = document.getElementById('videos-container');
@@ -142,6 +151,8 @@ async function loadPlaylist() {
         }
         const data = await resp.json();
         allVideos = data.videos || [];
+        videoHasMore = !!data.pagination?.has_more;
+        videoTotal = data.pagination?.total ?? allVideos.length;
 
         if (data.warning || (data.error && allVideos.length > 0)) {
             toast(data.warning || "YouTube API quota limit reached. Displaying cached playlist videos.", "warning", 8000);
@@ -170,7 +181,7 @@ async function loadPlaylist() {
         
         const metaEl = document.getElementById('playlist-meta');
         if (metaEl) metaEl.innerHTML = `
-            ${allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacyBadge}</span>
+            ${videoTotal || allVideos.length} videos • <span class="text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold ${badgeColor}">${privacyBadge}</span>
         `;
         
         renderVideos();
@@ -214,6 +225,7 @@ function renderSingleVideoCard(v) {
 
 function loadNextVideoBatch() {
     const grid = document.getElementById('video-grid');
+    if (renderedVideoCount >= allVideos.length && videoHasMore) { loadVideoPage(videoPage + 1, videoSearchQuery, true).catch(e => toast(e.message, 'error')); return; }
     if (!grid || renderedVideoCount >= allVideos.length) {
         removeSentinel();
         return;
@@ -233,6 +245,38 @@ function loadNextVideoBatch() {
     }
 }
 
+async function loadVideoPage(page, query = '', append = false) {
+    const grid = document.getElementById('video-grid');
+    if (append && !grid) return;
+    const params = new URLSearchParams({playlist_id: playlistId, page: String(page), page_size: String(VIDEO_PAGE_SIZE)});
+    if (query) params.set('search', query);
+    const response = await fetch(`/api/youtube/videos?${params}`);
+    if (!response.ok) throw new Error('Could not load videos');
+    const data = await response.json();
+    const videos = data.videos || [];
+    videoPage = page;
+    videoSearchQuery = query;
+    videoHasMore = !!data.pagination?.has_more;
+    videoTotal = data.pagination?.total ?? videos.length;
+    if (!append) {
+        allVideos = videos;
+        renderVideos();
+        return;
+    }
+    allVideos.push(...videos);
+    const temp = document.createElement('div');
+    temp.innerHTML = videos.map(renderSingleVideoCard).join('');
+    while (temp.firstChild) grid.appendChild(temp.firstChild);
+    renderedVideoCount = allVideos.length;
+    setupInfiniteScrollSentinel();
+    updateVideoCountInfo();
+}
+
+function updateVideoCountInfo() {
+    const count = document.getElementById('video-count-info');
+    if (count) count.textContent = videoSearchQuery ? `${allVideos.length} of ${videoTotal} matched` : `${videoTotal} videos`;
+}
+
 function removeSentinel() {
     if (infiniteScrollObserver) {
         infiniteScrollObserver.disconnect();
@@ -245,7 +289,7 @@ function removeSentinel() {
 function setupInfiniteScrollSentinel() {
     removeSentinel();
     const container = document.getElementById('videos-list');
-    if (!container || renderedVideoCount >= allVideos.length) return;
+    if (!container || (!videoHasMore && renderedVideoCount >= allVideos.length)) return;
 
     const sentinel = document.createElement('div');
     sentinel.id = 'video-grid-sentinel';
@@ -276,15 +320,15 @@ function renderVideos() {
         toolbarCard.classList.remove('hidden');
         toolbarCard.innerHTML = `
             <div class="flex items-center gap-2 flex-1 min-w-0">
-                <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap" id="video-count-info">${allVideos.length} videos</span>
+                <span class="text-[10px] text-gray-400 font-medium whitespace-nowrap" id="video-count-info">${videoSearchQuery ? `${allVideos.length} of ${videoTotal} matched` : `${videoTotal || allVideos.length} videos`}</span>
                 <div class="relative flex-1 max-w-sm">
                     <i class="fa-solid fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-500"></i>
-                    <input type="text" id="video-search" placeholder="Search videos..." oninput="filterVideoList()" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded-lg pl-7 pr-7 py-1.5 outline-none focus:border-[#2f8fc9] transition-colors">
+                    <input type="text" id="video-search" value="${DOMPurify.sanitize(videoSearchQuery)}" placeholder="Search videos..." oninput="filterVideoList()" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-[11px] rounded-lg pl-7 pr-7 py-1.5 outline-none focus:border-[#2f8fc9] transition-colors">
                     <button id="clear-search-btn" onclick="clearVideoSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-[10px] cursor-pointer" title="Clear search"><i class="fa-solid fa-circle-xmark"></i></button>
                 </div>
                 <label class="flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer select-none bg-[#20242c] border border-[#2a2f3a] px-2.5 py-1 rounded-lg hover:text-white transition-colors ml-1">
                     <input type="checkbox" id="select-all-videos" onchange="toggleSelectAll(this)" class="accent-[#2f8fc9]">
-                    <span>Select all</span>
+                    <span>Select loaded</span>
                 </label>
             </div>
             <div class="flex items-center gap-2">
@@ -339,40 +383,14 @@ function isCardVisible(card) {
 }
 
 function filterVideoList() {
-    const query = document.getElementById('video-search')?.value?.trim()?.toLowerCase() || '';
+    const query = document.getElementById('video-search')?.value?.trim() || '';
     const clearBtn = document.getElementById('clear-search-btn');
     if (clearBtn) {
         clearBtn.classList.toggle('hidden', !query);
     }
 
-    if (query && renderedVideoCount < allVideos.length) {
-        while (renderedVideoCount < allVideos.length) {
-            loadNextVideoBatch();
-        }
-    }
-
-    const allCards = document.querySelectorAll('.video-card');
-    let matchCount = 0;
-
-    allCards.forEach(card => {
-        const title = (card.dataset.title || '').toLowerCase();
-        const channel = (card.dataset.channel || '').toLowerCase();
-        const isMatch = (!query || title.includes(query) || channel.includes(query));
-        card.style.display = isMatch ? '' : 'none';
-        if (isMatch) matchCount++;
-    });
-
-    const countInfo = document.getElementById('video-count-info');
-    if (countInfo) {
-        if (query) {
-            countInfo.textContent = `${matchCount} of ${allCards.length} matched`;
-        } else {
-            countInfo.textContent = `${allCards.length} videos`;
-        }
-    }
-
-    syncSelectAllState();
-    updateMoveButton();
+    clearTimeout(videoSearchTimer);
+    videoSearchTimer = setTimeout(() => loadVideoPage(1, query, false).catch(e => toast(e.message, 'error')), 250);
 }
 
 function syncSelectAllState() {
