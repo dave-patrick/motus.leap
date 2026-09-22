@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260922c';
+  const SHELL_VERSION = '20260922d';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -193,6 +193,22 @@
       }
       html, body, input, select, textarea, button {
         font-family: 'Inter', sans-serif;
+      }
+      html, body {
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        min-height: 100dvh;
+        max-height: 100dvh;
+      }
+      .shell-row,
+      body > .flex.flex-1 {
+        min-height: 0;
+        overflow: hidden;
+      }
+      #mobile-sidebar {
+        max-height: 100%;
       }
       .site-title, .site-title * {
         font-family: 'Deltha', serif !important;

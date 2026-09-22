@@ -31,6 +31,8 @@ test('settings stays in the fixed sidebar footer instead of the top header', () 
   assert.doesNotMatch(header, /id="settings-gear-btn"/);
   assert.match(shell, /class="sidebar-footer[^\"]*"[\s\S]*id="settings-gear-btn"[\s\S]*id="sidebar-collapse"/);
   assert.match(shell, /<nav class="[^"]*overflow-y-auto[^"]*">/);
+  assert.match(shell, /max-height: 100dvh/);
+  assert.match(shell, /#mobile-sidebar \{\s*max-height: 100%/);
 });
 
 test('playlist routes use a full navigation so page data always initializes', () => {

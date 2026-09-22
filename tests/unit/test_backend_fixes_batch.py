@@ -218,6 +218,31 @@ class TestM5MisplacedDetection:
                 pass
         assert found == 0, f"expected 0 misplaced videos, got {found}"
 
+    @pytest.mark.asyncio
+    async def test_scan_misplaced_uses_keyword_rules_for_staging_playlist(self):
+        """1~Sort videos can be suggested by title rules without a channel-ID mapping."""
+        worker = self._make_scan_worker({})
+
+        async def staging_videos(playlist_id=None, force_refresh=False):
+            return {
+                "videos": [{
+                    "video_id": "claude12345",
+                    "playlist_item_id": "PLitem12345",
+                    "title": "Claude AI agents workflow guide",
+                    "channel_id": "unmapped-owner",
+                    "channel_title": "Unmapped Channel",
+                    "playlist_id": playlist_id,
+                    "playlist_title": "1~Sort",
+                }]
+            }
+
+        worker.youtube_service.get_videos = MagicMock(side_effect=staging_videos)
+        result = await asyncio.wait_for(
+            worker.scan_misplaced({"playlist_id": "plX"}), timeout=10
+        )
+
+        assert result["misplaced"] == 1
+
 
 @pytest.mark.unit
 class TestM6LRUEvictionOrder:

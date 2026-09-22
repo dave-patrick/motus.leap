@@ -114,6 +114,77 @@ def get_formatted_mappings(config) -> dict[str, Any]:
     return {"mappings": formatted}
 
 
+def _load_staging_sort_rules(playlist_titles: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+    """Load the existing channel-name/keyword sorter and add live playlist titles.
+
+    The maintenance scan previously consulted only ``config.channel_mappings``
+    (channel IDs). That omitted sortable staging videos whose destination is
+    known by the long-standing channel-name or title keyword rules.
+    """
+    try:
+        from services.watch_later_service import load_rules_and_mappings
+        channel_rules, category_to_id = load_rules_and_mappings()
+    except Exception as exc:
+        log.warning("[SCAN] Could not load staging sort rules: %s", exc)
+        channel_rules, category_to_id = {}, {}
+
+    for playlist_id, title in playlist_titles.items():
+        if playlist_id and title:
+            category_to_id.setdefault(str(title), str(playlist_id))
+    return channel_rules, category_to_id
+
+
+def _resolve_misplaced_target(
+    *,
+    video_title: str,
+    channel_id: str,
+    channel_title: str,
+    current_playlist_id: str,
+    current_playlist_title: str,
+    channel_id_mappings: dict[str, str],
+    playlist_titles: dict[str, str],
+    channel_name_rules: dict[str, str],
+    category_to_id: dict[str, str],
+) -> tuple[str | None, str | None, str | None]:
+    """Return a safe suggested destination, reason, and match type."""
+    from services.playlist_protection import is_staging_playlist
+
+    target = None
+    reason = None
+    match_type = None
+    if isinstance(channel_id_mappings, dict):
+        target = channel_id_mappings.get(channel_id) or channel_id_mappings.get(channel_title)
+        if target:
+            reason = f"Channel {channel_title or channel_id} maps to {playlist_titles.get(target, target)}"
+            match_type = "channel_id"
+
+    # Category playlists remain protected. Broader name/keyword classification
+    # is intentionally limited to inbox-style playlists such as 1~Sort.
+    if not target and is_staging_playlist(current_playlist_id, current_playlist_title):
+        try:
+            from services.watch_later_service import classify_video
+            match = classify_video(
+                video_title or "",
+                channel_title or "",
+                channel_name_rules,
+                category_to_id,
+            )
+            target = match.get("target_playlist_id")
+            reason = match.get("matched_by")
+            match_type = match.get("match_type")
+        except Exception as exc:
+            log.warning("[SCAN] Could not classify staging video %s: %s", video_title, exc)
+
+    target_title = playlist_titles.get(target, target) if target else ""
+    if (
+        not target
+        or target == current_playlist_id
+        or is_staging_playlist(target, target_title)
+    ):
+        return None, None, None
+    return str(target), str(reason or "Sorting rule matched"), str(match_type or "rule")
+
+
 class BackgroundWorker:
     def __init__(self, youtube_service, manager, config_manager, task_queue):
         self._youtube_service = youtube_service
@@ -552,6 +623,7 @@ class BackgroundWorker:
             config = self.config_manager.config
             mappings = config.channel_mappings if hasattr(config, 'channel_mappings') else {}
             playlist_titles = {pl.get("id"): pl.get("snippet", {}).get("title", pl.get("id")) for pl in playlists}
+            channel_name_rules, category_to_id = _load_staging_sort_rules(playlist_titles)
             
             total_videos = 0
             await self._record_progress(total=len(playlists), completed=0, videos_examined=0, failures=[])
@@ -633,28 +705,41 @@ class BackgroundWorker:
                         opt_in_playlists = getattr(config, 'mapped_playlists', []) or []
                         is_playlist_mapped = is_playlist_opted_in(pl_id, pl_title, opt_in_playlists)
 
-                        owner_channel_id = item.get("snippet", {}).get("videoOwnerChannelId")
-                        if is_playlist_mapped and owner_channel_id and owner_channel_id in mappings:
-                            mapped_playlist_id = mappings[owner_channel_id]
-                            if mapped_playlist_id and pl_id != mapped_playlist_id:
+                        owner_channel_id = item.get("snippet", {}).get("videoOwnerChannelId") or item.get("snippet", {}).get("channelId", "")
+                        owner_channel_title = item.get("snippet", {}).get("videoOwnerChannelTitle") or item.get("snippet", {}).get("channelTitle", "")
+                        if is_playlist_mapped:
+                            mapped_playlist_id, match_reason, match_type = _resolve_misplaced_target(
+                                video_title=video_title,
+                                channel_id=owner_channel_id,
+                                channel_title=owner_channel_title,
+                                current_playlist_id=pl_id,
+                                current_playlist_title=pl_title,
+                                channel_id_mappings=mappings,
+                                playlist_titles=playlist_titles,
+                                channel_name_rules=channel_name_rules,
+                                category_to_id=category_to_id,
+                            )
+                            if mapped_playlist_id:
                                 mapped_pl_title = playlist_titles.get(mapped_playlist_id, mapped_playlist_id)
-                                is_staging_dst = is_staging_playlist(mapped_playlist_id, mapped_pl_title)
-                                if not is_staging_dst:
-                                    # Protect videos that rightfully belong in their current playlist
-                                    if not is_video_protected_in_current_playlist(
-                                        video_title, pl_id, pl_title, mapped_playlist_id, mapped_pl_title, config
-                                    ):
-                                        misplaced_videos.append({
-                                            "video_id": video_id,
-                                            "video_title": video_title,
-                                            "current_playlist_id": pl_id,
-                                            "current_playlist_title": pl_title,
-                                            "mapped_playlist_id": mapped_playlist_id,
-                                            "mapped_playlist_title": mapped_pl_title,
-                                            "match_reason": f"Channel {owner_channel_id} maps to {mapped_pl_title}",
-                                            "confidence": 1.0,
-                                            "protection_reason": "No keep-in-place protection matched",
-                                        })
+                                # Protect videos that rightfully belong in their current playlist.
+                                if not is_video_protected_in_current_playlist(
+                                    video_title, pl_id, pl_title, mapped_playlist_id, mapped_pl_title, config
+                                ):
+                                    misplaced_videos.append({
+                                        "video_id": video_id,
+                                        "video_title": video_title,
+                                        "channel_id": owner_channel_id,
+                                        "channel_title": owner_channel_title,
+                                        "playlist_item_id": item.get("id", ""),
+                                        "current_playlist_id": pl_id,
+                                        "current_playlist_title": pl_title,
+                                        "mapped_playlist_id": mapped_playlist_id,
+                                        "mapped_playlist_title": mapped_pl_title,
+                                        "match_reason": match_reason,
+                                        "match_type": match_type,
+                                        "confidence": 1.0 if match_type in ("channel_id", "exact_channel") else 0.8,
+                                        "protection_reason": "No keep-in-place protection matched",
+                                    })
                 
                 await self._safe_broadcast({"type": "log", "message": f"[SCAN] {pl_title}: {len(items)} videos"})
                 await self._record_progress(
@@ -1013,9 +1098,12 @@ class BackgroundWorker:
                         playlist_titles[p.get("id")] = p.get("title", p.get("id"))
             except Exception:
                 pass
+            channel_name_rules, category_to_id = _load_staging_sort_rules(playlist_titles)
+            channel_id_mappings = self.youtube_service.config.channel_mappings or {}
 
             videos_data = await self.youtube_service.get_videos(playlist_id=playlist_id)
             videos = videos_data.get("videos", [])
+            seen = set()
             for v in videos:
                 if playlist_id and v.get("playlist_id") != playlist_id:
                     continue
@@ -1028,30 +1116,46 @@ class BackgroundWorker:
                 if not is_playlist_opted_in(playlist_id_v, pl_title_v, opt_in_playlists):
                     continue
 
-                if channel_id and playlist_id_v:
-                    for ch, target_pl in self.youtube_service.config.channel_mappings.items():
-                        if channel_id == ch and target_pl and target_pl != playlist_id_v:
-                            target_title = playlist_titles.get(target_pl, target_pl)
-                            if is_staging_playlist(target_pl, target_title):
-                                continue
-                            if is_video_protected_in_current_playlist(
-                                v_title, playlist_id_v, pl_title_v, target_pl, target_title, config
-                            ):
-                                continue
+                if playlist_id_v:
+                    target_pl, match_reason, match_type = _resolve_misplaced_target(
+                        video_title=v_title,
+                        channel_id=channel_id or "",
+                        channel_title=v.get("channel_title") or v.get("channel") or "",
+                        current_playlist_id=playlist_id_v,
+                        current_playlist_title=pl_title_v,
+                        channel_id_mappings=channel_id_mappings,
+                        playlist_titles=playlist_titles,
+                        channel_name_rules=channel_name_rules,
+                        category_to_id=category_to_id,
+                    )
+                    if not target_pl:
+                        continue
+                    target_title = playlist_titles.get(target_pl, target_pl)
+                    if is_video_protected_in_current_playlist(
+                        v_title, playlist_id_v, pl_title_v, target_pl, target_title, config
+                    ):
+                        continue
 
-                            count += 1
-                            misplaced_videos.append({
-                                "video_id": v.get("video_id"),
-                                "video_title": v_title,
-                                "current_playlist_id": playlist_id_v,
-                                "current_playlist_title": pl_title_v,
-                                "mapped_playlist_id": target_pl,
-                                "mapped_playlist_title": target_title,
-                                "match_reason": f"Channel {channel_id} maps to {target_title}",
-                                "confidence": 1.0,
-                                "protection_reason": "No keep-in-place protection matched",
-                            })
-                            break
+                    item_key = (str(v.get("video_id") or ""), str(playlist_id_v), str(target_pl))
+                    if item_key in seen:
+                        continue
+                    seen.add(item_key)
+                    count += 1
+                    misplaced_videos.append({
+                        "video_id": v.get("video_id"),
+                        "video_title": v_title,
+                        "channel_id": channel_id or "",
+                        "channel_title": v.get("channel_title") or v.get("channel") or "",
+                        "playlist_item_id": v.get("playlist_item_id") or v.get("id") or "",
+                        "current_playlist_id": playlist_id_v,
+                        "current_playlist_title": pl_title_v,
+                        "mapped_playlist_id": target_pl,
+                        "mapped_playlist_title": target_title,
+                        "match_reason": match_reason,
+                        "match_type": match_type,
+                        "confidence": 1.0 if match_type in ("channel_id", "exact_channel") else 0.8,
+                        "protection_reason": "No keep-in-place protection matched",
+                    })
         await self._safe_broadcast({"type": "log", "message": f"[SCAN] Found {count} misplaced videos"})
         # Persist FULL-scan results so the Scan Details card reflects the latest
         # scan (not a stale cluster-scan snapshot). Per-playlist scan skipped.
