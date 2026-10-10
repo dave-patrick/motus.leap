@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Mapping
 import asyncio
+from urllib.parse import urlencode
+from core.mobile_oauth import MobileHandoffs
 
 from core.limiter import limiter # Import limiter from core.limiter
 
@@ -1127,6 +1129,42 @@ async def google_oauth_init(request: Request):
     return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
 
 
+mobile_handoffs = MobileHandoffs()
+
+
+@router.get("/mobile/google")
+@limiter.limit("10/minute")
+async def mobile_google_init(request: Request, code_challenge: str, client_state: str):
+    client_id, client_secret = _resolve_oauth_credentials()
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=503, detail="Google OAuth is not configured")
+    try:
+        state = mobile_handoffs.start(code_challenge, client_state)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    query = urlencode({"client_id": client_id,
+                       "redirect_uri": GOOGLE_OAUTH_REDIRECT_URI,
+                       "response_type": "code", "scope": "openid email profile",
+                       "prompt": "select_account", "state": state})
+    return {"auth_url": "https://accounts.google.com/o/oauth2/v2/auth?" + query}
+
+
+class MobileExchange(BaseModel):
+    code: str
+    code_verifier: str
+
+
+@router.post("/mobile/exchange")
+@limiter.limit("10/minute")
+async def mobile_exchange(request: Request, body: MobileExchange):
+    try:
+        payload = mobile_handoffs.redeem(body.code, body.code_verifier)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    from fastapi.responses import JSONResponse
+    return JSONResponse(payload, headers={"Cache-Control": "no-store"})
+
+
 @router.get("/youtube")
 async def youtube_oauth_init():
     """Initiate YouTube OAuth flow for data access (separate from login).
@@ -1164,6 +1202,12 @@ _youtube_oauth_states: dict[str, bool] = {}
 @router.get("/google/callback")
 async def google_oauth_callback(code: str, state: str = None, response: Response = None): # Added response here
     """Handle Google OAuth callback. If state is a YouTube OAuth state, save YouTube tokens."""
+    mobile_entry = None
+    if state and state.startswith("mobile_"):
+        try:
+            mobile_entry = mobile_handoffs.consume_state(state)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Mobile sign-in expired. Start again in the app.")
     cb_client_id, cb_client_secret = _resolve_oauth_credentials()
     if not cb_client_id or not cb_client_secret:
         return HTMLResponse("""
@@ -1244,6 +1288,9 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             )
             userinfo = userinfo_resp.json()
 
+        if mobile_entry is not None and userinfo.get("verified_email") is not True:
+            raise HTTPException(status_code=403, detail="Google email verification required")
+
         google_id = userinfo.get("id")
         email = userinfo.get("email")
         name = userinfo.get("name", "")
@@ -1296,6 +1343,8 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             await _save_users(users_db_loaded)
 
         user["last_login"] = datetime.now()
+        if not user.get("is_active", True):
+            raise HTTPException(status_code=403, detail="Account is disabled")
         await _save_users(users_db_loaded) # Save updated user data
 
         # Create access token
@@ -1312,6 +1361,13 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             "created_at": datetime.now(),
             "expires_at": datetime.now() + access_token_expires,
         }
+
+        await _save_sessions(user_sessions)
+        if mobile_entry is not None:
+            handoff_code = mobile_handoffs.issue(mobile_entry, app_token, ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+            query = urlencode({"code": handoff_code, "state": mobile_entry["client_state"]})
+            return RedirectResponse("motusleap://oauth/callback?" + query, status_code=302,
+                                    headers={"Cache-Control": "no-store"})
 
         # Set the token in a secure, http-only cookie for OAuth login
         # IMPORTANT: the cookie MUST be set on the RedirectResponse that is
@@ -1335,6 +1391,8 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
         )
         return redirect
 
+    except HTTPException:
+        raise
     except httpx.RequestError as e:
         log.error(f"HTTP request failed: {e}")
         return HTMLResponse(f"""

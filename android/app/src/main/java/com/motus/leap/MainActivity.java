@@ -1,0 +1,408 @@
+package com.motus.leap;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.graphics.Color;
+import android.net.Uri;
+import android.os.Bundle;
+import android.text.InputType;
+import android.view.View;
+import android.view.WindowInsets;
+import android.widget.*;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.security.SecureRandom;
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
+import android.util.Base64;
+
+/** Native Android screens backed by motus.leap's server. */
+public final class MainActivity extends Activity {
+    private final ExecutorService network = Executors.newSingleThreadExecutor();
+    private final int ink = Color.rgb(239, 242, 235), muted = Color.rgb(176, 184, 170);
+    private LinearLayout root, content;
+    private ApiClient api;
+    private String googleVerifier, googleState, googleServer;
+    private int generation;
+    private String page = "Scans";
+    private final String[] pages = {"Scans", "AI sort", "Playlists", "Channels"};
+
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        if (state != null) {
+            googleVerifier = state.getString("googleVerifier");
+            googleState = state.getString("googleState");
+            googleServer = state.getString("googleServer");
+        }
+        loginScreen(""); acceptGoogle(getIntent());
+    }
+    @Override protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        state.putString("googleVerifier", googleVerifier);
+        state.putString("googleState", googleState);
+        state.putString("googleServer", googleServer);
+    }
+    @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); acceptGoogle(intent); }
+    private int dp(int size) { return Math.round(size * getResources().getDisplayMetrics().density); }
+    private void frame() {
+        generation++;
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.rgb(15, 17, 21));
+        root.setPadding(dp(20), dp(12), dp(20), dp(12));
+        if (android.os.Build.VERSION.SDK_INT >= 30) root.setOnApplyWindowInsetsListener((view, insets) -> {
+            var bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
+            view.setPadding(dp(20) + bars.left, dp(12) + bars.top, dp(20) + bars.right, dp(12) + bars.bottom);
+            return insets;
+        });
+        setContentView(root);
+        // getInsets(Type) is API 30; older Android uses its platform inset handling.
+        if (android.os.Build.VERSION.SDK_INT < 30) {
+            root.setOnApplyWindowInsetsListener(null);
+            root.setFitsSystemWindows(true);
+        }
+        root.requestApplyInsets();
+        LinearLayout brand = new LinearLayout(this); brand.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        root.addView(brand);
+        ImageView logo = new ImageView(this); logo.setImageResource(com.motus.leap.R.drawable.brand_icon);
+        logo.setContentDescription("motus.leap logo");
+        brand.addView(logo, new LinearLayout.LayoutParams(dp(56), dp(56)));
+        TextView name = label(brand, "motus.leap", 28, ink); name.setPadding(dp(12), dp(10), 0, dp(10));
+    }
+    private TextView label(LinearLayout parent, String text, int size, int color) {
+        TextView label = new TextView(this);
+        label.setText(text); label.setTextSize(size); label.setTextColor(color);
+        label.setPadding(0, dp(10), 0, dp(10)); parent.addView(label);
+        return label;
+    }
+    private Button button(LinearLayout parent, String text, Runnable action) {
+        Button button = new Button(this); button.setText(text); button.setAllCaps(false);
+        button.setMinHeight(dp(48)); parent.addView(button);
+        button.setOnClickListener(view -> action.run()); return button;
+    }
+    private EditText field(LinearLayout parent, String title, String value, int type) {
+        label(parent, title, 14, muted);
+        EditText input = new EditText(this); input.setText(value); input.setTextColor(ink);
+        input.setInputType(type); input.setSingleLine(true); input.setMinHeight(dp(48));
+        parent.addView(input); return input;
+    }
+    private void loginScreen(String message) {
+        api = null; frame();
+        ScrollView scroll = new ScrollView(this); root.addView(scroll);
+        LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL); scroll.addView(form);
+        label(form, "Your YouTube library, organized.", 22, ink);
+        label(form, "Sign in to your motus.leap server.", 16, muted);
+        String server = getPreferences(MODE_PRIVATE).getString("server", "https://tubemanager.onrender.com");
+        EditText address = field(form, "Server address", server, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        button(form, "Continue with Google", () -> startGoogle(address.getText().toString()));
+        label(form, "Or sign in with a password", 14, muted);
+        EditText user = field(form, "Username", "", InputType.TYPE_CLASS_TEXT);
+        EditText password = field(form, "Password", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        TextView status = label(form, message, 16, muted);
+        Button submit = new Button(this); submit.setText("Sign in"); submit.setAllCaps(false); form.addView(submit);
+        submit.setOnClickListener(view -> {
+            if (user.getText().toString().trim().isEmpty() || password.getText().length() == 0) {
+                status.setText("Enter your username and password."); return;
+            }
+            ApiClient client;
+            try { client = new ApiClient(address.getText().toString()); }
+            catch (Exception error) { status.setText(error.getMessage()); return; }
+            String username = user.getText().toString().trim(), secret = password.getText().toString();
+            submit.setEnabled(false); status.setText("Signing in…");
+            int requestGeneration = generation;
+            network.execute(() -> {
+                try {
+                    client.login(username, secret);
+                    runOnUiThread(() -> {
+                        if (isDestroyed() || requestGeneration != generation) return;
+                        api = client;
+                        getPreferences(MODE_PRIVATE).edit().putString("server", client.base).apply();
+                        password.setText(""); home("Scans");
+                    });
+                } catch (Exception error) { runOnUiThread(() -> {
+                    if (isDestroyed() || requestGeneration != generation) return;
+                    submit.setEnabled(true); status.setText(readable(error));
+                }); }
+            });
+        });
+        label(form, "Google sign-in opens your browser and returns you here. Your YouTube connection is managed in server settings.", 14, muted);
+        button(form, "Open account website", () -> {
+            try { open(new ApiClient(address.getText().toString()).base + "/auth"); }
+            catch (Exception error) { status.setText(error.getMessage()); }
+        });
+    }
+    private void home(String destination) {
+        page = destination; frame();
+        label(root, page, 22, ink);
+        ScrollView scroll = new ScrollView(this);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); scroll.addView(content);
+        LinearLayout nav = new LinearLayout(this); root.addView(nav);
+        for (String name : pages) {
+            Button tab = new Button(this); tab.setText(name); tab.setTextSize(11); tab.setAllCaps(false);
+            tab.setContentDescription(name + (name.equals(page) ? ", selected" : ""));
+            tab.setTextColor(name.equals(page) ? Color.rgb(85, 180, 232) : ink);
+            nav.addView(tab, new LinearLayout.LayoutParams(0, dp(56), 1));
+            tab.setOnClickListener(view -> home(name));
+        }
+        LinearLayout actions = new LinearLayout(this); root.addView(actions);
+        button(actions, "Refresh", () -> home(page));
+        button(actions, "Sign out", () -> {
+            ApiClient previous = api; loginScreen("");
+            network.execute(() -> { try { previous.logout(); } catch (Exception ignored) { } });
+        });
+        label(content, "Loading…", 16, muted);
+        ApiClient client = api;
+        int requestGeneration = generation;
+        String path = destination.equals("Scans") ? "/api/stats" : (destination.equals("Playlists") || destination.equals("AI sort"))
+            ? "/api/playlists" : destination.equals("Channels") ? "/api/subscriptions" : "/api/mappings";
+        network.execute(() -> {
+            try {
+                JSONObject data = client.get(path);
+                runOnUiThread(() -> {
+                    if (isDestroyed() || requestGeneration != generation) return;
+                    content.removeAllViews(); render(destination, data);
+                });
+            } catch (Exception error) { runOnUiThread(() -> {
+                if (isDestroyed() || requestGeneration != generation) return;
+                if (error instanceof ApiClient.SessionExpiredException) { loginScreen(error.getMessage()); return; }
+                content.removeAllViews(); label(content, readable(error), 16, ink);
+                button(content, "Try again", () -> home(page));
+            }); }
+        });
+    }
+    private void render(String destination, JSONObject data) {
+        if (destination.equals("Scans")) {
+            label(content, "Scan your library", 20, ink);
+            label(content, "Scans run on your server and continue when you close the app. Refresh to check the current task.", 16, muted);
+            button(content, "Sync playlists", () -> queueScan("sync_playlists"));
+            button(content, "Full library scan", () -> queueScan("full_cluster_scan"));
+            button(content, "Scan duplicates", () -> queueScan("scan_duplicates"));
+            button(content, "Scan misplaced videos", () -> queueScan("scan_misplaced"));
+            button(content, "View scan findings", () -> findings());
+            label(content, "Library overview", 20, ink);
+            row("Playlists", data.optString("total_playlists", "Unavailable"), null);
+            row("Videos", data.optString("total_videos", "Unavailable"), null);
+            row("Subscriptions", data.optString("total_subscriptions", "Unavailable"), null);
+            row("Last scan", data.optString("last_scan", "Never"), null);
+            row("Current task", data.isNull("current_task") ? "No task running" : data.optString("current_task"), null);
+            row("Queued tasks", data.optString("pending_actions", "Unavailable"), null);
+            button(content, "Channel mappings", () -> home("Mappings"));
+            button(content, "Open server settings", () -> open(api.base + "/settings"));
+            return;
+        }
+        if (destination.equals("AI sort")) {
+            label(content, "Review before you move", 20, ink);
+            label(content, "Choose a source playlist, then a video. Your server's AI suggests a destination; you approve each move. Configure the AI provider in server settings first.", 16, muted);
+            JSONArray playlists = data.optJSONArray("playlists");
+            if (playlists == null || playlists.length() == 0) {
+                label(content, "No playlists available. Connect YouTube on your account website, then refresh.", 16, muted); return;
+            }
+            for (int i = 0; i < playlists.length(); i++) {
+                JSONObject playlist = playlists.optJSONObject(i);
+                if (playlist != null) button(content, playlist.optString("title", "Untitled playlist"), () -> chooseVideo(playlist, playlists));
+            }
+            return;
+        }
+        String key = destination.equals("Playlists") ? "playlists" : destination.equals("Channels") ? "channels" : "mappings";
+        JSONArray items = data.optJSONArray(key);
+        if (items == null) { label(content, "The server returned an unexpected response. Check that it runs a compatible motus.leap version.", 16, ink); return; }
+        if (items.length() == 0) { label(content, "No " + key + " yet. Connect YouTube or organize your library on the website, then refresh.", 16, muted); return; }
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i); if (item == null) continue;
+            String id = item.optString("id");
+            if (destination.equals("Playlists"))
+                row(item.optString("title", "Untitled playlist"), item.optString("video_count", item.optString("item_count", "—")) + " videos", "https://www.youtube.com/playlist?list=" + Uri.encode(id));
+            else if (destination.equals("Channels"))
+                row(item.optString("title", "Unnamed channel"), item.optString("subscribers", "—") + " subscribers", "https://www.youtube.com/channel/" + Uri.encode(id));
+            else row(item.optString("channel", item.optString("channel_id")), "Playlist: " + item.optString("playlist"), null);
+        }
+    }
+    private interface ServerWork { JSONObject run(ApiClient client) throws Exception; }
+    private interface ResultWork { void show(JSONObject result) throws Exception; }
+    private void perform(String message, ServerWork work, ResultWork result) {
+        ApiClient client = api;
+        int requestGeneration = generation;
+        content.removeAllViews(); label(content, message, 16, muted);
+        network.execute(() -> {
+            try {
+                JSONObject response = work.run(client);
+                runOnUiThread(() -> {
+                    if (isDestroyed() || requestGeneration != generation) return;
+                    content.removeAllViews();
+                    try { result.show(response); }
+                    catch (Exception error) { label(content, readable(error), 16, ink); button(content, "Back", () -> home(page)); }
+                });
+            } catch (Exception error) { runOnUiThread(() -> {
+                if (isDestroyed() || requestGeneration != generation) return;
+                if (error instanceof ApiClient.SessionExpiredException) { loginScreen(error.getMessage()); return; }
+                content.removeAllViews(); label(content, readable(error), 16, ink);
+                button(content, "Back", () -> home(page));
+            }); }
+        });
+    }
+    private void queueScan(String action) {
+        new AlertDialog.Builder(this).setTitle("Run this scan?")
+            .setMessage("This scans your server's connected YouTube library and may use YouTube API quota.")
+            .setNegativeButton("Cancel", null).setPositiveButton("Run scan", (dialog, which) ->
+                perform("Queuing scan…", client -> client.post("/api/action", new JSONObject().put("action", action)), response -> {
+                    label(content, "Scan queued", 22, ink);
+                    label(content, "The server accepted the scan. This does not mean it has finished.", 16, muted);
+                    button(content, "Check progress", () -> home("Scans"));
+                })).show();
+    }
+    private void findings() {
+        perform("Loading scan findings…", client -> client.get("/api/maintenance"), response -> {
+            label(content, "Scan findings", 22, ink);
+            // Preserve the backend's reported fields rather than inventing counts.
+            var keys = response.keys();
+            while (keys.hasNext()) {
+                String key = keys.next(); Object value = response.opt(key);
+                if (value instanceof JSONArray) row(key.replace('_', ' '), ((JSONArray) value).length() + " items", null);
+                else if (value != null && value != JSONObject.NULL) row(key.replace('_', ' '), value.toString(), null);
+            }
+            button(content, "Back to scans", () -> home("Scans"));
+        });
+    }
+    private void chooseVideo(JSONObject source, JSONArray playlists) {
+        perform("Loading playlist videos…", client -> client.get("/api/youtube/videos?playlist_id=" + Uri.encode(source.getString("id"))), response -> {
+            JSONArray videos = response.optJSONArray("videos");
+            label(content, source.optString("title"), 22, ink);
+            if (videos == null || videos.length() == 0) label(content, "No videos available in this playlist.", 16, muted);
+            else for (int i = 0; i < videos.length(); i++) {
+                JSONObject video = videos.optJSONObject(i);
+                if (video != null) button(content, video.optString("title", "Untitled video"), () -> suggest(video, source, playlists));
+            }
+            button(content, "Choose another playlist", () -> home("AI sort"));
+        });
+    }
+    private void suggest(JSONObject video, JSONObject source, JSONArray playlists) {
+        perform("Asking your server's AI for a destination…", client -> {
+            String id = video.getString("video_id");
+            JSONObject meta = new JSONObject().put("video_id", id).put("title", video.optString("title"))
+                .put("channel", video.optString("channel_title", video.optString("channel")))
+                .put("description", video.optString("description"));
+            return client.post("/api/ai/classify", new JSONObject().put("video_ids", new JSONArray().put(id))
+                .put("metadata", new JSONArray().put(meta)));
+        }, response -> {
+            JSONObject suggestion = response.getJSONArray("results").getJSONObject(0);
+            label(content, video.optString("title"), 22, ink);
+            if (!suggestion.isNull("error")) { label(content, suggestion.optString("error"), 16, ink); return; }
+            String name = suggestion.optString("matched_playlist", "");
+            JSONObject target = null;
+            for (int i = 0; i < playlists.length(); i++) {
+                JSONObject candidate = playlists.getJSONObject(i);
+                if (name.equals(candidate.optString("title"))) {
+                    if (target != null) { label(content, "Several playlists share that title. Rename them before sorting.", 16, ink); return; }
+                    target = candidate;
+                }
+            }
+            if (target == null) label(content, "The AI could not identify a matching playlist. Nothing was moved.", 16, muted);
+            else if (target.optString("id").equals(source.optString("id"))) label(content, "This video already belongs in its current playlist.", 16, muted);
+            else {
+                JSONObject destination = target;
+                label(content, "Suggested playlist: " + name, 18, ink);
+                button(content, "Review move", () -> new AlertDialog.Builder(this).setTitle("Move this video?")
+                    .setMessage("Move “" + video.optString("title") + "” from “" + source.optString("title") + "” to “" + name + "”? This changes your YouTube playlists.")
+                    .setNegativeButton("Cancel", null).setPositiveButton("Move video", (dialog, which) -> moveVideo(video, source, destination)).show());
+            }
+            button(content, "Choose another video", () -> chooseVideo(source, playlists));
+        });
+    }
+    private void moveVideo(JSONObject video, JSONObject source, JSONObject target) {
+        perform("Submitting move…", client -> client.post("/api/bulk/move", new JSONObject()
+            .put("video_ids", new JSONArray().put(video.getString("video_id")))
+            .put("source_playlist_id", source.getString("id")).put("target_playlist_id", target.getString("id"))), response -> {
+                String operation = response.getString("operation_id");
+                label(content, "Move submitted", 22, ink);
+                label(content, "The server is processing your move.", 16, muted);
+                button(content, "Check move result", () -> operationStatus(operation));
+            });
+    }
+    private void operationStatus(String id) {
+        perform("Checking move…", client -> client.get("/api/bulk/operations/" + Uri.encode(id)), response -> {
+            row("Move status", response.optString("status"), null);
+            row("Succeeded", response.optString("succeeded"), null);
+            row("Failed", response.optString("failed"), null);
+            JSONArray errors = response.optJSONArray("errors");
+            if (errors != null) for (int i = 0; i < errors.length(); i++) label(content, errors.optString(i), 16, ink);
+            button(content, "Refresh result", () -> operationStatus(id));
+            button(content, "Back to AI sorting", () -> home("AI sort"));
+        });
+    }
+    private void row(String title, String detail, String url) {
+        LinearLayout group = new LinearLayout(this); group.setOrientation(LinearLayout.VERTICAL);
+        group.setPadding(0, dp(12), 0, dp(12)); content.addView(group);
+        label(group, title, 18, ink); label(group, detail, 14, muted);
+        if (url != null) button(group, "Open in YouTube", () -> open(url));
+        View line = new View(this); line.setBackgroundColor(Color.rgb(60, 66, 72));
+        content.addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
+    }
+    private void open(String url) {
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+        catch (android.content.ActivityNotFoundException error) { Toast.makeText(this, "No browser is available.", Toast.LENGTH_LONG).show(); }
+    }
+    private String randomKey() {
+        byte[] random = new byte[32]; new SecureRandom().nextBytes(random);
+        return Base64.encodeToString(random, Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
+    }
+    private void startGoogle(String address) {
+        ApiClient client;
+        try { client = new ApiClient(address); }
+        catch (Exception error) { loginScreen(readable(error)); return; }
+        googleVerifier = randomKey(); googleState = randomKey(); googleServer = client.base;
+        final String verifier = googleVerifier, clientState = googleState;
+        int requestGeneration = generation;
+        network.execute(() -> {
+            try {
+                String challenge = Base64.encodeToString(MessageDigest.getInstance("SHA-256")
+                    .digest(verifier.getBytes(StandardCharsets.US_ASCII)), Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
+                JSONObject response = client.get("/api/auth/mobile/google?code_challenge=" + Uri.encode(challenge) + "&client_state=" + Uri.encode(clientState));
+                String url = response.getString("auth_url");
+                Uri authorization = Uri.parse(url);
+                if (!"https".equals(authorization.getScheme()) || !"accounts.google.com".equals(authorization.getHost()))
+                    throw new Exception("The server returned an invalid Google sign-in address.");
+                runOnUiThread(() -> { if (!isDestroyed() && requestGeneration == generation) open(url); });
+            } catch (Exception error) { runOnUiThread(() -> {
+                if (!isDestroyed() && requestGeneration == generation) {
+                    googleVerifier = null; googleState = null; googleServer = null;
+                    loginScreen(readable(error));
+                }
+            }); }
+        });
+    }
+    private void acceptGoogle(Intent intent) {
+        Uri uri = intent.getData();
+        if (uri == null || !"motusleap".equals(uri.getScheme()) || !"oauth".equals(uri.getHost()) || !"/callback".equals(uri.getPath())) return;
+        intent.setData(null);
+        String code = uri.getQueryParameter("code"), state = uri.getQueryParameter("state");
+        if (googleState == null || !googleState.equals(state) || googleVerifier == null || googleServer == null || code == null) {
+            loginScreen("This sign-in attempt expired. Tap Continue with Google to start again."); return;
+        }
+        ApiClient client = new ApiClient(googleServer);
+        String verifier = googleVerifier;
+        googleState = null; googleVerifier = null; googleServer = null;
+        frame(); label(root, "Completing Google sign-in…", 18, ink);
+        int requestGeneration = generation;
+        network.execute(() -> {
+            try {
+                client.exchangeGoogle(code, verifier);
+                client.get("/api/auth/me");
+                runOnUiThread(() -> {
+                    if (isDestroyed() || requestGeneration != generation) return;
+                    api = client; getPreferences(MODE_PRIVATE).edit().putString("server", client.base).apply(); home("Scans");
+                });
+            } catch (Exception error) { runOnUiThread(() -> {
+                if (!isDestroyed() && requestGeneration == generation) loginScreen(readable(error));
+            }); }
+        });
+    }
+    private String readable(Exception error) {
+        if (error instanceof java.io.IOException) return "Cannot reach your server. Check your connection and try again.";
+        return error.getMessage() == null ? "Unable to load data. Please retry." : error.getMessage();
+    }
+    @Override protected void onDestroy() { generation++; network.shutdownNow(); super.onDestroy(); }
+}
