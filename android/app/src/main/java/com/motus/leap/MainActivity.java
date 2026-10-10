@@ -75,11 +75,18 @@ public final class MainActivity extends AppCompatActivity {
         root.requestApplyInsets();
         LinearLayout brand = new LinearLayout(this); brand.setGravity(android.view.Gravity.CENTER_VERTICAL);
         root.addView(brand);
-        ImageView logo = new ImageView(this); logo.setImageResource(com.motus.leap.R.drawable.brand_icon);
-        logo.setContentDescription("motus.leap logo");
-        brand.addView(logo, new LinearLayout.LayoutParams(dp(36), dp(36)));
-        TextView name = label(brand, "motus.leap", 21, ink); name.setPadding(dp(10), dp(8), 0, dp(8));
-        name.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1));
+        brand.addView(wordmark(), new LinearLayout.LayoutParams(dp(190), dp(48)));
+        View spacer = new View(this);
+        brand.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+    }
+    private ImageView wordmark() {
+        ImageView image = new ImageView(this);
+        android.graphics.Bitmap artwork = android.graphics.BitmapFactory.decodeResource(getResources(), R.drawable.brand_wordmark);
+        // Display the existing emblem and wordmark, excluding the surrounding banner canvas.
+        image.setImageBitmap(android.graphics.Bitmap.createBitmap(artwork, 110, 210, 980, 240));
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setContentDescription("motus.leap");
+        return image;
     }
     private TextView label(LinearLayout parent, String text, int size, int color) {
         TextView label = new TextView(this);
@@ -115,9 +122,7 @@ public final class MainActivity extends AppCompatActivity {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(0, dp(48), 0, dp(24)); scroll.addView(form);
-        ImageView art = new ImageView(this); art.setImageResource(R.drawable.brand_icon);
-        art.setContentDescription("motus.leap");
-        form.addView(art, new LinearLayout.LayoutParams(dp(104), dp(104)));
+        form.addView(wordmark(), new LinearLayout.LayoutParams(-1, dp(88)));
         label(form, "Your library,\norganized.", 32, ink);
         label(form, "Scan your YouTube library and find the right playlist for every video.", 16, muted);
         String server = getPreferences(MODE_PRIVATE).getString("server", "https://tubemanager.onrender.com");
