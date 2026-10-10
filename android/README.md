@@ -1,7 +1,7 @@
 # motus.leap for Android
 
 Native Android client for the existing motus.leap FastAPI backend. This first
-version supports Google and username/password login, scans, reviewed AI sorting, library
+version supports Google-only login, scans, reviewed AI sorting, library
 overview, playlist and channel browsing, read-only channel mappings, refresh,
 sign-out, and opening playlists and channels in YouTube. The screens are Android
 views, not a WebView.
@@ -36,11 +36,11 @@ single-use code. The app redeems it using its private S256 verifier. The existin
 Google web OAuth client and registered HTTPS callback are reused; no Google client
 secret or bearer token is embedded in the APK or redirect URL.
 
-Username/password login is also available for accounts that use it.
+The Android app has no email, username, or password sign-in form.
 The initial suggested address comes from the repository README; it can be changed
 before login. No live-server availability is implied by that default.
 
-Only the server address is saved. Passwords and bearer tokens are kept in memory;
+Only the server address is saved. Bearer tokens are kept in memory;
 restarting the process requires login. The app uses Android's system TLS trust,
 does not follow API redirects, and does not permit plain HTTP servers. Server
 errors are displayed with a retry action. Expired sessions return to sign-in.
@@ -62,6 +62,11 @@ persistent encrypted sessions, search, and full video detail screens are follow-
 Mappings currently show server identifiers. The server remains responsible for
 YouTube credentials and all background processing. No server secrets belong in
 the APK. The backend was not modified for this client.
+
+Version 0.3.0 uses Material 3 controls and navigation with Yomu's dark surface,
+muted text, rounded shapes, and pale blue accent as the visual reference. Server
+configuration is collapsed on the Google-only welcome screen. The original
+motus.leap artwork is retained.
 
 ## Validation limits
 

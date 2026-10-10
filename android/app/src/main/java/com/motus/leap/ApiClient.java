@@ -18,10 +18,6 @@ final class ApiClient {
             throw new IllegalArgumentException("Enter an HTTPS server address without credentials or query parameters.");
         base = address.trim().replaceAll("/+$", "");
     }
-    void login(String username, String password) throws Exception {
-        JSONObject body = new JSONObject().put("username", username).put("password", password);
-        token = request("/api/auth/login", body).getString("access_token");
-    }
     JSONObject get(String path) throws Exception { return request(path, null); }
     JSONObject post(String path, JSONObject body) throws Exception { return request(path, body); }
     void exchangeGoogle(String code, String verifier) throws Exception {
