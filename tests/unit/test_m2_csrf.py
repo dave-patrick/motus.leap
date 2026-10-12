@@ -59,6 +59,22 @@ class TestM2CsrfOrigin:
         assert exc.value.status_code == 403
 
     @pytest.mark.asyncio
+    async def test_accepts_same_origin_request(self):
+        """Origin matching the host serving the request is same-origin, not CSRF."""
+        req = _request(origin="https://motus-leap-pr-5.onrender.com")
+        req.headers["host"] = "motus-leap-pr-5.onrender.com"
+        await verify_origin(req)
+
+    @pytest.mark.asyncio
+    async def test_rejects_cross_origin_request(self):
+        """A foreign Origin against our host is still rejected."""
+        req = _request(origin="https://attacker-evil.onrender.com")
+        req.headers["host"] = "motus-leap-pr-5.onrender.com"
+        with pytest.raises(HTTPException) as exc:
+            await verify_origin(req)
+        assert exc.value.status_code == 403
+
+    @pytest.mark.asyncio
     async def test_accepts_onrender_referer(self):
         """Same-origin POST (no Origin header) validated via referer host."""
         onrender = next(o for o in ALLOWED_ORIGINS if o.endswith(".onrender.com"))

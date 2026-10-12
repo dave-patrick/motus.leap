@@ -273,10 +273,26 @@ async def verify_origin(request: Request):
     if _fe:
         allowed.add(_fe)
 
+    # Same-origin requests are not CSRF: the page and this request were both
+    # served by the very origin handling the request. Accepting it keeps
+    # per-deployment URLs (e.g. *-pr-5.onrender.com previews) working without
+    # blanket-trusting every *.onrender.com subdomain (M2 fix).
+    request_hosts = set()
+    _host = request.headers.get("host", "")
+    if _host:
+        request_hosts.add(_host)
+    _fwd_host = request.headers.get("x-forwarded-host", "")
+    if _fwd_host:
+        request_hosts.add(_fwd_host.split(",")[0].strip())
+
     # If origin is present, validate it
     if origin:
         # Check exact match first
         if origin in allowed:
+            return
+        from urllib.parse import urlparse as _urlparse
+        _origin_host = _urlparse(origin).netloc
+        if _origin_host and _origin_host in request_hosts:
             return
         log.warning(f"verify_origin: BLOCKED origin={origin}")
         raise HTTPException(status_code=403, detail="Forbidden: Invalid origin")
