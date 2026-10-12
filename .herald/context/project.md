@@ -22,3 +22,6 @@ Software project in motus.leap. See existing project documentation for its purpo
 - Use Graft for code context when available, following the global and project Graft guidance.
 - Keep this context accurate as project architecture and conventions are established.
 - Herald compiler output replaces vendor files. Preserve and merge existing guidance before compiling.
+
+- Android 0.5.0 starts at Dashboard (stats, activity, quota, scan actions). The user-supplied unframed artwork is android/app/src/main/res/drawable-nodpi/brand_symbol.png.
+

@@ -35,9 +35,9 @@ public final class MainActivity extends AppCompatActivity {
     private ApiClient api;
     private String googleVerifier, googleState, googleServer;
     private int generation;
-    private String page = "Scans";
+    private String page = "Dashboard";
     private String scanAction = "", previousJob = "", resultsFilter = "All";
-    private final String[] pages = {"Scans", "AI sort", "Playlists", "Channels", "Settings"};
+    private final String[] pages = {"Dashboard", "AI sort", "Playlists", "Channels", "Settings"};
     private final android.os.Handler refresh = new android.os.Handler(android.os.Looper.getMainLooper());
 
     @Override public void onCreate(Bundle state) {
@@ -51,7 +51,7 @@ public final class MainActivity extends AppCompatActivity {
             googleServer = state.getString("googleServer");
         }
         api = SessionStore.load(this);
-        if (api == null) loginScreen(""); else home("Scans");
+        if (api == null) loginScreen(""); else home("Dashboard");
         acceptGoogle(getIntent());
     }
     @Override protected void onStop() { super.onStop(); refresh.removeCallbacksAndMessages(null); }
@@ -201,7 +201,7 @@ public final class MainActivity extends AppCompatActivity {
         BottomNavigationView nav = new BottomNavigationView(this);
         nav.setBackgroundColor(surface);
         nav.setItemActiveIndicatorColor(ColorStateList.valueOf(Color.rgb(37, 53, 74)));
-        int[] icons = {R.drawable.ic_scan, R.drawable.ic_sort, R.drawable.ic_playlist, R.drawable.ic_channel, R.drawable.ic_settings};
+        int[] icons = {R.drawable.ic_dashboard, R.drawable.ic_sort, R.drawable.ic_playlist, R.drawable.ic_channel, R.drawable.ic_settings};
         for (int i = 0; i < pages.length; i++) nav.getMenu().add(0, i + 1, i, pages[i]).setIcon(icons[i]);
         nav.setLabelVisibilityMode(com.google.android.material.navigation.NavigationBarView.LABEL_VISIBILITY_LABELED);
         nav.setItemHorizontalTranslationEnabled(false);
@@ -213,7 +213,7 @@ public final class MainActivity extends AppCompatActivity {
         label(content, "Loading…", 16, muted);
         ApiClient client = api;
         int requestGeneration = generation;
-        String path = destination.equals("Scans") ? "/api/stats" : (destination.equals("Playlists") || destination.equals("AI sort"))
+        String path = destination.equals("Dashboard") ? "/api/stats" : (destination.equals("Playlists") || destination.equals("AI sort"))
             ? "/api/playlists" : destination.equals("Channels") ? "/api/subscriptions" : "/api/mappings";
         network.execute(() -> {
             try {
@@ -231,25 +231,16 @@ public final class MainActivity extends AppCompatActivity {
         });
     }
     private void render(String destination, JSONObject data) {
-        if (destination.equals("Scans")) {
-            button(content, "Scan status & results", this::scanStatus);
+        if (destination.equals("Dashboard")) {
+            dashboardOverview(data);
             label(content, "Scan your library", 20, ink);
             label(content, "Find duplicates and misplaced videos. Scans keep running on your server.", 15, muted);
-            button(content, "Sync playlists", () -> queueScan("sync_playlists"));
-            MaterialButton scan = (MaterialButton) button(content, "Full library scan", () -> queueScan("full_cluster_scan"));
-            scan.setBackgroundTintList(ColorStateList.valueOf(accent)); scan.setTextColor(Color.rgb(7, 16, 29));
+            button(content, "Sync playlists", () -> { resultsFilter = "All"; queueScan("sync_playlists"); });
             button(content, "Scan duplicates", () -> queueScan("scan_duplicates"));
             button(content, "Scan misplaced videos", () -> queueScan("scan_misplaced"));
             button(content, "Scan deleted videos", () -> { resultsFilter = "Deleted"; queueScan("sync_playlists"); });
             button(content, "View scan findings", () -> findings());
             button(content, "Move Watch Later to 1~Sort", () -> moveWatchLater());
-            label(content, "Library overview", 20, ink);
-            row("Playlists", data.optString("total_playlists", "Unavailable"), null);
-            row("Videos", data.optString("total_videos", "Unavailable"), null);
-            row("Subscriptions", data.optString("total_subscriptions", "Unavailable"), null);
-            row("Last scan", data.optString("last_scan", "Never"), null);
-            row("Current task", data.isNull("current_task") ? "No task running" : data.optString("current_task"), null);
-            row("Queued tasks", data.optString("pending_actions", "Unavailable"), null);
             button(content, "Channel mappings", () -> home("Mappings"));
 
             return;
@@ -288,6 +279,40 @@ public final class MainActivity extends AppCompatActivity {
             entry.setTag(item.optString("title", item.optString("channel", item.optString("channel_id"))) + " " + item.optString("playlist")); choices.add(entry);
         }
     }
+    private void dashboardOverview(JSONObject stats) {
+        label(content, "Your library", 20, ink);
+        LinearLayout metrics = new LinearLayout(this); content.addView(metrics);
+        String[] titles = {"Playlists", "Videos", "Channels"};
+        String[] keys = {"total_playlists", "total_videos", "total_subscriptions"};
+        for (int i=0; i<keys.length; i++) {
+            LinearLayout metric = new LinearLayout(this); metric.setOrientation(LinearLayout.VERTICAL);
+            metric.setPadding(dp(10), dp(8), dp(10), dp(8));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+            metrics.addView(metric, params);
+            label(metric, stats.optString(keys[i], "—"), 24, ink);
+            label(metric, titles[i], 13, muted);
+        }
+            MaterialButton scan = (MaterialButton) button(content, "Full library scan", () -> queueScan("full_cluster_scan"));
+            scan.setBackgroundTintList(ColorStateList.valueOf(accent)); scan.setTextColor(Color.rgb(7, 16, 29));
+
+        label(content, "Activity", 20, ink);
+        JSONObject job = stats.optJSONObject("job_progress");
+        boolean running = stats.optInt("running_tasks") > 0, queued = stats.optInt("pending_actions") > 0;
+        String status = running ? "Running" : queued ? "Queued" : "Ready";
+        String detail = running ? stats.optString("current_task", "Processing your library") : "No task running";
+        if (job != null && !running && !queued && !job.optString("message").isEmpty()) detail = job.optString("message");
+        row(status, detail.replace('_', ' ') + "\n" + stats.optInt("pending_actions") + " queued tasks", null);
+        button(content, "View activity & results", this::scanStatus);
+        label(content, "Last scan: " + displayDate(stats.optString("last_scan", "Never")), 13, muted);
+        JSONObject quota = stats.optJSONObject("quota");
+        if (quota != null) label(content, "YouTube quota: " + quota.optString("remaining", "—") + " remaining of " + quota.optString("daily_cap", "—") + " locally tracked units", 13, muted);
+        button(content, "Refresh dashboard", () -> home("Dashboard"));
+    }
+    private String displayDate(String value) {
+        try { return java.time.OffsetDateTime.parse(value).atZoneSameInstant(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT)); }
+        catch (Exception ignored) { return value; }
+    }
     private interface ServerWork { JSONObject run(ApiClient client) throws Exception; }
     private interface ResultWork { void show(JSONObject result) throws Exception; }
     private void perform(String message, ServerWork work, ResultWork result) {
@@ -316,7 +341,7 @@ public final class MainActivity extends AppCompatActivity {
         label(content, "Your Google session stays signed in until it expires or you sign out.", 15, muted);
         row("Connected server", api.base, null);
         button(content, "Server settings", () -> open(api.base + "/settings"));
-        button(content, "Refresh library", () -> home("Scans"));
+        button(content, "Refresh library", () -> home("Dashboard"));
         button(content, "Sign out", () -> {
             ApiClient previous = api; SessionStore.clear(this); loginScreen("");
             network.execute(() -> { try { previous.logout(); } catch (Exception ignored) {} });
@@ -413,7 +438,7 @@ public final class MainActivity extends AppCompatActivity {
                 if (response.optInt("deleted_count") > 0) button(content, "Remove deleted videos from playlists", this::removeDeleted);
             }
             button(content, "Back to scan status", this::scanStatus);
-            button(content, "Back to scans", () -> home("Scans"));
+            button(content, "Back to dashboard", () -> home("Dashboard"));
         });
     }
     private void duplicateControls(JSONObject item, String videoId) {
@@ -679,7 +704,7 @@ public final class MainActivity extends AppCompatActivity {
                 SessionStore.save(this, client);
                 runOnUiThread(() -> {
                     if (isDestroyed() || requestGeneration != generation) return;
-                    api = client; getPreferences(MODE_PRIVATE).edit().putString("server", client.base).apply(); home("Scans");
+                    api = client; getPreferences(MODE_PRIVATE).edit().putString("server", client.base).apply(); home("Dashboard");
                 });
             } catch (Exception error) { runOnUiThread(() -> {
                 if (!isDestroyed() && requestGeneration == generation) loginScreen(readable(error));
@@ -692,4 +717,6 @@ public final class MainActivity extends AppCompatActivity {
     }
     @Override protected void onDestroy() { generation++; network.shutdownNow(); super.onDestroy(); }
 }
+
+
 
