@@ -199,9 +199,45 @@ class PlaywrightElementWrapper:
             raise e
 
 USER_DATA_DIR = os.path.join(os.path.dirname(__file__), "user_data")
-PLAYWRIGHT_USER_DATA_DIR = os.path.join(os.path.dirname(__file__), "user_data_playwright")
+PLAYWRIGHT_USER_DATA_DIR = os.environ.get("PLAYWRIGHT_USER_DATA_DIR") or os.path.join(os.environ.get("TUBE_MANAGER_DATA_DIR", os.path.dirname(__file__)), "user_data_playwright")
+
+def _youtube_cookie_candidates():
+    """Ordered YouTube cookie store locations, most-preferred first."""
+    candidates = []
+    override = os.environ.get("YOUTUBE_COOKIES_FILE")
+    if override:
+        candidates.append(override)
+    data_dir = os.environ.get("TUBE_MANAGER_DATA_DIR")
+    if data_dir:
+        candidates.append(os.path.join(data_dir, "cookies", "youtube_cookies.json"))
+    if os.path.isdir("/app/data"):
+        candidates.append(os.path.join("/app/data", "cookies", "youtube_cookies.json"))
+    candidates.append(os.path.expanduser("~/.camofox/cookies/cookies.json"))
+    return [path for path in candidates if path]
+
+
+def get_youtube_cookies_path():
+    """Return an existing YouTube cookie store, else the preferred location."""
+    candidates = _youtube_cookie_candidates()
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return candidates[0]
+
+
+def get_youtube_cookies_write_path():
+    """Return the preferred location to write the YouTube cookie store.
+
+    Unlike get_youtube_cookies_path(), this never falls back to an older store
+    that merely happens to exist, so an imported cookie file always lands at the
+    durable location and is picked up on the next browser launch.
+    """
+    return _youtube_cookie_candidates()[0]
+
 
 def get_playwright_browser():
+    pw = None
+    browser_context = None
     try:
         from playwright.sync_api import sync_playwright
         print("  Initializing Playwright context...")
@@ -226,7 +262,7 @@ def get_playwright_browser():
         )
         # Load and inject cookies if they exist
         try:
-            cookies_path = os.path.expanduser("~/.camofox/cookies/cookies.json")
+            cookies_path = get_youtube_cookies_path()
             if os.path.exists(cookies_path):
                 print("  Playwright: Loading cookies from cookies.json...")
                 with open(cookies_path, "r", encoding="utf-8") as f:
@@ -276,6 +312,12 @@ def get_playwright_browser():
         wrapper.force_mute = force_mute
         return wrapper
     except Exception as e:
+        if browser_context is not None:
+            try: browser_context.close()
+            except Exception: pass
+        if pw is not None:
+            try: pw.stop()
+            except Exception: pass
         print(f"  Playwright initialization failed: {e}")
         return None
 
@@ -391,7 +433,7 @@ class CamofoxDriverWrapper:
                 
                 # Automatically import saved cookies if cookies.json exists
                 try:
-                    cookies_path = os.path.expanduser("~/.camofox/cookies/cookies.json")
+                    cookies_path = get_youtube_cookies_path()
                     if os.path.exists(cookies_path):
                         print("  Camofox: Loading persisted cookies from cookies.json...")
                         with open(cookies_path, "r", encoding="utf-8") as f:
@@ -1862,3 +1904,5 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
     finally:
         if own_driver:
             driver.quit()
+
+
