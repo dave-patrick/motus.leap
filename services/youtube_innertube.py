@@ -337,21 +337,26 @@ def _collect_videos(payload: dict[str, Any], videos: dict[str, dict[str, Any]]) 
 def _continuation_token(payload: dict[str, Any]) -> str:
     """Return the next-page token, wherever YouTube nested it.
 
-    The token used to sit at ``continuationEndpoint.continuationCommand``, but
-    Watch Later now nests it under
-    ``continuationEndpoint.commandExecutorCommand.commands[]``. A page can also
-    carry a token-less "Reload for updates" popup renderer, so we scan every
-    continuation renderer's subtree and take the first real token.
+    YouTube keeps moving this token. It has lived at
+    ``continuationEndpoint.continuationCommand``, moved under
+    ``continuationEndpoint.commandExecutorCommand.commands[]`` for playlist
+    lists, and for lockup-style lists sits at
+    ``continuationItemViewModel.continuationCommand.innertubeCommand.continuationCommand``.
+    Pages can also carry a token-less "Reload for updates" popup renderer, and
+    a container's outer ``continuationCommand`` carries no token of its own.
+    So rather than chase container names, take the first node that actually
+    carries a token, preferring the browse continuation request type.
     """
+    fallback = ""
     for node in _walk(payload):
-        renderer = node.get("continuationItemRenderer")
-        if not isinstance(renderer, dict):
+        command = node.get("continuationCommand")
+        if not isinstance(command, dict) or not command.get("token"):
             continue
-        for child in _walk(renderer):
-            command = child.get("continuationCommand")
-            if isinstance(command, dict) and command.get("token"):
-                return str(command["token"])
-    return ""
+        token = str(command["token"])
+        if command.get("request") == "CONTINUATION_REQUEST_TYPE_BROWSE":
+            return token
+        fallback = fallback or token
+    return fallback
 
 
 def list_watch_later(client: Optional[httpx.Client] = None) -> list[dict[str, Any]]:
