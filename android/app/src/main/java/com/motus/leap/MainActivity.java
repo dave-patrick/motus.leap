@@ -1,6 +1,6 @@
 package com.motus.leap;
 
-import android.app.Activity;
+import androidx.appcompat.app.AppCompatActivity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
@@ -18,11 +18,19 @@ import java.security.SecureRandom;
 import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
 import android.util.Base64;
+import android.content.res.ColorStateList;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.textfield.TextInputLayout;
+import com.google.android.material.textfield.TextInputEditText;
 
 /** Native Android screens backed by motus.leap's server. */
-public final class MainActivity extends Activity {
+public final class MainActivity extends AppCompatActivity {
     private final ExecutorService network = Executors.newSingleThreadExecutor();
-    private final int ink = Color.rgb(239, 242, 235), muted = Color.rgb(176, 184, 170);
+    private final int ink = Color.rgb(243, 245, 248), muted = Color.rgb(184, 192, 204);
+    private final int accent = Color.rgb(155, 203, 255), surface = Color.rgb(17, 21, 28);
     private LinearLayout root, content;
     private ApiClient api;
     private String googleVerifier, googleState, googleServer;
@@ -51,7 +59,7 @@ public final class MainActivity extends Activity {
         generation++;
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(15, 17, 21));
+        root.setBackgroundColor(Color.rgb(9, 11, 16));
         root.setPadding(dp(20), dp(12), dp(20), dp(12));
         if (android.os.Build.VERSION.SDK_INT >= 30) root.setOnApplyWindowInsetsListener((view, insets) -> {
             var bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
@@ -67,92 +75,137 @@ public final class MainActivity extends Activity {
         root.requestApplyInsets();
         LinearLayout brand = new LinearLayout(this); brand.setGravity(android.view.Gravity.CENTER_VERTICAL);
         root.addView(brand);
-        ImageView logo = new ImageView(this); logo.setImageResource(com.motus.leap.R.drawable.brand_icon);
-        logo.setContentDescription("motus.leap logo");
-        brand.addView(logo, new LinearLayout.LayoutParams(dp(56), dp(56)));
-        TextView name = label(brand, "motus.leap", 28, ink); name.setPadding(dp(12), dp(10), 0, dp(10));
+        TextView brandTitle = new TextView(this); brandTitle.setText("motus.leap");
+        brandTitle.setTextColor(ink); brandTitle.setTextSize(22);
+        brandTitle.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        brand.addView(brandTitle, new LinearLayout.LayoutParams(0, dp(48), 1));
+        View spacer = new View(this);
+        brandTitle.setGravity(android.view.Gravity.CENTER_VERTICAL);
+    }
+    private ImageView wordmark() {
+        ImageView image = new ImageView(this);
+        android.graphics.Bitmap artwork = android.graphics.BitmapFactory.decodeResource(getResources(), R.drawable.brand_wordmark);
+        // Display the existing emblem and wordmark, excluding the surrounding banner canvas.
+        image.setImageBitmap(android.graphics.Bitmap.createBitmap(artwork, 110, 210, 980, 240));
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setContentDescription("motus.leap");
+        return image;
     }
     private TextView label(LinearLayout parent, String text, int size, int color) {
         TextView label = new TextView(this);
         label.setText(text); label.setTextSize(size); label.setTextColor(color);
-        label.setPadding(0, dp(10), 0, dp(10)); parent.addView(label);
+        label.setPadding(0, dp(size >= 20 ? 16 : 4), 0, dp(8));
+        label.setLineSpacing(dp(2), 1.08f);
+        if (size >= 18) label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        parent.addView(label);
         return label;
     }
     private Button button(LinearLayout parent, String text, Runnable action) {
-        Button button = new Button(this); button.setText(text); button.setAllCaps(false);
-        button.setMinHeight(dp(48)); parent.addView(button);
+        MaterialButton button = new MaterialButton(this); button.setText(text); button.setAllCaps(false);
+        button.setTextSize(14); button.setCornerRadius(dp(16));
+        button.setBackgroundTintList(ColorStateList.valueOf(Color.rgb(28, 34, 44)));
+        button.setTextColor(ink); button.setElevation(0); button.setMinHeight(dp(52));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(0, dp(4), 0, dp(4)); parent.addView(button, params);
         button.setOnClickListener(view -> action.run()); return button;
     }
     private EditText field(LinearLayout parent, String title, String value, int type) {
-        label(parent, title, 14, muted);
-        EditText input = new EditText(this); input.setText(value); input.setTextColor(ink);
+        TextInputLayout box = new TextInputLayout(this);
+        box.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE); box.setHint(title);
+        box.setBoxCornerRadii(dp(16), dp(16), dp(16), dp(16));
+        TextInputEditText input = new TextInputEditText(box.getContext()); input.setText(value); input.setTextColor(ink);
         input.setInputType(type); input.setSingleLine(true); input.setMinHeight(dp(48));
-        parent.addView(input); return input;
+        box.addView(input); LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(0, dp(8), 0, dp(8)); parent.addView(box, params); return input;
     }
     private void loginScreen(String message) {
         api = null; frame();
-        ScrollView scroll = new ScrollView(this); root.addView(scroll);
-        LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL); scroll.addView(form);
-        label(form, "Your YouTube library, organized.", 22, ink);
-        label(form, "Sign in to your motus.leap server.", 16, muted);
+        root.removeViewAt(0);
+        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        LinearLayout viewport = new LinearLayout(this);
+        viewport.setOrientation(LinearLayout.VERTICAL);
+        viewport.setGravity(android.view.Gravity.CENTER);
+        viewport.setPadding(0, dp(32), 0, dp(32));
+        scroll.addView(viewport, new ScrollView.LayoutParams(-1, -1));
+        LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
+        int available = getResources().getDisplayMetrics().widthPixels - dp(40);
+        viewport.addView(form, new LinearLayout.LayoutParams(Math.min(dp(420), available), -2));
+        TextView brand = label(form, "motus.leap", 30, ink);
+        android.text.SpannableString brandText = new android.text.SpannableString("motus.leap");
+        brandText.setSpan(new android.text.style.ForegroundColorSpan(accent), 3, 4, 0);
+        brand.setText(brandText);
+        brand.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        brand.setPadding(0, 0, 0, dp(40));
+        TextView headline = label(form, "Your library, organized.", 30, ink);
+        headline.setPadding(0, 0, 0, dp(12));
+        TextView description = label(form, "Scan your YouTube library and find the right playlist for every video.", 16, muted);
+        description.setPadding(0, 0, 0, dp(32));
         String server = getPreferences(MODE_PRIVATE).getString("server", "https://tubemanager.onrender.com");
-        EditText address = field(form, "Server address", server, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        button(form, "Continue with Google", () -> startGoogle(address.getText().toString()));
-        label(form, "Or sign in with a password", 14, muted);
-        EditText user = field(form, "Username", "", InputType.TYPE_CLASS_TEXT);
-        EditText password = field(form, "Password", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        TextView status = label(form, message, 16, muted);
-        Button submit = new Button(this); submit.setText("Sign in"); submit.setAllCaps(false); form.addView(submit);
-        submit.setOnClickListener(view -> {
-            if (user.getText().toString().trim().isEmpty() || password.getText().length() == 0) {
-                status.setText("Enter your username and password."); return;
+        LinearLayout serverPanel = new LinearLayout(this); serverPanel.setOrientation(LinearLayout.VERTICAL);
+        EditText address = field(serverPanel, "Server address", server, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        android.widget.ImageButton google = new android.widget.ImageButton(this);
+        google.setImageResource(R.drawable.google_signin);
+        google.setContentDescription("Sign in with Google");
+        google.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        google.setBackgroundColor(Color.TRANSPARENT); google.setPadding(0, 0, 0, 0);
+        LinearLayout.LayoutParams googleParams = new LinearLayout.LayoutParams(Math.min(dp(280), available), dp(56));
+        googleParams.bottomMargin = dp(12);
+        form.addView(google, googleParams);
+        google.setOnClickListener(view -> startGoogle(address.getText().toString()));
+        label(form, "Sign in securely with your Google account.", 14, muted);
+        if (!message.isEmpty()) {
+            TextView error = label(form, message, 14, Color.rgb(255, 180, 171));
+            error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        }
+        View divider = new View(this); divider.setBackgroundColor(Color.rgb(42, 47, 58));
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(-1, dp(1));
+        dividerParams.setMargins(0, dp(28), 0, dp(12)); form.addView(divider, dividerParams);
+        Button settings = button(form, "Server settings", () -> serverPanel.setVisibility(serverPanel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE));
+        ((MaterialButton) settings).setBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
+        settings.setTextColor(muted); settings.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+        settings.setPadding(0, 0, 0, 0);
+        settings.setContentDescription("Server settings. Change the server address if you use a different server.");
+        form.addView(serverPanel); serverPanel.setVisibility(View.GONE);
+        // Use the actual inset/window width, including split-screen and rotation.
+        viewport.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            int width = Math.min(dp(420), Math.max(1, right - left - view.getPaddingLeft() - view.getPaddingRight()));
+            if (form.getLayoutParams().width != width) {
+                form.getLayoutParams().width = width; form.requestLayout();
+                google.getLayoutParams().width = Math.min(dp(280), width); google.requestLayout();
             }
-            ApiClient client;
-            try { client = new ApiClient(address.getText().toString()); }
-            catch (Exception error) { status.setText(error.getMessage()); return; }
-            String username = user.getText().toString().trim(), secret = password.getText().toString();
-            submit.setEnabled(false); status.setText("Signing in…");
-            int requestGeneration = generation;
-            network.execute(() -> {
-                try {
-                    client.login(username, secret);
-                    runOnUiThread(() -> {
-                        if (isDestroyed() || requestGeneration != generation) return;
-                        api = client;
-                        getPreferences(MODE_PRIVATE).edit().putString("server", client.base).apply();
-                        password.setText(""); home("Scans");
-                    });
-                } catch (Exception error) { runOnUiThread(() -> {
-                    if (isDestroyed() || requestGeneration != generation) return;
-                    submit.setEnabled(true); status.setText(readable(error));
-                }); }
-            });
-        });
-        label(form, "Google sign-in opens your browser and returns you here. Your YouTube connection is managed in server settings.", 14, muted);
-        button(form, "Open account website", () -> {
-            try { open(new ApiClient(address.getText().toString()).base + "/auth"); }
-            catch (Exception error) { status.setText(error.getMessage()); }
         });
     }
+
     private void home(String destination) {
         page = destination; frame();
         label(root, page, 22, ink);
         ScrollView scroll = new ScrollView(this);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); scroll.addView(content);
-        LinearLayout nav = new LinearLayout(this); root.addView(nav);
-        for (String name : pages) {
-            Button tab = new Button(this); tab.setText(name); tab.setTextSize(11); tab.setAllCaps(false);
-            tab.setContentDescription(name + (name.equals(page) ? ", selected" : ""));
-            tab.setTextColor(name.equals(page) ? Color.rgb(85, 180, 232) : ink);
-            nav.addView(tab, new LinearLayout.LayoutParams(0, dp(56), 1));
-            tab.setOnClickListener(view -> home(name));
-        }
-        LinearLayout actions = new LinearLayout(this); root.addView(actions);
-        button(actions, "Refresh", () -> home(page));
-        button(actions, "Sign out", () -> {
-            ApiClient previous = api; loginScreen("");
-            network.execute(() -> { try { previous.logout(); } catch (Exception ignored) { } });
+        BottomNavigationView nav = new BottomNavigationView(this);
+        nav.setBackgroundColor(surface);
+        nav.setItemActiveIndicatorColor(ColorStateList.valueOf(Color.rgb(37, 53, 74)));
+        int[] icons = {R.drawable.ic_scan, R.drawable.ic_sort, R.drawable.ic_playlist, R.drawable.ic_channel};
+        for (int i = 0; i < pages.length; i++) nav.getMenu().add(0, i + 1, i, pages[i]).setIcon(icons[i]);
+        nav.setSelectedItemId(java.util.Arrays.asList(pages).indexOf(page) + 1);
+        nav.setOnItemSelectedListener(item -> { home(pages[item.getItemId() - 1]); return true; });
+        root.addView(nav);
+        MaterialButton options = new MaterialButton(this);
+        options.setBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
+        options.setElevation(0);
+        options.setText("Options"); options.setTextColor(muted); options.setAllCaps(false);
+        LinearLayout toolbar = (LinearLayout) root.getChildAt(0);
+        toolbar.addView(options, new LinearLayout.LayoutParams(-2, dp(48)));
+        options.setOnClickListener(view -> {
+            PopupMenu menu = new PopupMenu(this, options);
+            menu.getMenu().add("Refresh"); menu.getMenu().add("Server settings"); menu.getMenu().add("Sign out");
+            menu.setOnMenuItemClickListener(item -> {
+                if (item.getTitle().equals("Refresh")) home(page);
+                else if (item.getTitle().equals("Server settings")) open(api.base + "/settings");
+                else { ApiClient previous = api; loginScreen(""); network.execute(() -> { try { previous.logout(); } catch (Exception ignored) {} }); }
+                return true;
+            }); menu.show();
         });
         label(content, "Loading…", 16, muted);
         ApiClient client = api;
@@ -177,9 +230,10 @@ public final class MainActivity extends Activity {
     private void render(String destination, JSONObject data) {
         if (destination.equals("Scans")) {
             label(content, "Scan your library", 20, ink);
-            label(content, "Scans run on your server and continue when you close the app. Refresh to check the current task.", 16, muted);
+            label(content, "Find duplicates and misplaced videos. Scans keep running on your server.", 15, muted);
             button(content, "Sync playlists", () -> queueScan("sync_playlists"));
-            button(content, "Full library scan", () -> queueScan("full_cluster_scan"));
+            MaterialButton scan = (MaterialButton) button(content, "Full library scan", () -> queueScan("full_cluster_scan"));
+            scan.setBackgroundTintList(ColorStateList.valueOf(accent)); scan.setTextColor(Color.rgb(7, 16, 29));
             button(content, "Scan duplicates", () -> queueScan("scan_duplicates"));
             button(content, "Scan misplaced videos", () -> queueScan("scan_misplaced"));
             button(content, "View scan findings", () -> findings());
@@ -201,9 +255,13 @@ public final class MainActivity extends Activity {
             if (playlists == null || playlists.length() == 0) {
                 label(content, "No playlists available. Connect YouTube on your account website, then refresh.", 16, muted); return;
             }
+            java.util.List<View> choices = searchChoices(content, "Search playlists");
             for (int i = 0; i < playlists.length(); i++) {
                 JSONObject playlist = playlists.optJSONObject(i);
-                if (playlist != null) button(content, playlist.optString("title", "Untitled playlist"), () -> chooseVideo(playlist, playlists));
+                if (playlist != null) {
+                    Button choice = button(content, playlist.optString("title", "Untitled playlist"), () -> chooseVideo(playlist, playlists));
+                    choice.setTag(playlist.optString("title")); choices.add(choice);
+                }
             }
             return;
         }
@@ -211,6 +269,7 @@ public final class MainActivity extends Activity {
         JSONArray items = data.optJSONArray(key);
         if (items == null) { label(content, "The server returned an unexpected response. Check that it runs a compatible motus.leap version.", 16, ink); return; }
         if (items.length() == 0) { label(content, "No " + key + " yet. Connect YouTube or organize your library on the website, then refresh.", 16, muted); return; }
+        java.util.List<View> choices = searchChoices(content, "Search " + key);
         for (int i = 0; i < items.length(); i++) {
             JSONObject item = items.optJSONObject(i); if (item == null) continue;
             String id = item.optString("id");
@@ -219,6 +278,8 @@ public final class MainActivity extends Activity {
             else if (destination.equals("Channels"))
                 row(item.optString("title", "Unnamed channel"), item.optString("subscribers", "—") + " subscribers", "https://www.youtube.com/channel/" + Uri.encode(id));
             else row(item.optString("channel", item.optString("channel_id")), "Playlist: " + item.optString("playlist"), null);
+            View entry = content.getChildAt(content.getChildCount() - 1);
+            entry.setTag(item.optString("title", item.optString("channel", item.optString("channel_id"))) + " " + item.optString("playlist")); choices.add(entry);
         }
     }
     private interface ServerWork { JSONObject run(ApiClient client) throws Exception; }
@@ -257,24 +318,54 @@ public final class MainActivity extends Activity {
     private void findings() {
         perform("Loading scan findings…", client -> client.get("/api/maintenance"), response -> {
             label(content, "Scan findings", 22, ink);
-            // Preserve the backend's reported fields rather than inventing counts.
-            var keys = response.keys();
-            while (keys.hasNext()) {
-                String key = keys.next(); Object value = response.opt(key);
-                if (value instanceof JSONArray) row(key.replace('_', ' '), ((JSONArray) value).length() + " items", null);
-                else if (value != null && value != JSONObject.NULL) row(key.replace('_', ' '), value.toString(), null);
-            }
+            label(content, "Review each video and its suggested destination on the website before making changes.", 16, muted);
+            findingGroup("Duplicates", response.optJSONArray("duplicated_videos"));
+            findingGroup("Suggested moves", response.optJSONArray("misplaced_videos"));
+            findingGroup("Other suggested moves", response.optJSONArray("move_from_x_to_y"));
+            button(content, "Review videos on website", () -> open(api.base + "/maintenance"));
             button(content, "Back to scans", () -> home("Scans"));
         });
+    }
+    private void findingGroup(String title, JSONArray items) {
+        label(content, title + " (" + (items == null ? 0 : items.length()) + ")", 20, ink);
+        if (items == null || items.length() == 0) { label(content, "No " + title.toLowerCase() + " reported.", 15, muted); return; }
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i); if (item == null) continue;
+            String from = item.optString("current_playlist_title", item.optString("source_playlist_title", "Current playlist"));
+            String to = item.optString("mapped_playlist_title", item.optString("target_playlist_title", "Review destination"));
+            String reason = item.optString("match_reason", item.optString("channel_title", "Review this video on the website."));
+            row(item.optString("title", item.optString("video_title", "Untitled video")), from + " → " + to + "\n" + reason, null);
+        }
+    }
+    private java.util.List<View> searchChoices(LinearLayout parent, String hint) {
+        java.util.List<View> choices = new java.util.ArrayList<>();
+        EditText search = field(parent, hint, "", InputType.TYPE_CLASS_TEXT);
+        search.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence text, int start, int count, int after) {}
+            public void onTextChanged(CharSequence text, int start, int before, int count) {
+                String query = text.toString().toLowerCase(java.util.Locale.ROOT).trim();
+                for (View item : choices) item.setVisibility(String.valueOf(item.getTag()).toLowerCase(java.util.Locale.ROOT).contains(query) ? View.VISIBLE : View.GONE);
+            }
+            public void afterTextChanged(android.text.Editable text) {}
+        });
+        return choices;
+    }
+    private void suggestionRecovery(JSONObject video, JSONObject source, JSONArray playlists) {
+        button(content, "Try suggestion again", () -> suggest(video, source, playlists));
+        button(content, "Choose another video", () -> chooseVideo(source, playlists));
     }
     private void chooseVideo(JSONObject source, JSONArray playlists) {
         perform("Loading playlist videos…", client -> client.get("/api/youtube/videos?playlist_id=" + Uri.encode(source.getString("id"))), response -> {
             JSONArray videos = response.optJSONArray("videos");
             label(content, source.optString("title"), 22, ink);
             if (videos == null || videos.length() == 0) label(content, "No videos available in this playlist.", 16, muted);
-            else for (int i = 0; i < videos.length(); i++) {
+            java.util.List<View> choices = searchChoices(content, "Search videos");
+            for (int i = 0; videos != null && i < videos.length(); i++) {
                 JSONObject video = videos.optJSONObject(i);
-                if (video != null) button(content, video.optString("title", "Untitled video"), () -> suggest(video, source, playlists));
+                if (video != null) {
+                    Button choice = button(content, video.optString("title", "Untitled video"), () -> suggest(video, source, playlists));
+                    choice.setTag(video.optString("title")); choices.add(choice);
+                }
             }
             button(content, "Choose another playlist", () -> home("AI sort"));
         });
@@ -290,13 +381,13 @@ public final class MainActivity extends Activity {
         }, response -> {
             JSONObject suggestion = response.getJSONArray("results").getJSONObject(0);
             label(content, video.optString("title"), 22, ink);
-            if (!suggestion.isNull("error")) { label(content, suggestion.optString("error"), 16, ink); return; }
+            if (!suggestion.isNull("error")) { label(content, suggestion.optString("error"), 16, ink); suggestionRecovery(video, source, playlists); return; }
             String name = suggestion.optString("matched_playlist", "");
             JSONObject target = null;
             for (int i = 0; i < playlists.length(); i++) {
                 JSONObject candidate = playlists.getJSONObject(i);
                 if (name.equals(candidate.optString("title"))) {
-                    if (target != null) { label(content, "Several playlists share that title. Rename them before sorting.", 16, ink); return; }
+                    if (target != null) { label(content, "Several playlists share that title. Rename them before sorting.", 16, ink); suggestionRecovery(video, source, playlists); return; }
                     target = candidate;
                 }
             }
@@ -305,6 +396,7 @@ public final class MainActivity extends Activity {
             else {
                 JSONObject destination = target;
                 label(content, "Suggested playlist: " + name, 18, ink);
+                if (!suggestion.optString("reason").isEmpty()) label(content, suggestion.optString("reason"), 16, muted);
                 button(content, "Review move", () -> new AlertDialog.Builder(this).setTitle("Move this video?")
                     .setMessage("Move “" + video.optString("title") + "” from “" + source.optString("title") + "” to “" + name + "”? This changes your YouTube playlists.")
                     .setNegativeButton("Cancel", null).setPositiveButton("Move video", (dialog, which) -> moveVideo(video, source, destination)).show());
@@ -335,11 +427,13 @@ public final class MainActivity extends Activity {
     }
     private void row(String title, String detail, String url) {
         LinearLayout group = new LinearLayout(this); group.setOrientation(LinearLayout.VERTICAL);
-        group.setPadding(0, dp(12), 0, dp(12)); content.addView(group);
+        group.setPadding(dp(16), dp(8), dp(16), dp(8));
+        GradientDrawable background = new GradientDrawable(); background.setColor(surface); background.setCornerRadius(dp(16));
+        group.setBackground(background);
+        LinearLayout.LayoutParams layout = new LinearLayout.LayoutParams(-1, -2); layout.setMargins(0, dp(4), 0, dp(4));
+        content.addView(group, layout);
         label(group, title, 18, ink); label(group, detail, 14, muted);
         if (url != null) button(group, "Open in YouTube", () -> open(url));
-        View line = new View(this); line.setBackgroundColor(Color.rgb(60, 66, 72));
-        content.addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
     }
     private void open(String url) {
         try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }

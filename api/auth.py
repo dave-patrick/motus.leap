@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Mapping
 import asyncio
 from urllib.parse import urlencode
 from core.mobile_oauth import MobileHandoffs
+from core.oauth_error_page import oauth_error_page
 
 from core.limiter import limiter # Import limiter from core.limiter
 
@@ -1210,10 +1211,7 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
             raise HTTPException(status_code=400, detail="Mobile sign-in expired. Start again in the app.")
     cb_client_id, cb_client_secret = _resolve_oauth_credentials()
     if not cb_client_id or not cb_client_secret:
-        return HTMLResponse("""
-            <h1 style="color: #ff4444;">❌ Google OAuth Not Configured</h1>
-            <p>Please set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables, or configure OAuth in Settings.</p>
-        """, status_code=400)
+        return oauth_error_page("Google sign-in is not configured", "Configure the Google connection in Settings, then try again.")
 
     # Check if this is a YouTube OAuth callback (check yt_ prefix or dictionary)
     is_youtube_oauth = bool((state and state.startswith("yt_")) or (_youtube_oauth_states.pop(state, False) if state else False))
@@ -1234,10 +1232,7 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
 
         if "access_token" not in tokens:
             error_msg = tokens.get("error_description", tokens.get("error", str(tokens)))
-            return HTMLResponse(f"""
-                <h1 style="color: #ff4444;">❌ OAuth Error</h1>
-                <p><strong>Error:</strong> {error_msg}</p>
-            """, status_code=400)
+            return oauth_error_page("Google sign-in could not finish", str(error_msg))
 
         # If YouTube OAuth, save tokens and show success
         if is_youtube_oauth:
@@ -1297,10 +1292,7 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
         picture = userinfo.get("picture", "")
 
         if not email:
-            return HTMLResponse("""
-                <h1 style="color: #ff4444;">❌ OAuth Error</h1>
-                <p>Could not retrieve email from Google account.</p>
-            """, status_code=400)
+            return oauth_error_page("Google account could not be verified", "Google did not return an email address. Try another account or retry sign-in.")
 
         # Check if user exists by email
         existing_user = None
@@ -1395,16 +1387,10 @@ async def google_oauth_callback(code: str, state: str = None, response: Response
         raise
     except httpx.RequestError as e:
         log.error(f"HTTP request failed: {e}")
-        return HTMLResponse(f"""
-            <h1 style="color: #ff4444;">❌ Network Error</h1>
-            <p>Failed to connect to Google: {str(e)}</p>
-        """, status_code=500)
+        return oauth_error_page("Could not reach Google", "Check your connection and try signing in again.", 500)
     except Exception as e:
         log.exception("Unexpected error in Google OAuth callback")
-        return HTMLResponse(f"""
-            <h1 style="color: #ff4444;">❌ Server Error</h1>
-            <p>{str(e)}</p>
-        """, status_code=500)
+        return oauth_error_page("Sign-in could not finish", "The server could not complete this request. Please try again.", 500)
 
 
 # Call this at startup to ensure a default admin user exists

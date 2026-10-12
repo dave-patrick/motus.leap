@@ -1,0 +1,15 @@
+<resources>
+    <style name="Theme.Motus" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">#9BCBFF</item>
+        <item name="colorOnPrimary">#07101D</item>
+        <item name="colorSecondaryContainer">#25354A</item>
+        <item name="colorOnSecondaryContainer">#CDE5FF</item>
+        <item name="colorSurface">#11151C</item>
+        <item name="colorOnSurface">#F3F5F8</item>
+        <item name="colorOnSurfaceVariant">#B8C0CC</item>
+        <item name="colorOutline">#39414D</item>
+        <item name="android:windowBackground">#090B10</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

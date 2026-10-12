@@ -358,33 +358,22 @@ async function deletePlaylistConfirmed(playlistId) {
 
 function openManagePlaylistModal(playlistId, playlistTitle, event) {
     if (event) event.stopPropagation();
-    
-    const modal = document.createElement("div");
-    modal.className = "fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs";
-    modal.innerHTML = `
-        <div class="bg-[#1a1d24] border border-[#2a2f3a] rounded-xl p-5 w-full max-w-sm mx-4 shadow-2xl" onclick="event.stopPropagation()">
-            <div class="flex items-center justify-between mb-4">
-                <div class="min-w-0">
-                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Manage Playlist</h3>
-                    <p class="text-sm font-bold text-white truncate">${playlistTitle}</p>
-                </div>
-                <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white p-1 transition-colors"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            
-            <div class="space-y-2.5">
-                <button onclick="actionRenamePlaylist('${playlistId}', \`${safeTitle}\`); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
-                    <i class="fa-solid fa-pen-to-square text-[#2f8fc9] w-4 text-center"></i> Rename Playlist
-                </button>
-                <button onclick="actionDuplicatePlaylist('${playlistId}', \`${safeTitle}\`); this.closest('.fixed').remove()" class="w-full bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
-                    <i class="fa-solid fa-copy text-green-400 w-4 text-center"></i> Duplicate Playlist
-                </button>
-                <button onclick="actionDeletePlaylist('${playlistId}', \`${safeTitle}\`); this.closest('.fixed').remove()" class="w-full bg-red-950/20 hover:bg-red-900/30 border border-red-900/30 text-red-200 text-xs font-semibold py-2.5 rounded-lg flex items-center gap-2.5 px-4 transition-colors">
-                    <i class="fa-solid fa-trash-can text-red-500 w-4 text-center"></i> Delete Playlist
-                </button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
+    const modal = document.createElement('div');
+    modal.id = 'manage-playlist-modal';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4';
+    const panel = document.createElement('div'); panel.className = 'bg-[#1a1d24] rounded-xl p-5 w-full max-w-sm space-y-3';
+    const heading = document.createElement('h3'); heading.textContent = 'Manage playlist';
+    const title = document.createElement('p'); title.textContent = playlistTitle; title.className = 'font-semibold text-white break-words';
+    const close = document.createElement('button'); close.textContent = 'Cancel'; close.setAttribute('aria-label', 'Close dialog');
+    close.className = 'ui-control w-full rounded-lg border border-[#3a414f]'; close.onclick = () => modal.remove();
+    panel.append(heading, title);
+    for (const [text, action] of [['Rename playlist', actionRenamePlaylist], ['Duplicate playlist', actionDuplicatePlaylist], ['Delete playlist', actionDeletePlaylist]]) {
+        const button = document.createElement('button'); button.textContent = text;
+        button.className = 'ui-control w-full rounded-lg bg-[#20242c]';
+        button.onclick = () => { modal.remove(); action(playlistId, playlistTitle); };
+        panel.append(button);
+    }
+    panel.append(close); modal.append(panel); document.body.append(modal);
 }
 
 async function actionRenamePlaylist(playlistId, currentTitle) {

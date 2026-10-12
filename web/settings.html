@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
     <link rel="manifest" href="/static/manifest.json">
-        <script src="/static/shared-shell.js?v=20260922d"></script>
+        <script src="/static/shared-shell.js?v=20261011a"></script>
     <link rel="stylesheet" href="/static/tailwind.css">
 <script>
 function viewSystemLogs() {
@@ -17,7 +17,7 @@ function viewSystemLogs() {
 
 </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720c">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20261011a">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #121419; color: #e5e5e5; }
@@ -40,7 +40,7 @@ function viewSystemLogs() {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/global_scripts.js?v=1781919149"></script>
-    <script src="/static/ux-enhancements.js?v=20260922d"></script>
+    <script src="/static/ux-enhancements.js?v=20261011a"></script>
 </head>
 <body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <!-- ===== FULL-WIDTH TOP HEADER ===== -->
@@ -80,7 +80,7 @@ function viewSystemLogs() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label class="text-[10px] text-gray-400 mb-1 block">Storage</label>
+                                            <label for="scan-interval" class="text-[10px] text-gray-400 mb-1 block">Scan interval</label>
                                             <select id="scan-interval" aria-label="Scan interval" class="w-full bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-3 py-3 outline-none min-h-[44px]">
                                                 <option value="15min">Every 15 minutes</option>
                                                 <option value="hourly" selected>Every hour</option>
@@ -185,13 +185,13 @@ function viewSystemLogs() {
                                     <span id="mappings-count" class="text-[10px] text-gray-500">0 mapped</span>
                                 </div>
                                 <div class="p-3 border-b border-[#2a2f3a] bg-[#1a1d24] flex flex-col gap-2 shrink-0">
-                                    <div class="flex gap-2">
+                                    <div class="mobile-stack flex gap-2">
                                         <input id="mapping-search" aria-label="Search channel mappings" type="text" placeholder="Filter channels..." class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]" oninput="renderMappingsList()">
                                         <button onclick="loadChannelMappings()" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded">Load Subs</button>
                                         <button onclick="autoMapFromPlaylists()" title="Scan videos already in your playlists and map each channel to the playlist it appears in most" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded whitespace-nowrap">Auto-map</button>
                                         <button onclick="backfillNames()" title="Harvest real channel names from your playlists' videos (no extra API quota)" class="bg-[#20242c] hover:bg-[#2a2f3a] border border-[#2a2f3a] text-gray-300 text-xs px-3 py-1.5 rounded whitespace-nowrap">Resolve names</button>
                                     </div>
-                                    <div class="flex gap-2">
+                                    <div class="mobile-stack flex gap-2">
                                         <input id="new-channel-id" aria-label="Channel ID to map" type="text" placeholder="Channel ID (e.g. UC...)" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]">
                                         <select id="new-playlist-id" aria-label="Destination playlist ID" class="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-300 text-xs rounded px-2 py-1.5 outline-none min-h-[44px]"></select>
                                         <button onclick="addMappingRow()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs px-3 py-1.5 rounded whitespace-nowrap">+ Add</button>

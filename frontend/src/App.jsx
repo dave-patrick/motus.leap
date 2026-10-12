@@ -429,76 +429,20 @@ function MaintenanceView() {
    AI Chat Hub View
    ───────────────────────────────────────────────────────────────────────────── */
 function AIChatHubView() {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Hello! I am your YouTube Agent assistant. How can I help organize your playlists today?' }
-  ]);
-  const [input, setInput] = useState('');
-
-  const handleSend = () => {
-    if (!input.trim()) return;
-    setMessages((prev) => [...prev, { role: 'user', text: input }]);
-    const currentInput = input;
-    setInput('');
-    setTimeout(() => {
-      setMessages((prev) => [...prev, { role: 'assistant', text: `I received your request: "${currentInput}". Analyzing your playlists...` }]);
-    }, 600);
-  };
-
-  return (
-    <div className="bento-card p-6 space-y-4 max-w-4xl mx-auto min-h-[600px] flex flex-col">
-      <div className="flex items-center gap-2 pb-3 border-b border-[#2a2f3a]">
-        <Bot className="w-5 h-5 text-[#2f8fc9]" />
-        <h3 className="text-sm font-bold text-white">AI Assistant Hub</h3>
-      </div>
-
-      <div className="flex-1 overflow-y-auto space-y-3 p-2">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-lg p-3 rounded-xl text-xs ${m.role === 'user' ? 'bg-[#2f8fc9] text-white' : 'bg-[#20242c] text-gray-200 border border-[#2a2f3a]'}`}>
-              {m.text}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2 pt-3 border-t border-[#2a2f3a]">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Ask AI assistant to organize playlists or find duplicates..."
-          className="flex-1 bg-[#20242c] border border-[#2a2f3a] text-gray-200 text-xs rounded-xl px-4 py-2.5 outline-none focus:border-[#2f8fc9]"
-        />
-        <button onClick={handleSend} className="px-4 py-2.5 bg-[#2f8fc9] hover:bg-[#2a7db8] text-white font-bold rounded-xl text-xs transition-colors cursor-pointer">
-          Send
-        </button>
-      </div>
-    </div>
-  );
+  return <div className="bento-card p-6 space-y-4 max-w-4xl mx-auto">
+    <h2 className="text-xl font-bold text-white">AI assistant</h2>
+    <p className="text-gray-300">Use the AI hub to choose your provider, review rules, and chat with your configured model.</p>
+    <a href="/ai" className="inline-flex min-h-11 items-center px-4 rounded-lg bg-[#2374a6] text-white">Open AI hub</a>
+  </div>;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Settings View
    ───────────────────────────────────────────────────────────────────────────── */
 function SettingsView() {
-  return (
-    <div className="bento-card p-6 space-y-6 max-w-4xl mx-auto">
-      <h2 className="text-xl font-bold text-white flex items-center gap-2">
-        <SettingsIcon className="w-5 h-5 text-[#2f8fc9]" /> Application Settings
-      </h2>
-
-      <div className="space-y-4">
-        <div className="p-4 bg-[#16191f] border border-[#2a2f3a] rounded-xl flex items-center justify-between">
-          <div>
-            <h4 className="text-xs font-bold text-white">YouTube Connection Status</h4>
-            <p className="text-[10px] text-gray-400">OAuth token authentication state.</p>
-          </div>
-          <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold rounded-lg flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4" /> Connected
-          </span>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="bento-card p-6 space-y-4 max-w-4xl mx-auto">
+    <h2 className="text-xl font-bold text-white">Application settings</h2>
+    <p className="text-gray-300">Check your current YouTube connection and manage your server settings.</p>
+    <a href="/settings" className="inline-flex min-h-11 items-center px-4 rounded-lg bg-[#2374a6] text-white">Open settings</a>
+  </div>;
 }

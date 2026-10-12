@@ -1,0 +1,12 @@
+version: "1.0"
+project:
+  name: "motus.leap"
+  description: "Software project in motus.leap. See existing project documentation for its purpose."
+layers:
+  context: true
+  skills: false
+  commands: false
+  agents: false
+  permissions: false
+compatible_with:
+  - any

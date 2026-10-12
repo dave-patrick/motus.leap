@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20260922d';
+  const SHELL_VERSION = '20261011a';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -206,6 +206,61 @@
       body > .flex.flex-1 {
         min-height: 0;
         overflow: hidden;
+      }
+      main, .shell-row { min-width: 0; }
+      main input:not([type="checkbox"]):not([type="radio"]), main select, main textarea { min-width: 0; max-width: 100%; }
+      main button, main a.ui-control, main select, main input:not([type="checkbox"]):not([type="radio"]) { min-height: 44px; }
+      main label, main .text-xs, main [class*="text-[10px]"], main [class*="text-[11px]"], main [class*="text-[9px]"] { font-size: .875rem; }
+      main .text-gray-500, main .text-gray-600 { color: #a3acba; }
+      main .text-gray-400 { color: #b8c0cc; }
+      main button[class*="bg-[#2f8fc9]"]:not([class*="bg-[#2f8fc9]/"]), main .accent-bg { background-color: #2374a6; }
+      main button[class*="bg-[#2f8fc9]"]:hover, main .accent-bg:hover { background-color: #1e6591; }
+      main button.bg-green-600 { background-color: #166534; }
+      main button.bg-green-600:hover { background-color: #14532d; }
+      main button.bg-yellow-600, main button[class*="bg-amber-600"] { background-color: #854d0e; }
+      main button.bg-yellow-600:hover, main button[class*="bg-amber-600"]:hover { background-color: #713f12; }
+      main button[class*="bg-red-600"]:hover { background-color: #b91c1c; }
+      main button:disabled { cursor: not-allowed; opacity: .5; }
+      ::selection { background: #2374a6; color: #fff; }
+      input, textarea { caret-color: #9bcbff; }
+      button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid #9bcbff; outline-offset: 3px; }
+      [role="dialog"] { overflow-y: auto; max-height: 100dvh; }
+      [role="dialog"] > div:not(.inset-0) { max-height: calc(100dvh - 32px); overflow-y: auto; }
+      @media (max-width: 767px) { [role="dialog"] > div:not(.inset-0) { width: calc(100vw - 32px); margin-left: 0; margin-right: 0; } }
+      [role="dialog"] button, [role="dialog"] summary { min-height: 44px; }
+      .expert-input { margin-top: 8px; font-size: .875rem; color: #b8c0cc; }
+      .expert-input summary { cursor: pointer; padding: 10px 0; text-decoration: underline; text-underline-offset: 3px; }
+      .video-picker-list { max-height: 320px; overflow-y: auto; color: #b8c0cc; font-size: .875rem; }
+      .video-choice { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 4px; }
+      .video-choice input { width: 22px; height: 22px; flex-shrink: 0; }
+      .video-choice span { overflow-wrap: anywhere; }
+      @media (max-width: 767px) {
+        html:has(#shell-header), body:has(#shell-header) { height: auto; max-height: none; overflow: visible; }
+        body:has(#shell-header) > .flex.flex-1, .shell-row { overflow: visible; flex: none; }
+        body:has(#shell-header) main { overflow: visible; padding: 20px 16px; }
+        #shell-header { padding: 10px 12px; gap: 8px; min-height: 64px; }
+        #shell-header > a { min-width: 0; gap: 8px; padding-left: 48px; }
+        #shell-header .site-logo { display: none; }
+        #shell-header .site-title { font-size: clamp(16px, 4.4vw, 24px); white-space: nowrap; }
+        #shell-header > div { flex-shrink: 0; gap: 4px; }
+        #shell-header button { margin-left: 0; width: 40px; height: 44px; }
+        #sidebar-toggle { top: 10px; left: 12px; width: 44px; height: 44px; }
+        #shell-footer { position: static; color: #a3acba; font-size: .75rem; gap: 12px; padding: 16px; }
+        .mobile-stack { flex-direction: column; align-items: stretch; width: 100%; }
+        .mobile-stack > * { min-width: 0; max-width: 100%; white-space: normal; }
+        .mobile-stack > .flex { flex-wrap: wrap; }
+        .mobile-stack input, .mobile-stack select { flex: none; width: 100%; }
+        .mobile-stack button { white-space: normal; justify-content: center; }
+        .playlist-context, .playlist-operations { flex-direction: column; align-items: stretch; }
+        .playlist-context > div:first-child { flex-wrap: wrap; min-width: 0; }
+        .playlist-context #playlist-title { width: 100%; white-space: normal; }
+        .playlist-context > div:first-child > span:first-of-type { display: none; }
+        .playlist-operations > div:last-child { display: grid; grid-template-columns: minmax(0, 1fr); }
+        .playlist-toolbar { position: static !important; box-shadow: none; }
+        #selection-bar { flex-wrap: wrap; }
+        #selection-bar select { flex-basis: 100%; width: 100%; max-width: none; }
+        #scan-results-box > div:first-child { flex-direction: column; align-items: stretch; gap: 12px; }
+        #scan-results-box > div:first-child > div { flex-wrap: wrap; }
       }
       #mobile-sidebar {
         max-height: 100%;
@@ -420,6 +475,11 @@
 
   function injectOnce() {
     ensureShellLayout();
+    if (!document.getElementById('ui-polish-script')) {
+      const script = document.createElement('script');
+      script.id = 'ui-polish-script'; script.src = '/static/ui-polish.js?v=20261011a';
+      document.body.appendChild(script);
+    }
     checkQuotaBanner();
     injectAISheet();
 
