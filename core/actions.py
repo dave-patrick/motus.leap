@@ -201,8 +201,8 @@ class PlaywrightElementWrapper:
 USER_DATA_DIR = os.path.join(os.path.dirname(__file__), "user_data")
 PLAYWRIGHT_USER_DATA_DIR = os.environ.get("PLAYWRIGHT_USER_DATA_DIR") or os.path.join(os.environ.get("TUBE_MANAGER_DATA_DIR", os.path.dirname(__file__)), "user_data_playwright")
 
-def get_youtube_cookies_path():
-    """Return the YouTube cookie store, preferring the persistent data directory."""
+def _youtube_cookie_candidates():
+    """Ordered YouTube cookie store locations, most-preferred first."""
     candidates = []
     override = os.environ.get("YOUTUBE_COOKIES_FILE")
     if override:
@@ -213,10 +213,27 @@ def get_youtube_cookies_path():
     if os.path.isdir("/app/data"):
         candidates.append(os.path.join("/app/data", "cookies", "youtube_cookies.json"))
     candidates.append(os.path.expanduser("~/.camofox/cookies/cookies.json"))
+    return [path for path in candidates if path]
+
+
+def get_youtube_cookies_path():
+    """Return an existing YouTube cookie store, else the preferred location."""
+    candidates = _youtube_cookie_candidates()
     for path in candidates:
-        if path and os.path.exists(path):
+        if os.path.exists(path):
             return path
     return candidates[0]
+
+
+def get_youtube_cookies_write_path():
+    """Return the preferred location to write the YouTube cookie store.
+
+    Unlike get_youtube_cookies_path(), this never falls back to an older store
+    that merely happens to exist, so an imported cookie file always lands at the
+    durable location and is picked up on the next browser launch.
+    """
+    return _youtube_cookie_candidates()[0]
+
 
 def get_playwright_browser():
     pw = None

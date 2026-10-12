@@ -3903,6 +3903,85 @@ async def youtube_disconnect():
     return {"message": "YouTube OAuth disconnected. Re-authorize in Settings to reconnect."}
 
 
+class ImportYTCookiesIn(BaseModel):
+    """Raw Netscape-format cookie file exported from a signed-in YouTube tab."""
+    cookies_txt: str
+
+
+@app.post("/api/import-yt-cookies", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def import_yt_cookies(payload: ImportYTCookiesIn):
+    """Import a Netscape cookie export into the persistent browser profile.
+
+    Playwright Chromium reads its cookies from
+    core.actions.get_youtube_cookies_path() on every launch, so writing there is
+    what actually signs the server-side browser session in. This replaces the old
+    Camofox-based flow, which is not part of this deployment.
+    """
+    from core.actions import get_youtube_cookies_write_path
+    from core.utils import append_agent_log
+
+    cookies = []
+    for line in payload.cookies_txt.splitlines():
+        line = line.strip()
+        if not line or (line.startswith("#") and not line.startswith("#HttpOnly_")):
+            continue
+        http_only = False
+        if line.startswith("#HttpOnly_"):
+            http_only = True
+            line = line[len("#HttpOnly_"):]
+        parts = line.split("\t")
+        if len(parts) < 7:
+            continue
+        try:
+            expires = float(parts[4])
+        except ValueError:
+            expires = -1
+        cookies.append({
+            "name": parts[5],
+            "value": "\t".join(parts[6:]),
+            "domain": parts[0],
+            "path": parts[2],
+            "expires": expires,
+            "httpOnly": http_only,
+            "secure": parts[3].upper() == "TRUE",
+        })
+
+    if not cookies:
+        raise HTTPException(status_code=400, detail="No valid cookies found in the pasted text.")
+
+    yt_cookies = [c for c in cookies if any(tag in c["domain"] for tag in ("youtube", "google", "goog"))]
+    if not yt_cookies:
+        raise HTTPException(status_code=400, detail="No YouTube/Google cookies found. Export cookies from youtube.com while signed in.")
+
+    cookies_path = get_youtube_cookies_write_path()
+    cookies_dir = os.path.dirname(cookies_path) or "."
+    try:
+        os.makedirs(cookies_dir, exist_ok=True)
+        with open(cookies_path, "w", encoding="utf-8") as fh:
+            json.dump(yt_cookies, fh, indent=2)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not write the cookie store at {cookies_path}: {exc}")
+
+    # Keep a Netscape copy beside the JSON store for debugging / manual reuse.
+    try:
+        with open(os.path.join(cookies_dir, "youtube_cookies.txt"), "w", encoding="utf-8") as fh:
+            fh.write("# Netscape HTTP Cookie File\n")
+            for c in yt_cookies:
+                prefix = "#HttpOnly_" if c["httpOnly"] else ""
+                secure = "TRUE" if c["secure"] else "FALSE"
+                exp = int(c["expires"]) if c["expires"] > 0 else 0
+                fh.write(f"{prefix}{c['domain']}\tTRUE\t{c['path']}\t{secure}\t{exp}\t{c['name']}\t{c['value']}\n")
+    except OSError as exc:
+        append_agent_log(f"Warning: could not mirror Netscape cookie file: {exc}")
+
+    append_agent_log(f"Imported {len(yt_cookies)} YouTube/Google cookies to {cookies_path}.")
+    return {
+        "success": True,
+        "count": len(yt_cookies),
+        "path": cookies_path,
+        "message": f"Imported {len(yt_cookies)} cookies. They apply the next time the browser starts.",
+    }
+
 class SettingsIn(BaseModel):
     """Settings input model."""
     youtube_api_key: str | None = None
