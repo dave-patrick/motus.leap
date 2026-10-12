@@ -6,8 +6,9 @@ android {
         applicationId = "com.motus.leap"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.4.0"
+        versionCode = 9
+        versionName = "0.4.2"
+        testInstrumentationRunner = "com.motus.leap.SessionTestRunner"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

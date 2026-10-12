@@ -76,7 +76,33 @@ any changes. Google OAuth and reviewed move behavior are unchanged.
 
 ## Validation limits
 
+Version 0.4.1 restores the existing symbol and Deltha wordmark on welcome and
+authenticated headers. Scans includes Move Watch Later to 1~Sort with explicit
+confirmation, a background operation and progress/failure counts. YouTube must
+confirm the target copy before the Watch Later entry is removed. The server
+requires an authenticated YouTube browser session to read/remove Watch Later.
+
 Build and lint validate packaging and static Android compatibility. Live login,
 YouTube scans, AI suggestions, and moves need a configured server account and
 device/emulator verification. No live scan or playlist mutation is performed by
 the build. Current UI copy is English only.
+
+Android 0.4.0 restores Keystore-encrypted sessions across launches and clears them on sign-out or HTTP 401. Settings is in bottom navigation. Scan status refreshes every five seconds while visible, with links to individual findings. Launcher uses the dark brand symbol. SessionTestRunner exercises restoration, encrypted storage, server binding, tamper rejection, and sign-out using isolated test preferences.
+
+
+Version 0.4.1 opens scan activity immediately after confirmation and routes completed scans to filtered results using server job identity. Duplicate findings expose per-copy removal and keep/dismiss; deleted findings offer confirmed cached cleanup. WordmarkView fits visible glyph bounds to prevent clipped letters.
+
+
+Version 0.4.2 provides native suggested-move approval, searchable destination selection, keep/dismiss, confirmation, and operation status. Scan findings no longer require website review.
+
+## Release workflow
+For every completed Android update: document behavior and validation, commit and push to GitHub, build and lint, install the new APK wirelessly in place on the user's phone, and verify its installed version. Preserve app data. Report edited, pushed, built, installed, and device-verified state separately. If the phone is unavailable, report the install as pending.
+
+## 0.4.2 validation (2026-10-12)
+- Android assembleDebug and lintDebug passed.
+- Device session checks passed: restore, encrypted storage, server binding, tamper rejection, sign out.
+- Real account session survived an in-place reinstall and reopened the library.
+- Live scan status loaded; enlarged complete in-app wordmark and bottom Settings gear were visually checked.
+- Phone package confirmed versionCode 9 / versionName 0.4.2.
+- Watch Later transfer tests: 7 passed.
+- Actual playlist removals and suggested-move execution remain unverified. No deletions were executed for validation.

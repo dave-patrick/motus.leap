@@ -36,17 +36,26 @@ public final class MainActivity extends AppCompatActivity {
     private String googleVerifier, googleState, googleServer;
     private int generation;
     private String page = "Scans";
-    private final String[] pages = {"Scans", "AI sort", "Playlists", "Channels"};
+    private String scanAction = "", previousJob = "", resultsFilter = "All";
+    private final String[] pages = {"Scans", "AI sort", "Playlists", "Channels", "Settings"};
+    private final android.os.Handler refresh = new android.os.Handler(android.os.Looper.getMainLooper());
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        scanAction = getPreferences(MODE_PRIVATE).getString("scanAction", "");
+        previousJob = getPreferences(MODE_PRIVATE).getString("previousJob", "");
+        resultsFilter = getPreferences(MODE_PRIVATE).getString("resultsFilter", "All");
         if (state != null) {
             googleVerifier = state.getString("googleVerifier");
             googleState = state.getString("googleState");
             googleServer = state.getString("googleServer");
         }
-        loginScreen(""); acceptGoogle(getIntent());
+        api = SessionStore.load(this);
+        if (api == null) loginScreen(""); else home("Scans");
+        acceptGoogle(getIntent());
     }
+    @Override protected void onStop() { super.onStop(); refresh.removeCallbacksAndMessages(null); }
+    @Override protected void onResume() { super.onResume(); if (api != null && page.equals("Scan status")) scanStatus(); }
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         state.putString("googleVerifier", googleVerifier);
@@ -56,6 +65,7 @@ public final class MainActivity extends AppCompatActivity {
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); acceptGoogle(intent); }
     private int dp(int size) { return Math.round(size * getResources().getDisplayMetrics().density); }
     private void frame() {
+        refresh.removeCallbacksAndMessages(null);
         generation++;
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -75,12 +85,16 @@ public final class MainActivity extends AppCompatActivity {
         root.requestApplyInsets();
         LinearLayout brand = new LinearLayout(this); brand.setGravity(android.view.Gravity.CENTER_VERTICAL);
         root.addView(brand);
-        TextView brandTitle = new TextView(this); brandTitle.setText("motus.leap");
-        brandTitle.setTextColor(ink); brandTitle.setTextSize(22);
-        brandTitle.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        brand.addView(brandTitle, new LinearLayout.LayoutParams(0, dp(48), 1));
-        View spacer = new View(this);
-        brandTitle.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        brand.addView(brandedHeader(57), new LinearLayout.LayoutParams(0, dp(68), 1));
+    }
+    private LinearLayout brandedHeader(int iconSize) {
+        LinearLayout brand = new LinearLayout(this); brand.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        ImageView symbol = new ImageView(this); symbol.setImageResource(R.drawable.brand_symbol);
+        symbol.setScaleType(ImageView.ScaleType.FIT_CENTER); symbol.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        brand.addView(symbol, new LinearLayout.LayoutParams(dp(iconSize), dp(iconSize)));
+        View name = new WordmarkView(this, 36);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, dp(iconSize), 1); textParams.leftMargin = dp(8);
+        brand.addView(name, textParams); return brand;
     }
     private ImageView wordmark() {
         ImageView image = new ImageView(this);
@@ -131,12 +145,13 @@ public final class MainActivity extends AppCompatActivity {
         LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
         int available = getResources().getDisplayMetrics().widthPixels - dp(40);
         viewport.addView(form, new LinearLayout.LayoutParams(Math.min(dp(420), available), -2));
-        TextView brand = label(form, "motus.leap", 30, ink);
-        android.text.SpannableString brandText = new android.text.SpannableString("motus.leap");
-        brandText.setSpan(new android.text.style.ForegroundColorSpan(accent), 3, 4, 0);
-        brand.setText(brandText);
-        brand.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        brand.setPadding(0, 0, 0, dp(40));
+        ImageView symbol = new ImageView(this); symbol.setImageResource(R.drawable.brand_symbol);
+        symbol.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams symbolParams = new LinearLayout.LayoutParams(dp(144), dp(144));
+        symbolParams.gravity = android.view.Gravity.CENTER_HORIZONTAL; form.addView(symbol, symbolParams);
+        View wordmark = new WordmarkView(this, 52);
+        LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(-1, dp(76)); brandParams.bottomMargin = dp(32);
+        form.addView(wordmark, brandParams);
         TextView headline = label(form, "Your library, organized.", 30, ink);
         headline.setPadding(0, 0, 0, dp(12));
         TextView description = label(form, "Scan your YouTube library and find the right playlist for every video.", 16, muted);
@@ -186,27 +201,15 @@ public final class MainActivity extends AppCompatActivity {
         BottomNavigationView nav = new BottomNavigationView(this);
         nav.setBackgroundColor(surface);
         nav.setItemActiveIndicatorColor(ColorStateList.valueOf(Color.rgb(37, 53, 74)));
-        int[] icons = {R.drawable.ic_scan, R.drawable.ic_sort, R.drawable.ic_playlist, R.drawable.ic_channel};
+        int[] icons = {R.drawable.ic_scan, R.drawable.ic_sort, R.drawable.ic_playlist, R.drawable.ic_channel, R.drawable.ic_settings};
         for (int i = 0; i < pages.length; i++) nav.getMenu().add(0, i + 1, i, pages[i]).setIcon(icons[i]);
-        nav.setSelectedItemId(java.util.Arrays.asList(pages).indexOf(page) + 1);
+        nav.setLabelVisibilityMode(com.google.android.material.navigation.NavigationBarView.LABEL_VISIBILITY_LABELED);
+        nav.setItemHorizontalTranslationEnabled(false);
+        nav.setSelectedItemId(Math.max(1, java.util.Arrays.asList(pages).indexOf(page) + 1));
         nav.setOnItemSelectedListener(item -> { home(pages[item.getItemId() - 1]); return true; });
         root.addView(nav);
-        MaterialButton options = new MaterialButton(this);
-        options.setBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
-        options.setElevation(0);
-        options.setText("Options"); options.setTextColor(muted); options.setAllCaps(false);
-        LinearLayout toolbar = (LinearLayout) root.getChildAt(0);
-        toolbar.addView(options, new LinearLayout.LayoutParams(-2, dp(48)));
-        options.setOnClickListener(view -> {
-            PopupMenu menu = new PopupMenu(this, options);
-            menu.getMenu().add("Refresh"); menu.getMenu().add("Server settings"); menu.getMenu().add("Sign out");
-            menu.setOnMenuItemClickListener(item -> {
-                if (item.getTitle().equals("Refresh")) home(page);
-                else if (item.getTitle().equals("Server settings")) open(api.base + "/settings");
-                else { ApiClient previous = api; loginScreen(""); network.execute(() -> { try { previous.logout(); } catch (Exception ignored) {} }); }
-                return true;
-            }); menu.show();
-        });
+        if (destination.equals("Settings")) { settingsScreen(); return; }
+        if (destination.equals("Scan status")) { loadScanStatus(); return; }
         label(content, "Loading…", 16, muted);
         ApiClient client = api;
         int requestGeneration = generation;
@@ -221,7 +224,7 @@ public final class MainActivity extends AppCompatActivity {
                 });
             } catch (Exception error) { runOnUiThread(() -> {
                 if (isDestroyed() || requestGeneration != generation) return;
-                if (error instanceof ApiClient.SessionExpiredException) { loginScreen(error.getMessage()); return; }
+                if (error instanceof ApiClient.SessionExpiredException) { SessionStore.clear(this); loginScreen(error.getMessage()); return; }
                 content.removeAllViews(); label(content, readable(error), 16, ink);
                 button(content, "Try again", () -> home(page));
             }); }
@@ -229,6 +232,7 @@ public final class MainActivity extends AppCompatActivity {
     }
     private void render(String destination, JSONObject data) {
         if (destination.equals("Scans")) {
+            button(content, "Scan status & results", this::scanStatus);
             label(content, "Scan your library", 20, ink);
             label(content, "Find duplicates and misplaced videos. Scans keep running on your server.", 15, muted);
             button(content, "Sync playlists", () -> queueScan("sync_playlists"));
@@ -236,7 +240,9 @@ public final class MainActivity extends AppCompatActivity {
             scan.setBackgroundTintList(ColorStateList.valueOf(accent)); scan.setTextColor(Color.rgb(7, 16, 29));
             button(content, "Scan duplicates", () -> queueScan("scan_duplicates"));
             button(content, "Scan misplaced videos", () -> queueScan("scan_misplaced"));
+            button(content, "Scan deleted videos", () -> { resultsFilter = "Deleted"; queueScan("sync_playlists"); });
             button(content, "View scan findings", () -> findings());
+            button(content, "Move Watch Later to 1~Sort", () -> moveWatchLater());
             label(content, "Library overview", 20, ink);
             row("Playlists", data.optString("total_playlists", "Unavailable"), null);
             row("Videos", data.optString("total_videos", "Unavailable"), null);
@@ -245,7 +251,7 @@ public final class MainActivity extends AppCompatActivity {
             row("Current task", data.isNull("current_task") ? "No task running" : data.optString("current_task"), null);
             row("Queued tasks", data.optString("pending_actions", "Unavailable"), null);
             button(content, "Channel mappings", () -> home("Mappings"));
-            button(content, "Open server settings", () -> open(api.base + "/settings"));
+
             return;
         }
         if (destination.equals("AI sort")) {
@@ -299,32 +305,163 @@ public final class MainActivity extends AppCompatActivity {
                 });
             } catch (Exception error) { runOnUiThread(() -> {
                 if (isDestroyed() || requestGeneration != generation) return;
-                if (error instanceof ApiClient.SessionExpiredException) { loginScreen(error.getMessage()); return; }
+                if (error instanceof ApiClient.SessionExpiredException) { SessionStore.clear(this); loginScreen(error.getMessage()); return; }
                 content.removeAllViews(); label(content, readable(error), 16, ink);
                 button(content, "Back", () -> home(page));
+            }); }
+        });
+    }
+    private void settingsScreen() {
+        label(content, "Account", 20, ink);
+        label(content, "Your Google session stays signed in until it expires or you sign out.", 15, muted);
+        row("Connected server", api.base, null);
+        button(content, "Server settings", () -> open(api.base + "/settings"));
+        button(content, "Refresh library", () -> home("Scans"));
+        button(content, "Sign out", () -> {
+            ApiClient previous = api; SessionStore.clear(this); loginScreen("");
+            network.execute(() -> { try { previous.logout(); } catch (Exception ignored) {} });
+        });
+    }
+    private void scanStatus() { home("Scan status"); }
+    private void loadScanStatus() {
+        ApiClient client = api; int requestGeneration = generation;
+        label(content, "Checking server status…", 16, muted);
+        network.execute(() -> {
+            try {
+                JSONObject stats = client.get("/api/stats");
+                runOnUiThread(() -> {
+                    if (isDestroyed() || requestGeneration != generation || !page.equals("Scan status")) return;
+                    content.removeAllViews();
+                    JSONObject job = stats.optJSONObject("job_progress");
+                    boolean running = stats.optInt("running_tasks") > 0;
+                    boolean queued = stats.optInt("pending_actions") > 0;
+                    String state = running ? "running" : queued ? "queued" : job == null ? "idle" : job.optString("state", "idle");
+                    if (job != null && !scanAction.isEmpty() && scanAction.equals(job.optString("action"))
+                            && !previousJob.equals(job.optString("job_id")) && state.equals("completed")) {
+                        scanAction = ""; getPreferences(MODE_PRIVATE).edit().remove("scanAction").apply();
+                        findings(); return;
+                    }
+                    row("Server status", state.replace('_', ' '), null);
+                    if (running || queued) {
+                        ProgressBar activity = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                        int total = !running || job == null || !job.optString("state").equals("running") ? 0 : job.optInt("total");
+                        activity.setIndeterminate(total <= 0);
+                        if (total > 0) { activity.setMax(total); activity.setProgress(job.optInt("completed")); }
+                        content.addView(activity, new LinearLayout.LayoutParams(-1, dp(8)));
+                    }
+                    if (job != null) {
+                        label(content, job.optString("message", ""), 16, ink);
+                        if (job.optInt("total") > 0) row("Items processed", job.optInt("completed") + " / " + job.optInt("total"), null);
+                        JSONArray failures = job.optJSONArray("failures");
+                        if (failures != null) for (int i=0; i<failures.length(); i++) label(content, failures.optString(i), 14, Color.rgb(255,180,171));
+                    }
+                    row("Current task", stats.isNull("current_task") ? "No task running" : stats.optString("current_task"), null);
+                    row("Queued tasks", stats.optString("pending_actions", "Unavailable"), null);
+                    row("Last completed scan", stats.optString("last_scan", "Never"), null);
+                    label(content, "Status refreshes every 5 seconds. Results show the latest available scan; they may belong to an earlier scan while work is running.", 14, muted);
+                    button(content, "View scan results", this::findings);
+                    button(content, "Refresh now", this::scanStatus);
+                    refresh.postDelayed(() -> {
+                        if (!isDestroyed() && requestGeneration == generation && page.equals("Scan status")) {
+                            content.removeAllViews(); loadScanStatus();
+                        }
+                    }, 5000);
+                });
+            } catch (Exception error) { runOnUiThread(() -> {
+                if (isDestroyed() || requestGeneration != generation) return;
+                content.removeAllViews();
+                if (error instanceof ApiClient.SessionExpiredException) { SessionStore.clear(this); loginScreen(readable(error)); return; }
+                label(content, readable(error), 16, ink); button(content, "Retry status", this::scanStatus);
             }); }
         });
     }
     private void queueScan(String action) {
         new AlertDialog.Builder(this).setTitle("Run this scan?")
             .setMessage("This scans your server's connected YouTube library and may use YouTube API quota.")
-            .setNegativeButton("Cancel", null).setPositiveButton("Run scan", (dialog, which) ->
-                perform("Queuing scan…", client -> client.post("/api/action", new JSONObject().put("action", action)), response -> {
-                    label(content, "Scan queued", 22, ink);
-                    label(content, "The server accepted the scan. This does not mean it has finished.", 16, muted);
-                    button(content, "Check progress", () -> home("Scans"));
-                })).show();
+            .setNegativeButton("Cancel", null).setPositiveButton("Run scan", (dialog, which) -> {
+                home("Scan status");
+                perform("Queuing scan…", client -> {
+                    JSONObject stats = client.get("/api/stats"); JSONObject job = stats.optJSONObject("job_progress");
+                    return client.post("/api/action", new JSONObject().put("action", action))
+                        .put("previous_job", job == null ? "" : job.optString("job_id"));
+                }, response -> {
+                    scanAction = action; previousJob = response.optString("previous_job");
+                    if (action.equals("scan_duplicates")) resultsFilter = "Duplicates";
+                    else if (!action.equals("sync_playlists")) resultsFilter = "All";
+                    getPreferences(MODE_PRIVATE).edit().putString("scanAction", scanAction).putString("previousJob", previousJob)
+                        .putString("resultsFilter", resultsFilter).apply();
+                    scanStatus();
+                });
+            }).show();
     }
     private void findings() {
+        page = "Scan results"; refresh.removeCallbacksAndMessages(null);
         perform("Loading scan findings…", client -> client.get("/api/maintenance"), response -> {
             label(content, "Scan findings", 22, ink);
-            label(content, "Review each video and its suggested destination on the website before making changes.", 16, muted);
-            findingGroup("Duplicates", response.optJSONArray("duplicated_videos"));
-            findingGroup("Suggested moves", response.optJSONArray("misplaced_videos"));
-            findingGroup("Other suggested moves", response.optJSONArray("move_from_x_to_y"));
-            button(content, "Review videos on website", () -> open(api.base + "/maintenance"));
+            button(content, "All findings", () -> { resultsFilter = "All"; findings(); });
+            button(content, "Duplicates", () -> { resultsFilter = "Duplicates"; findings(); });
+            button(content, "Deleted videos", () -> { resultsFilter = "Deleted"; findings(); });
+            if (!response.optString("info").isEmpty()) label(content, response.optString("info"), 15, muted);
+            label(content, "Review the source and destination below. Approve a move, choose another playlist, or keep the video where it is.", 16, muted);
+            if (!resultsFilter.equals("Deleted")) findingGroup("Duplicates", response.optJSONArray("duplicated_videos"));
+            if (resultsFilter.equals("All")) {
+                findingGroup("Suggested moves", response.optJSONArray("misplaced_videos"));
+                findingGroup("Other suggested moves", response.optJSONArray("move_from_x_to_y"));
+            }
+            if (!resultsFilter.equals("Duplicates")) {
+                row("Deleted videos", response.optString("deleted_count", "Not reported"), null);
+                if (response.optInt("deleted_count") > 0) button(content, "Remove deleted videos from playlists", this::removeDeleted);
+            }
+            button(content, "Back to scan status", this::scanStatus);
             button(content, "Back to scans", () -> home("Scans"));
         });
+    }
+    private void duplicateControls(JSONObject item, String videoId) {
+        JSONArray copies = item.optJSONArray("copies");
+        if (copies == null || copies.length() == 0) copies = item.optJSONArray("playlists");
+        if (copies != null) for (int i=0; i<copies.length(); i++) {
+            JSONObject copy = copies.optJSONObject(i); if (copy == null) continue;
+            String playlistId = copy.optString("playlist_id", copy.optString("id"));
+            String playlistTitle = copy.optString("playlist_title", copy.optString("title", playlistId));
+            String copyVideo = copy.optString("video_id", videoId), itemId = copy.optString("playlist_item_id");
+            if (playlistId.isEmpty()) continue;
+            button(content, "Remove copy from " + playlistTitle, () -> new AlertDialog.Builder(this)
+                .setTitle("Remove this playlist copy?")
+                .setMessage(item.optString("video_title", item.optString("title", videoId)) + "\n\nRemove only the selected copy from " + playlistTitle + ". Other copies are retained. The video itself stays on YouTube.")
+                .setNegativeButton("Cancel", null).setPositiveButton("Remove copy", (dialog, which) ->
+                    perform("Removing selected copy…", client -> client.post("/api/maintenance/action", new JSONObject()
+                        .put("action", "remove").put("type", "dup").put("video_id", copyVideo)
+                        .put("playlist_id", playlistId).put("playlist_item_id", itemId.isEmpty() ? JSONObject.NULL : itemId)), this::maintenanceResult)).show());
+        }
+        button(content, "Keep these copies · dismiss finding", () -> perform("Dismissing finding…", client ->
+            client.post("/api/maintenance/action", new JSONObject().put("action", "keep").put("type", "dup").put("video_id", videoId)), this::maintenanceResult));
+    }
+    private void removeDeleted() {
+        new AlertDialog.Builder(this).setTitle("Remove deleted video entries?")
+            .setMessage("Remove deleted or unavailable video entries from your connected playlists using the last synced data. This changes your playlists and uses YouTube API quota.")
+            .setNegativeButton("Cancel", null).setPositiveButton("Remove entries", (dialog, which) ->
+                perform("Removing deleted video entries…", client -> client.post("/api/maintenance/remove-deleted", new JSONObject()), this::maintenanceResult)).show();
+    }
+    private void maintenanceResult(JSONObject result) {
+        String status = result.optString("status", "unknown");
+        label(content, status.equals("success") || status.equals("ok") ? "Action completed" : "Action needs attention", 22, ink);
+        label(content, result.optString("message", status.equals("success") || status.equals("ok") ? "The server confirmed the selected action." : "Server status: " + status), 16, ink);
+        if (result.has("removed_count")) row("Entries removed", result.optString("removed_count"), null);
+        JSONArray errors = result.optJSONArray("errors");
+        if (errors != null) for (int i=0; i<errors.length(); i++) label(content, errors.optString(i), 14, Color.rgb(255,180,171));
+        button(content, "Return to results", this::findings);
+        button(content, "Scan status", this::scanStatus);
+    }
+    private void moveWatchLater() {
+        new AlertDialog.Builder(this).setTitle("Move all Watch Later to 1~Sort?")
+            .setMessage("This moves your current Watch Later videos into 1~Sort. Each video is saved in 1~Sort before it is removed from Watch Later. A connected YouTube session is required.")
+            .setNegativeButton("Cancel", null).setPositiveButton("Move all", (dialog, which) ->
+                perform("Queuing Watch Later move…", client -> client.post("/api/bulk/watch-later-to-sort", new JSONObject().put("confirm", true)), response -> {
+                    label(content, "Watch Later move queued", 22, ink);
+                    label(content, "The server is reading Watch Later and moving videos. Check progress for completed and failed items.", 16, muted);
+                    String operation = response.getString("operation_id");
+                    button(content, "Check progress", () -> operationStatus(operation));
+                })).show();
     }
     private void findingGroup(String title, JSONArray items) {
         label(content, title + " (" + (items == null ? 0 : items.length()) + ")", 20, ink);
@@ -333,9 +470,62 @@ public final class MainActivity extends AppCompatActivity {
             JSONObject item = items.optJSONObject(i); if (item == null) continue;
             String from = item.optString("current_playlist_title", item.optString("source_playlist_title", "Current playlist"));
             String to = item.optString("mapped_playlist_title", item.optString("target_playlist_title", "Review destination"));
-            String reason = item.optString("match_reason", item.optString("channel_title", "Review this video on the website."));
-            row(item.optString("title", item.optString("video_title", "Untitled video")), from + " → " + to + "\n" + reason, null);
+            String reason = item.optString("match_reason", item.optString("channel_title", "Review the suggested destination."));
+            String detail = from + " → " + to + "\n" + reason;
+            if (title.equals("Duplicates")) {
+                StringBuilder locations = new StringBuilder(); JSONArray playlists = item.optJSONArray("playlists");
+                if (playlists != null) for (int j=0; j<playlists.length(); j++) {
+                    JSONObject playlist = playlists.optJSONObject(j);
+                    if (locations.length() > 0) locations.append("\n");
+                    locations.append(playlist == null ? playlists.optString(j) : playlist.optString("title", playlist.optString("id")));
+                }
+                detail = item.optInt("copy_count", playlists == null ? 0 : playlists.length()) + " copies\n" + locations;
+            }
+            String videoId = item.optString("video_id", item.optString("id"));
+            row(item.optString("title", item.optString("video_title", "Untitled video")), detail,
+                videoId.isEmpty() ? null : "https://www.youtube.com/watch?v=" + Uri.encode(videoId));
+            if (title.equals("Duplicates") && !videoId.isEmpty()) duplicateControls(item, videoId);
+            else if (!videoId.isEmpty()) suggestedMoveControls(item, videoId, title.equals("Other suggested moves") ? "move" : "misplaced");
         }
+    }
+    private void suggestedMoveControls(JSONObject item, String videoId, String type) {
+        String sourceId = item.optString("current_playlist_id", item.optString("source_playlist_id"));
+        String targetId = item.optString("mapped_playlist_id", item.optString("target_playlist_id"));
+        JSONObject video = new JSONObject(), source = new JSONObject(), target = new JSONObject();
+        try {
+            video.put("video_id", videoId).put("title", item.optString("video_title", item.optString("title", videoId)));
+            source.put("id", sourceId).put("title", item.optString("current_playlist_title", item.optString("source_playlist_title", sourceId)));
+            target.put("id", targetId).put("title", item.optString("mapped_playlist_title", item.optString("target_playlist_title", targetId)));
+        } catch (Exception error) { label(content, readable(error), 14, muted); return; }
+        if (!sourceId.isEmpty()) {
+            if (!targetId.isEmpty() && !targetId.equals(sourceId))
+                button(content, "Approve suggested move", () -> confirmFindingMove(video, source, target));
+            button(content, "Choose another destination", () -> chooseFindingDestination(video, source));
+        } else label(content, "This finding has no source playlist ID. Run a fresh scan to review its move.", 14, muted);
+        button(content, "Keep here · dismiss suggestion", () -> perform("Dismissing suggestion…", client ->
+            client.post("/api/maintenance/action", new JSONObject().put("action", "keep").put("type", type)
+                .put("video_id", videoId)), this::maintenanceResult));
+    }
+    private void confirmFindingMove(JSONObject video, JSONObject source, JSONObject target) {
+        new AlertDialog.Builder(this).setTitle("Approve this move?")
+            .setMessage(video.optString("title") + "\n\nFrom: " + source.optString("title") + "\nTo: " + target.optString("title") + "\n\nThis changes your YouTube playlists.")
+            .setNegativeButton("Cancel", null).setPositiveButton("Move video", (dialog, which) -> moveVideo(video, source, target)).show();
+    }
+    private void chooseFindingDestination(JSONObject video, JSONObject source) {
+        perform("Loading destination playlists…", client -> client.get("/api/playlists"), response -> {
+            label(content, "Choose a destination", 22, ink);
+            label(content, video.optString("title") + "\nFrom: " + source.optString("title"), 16, muted);
+            java.util.List<View> choices = searchChoices(content, "Search destination playlists");
+            JSONArray playlists = response.optJSONArray("playlists"); int count = 0;
+            if (playlists != null) for (int i=0; i<playlists.length(); i++) {
+                JSONObject target = playlists.optJSONObject(i);
+                if (target == null || target.optString("id").isEmpty() || target.optString("id").equals(source.optString("id"))) continue;
+                Button choice = button(content, target.optString("title", target.optString("id")), () -> confirmFindingMove(video, source, target));
+                choice.setTag(target.optString("title")); choices.add(choice); count++;
+            }
+            if (count == 0) label(content, "No other destination playlists are available.", 16, muted);
+            button(content, "Back to findings", this::findings);
+        });
     }
     private java.util.List<View> searchChoices(LinearLayout parent, String hint) {
         java.util.List<View> choices = new java.util.ArrayList<>();
@@ -422,7 +612,8 @@ public final class MainActivity extends AppCompatActivity {
             JSONArray errors = response.optJSONArray("errors");
             if (errors != null) for (int i = 0; i < errors.length(); i++) label(content, errors.optString(i), 16, ink);
             button(content, "Refresh result", () -> operationStatus(id));
-            button(content, "Back to AI sorting", () -> home("AI sort"));
+            if (page.equals("Scan results")) button(content, "Back to findings", this::findings);
+            else button(content, "Back to " + page, () -> home(page));
         });
     }
     private void row(String title, String detail, String url) {
@@ -485,6 +676,7 @@ public final class MainActivity extends AppCompatActivity {
             try {
                 client.exchangeGoogle(code, verifier);
                 client.get("/api/auth/me");
+                SessionStore.save(this, client);
                 runOnUiThread(() -> {
                     if (isDestroyed() || requestGeneration != generation) return;
                     api = client; getPreferences(MODE_PRIVATE).edit().putString("server", client.base).apply(); home("Scans");
@@ -500,3 +692,4 @@ public final class MainActivity extends AppCompatActivity {
     }
     @Override protected void onDestroy() { generation++; network.shutdownNow(); super.onDestroy(); }
 }
+
