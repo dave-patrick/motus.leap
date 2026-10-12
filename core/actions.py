@@ -199,9 +199,11 @@ class PlaywrightElementWrapper:
             raise e
 
 USER_DATA_DIR = os.path.join(os.path.dirname(__file__), "user_data")
-PLAYWRIGHT_USER_DATA_DIR = os.path.join(os.path.dirname(__file__), "user_data_playwright")
+PLAYWRIGHT_USER_DATA_DIR = os.environ.get("PLAYWRIGHT_USER_DATA_DIR") or os.path.join(os.environ.get("TUBE_MANAGER_DATA_DIR", os.path.dirname(__file__)), "user_data_playwright")
 
 def get_playwright_browser():
+    pw = None
+    browser_context = None
     try:
         from playwright.sync_api import sync_playwright
         print("  Initializing Playwright context...")
@@ -276,6 +278,12 @@ def get_playwright_browser():
         wrapper.force_mute = force_mute
         return wrapper
     except Exception as e:
+        if browser_context is not None:
+            try: browser_context.close()
+            except Exception: pass
+        if pw is not None:
+            try: pw.stop()
+            except Exception: pass
         print(f"  Playwright initialization failed: {e}")
         return None
 
@@ -1862,3 +1870,5 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
     finally:
         if own_driver:
             driver.quit()
+
+
