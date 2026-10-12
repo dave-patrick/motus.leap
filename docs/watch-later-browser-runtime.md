@@ -34,3 +34,17 @@ The fix:
 Verification: 375 tests pass, including `tests/unit/test_import_yt_cookies.py` (store written, Netscape mirror, no-Camofox success, empty and non-YouTube rejection) and three new `get_youtube_cookies_write_path()` cases.
 
 Export cookies from a signed-in `youtube.com` tab ("Get cookies.txt LOCALLY", Netscape format) and paste them into that box. Imported cookies apply on the next browser launch.
+## InnerTube rework, 2026-10-12 fourth pass
+
+The cookie import closed the session gap, but reading and clearing Watch Later still launched headless Chromium. On a 512 MiB instance that browser is what got the run killed mid-transfer, and a browser adds nothing that the stored cookies cannot already do.
+
+Watch Later now runs over InnerTube, the same private web API the YouTube site itself calls, using plain HTTP requests with the cookie store that already fed Playwright. Watch Later is not reachable through the public Data API, so this is the only browser-free path.
+
+- `services/youtube_innertube.py` (new) is the whole implementation. It reads the cookie store through `core.actions.get_youtube_cookies_path()` (JSON store or Netscape export), signs requests with `SAPISIDHASH`, reads the list from browse id `VLWL` (`FEwatch_later` is rejected with 400), pages through continuations, and removes a video with `POST /youtubei/v1/browse/edit_playlist`. `remove_from_watch_later()` returns `True` only on `STATUS_SUCCEEDED`, so the confirmed-addition-before-removal rule still holds.
+- `core/actions.list_videos_in_playlist()` and `remove_video_from_playlist()` try InnerTube first for a Watch Later reference. A signed-out session raises `WatchLaterSessionError` and is never retried in a browser, because that browser would be signed out in exactly the same way. Any other `InnerTubeError` falls back to the browser only when the caller supplied a `driver`; otherwise it re-raises.
+- `services/watch_later_transfer.py`, `api/bulk_operations.py`, `services/watch_later_service.py`, and `app.py` no longer create or quit a browser for Watch Later. The `allow_browser` flag on `load_watch_later_videos()` keeps its name for API compatibility but no longer starts one.
+- `web/maintenance.html` and `web/settings.html` no longer describe a server browser session; the copy now says the imported cookies drive signed-in Watch Later reads and clears.
+
+Known limitations: Watch Later is served by a private API, so a YouTube change can break it; and `render.yaml` still installs Playwright Chromium at build time, which only matters for the explicitly-supplied-driver path and can be dropped later.
+
+Verification: 20 new tests in `tests/unit/test_watch_later_innertube.py` (renderer and continuation parsing, non-video lockups skipped, the `SAPISIDHASH` signature, `STATUS_SUCCEEDED`-only confirmation, signed-out detection, and that Watch Later reads/removals start no browser), 397 tests total, all passing. Live production Watch Later membership and transfer are still not verified; the cookies installed in production are currently signed out.

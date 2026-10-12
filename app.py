@@ -2989,6 +2989,59 @@ class MoveWatchLaterIn(BaseModel):
     source_playlist_id: str = "WL"
 
 
+async def _move_all_watch_later(yt_client, target_pid: str) -> dict[str, Any]:
+    """Move every Watch Later video into target_pid, confirming each save first.
+
+    Watch Later is read and emptied over YouTube's web API, so this needs neither
+    a browser nor YouTube Data API access to Watch Later (which does not exist).
+    """
+    from services.watch_later_transfer import read_current_watch_later, transfer_item
+
+    target_title = target_pid
+    try:
+        pls_resp = await youtube_service.list_playlists()
+        all_pls = pls_resp.get("playlists", []) if isinstance(pls_resp, dict) else (pls_resp if isinstance(pls_resp, list) else [])
+        for p in all_pls:
+            if isinstance(p, dict) and p.get("id") == target_pid:
+                target_title = p.get("title") or target_pid
+                break
+    except Exception:
+        pass
+
+    try:
+        videos = await asyncio.to_thread(read_current_watch_later)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not read Watch Later: {exc}")
+
+    if not videos:
+        return {"status": "ok", "moved": 0, "failed": 0,
+                "message": "Watch Later is empty; nothing was moved."}
+
+    moved_count = 0
+    failed_count = 0
+    for video in videos:
+        try:
+            await asyncio.to_thread(transfer_item, yt_client, None, target_pid, video)
+            moved_count += 1
+        except Exception as err:
+            vid = video.get("video_id") or video.get("id")
+            log.warning(f"Failed moving video {vid} from Watch Later to {target_pid}: {err}")
+            failed_count += 1
+
+    for pid in ("WL", target_pid):
+        try:
+            await youtube_service._cache_invalidate_playlist(pid)
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "moved": moved_count,
+        "failed": failed_count,
+        "message": f"Successfully moved {moved_count} video(s) from Watch Later to '{target_title}'!"
+    }
+
+
 @app.post("/api/maintenance/move-watch-later", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
     """Move all videos from Watch Later (or a specified source playlist) to a target playlist."""
@@ -3002,6 +3055,9 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
     source_pid = payload.source_playlist_id or "WL"
     if not target_pid:
         raise HTTPException(status_code=422, detail="target_playlist_id is required")
+
+    if source_pid.strip().upper() == "WL" or source_pid.strip().casefold() == "watch later":
+        return await _move_all_watch_later(yt_client, target_pid)
 
     # Fetch videos from source playlist
     source_payload = None
@@ -3197,13 +3253,15 @@ async def api_auto_sort_watch_later(payload: AutoSortWatchLaterIn) -> dict[str, 
         except Exception as ce:
             log.warning(f"Could not acquire OAuth YouTube client: {ce}")
 
+    # Watch Later removal runs over YouTube's web API (InnerTube), so a browser is
+    # only needed when there is no OAuth client to add the copy with.
     driver = None
-    if payload.remove_from_watch_later or not yt_client:
+    if not yt_client:
         try:
             from core.actions import get_browser
             driver = get_browser()
         except Exception as be:
-            log.warning(f"Browser unavailable for Watch Later removal: {be}")
+            log.warning(f"Browser unavailable for adding Watch Later videos: {be}")
 
     from services.watch_later_service import execute_auto_sort
     try:

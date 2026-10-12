@@ -24,6 +24,35 @@ except ImportError:
     TimeoutException = Exception
     NoSuchElementException = Exception
 
+
+def _watch_later_reference(playlist_name_or_url) -> bool:
+    """True when a playlist reference means Watch Later, which InnerTube can serve."""
+    text = str(playlist_name_or_url or "").strip()
+    if not text:
+        return False
+    if text.upper() == "WL" or text.casefold() == "watch later":
+        return True
+    if "list=" in text:
+        return text.split("list=", 1)[1].split("&", 1)[0].strip().upper() == "WL"
+    return False
+
+
+def _watch_later_video_id(video_url: str) -> str:
+    """Read the 11-character video id out of a watch URL, Shorts URL, or bare id."""
+    import re
+    text = str(video_url or "").strip()
+    if not text:
+        return ""
+    if "v=" in text:
+        text = text.split("v=", 1)[1]
+    elif "youtu.be/" in text:
+        text = text.split("youtu.be/", 1)[1]
+    elif "/shorts/" in text:
+        text = text.split("/shorts/", 1)[1]
+    video_id = text.split("&", 1)[0].split("?", 1)[0].strip("/").strip()
+    return video_id if re.match(r"^[A-Za-z0-9_-]{11}$", video_id) else ""
+
+
 def wait_for_condition(predicate, max_wait=5.0, poll_interval=0.2):
     """
     Polls predicate() every poll_interval seconds up to max_wait seconds.
@@ -1149,6 +1178,31 @@ def remove_video_from_playlist(video_url: str, playlist_name: str, driver=None) 
     if os.environ.get("MOCK_YT") == "1":
         print(f"MOCK: Removed {video_url} from playlist '{playlist_name}'")
         return True
+
+    if _watch_later_reference(playlist_name):
+        video_id = _watch_later_video_id(video_url)
+        if not video_id:
+            raise ValueError(f"Could not read a YouTube video id from {video_url!r}")
+        try:
+            from services import youtube_innertube
+        except ImportError as exc:
+            print(f"InnerTube unavailable ({exc}); using the browser session.")
+            if driver is None:
+                raise
+        else:
+            try:
+                if youtube_innertube.remove_from_watch_later(video_id):
+                    print(f"Removed {video_id} from Watch Later over YouTube's web API.")
+                    return True
+            except youtube_innertube.WatchLaterSessionError as exc:
+                print(f"Watch Later session is not signed in: {exc}")
+                raise
+            except youtube_innertube.InnerTubeError as exc:
+                print(f"InnerTube Watch Later removal failed: {exc}")
+                if driver is None:
+                    raise
+                print("Retrying over the browser session.")
+
     own_driver = False
     if not driver:
         driver = get_browser()
@@ -1693,6 +1747,26 @@ def list_videos_in_playlist(playlist_name_or_url: str, driver=None) -> list:
             }
             for i in range(1, 15)
         ]
+
+    if _watch_later_reference(playlist_name_or_url):
+        try:
+            from services import youtube_innertube
+        except ImportError as exc:
+            print(f"InnerTube unavailable ({exc}); using the browser session.")
+        else:
+            try:
+                videos = youtube_innertube.list_watch_later()
+                print(f"Read {len(videos)} Watch Later video(s) over YouTube's web API.")
+                return videos
+            except youtube_innertube.WatchLaterSessionError as exc:
+                print(f"Watch Later session is not signed in: {exc}")
+                raise
+            except youtube_innertube.InnerTubeError as exc:
+                print(f"InnerTube Watch Later read failed: {exc}")
+                if driver is None:
+                    raise
+                print("Retrying over the browser session.")
+
     own_driver = False
     if not driver:
         driver = get_browser()

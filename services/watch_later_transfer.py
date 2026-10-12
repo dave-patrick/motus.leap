@@ -1,36 +1,35 @@
-"""Move one Watch Later item without removing an unsaved source copy."""
-import time
-from urllib.parse import urlparse, parse_qs
+"""Move Watch Later items over YouTube's web API, without a browser.
+
+Reading Watch Later and removing a video from it both run on InnerTube in
+services/youtube_innertube.py, so a 512 MiB instance never has to launch
+Chromium. The optional driver arguments are kept for callers that still hold a
+local browser session.
+"""
 
 
-def read_current_watch_later(driver):
-    driver.get("https://www.youtube.com/playlist?list=WL")
-    videos, stable = {}, 0
-    for attempt in range(200):
-        rows = driver.execute_script("""return Array.from(document.querySelectorAll('ytd-playlist-video-renderer, ytd-playlist-panel-video-renderer, yt-lockup-view-model')).map(el => {
-          const a=el.querySelector('a[href*="watch?v="]');
-          return a ? {url:a.href,title:(el.querySelector('#video-title,h3')?.textContent || a.textContent || '').trim()} : null;
-        }).filter(Boolean);""") or []
-        before = len(videos)
-        for row in rows:
-            video_id = parse_qs(urlparse(row.get("url", "")).query).get("v", [None])[0]
-            if video_id:
-                videos[video_id] = {**row, "video_id": video_id}
-        stable = stable + 1 if len(videos) == before else 0
-        if stable >= 6 and attempt >= 10:
-            if not videos:
-                raise RuntimeError("No videos were read. Watch Later may be empty, or your YouTube session needs reconnecting.")
-            expected = driver.execute_script("""const header=document.querySelector('ytd-playlist-header-renderer,ytd-playlist-sidebar-primary-info-renderer');
-              const match=header?.innerText.match(/([\\d,]+)\\s+videos?/i); return match ? Number(match[1].replaceAll(',','')) : null;""")
-            if expected is not None and int(expected) > len(videos):
-                raise RuntimeError("Watch Later did not fully load. No videos were moved; try again.")
-            return list(videos.values())
-        driver.execute_script("window.scrollTo(0,document.documentElement.scrollHeight);")
-        time.sleep(1)
-    raise RuntimeError("Watch Later is still loading. No videos were moved; try again.")
+def read_current_watch_later(driver=None):
+    """Return every Watch Later video, newest first, as YouTube orders them."""
+    from services.youtube_innertube import (
+        InnerTubeError,
+        WatchLaterSessionError,
+        list_watch_later,
+    )
+
+    try:
+        return list_watch_later()
+    except WatchLaterSessionError:
+        # A browser cannot help: it would be signed out in exactly the same way.
+        raise
+    except InnerTubeError:
+        if driver is None:
+            raise
+    from core.actions import list_videos_in_playlist
+
+    return list_videos_in_playlist("https://www.youtube.com/playlist?list=WL", driver=driver)
 
 
-def transfer_item(client, driver, target_id, video):
+def transfer_item(client, driver=None, target_id=None, video=None):
+    """Save one Watch Later entry into target_id, then drop it from Watch Later."""
     from core.actions import remove_video_from_playlist
 
     video_id = video.get("video_id") or video.get("id")
