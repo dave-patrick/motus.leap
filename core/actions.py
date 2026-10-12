@@ -201,6 +201,23 @@ class PlaywrightElementWrapper:
 USER_DATA_DIR = os.path.join(os.path.dirname(__file__), "user_data")
 PLAYWRIGHT_USER_DATA_DIR = os.environ.get("PLAYWRIGHT_USER_DATA_DIR") or os.path.join(os.environ.get("TUBE_MANAGER_DATA_DIR", os.path.dirname(__file__)), "user_data_playwright")
 
+def get_youtube_cookies_path():
+    """Return the YouTube cookie store, preferring the persistent data directory."""
+    candidates = []
+    override = os.environ.get("YOUTUBE_COOKIES_FILE")
+    if override:
+        candidates.append(override)
+    data_dir = os.environ.get("TUBE_MANAGER_DATA_DIR")
+    if data_dir:
+        candidates.append(os.path.join(data_dir, "cookies", "youtube_cookies.json"))
+    if os.path.isdir("/app/data"):
+        candidates.append(os.path.join("/app/data", "cookies", "youtube_cookies.json"))
+    candidates.append(os.path.expanduser("~/.camofox/cookies/cookies.json"))
+    for path in candidates:
+        if path and os.path.exists(path):
+            return path
+    return candidates[0]
+
 def get_playwright_browser():
     pw = None
     browser_context = None
@@ -228,7 +245,7 @@ def get_playwright_browser():
         )
         # Load and inject cookies if they exist
         try:
-            cookies_path = os.path.expanduser("~/.camofox/cookies/cookies.json")
+            cookies_path = get_youtube_cookies_path()
             if os.path.exists(cookies_path):
                 print("  Playwright: Loading cookies from cookies.json...")
                 with open(cookies_path, "r", encoding="utf-8") as f:
@@ -399,7 +416,7 @@ class CamofoxDriverWrapper:
                 
                 # Automatically import saved cookies if cookies.json exists
                 try:
-                    cookies_path = os.path.expanduser("~/.camofox/cookies/cookies.json")
+                    cookies_path = get_youtube_cookies_path()
                     if os.path.exists(cookies_path):
                         print("  Camofox: Loading persisted cookies from cookies.json...")
                         with open(cookies_path, "r", encoding="utf-8") as f:
