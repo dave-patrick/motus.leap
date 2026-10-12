@@ -60,3 +60,45 @@ The pages also carry a second `continuationItemRenderer` — a "Reload for updat
 Verification on the deployed instance: page 1 → 100, page 2 → 200, page 3 → 300, page 4 → 400, page 5 (+46) → 446, then no token, ending at the full **446**-video library. `_MAX_CONTINUATION_PAGES = 40` is ample for about five pages. The test helper in `tests/unit/test_watch_later_innertube.py` emitted the old flat shape, so the suite passed while production truncated; it now emits the nested `commandExecutorCommand.commands[]` shape, with a 446-video multi-page regression test, a popup-only-page stop test, and direct token-shape tests. 402 tests pass.
 
 Watch Later currently uses the `playlistVideoListRenderer` / `continuationItemRenderer` family, but YouTube's newer lockup lists put the token at `continuationItemViewModel.continuationCommand.innertubeCommand.continuationCommand`, and the container's outer `continuationCommand` carries no token of its own — a live public playlist returns `continuationItemRenderer` zero times and finds nothing with a renderer-only lookup. So the token lookup now takes the first node that actually carries a token anywhere in the payload, preferring `CONTINUATION_REQUEST_TYPE_BROWSE`, which reads every container shape seen so far and still ignores the token-less popup renderer. 405 tests pass.
+
+## Import-time session check, 2026-10-12 sixth pass
+
+The "move Watch Later" ran, failed, and reported nothing useful: the last production
+operation (`watch_later_*`) ended `status=failed`, `total_items=0` with "The stored
+YouTube cookies are no longer signed in". Three attempts failed the same way before the
+cause was obvious from the UI, and the failure only surfaced after the user had already
+walked through the move.
+
+Root cause: the imported export was **signed out**. A logged-out youtube.com page still
+sets cookies, so the export looks like a plausible cookie file while carrying none of the
+login cookies. A browser read of the same file agreed (`LOGGED_IN=false`), and so did
+`yt-dlp`; the same export also failed from a residential IP, so this was never a
+datacenter-IP block. The instance JSON was byte-identical to the local export, so the
+import itself was faithful. The problem was upstream: the browser tab had no session.
+
+`POST /api/import-yt-cookies` used to accept any YouTube/Google cookie file silently and
+only reveal the dead session later, mid-move. It now reports the session at import time:
+
+- `services/youtube_innertube.check_watch_later_session()` returns
+  `{"signed_in": bool | None, "message": str}`. `False` means the cookies are definitely
+  signed out, `True` that YouTube answered as the signed-in account, and `None` that the
+  session could not be verified (a network or YouTube failure), which is neither. It
+  never raises, so it can run inside the import without turning a completed write into an
+  error, and it caps its own request timeout at 20s so the import stays responsive.
+- `services.youtube_innertube.missing_login_cookies()` lists the login cookies a
+  signed-in export always carries (`SID`, `HSID`, `SSID`, `APISID`, `SAPISID`,
+  `__Secure-1PSID`, `__Secure-3PSID`, `LOGIN_INFO`). Their absence is proof the export
+  came from a signed-out page, so it is reported **before** any request goes out: a
+  signed-out export is caught offline.
+- `app.py` still writes the cookies first (the user may be mid-flow), then annotates the
+  response with `signed_in` and `warning` and folds the warning into `message`. The
+  `success` / `count` / `path` contract is unchanged, so existing callers keep working.
+- `static/app.js` and `web/settings.html` show a signed-out import as an amber warning
+  instead of a green check, and keep the pasted text so the user can retry.
+
+Verification: 413 tests pass (was 405). New tests cover the offline missing-cookie report
+(proving no request goes out), a signed-in jar confirmed over a canned response, a
+signed-out jar reported after a request, a network failure reported as `None`, and the
+endpoint annotating a signed-in, a signed-out, and a partial export. Live production Watch
+Later verification is still blocked on a genuinely signed-in export; the export on hand is
+anonymous.

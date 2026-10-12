@@ -18,9 +18,24 @@ from services import watch_later_service, watch_later_transfer, youtube_innertub
 from services.youtube_innertube import (
     InnerTubeError,
     WatchLaterSessionError,
+    check_watch_later_session,
     list_watch_later,
     remove_from_watch_later,
 )
+
+
+def _full_login_jar():
+    """The login cookies a signed-in youtube.com export carries."""
+    return {
+        "SAPISID": SAPISID,
+        "SID": "sid-value",
+        "HSID": "hsid-value",
+        "SSID": "ssid-value",
+        "APISID": "apisid-value",
+        "__Secure-1PSID": "psid-value",
+        "__Secure-3PSID": "psid3-value",
+        "LOGIN_INFO": "login-info",
+    }
 
 HOME_HTML = (
     "<script>"
@@ -570,3 +585,64 @@ def test_read_current_watch_later_signed_out_does_not_fall_back_to_a_driver():
         with pytest.raises(WatchLaterSessionError):
             watch_later_transfer.read_current_watch_later(driver)
     browser_read.assert_not_called()
+
+
+@pytest.mark.unit
+def test_check_session_reports_a_signed_out_export_without_a_request():
+    # An export from a signed-out page keeps the anonymous cookies and drops
+    # every login cookie; that alone is conclusive, so no request goes out. The
+    # client has no canned posts, so any request would fail the test.
+    client = FakeClient()
+    result = check_watch_later_session(
+        jar={"VISITOR_INFO1_LIVE": "visitor", "PREF": "tz=UTC"}, client=client
+    )
+    assert result["signed_in"] is False
+    assert "signed-out youtube.com page" in result["message"]
+    assert client.posts == []
+
+
+@pytest.mark.unit
+def test_check_session_reads_the_cookie_store_when_no_jar_is_passed(cookie_store):
+    # The fixture store carries SAPISID + SID but not the rest of the login set.
+    result = check_watch_later_session()
+    assert result["signed_in"] is False
+    assert "login cookie" in result["message"]
+
+
+@pytest.mark.unit
+def test_check_session_confirms_a_signed_in_jar():
+    client = FakeClient(posts=[_video_page(["abcdefghijk"])])
+    result = check_watch_later_session(jar=_full_login_jar(), client=client)
+    assert result["signed_in"] is True
+    assert client.posts[0]["json"]["browseId"] == "VLWL"
+
+
+@pytest.mark.unit
+def test_check_session_reports_signed_out_after_a_request():
+    client = FakeClient(
+        posts=[
+            _response(
+                {
+                    **_logged_in("0"),
+                    "alerts": [
+                        {"alertRenderer": {"text": {"simpleText": "The playlist does not exist."}}}
+                    ],
+                }
+            )
+        ]
+    )
+    result = check_watch_later_session(jar=_full_login_jar(), client=client)
+    assert result["signed_in"] is False
+    assert "no longer signed in" in result["message"]
+
+
+@pytest.mark.unit
+def test_check_session_survives_a_network_failure():
+    class BrokenClient(FakeClient):
+        def get(self, url, headers=None):
+            raise httpx.ConnectError("no route to host")
+
+    result = check_watch_later_session(jar=_full_login_jar(), client=BrokenClient())
+    assert result["signed_in"] is None
+    assert "Could not verify" in result["message"]
+
