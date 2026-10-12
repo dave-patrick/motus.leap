@@ -335,11 +335,21 @@ def _collect_videos(payload: dict[str, Any], videos: dict[str, dict[str, Any]]) 
 
 
 def _continuation_token(payload: dict[str, Any]) -> str:
+    """Return the next-page token, wherever YouTube nested it.
+
+    The token used to sit at ``continuationEndpoint.continuationCommand``, but
+    Watch Later now nests it under
+    ``continuationEndpoint.commandExecutorCommand.commands[]``. A page can also
+    carry a token-less "Reload for updates" popup renderer, so we scan every
+    continuation renderer's subtree and take the first real token.
+    """
     for node in _walk(payload):
         renderer = node.get("continuationItemRenderer")
-        if isinstance(renderer, dict):
-            command = (renderer.get("continuationEndpoint") or {}).get("continuationCommand") or {}
-            if command.get("token"):
+        if not isinstance(renderer, dict):
+            continue
+        for child in _walk(renderer):
+            command = child.get("continuationCommand")
+            if isinstance(command, dict) and command.get("token"):
                 return str(command["token"])
     return ""
 
