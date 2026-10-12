@@ -42,6 +42,21 @@ _COOKIE_DOMAINS = ("youtube.com", "google.com")
 _CONFIG_TTL_SECONDS = 6 * 60 * 60
 _MAX_CONTINUATION_PAGES = 40
 _REQUEST_TIMEOUT = 60.0
+_SESSION_CHECK_TIMEOUT = 20.0
+
+# Cookies a signed-in youtube.com export always carries. An export taken from a
+# signed-out page keeps the anonymous YouTube cookies but drops these, so their
+# absence proves the export cannot open a signed-in session without a request.
+_LOGIN_COOKIE_NAMES = (
+    "SID",
+    "HSID",
+    "SSID",
+    "APISID",
+    "SAPISID",
+    "__Secure-1PSID",
+    "__Secure-3PSID",
+    "LOGIN_INFO",
+)
 
 _config_cache: dict[str, Any] = {"api_key": "", "client_version": "", "fetched_at": 0.0}
 
@@ -153,6 +168,16 @@ def _sapisid(jar: dict[str, str]) -> str:
         "The stored YouTube cookies have no SAPISID value, so requests cannot be "
         "authenticated. Export cookies from youtube.com while signed in."
     )
+
+
+def missing_login_cookies(jar: dict[str, str]) -> list[str]:
+    """Return the login cookies a signed-in export is missing.
+
+    A signed-out youtube.com page still sets anonymous cookies, so the export
+    looks plausible while carrying none of the login cookies. Their absence is
+    proof the export cannot open a signed-in session, and costs no request.
+    """
+    return [name for name in _LOGIN_COOKIE_NAMES if not jar.get(name)]
 
 
 def _request_headers(jar: dict[str, str]) -> dict[str, str]:
@@ -414,3 +439,55 @@ def remove_from_watch_later(video_id: str, client: Optional[httpx.Client] = None
         f"YouTube did not confirm the removal ({status or 'no status'})"
         + (f": {detail}" if detail else ".")
     )
+
+
+def check_watch_later_session(
+    jar: Optional[dict[str, str]] = None,
+    client: Optional[httpx.Client] = None,
+) -> dict[str, Any]:
+    """Report whether the cookie store opens a signed-in Watch Later.
+
+    Returns ``{"signed_in": bool | None, "message": str}``. ``False`` means the
+    cookies are definitely signed out, ``True`` that YouTube answered as the
+    signed-in account, and ``None`` that the session could not be verified (a
+    network or YouTube failure) which is neither. This never raises, because it
+    runs at cookie-import time where a completed write must stay a completed
+    import; a missing login cookie is reported before any request goes out.
+    """
+    if jar is None:
+        try:
+            jar = _load_cookie_jar()
+        except WatchLaterSessionError as exc:
+            return {"signed_in": False, "message": str(exc)}
+
+    missing = missing_login_cookies(jar)
+    if missing:
+        return {
+            "signed_in": False,
+            "message": (
+                "The export is missing the "
+                + ", ".join(missing)
+                + " login cookie(s), so it came from a signed-out youtube.com page. "
+                "Sign in to youtube.com in that browser, then export and import again."
+            ),
+        }
+
+    http = client or httpx.Client(timeout=_SESSION_CHECK_TIMEOUT, follow_redirects=True)
+    try:
+        payload = _call(
+            http,
+            jar,
+            BROWSE_ENDPOINT,
+            lambda config: {"context": _context(config), "browseId": WATCH_LATER_BROWSE_ID},
+        )
+        state = _logged_in(payload)
+        if state is True:
+            return {"signed_in": True, "message": "The cookies open a signed-in YouTube session."}
+        if state is False:
+            return {"signed_in": False, "message": _signed_out_message(payload)}
+        return {"signed_in": None, "message": "YouTube did not report a login state for these cookies."}
+    except (InnerTubeError, httpx.HTTPError, ValueError) as exc:
+        return {"signed_in": None, "message": f"Could not verify the YouTube session: {exc}"}
+    finally:
+        if client is None:
+            http.close()

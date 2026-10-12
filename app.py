@@ -4032,12 +4032,28 @@ async def import_yt_cookies(payload: ImportYTCookiesIn):
     except OSError as exc:
         append_agent_log(f"Warning: could not mirror Netscape cookie file: {exc}")
 
+    # Saving is the import's job; reporting a dead session is a courtesy that
+    # must never fail the import. check_watch_later_session() reads the store we
+    # just wrote and never raises, so a signed-out export still imports and is
+    # told why instead of only failing later, mid-move.
+    from services.youtube_innertube import check_watch_later_session
+
+    session = check_watch_later_session()
+    signed_in = session.get("signed_in")
+    warning = None
+    message = f"Imported {len(yt_cookies)} cookies. They apply the next time the browser starts."
+    if signed_in is False:
+        warning = session["message"]
+        message = f"Imported {len(yt_cookies)} cookies. {warning}"
+
     append_agent_log(f"Imported {len(yt_cookies)} YouTube/Google cookies to {cookies_path}.")
     return {
         "success": True,
         "count": len(yt_cookies),
         "path": cookies_path,
-        "message": f"Imported {len(yt_cookies)} cookies. They apply the next time the browser starts.",
+        "signed_in": signed_in,
+        "warning": warning,
+        "message": message,
     }
 
 class SettingsIn(BaseModel):

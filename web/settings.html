@@ -466,7 +466,10 @@ function viewSystemLogs() {
                     body: JSON.stringify({cookies_txt: text})
                 });
                 const data = await resp.json().catch(() => ({}));
-                if (resp.ok && data.success) {
+                if (resp.ok && data.success && data.signed_in === false) {
+                    result.style.color = '#f59e0b';
+                    result.textContent = '\u26a0 ' + (data.warning || data.message || 'Cookies are signed out.');
+                } else if (resp.ok && data.success) {
                     result.style.color = '#22c55e';
                     result.textContent = '\u2713 ' + (data.message || 'Cookies imported.');
                     input.value = '';

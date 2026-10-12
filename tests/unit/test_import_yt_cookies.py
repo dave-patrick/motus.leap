@@ -28,6 +28,19 @@ NETSCAPE = (
     ".example.com\tTRUE\t/\tFALSE\t1893456000\tOTHER\tnot-youtube\n"
 )
 
+# A complete set of the login cookies a signed-in youtube.com export carries.
+SIGNED_IN_NETSCAPE = (
+    "# Netscape HTTP Cookie File\n"
+    ".youtube.com\tTRUE\t/\tTRUE\t1893456000\tSID\tsid\n"
+    "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1893456000\tHSID\thsid\n"
+    ".youtube.com\tTRUE\t/\tTRUE\t1893456000\tSSID\tssid\n"
+    ".youtube.com\tTRUE\t/\tTRUE\t1893456000\tAPISID\tapisid\n"
+    ".youtube.com\tTRUE\t/\tTRUE\t1893456000\tSAPISID\tsapisid\n"
+    "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1893456000\t__Secure-1PSID\tpsid1\n"
+    "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1893456000\t__Secure-3PSID\tpsid3\n"
+    "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1893456000\tLOGIN_INFO\tlogininfo\n"
+)
+
 
 @pytest.mark.unit
 class TestImportYTCookiesEndpoint:
@@ -115,3 +128,54 @@ class TestImportYTCookiesEndpoint:
         r = self._post("# Netscape HTTP Cookie File\n.example.com\tTRUE\t/\tFALSE\t0\tOTHER\tx\n")
         assert r.status_code == 400
         assert "YouTube/Google" in r.json()["detail"]
+
+    def test_warns_when_the_export_has_no_login_cookies(self):
+        # NETSCAPE has SID and HSID but none of the other login cookies, which is
+        # what a signed-out youtube.com export looks like. The import still lands
+        # so the user can fix the browser and retry; the response says why.
+        r = self._post(NETSCAPE)
+        body = r.json()
+        assert r.status_code == 200
+        assert body["success"] is True
+        assert body["count"] == 2
+        assert body["signed_in"] is False
+        assert body["warning"]
+        assert "signed-out youtube.com page" in body["warning"]
+        assert "signed-out youtube.com page" in body["message"]
+
+    def test_reports_a_signed_in_export(self, monkeypatch):
+        import services.youtube_innertube as innertube
+
+        monkeypatch.setattr(
+            innertube,
+            "check_watch_later_session",
+            lambda *args, **kwargs: {
+                "signed_in": True,
+                "message": "The cookies open a signed-in YouTube session.",
+            },
+        )
+        r = self._post(SIGNED_IN_NETSCAPE)
+        body = r.json()
+        assert r.status_code == 200
+        assert body["signed_in"] is True
+        assert body["warning"] is None
+        assert body["message"].startswith("Imported 8 cookies.")
+
+    def test_warns_when_the_session_check_says_signed_out(self, monkeypatch):
+        import services.youtube_innertube as innertube
+
+        monkeypatch.setattr(
+            innertube,
+            "check_watch_later_session",
+            lambda *args, **kwargs: {
+                "signed_in": False,
+                "message": "The stored YouTube cookies are no longer signed in.",
+            },
+        )
+        r = self._post(SIGNED_IN_NETSCAPE)
+        body = r.json()
+        assert r.status_code == 200
+        assert body["success"] is True
+        assert body["signed_in"] is False
+        assert body["warning"] == "The stored YouTube cookies are no longer signed in."
+        assert "no longer signed in" in body["message"]
