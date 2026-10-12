@@ -27,7 +27,7 @@ async function loadSubscriptions() {
         renderSubscriptionsList(data.channels || []);
         return true;
     } catch (e) {
-        list.innerHTML = `<div class="col-span-full text-center text-red-400 py-8">Error: ${DOMPurify.sanitize(e.message || 'Failed to load subscriptions due to a network error.')}</div>`;
+        list.innerHTML = `<div class="col-span-full text-center text-red-400 py-8"><p class="font-semibold">Could not load subscriptions</p><p class="mt-2">${DOMPurify.sanitize(e.message || 'Check your connection and try again.')}</p><div class="mt-4 flex flex-wrap justify-center gap-3"><button onclick="loadSubscriptions()" class="ui-control px-4 rounded-lg bg-[#2374a6] text-white">Try again</button><a href="/settings" class="ui-control px-4 rounded-lg border border-[#3a414f] flex items-center">Connection settings</a></div></div>`;
         toast(`Error: ${DOMPurify.sanitize(e.message || 'Network error')}`, 'error');
         return false;
     }
@@ -36,7 +36,7 @@ async function loadSubscriptions() {
 function renderSubscriptionsList(channels) {
     const list = document.getElementById('subscriptions-list');
     if (!channels || !channels.length) {
-        list.innerHTML = '<div class="col-span-full text-center text-gray-400 py-8">No subscriptions found. Connect YouTube in Settings.</div>';
+        list.innerHTML = '<div class="col-span-full text-center text-gray-400 py-8">No subscriptions found. <a href="/settings" class="underline underline-offset-4">Connect YouTube in Settings</a>.</div>';
         return;
     }
     list.innerHTML = channels.map((c) => {

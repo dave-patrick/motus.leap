@@ -8,10 +8,10 @@
     <link rel="icon" type="image/png" href="/static/favicon.png?v=20260717e">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=20260717e">
     <link rel="manifest" href="/static/manifest.json">
-        <script src="/static/shared-shell.js?v=20260922d"></script>
+        <script src="/static/shared-shell.js?v=20261011a"></script>
     <link rel="stylesheet" href="/static/tailwind.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20260720c">
+    <link rel="stylesheet" href="/static/ux-enhancements.css?v=20261011a">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e5e5e5; }
@@ -33,13 +33,63 @@
             font-display: swap;
         }
         .site-title { font-family: 'Deltha', serif; font-weight: normal !important; }
+
+        /* Queue layout is scoped so other app surfaces retain their composition. */
+        .maintenance-page main, .queue-panel, .queue-heading > div { min-width: 0; }
+        .queue-heading { flex-direction: column; align-items: stretch; }
+        .queue-heading h3 { flex-wrap: wrap; font-size: 1rem; line-height: 1.5; }
+        .queue-heading p { white-space: normal; font-size: .8125rem; margin-top: .375rem; }
+        .queue-heading > div:last-child { flex-wrap: wrap; }
+        .queue-heading button { min-height: 44px; white-space: normal; justify-content: center; }
+        .review-action-bar > div:last-child { flex-wrap: wrap; min-width: 0; flex-basis: 100%; max-width: none; }
+        .review-action-bar select { flex: 1 0 100%; order: -1; width: 100%; max-width: none; }
+        .maintenance-page button:disabled { opacity: .5; cursor: not-allowed; }
+        .maintenance-page main button, .maintenance-page main select, .maintenance-page main summary { min-height: 44px; }
+        .maintenance-page main select { min-width: 0; max-width: 100%; }
+        .maintenance-page main [class*="bg-[#2f8fc9]"]:not([class*="bg-[#2f8fc9]/"]) { background-color: #2374a6; }
+        .maintenance-page main .text-gray-500 { color: #a3acba; }
+        .maintenance-page main .text-gray-400 { color: #b8c0cc; }
+        .review-video h4 { font-size: .9375rem; }
+        .review-video { overflow-wrap: anywhere; }
+        .review-video input[type="checkbox"] { width: 22px; height: 22px; }
+        .review-reason summary { display: flex; align-items: center; text-decoration: underline; text-underline-offset: 3px; }
+        @media (max-width: 767px) {
+            html:has(body.maintenance-page) { height: auto; overflow-y: auto; }
+            body.maintenance-page { height: auto; max-height: none; overflow: visible; }
+            .maintenance-page > .flex.flex-1, .maintenance-page .shell-row { overflow: visible; flex: none; }
+            .maintenance-page #shell-header { padding: 10px 12px; gap: 8px; min-height: 64px; }
+            .maintenance-page #shell-header > a { min-width: 0; gap: 8px; padding-left: 48px; }
+            .maintenance-page #shell-header .site-logo { display: none; }
+            .maintenance-page #shell-header .site-title { font-size: clamp(16px, 4.4vw, 24px); white-space: nowrap; }
+            .maintenance-page #shell-header > div { flex-shrink: 0; gap: 4px; }
+            .maintenance-page #shell-header button { margin-left: 0; width: 40px; height: 44px; }
+            .maintenance-page #sidebar-toggle { top: 10px; left: 12px; width: 44px; height: 44px; }
+            .maintenance-page footer { position: static; color: #a3acba; font-size: .75rem; gap: 12px; padding: 16px; }
+            .maintenance-page main { overflow: visible; padding-top: 20px; }
+            .maintenance-page main > div > header > div:last-child { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .maintenance-page main > div > header button, .maintenance-page main > div > header a { white-space: normal; justify-content: center; }
+            .maintenance-page main > div > header details > div { max-width: calc(100vw - 32px); }
+            .queue-panel { min-height: 0; }
+            .queue-heading { padding: 16px; gap: 12px; }
+            .queue-heading > div:last-child { display: grid; grid-template-columns: minmax(0, 1fr); }
+            .review-action-bar { position: static; padding: 16px; gap: 12px; box-shadow: none; }
+            .review-action-bar > div:last-child { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: none; flex-basis: 100%; }
+            .review-action-bar button { width: 100%; white-space: normal; justify-content: center; }
+            .review-action-bar select { width: 100%; max-width: none; flex: none; order: -1; }
+            #dup-queue, #misplaced-queue { overflow: visible; max-height: none; padding: 12px; }
+            .review-video { padding: 12px; }
+            .review-video > div:first-child { display: grid; grid-template-columns: 22px 48px minmax(0, 1fr); gap: 10px; }
+            .review-video > div:first-child > div:nth-child(2) { width: 48px; }
+            .review-video > div:first-child > button { grid-column: 3; justify-self: end; min-width: 44px; }
+            .review-video .text-xs, .review-video [class*="text-[11px]"] { font-size: .8125rem; }
+        }
 </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="/static/auth-check.js?v=1781919149"></script>
     <script src="/static/global_scripts.js?v=1781919149"></script>
-    <script src="/static/ux-enhancements.js?v=20260922d"></script>
+    <script src="/static/ux-enhancements.js?v=20261011a"></script>
 </head>
-<body class="bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
+<body class="maintenance-page bg-[#0f1115] min-h-screen flex flex-col selection:bg-[#2f8fc9]/30">
     <!-- ===== FULL-WIDTH TOP HEADER ===== -->
     <!-- Left Sidebar -->
     <div class="flex flex-1 min-h-0 overflow-hidden">
@@ -49,7 +99,6 @@
             <div class="flex flex-col gap-4 max-w-[1600px] w-full">
                 <header class="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#6fb6df] mb-2">Organize</p>
                         <h2 class="page-heading">Maintenance Queue</h2>
                         <p class="page-description mt-2">Review suggestions before anything moves. Select items, check the reason, then approve a destination or keep them where they are.</p>
                     </div>
@@ -106,11 +155,7 @@
                     <div id="scan-failures" class="hidden mt-3 text-xs text-red-300"></div>
                 </section>
 
-                <section class="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Maintenance review steps">
-                    <div class="bento-card p-4"><div class="text-xs font-bold text-[#6fb6df] mb-1">1 · Review</div><p class="text-sm text-gray-300">Check the title, current playlist, suggestion, and reason.</p></div>
-                    <div class="bento-card p-4"><div class="text-xs font-bold text-[#6fb6df] mb-1">2 · Select</div><p class="text-sm text-gray-300">Choose only the items you want to handle together.</p></div>
-                    <div class="bento-card p-4"><div class="text-xs font-bold text-[#6fb6df] mb-1">3 · Decide</div><p class="text-sm text-gray-300">Move them to a destination or keep them in place.</p></div>
-                </section>
+                <p class="text-sm text-gray-300" aria-label="Maintenance review steps">Review the reason, select your videos, then move them or keep them here.</p>
 
                 <!-- Playlist Filter Toolbar -->
                 <div class="bento-card p-3.5 px-5 flex flex-wrap items-center justify-between gap-3 bg-[#14171f] border border-[#2a2f3a] rounded-xl shadow-sm">
@@ -133,8 +178,8 @@
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- Column 1: Duplicated Videos -->
-                    <div class="bento-card flex flex-col overflow-hidden min-h-[500px]">
-                        <div class="px-5 py-4 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center gap-3">
+                    <div class="queue-panel bento-card flex flex-col overflow-hidden min-h-[500px]">
+                        <div class="queue-heading px-5 py-4 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center gap-3">
                             <div class="flex-1 min-w-0">
                                 <h3 class="text-sm font-bold text-white flex items-center gap-2">
                                     <i class="fa-solid fa-clone text-[#2f8fc9]"></i> Duplicated Videos
@@ -151,7 +196,7 @@
                         <div id="dup-batch-bar" class="review-action-bar hidden px-5 py-2.5 bg-[#181c24] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3 text-xs">
                             <div class="flex items-center gap-2">
                                 <input type="checkbox" id="chk-select-all-dup" onchange="toggleSelectAllDup(this)" class="w-4 h-4 rounded bg-[#2a2f3a] border-gray-600 text-[#2f8fc9] cursor-pointer">
-                                <label for="chk-select-all-dup" class="text-gray-300 font-semibold cursor-pointer">Select All (<span id="selected-dup-count" class="text-[#2f8fc9] font-bold">0</span>)</label>
+                                <label for="chk-select-all-dup" class="text-gray-300 font-semibold cursor-pointer">Select all · <span id="selected-dup-count" class="text-[#2f8fc9] font-bold">0</span> selected</label>
                             </div>
                             <div class="flex items-center gap-2 flex-1 max-w-xl justify-end flex-wrap">
                                 <button onclick="executeBatchRemoveDup()" id="btn-batch-remove-dup" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap" title="Keep videos in their category playlists and remove staging copies">
@@ -169,8 +214,8 @@
                     </div>
 
                     <!-- Column 2: Misplaced & AI Category Moves -->
-                    <div class="bento-card flex flex-col overflow-hidden min-h-[500px]">
-                        <div class="px-5 py-4 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center gap-3">
+                    <div class="queue-panel bento-card flex flex-col overflow-hidden min-h-[500px]">
+                        <div class="queue-heading px-5 py-4 bg-[#14171f] border-b border-[#2a2f3a] flex justify-between items-center gap-3">
                             <div class="flex-1 min-w-0">
                                 <h3 class="text-sm font-bold text-white flex items-center gap-2">
                                     <i class="fa-solid fa-arrows-split-up-and-left text-amber-400"></i> Misplaced Videos & Category Moves
@@ -183,7 +228,7 @@
                                     <i class="fa-solid fa-anchor text-[10px]"></i> Keep All Here
                                 </button>
                                 <button onclick="resetExemptions()" id="btn-reset-exemptions" class="bg-[#2a2f3a] hover:bg-gray-700 text-gray-300 text-xs font-medium py-1.5 px-3 rounded-lg border border-[#374151] transition-all flex items-center gap-1.5 cursor-pointer" title="Reset all 'Keep Here' exemptions so previously hidden misplaced videos show up again">
-                                    <i class="fa-solid fa-rotate-left text-[10px]"></i> Reset Exemptions
+                                    <i class="fa-solid fa-rotate-left text-[10px]"></i> Show kept videos again
                                 </button>
                                 <button onclick="applyMaintenance('misplaced')" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"><i class="fa-solid fa-check text-[10px]"></i> Fix All</button>
                             </div>
@@ -193,11 +238,11 @@
                         <div id="misplaced-batch-bar" class="review-action-bar hidden px-5 py-2.5 bg-[#181c24] border-b border-[#2a2f3a] flex flex-wrap items-center justify-between gap-3 text-xs">
                             <div class="flex items-center gap-2">
                                 <input type="checkbox" id="chk-select-all-misplaced" onchange="toggleSelectAllMisplaced(this)" class="w-4 h-4 rounded bg-[#2a2f3a] border-gray-600 text-[#2f8fc9] cursor-pointer">
-                                <label for="chk-select-all-misplaced" class="text-gray-300 font-semibold cursor-pointer">Select All (<span id="selected-count" class="text-[#2f8fc9] font-bold">0</span>)</label>
+                                <label for="chk-select-all-misplaced" class="text-gray-300 font-semibold cursor-pointer">Select all · <span id="selected-count" class="text-[#2f8fc9] font-bold">0</span> selected</label>
                             </div>
                             <div class="flex items-center gap-2 flex-1 max-w-lg justify-end">
                                 <button onclick="executeBatchLeaveInPlace()" id="btn-batch-leave" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap" title="Keep all selected videos in their current playlists and stop flagging them as misplaced">
-                                    <i class="fa-solid fa-anchor text-[10px]"></i> Leave Selected in Place
+                                    <i class="fa-solid fa-anchor text-[10px]"></i> Keep selected here
                                 </button>
                                 <select id="batch-target-playlist" aria-label="Destination for selected misplaced videos" class="bg-[#14171f] border border-[#2a2f3a] text-white text-xs rounded-lg px-3 py-1.5 outline-none font-medium flex-1 focus:border-[#2f8fc9] max-w-[200px]">
                                 </select>
@@ -824,7 +869,7 @@
             } catch (e) {
                 toast(`Error: ${e.message}`, 'error');
             } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-anchor text-[10px]"></i> Leave Selected in Place`; }
+                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-anchor text-[10px]"></i> Keep selected here`; }
             }
         }
 
@@ -892,7 +937,7 @@
             } catch (e) {
                 toast(`Error: ${e.message}`, 'error');
             } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-rotate-left text-[10px]"></i> Reset Exemptions`; }
+                if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-rotate-left text-[10px]"></i> Show kept videos again`; }
             }
         }
 
@@ -1139,15 +1184,18 @@
                 }
 
                 const _locationSub = (_from && _to) 
-                    ? `<div class="text-xs text-gray-400 mt-1 flex items-center gap-1.5"><span class="text-red-400 font-medium">${_from}</span> <i class="fa-solid fa-arrow-right text-[10px] text-gray-500"></i> <span class="text-green-400 font-semibold">${_to}</span></div>` 
+                    ? `<div class="text-xs text-gray-400 mt-1 flex flex-wrap items-center gap-1.5"><span class="text-red-400 font-medium">${_from}</span> <i class="fa-solid fa-arrow-right text-[10px] text-gray-500"></i> <span class="text-green-400 font-semibold">${_to}</span></div>`
                     : '';
                 const _isStagingReview = item.match_type === 'staging_review';
-                const _explanation = type === 'misplaced' ? `<div class="mt-2 rounded-lg bg-[#14171f] border border-[#2a2f3a] px-3 py-2 text-[10px] text-gray-400">
-                    <span class="text-gray-200 font-semibold">Rule:</span> ${DOMPurify.sanitize(_isStagingReview ? '1~Sort staging review' : (item.match_type || 'mapping'))}
-                    <span class="mx-1">·</span>
-                    <span class="text-gray-200 font-semibold">Why:</span> ${DOMPurify.sanitize(item.match_reason || 'Channel mapping rule')}
-                    ${_isStagingReview ? '<span class="mx-1">·</span><span class="text-amber-300">Choose a destination</span>' : `<span class="mx-1">·</span><span class="text-gray-200 font-semibold">Confidence:</span> ${Math.round(Number(item.confidence ?? 1) * 100)}%`}
-                    <span class="mx-1">·</span>${DOMPurify.sanitize(item.protection_reason || 'No keep-in-place protection matched')}
+                const _explanation = type === 'misplaced' ? `<div class="review-reason mt-3 text-sm text-gray-300">
+                    <p>${DOMPurify.sanitize(item.match_reason || 'This channel is mapped to the suggested playlist.')}</p>
+                    ${_isStagingReview ? '<p class="text-amber-300 mt-1">Choose a destination</p>' : ''}
+                    <details class="mt-2 text-xs text-gray-400">
+                        <summary class="cursor-pointer">Suggestion details</summary>
+                        <p class="mt-2">Rule: ${DOMPurify.sanitize(_isStagingReview ? '1~Sort staging review' : (item.match_type || 'mapping'))}
+                        ${_isStagingReview ? '' : ` · Confidence: ${Math.round(Number(item.confidence ?? 1) * 100)}%`}</p>
+                        <p>${DOMPurify.sanitize(item.protection_reason || 'No keep-in-place protection matched')}</p>
+                    </details>
                 </div>` : '';
 
                 let _checkboxHtml = '';
@@ -1160,7 +1208,7 @@
                 }
 
                 return `
-                <div class="flex flex-col bg-[#20242c] p-3.5 rounded-xl border border-[#2a2f3a] mb-3 hover:border-[#2f8fc9]/40 transition-colors shadow-sm">
+                <div class="review-video flex flex-col bg-[#20242c] p-3.5 rounded-xl border border-[#2a2f3a] mb-3 hover:border-[#2f8fc9]/40 transition-colors shadow-sm">
                     <div class="flex items-start gap-3">
                         ${_checkboxHtml}
                         <div class="w-16 h-11 bg-gray-800 rounded-lg overflow-hidden flex-shrink-0 border border-[#2a2f3a] shadow-inner">

@@ -104,7 +104,7 @@
         statCard('Scheduled jobs', (jobs || []).length + (nextJob ? ' · next ' + shortTime(nextJob.next_run) : ''), 'info');
 
       if (!providers.length) {
-        provBox.innerHTML = emptyState('No providers connected', 'Add one from the Providers tab.');
+        provBox.innerHTML = emptyState('No providers connected', 'Choose a provider to enable AI suggestions.') + '<a href="/ai/providers" class="inline-flex min-h-11 items-center px-4 mt-3 rounded-lg bg-[#2374a6] text-white text-sm">Connect provider</a>';
       } else {
         provBox.innerHTML = providers.map(p => {
           const status = (p.status === 'active' || p.status === 'enabled' || p.is_active);
@@ -696,12 +696,14 @@
       $('#rule-modal-title').textContent = 'Edit Rule';
       api('/api/ai/rules/' + id).then(r => {
         $('#rule-name').value = r.name || ''; $('#rule-playlist').value = r.target_playlist || '';
+        $('#rule-playlist').dispatchEvent(new Event('change', { bubbles: true }));
         $('#rule-desc').value = r.description || ''; $('#rule-model').value = r.model || '';
         $('#rule-enabled').checked = !!r.enabled;
       }).catch(e => toast(e.message, 'error'));
     } else {
       $('#rule-modal-title').textContent = 'New Rule';
       $('#rule-name').value = ''; $('#rule-playlist').value = ''; $('#rule-desc').value = ''; $('#rule-model').value = ''; $('#rule-enabled').checked = true;
+      $('#rule-playlist').dispatchEvent(new Event('change', { bubbles: true }));
     }
     const m = $('#rule-modal'); m.classList.remove('hidden'); m.classList.add('flex');
   }
@@ -906,13 +908,13 @@
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Parsing...';
     try {
       const res = await api('/api/ai/jobs/parse', { method: 'POST', body: JSON.stringify({ text }) });
-      if (res.cron) $('#job-cron').value = res.cron;
+      if (res.cron) { $('#job-cron').value = res.cron; $('#job-cron').dispatchEvent(new Event('input', { bubbles: true })); }
       if (res.name) $('#job-name').value = res.name;
       if (res.task && res.task.type) {
         const sel = $('#job-task');
         for (const o of sel.options) { if (o.value === res.task.type) { o.selected = true; break; } }
       }
-      if (res.task && res.task.payload && res.task.payload.playlist_id) $('#job-playlist').value = res.task.payload.playlist_id;
+      if (res.task && res.task.payload && res.task.payload.playlist_id) { $('#job-playlist').value = res.task.payload.playlist_id; $('#job-playlist').dispatchEvent(new Event('change', { bubbles: true })); }
       updateJobPrivWarn();
       toast('Parsed successfully', 'success');
     } catch (e) { 

@@ -75,9 +75,12 @@ public final class MainActivity extends AppCompatActivity {
         root.requestApplyInsets();
         LinearLayout brand = new LinearLayout(this); brand.setGravity(android.view.Gravity.CENTER_VERTICAL);
         root.addView(brand);
-        brand.addView(wordmark(), new LinearLayout.LayoutParams(dp(190), dp(48)));
+        TextView brandTitle = new TextView(this); brandTitle.setText("motus.leap");
+        brandTitle.setTextColor(ink); brandTitle.setTextSize(22);
+        brandTitle.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        brand.addView(brandTitle, new LinearLayout.LayoutParams(0, dp(48), 1));
         View spacer = new View(this);
-        brand.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+        brandTitle.setGravity(android.view.Gravity.CENTER_VERTICAL);
     }
     private ImageView wordmark() {
         ImageView image = new ImageView(this);
@@ -120,13 +123,24 @@ public final class MainActivity extends AppCompatActivity {
         root.removeViewAt(0);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        LinearLayout viewport = new LinearLayout(this);
+        viewport.setOrientation(LinearLayout.VERTICAL);
+        viewport.setGravity(android.view.Gravity.CENTER);
+        viewport.setPadding(0, dp(32), 0, dp(32));
+        scroll.addView(viewport, new ScrollView.LayoutParams(-1, -1));
         LinearLayout form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(0, dp(24), 0, dp(24)); scroll.addView(form);
-        LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(dp(260), dp(64));
-        brandParams.bottomMargin = dp(24);
-        form.addView(wordmark(), brandParams);
-        label(form, "Your library, organized.", 26, ink);
-        label(form, "Scan your YouTube library and find the right playlist for every video.", 16, muted);
+        int available = getResources().getDisplayMetrics().widthPixels - dp(40);
+        viewport.addView(form, new LinearLayout.LayoutParams(Math.min(dp(420), available), -2));
+        TextView brand = label(form, "motus.leap", 30, ink);
+        android.text.SpannableString brandText = new android.text.SpannableString("motus.leap");
+        brandText.setSpan(new android.text.style.ForegroundColorSpan(accent), 3, 4, 0);
+        brand.setText(brandText);
+        brand.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        brand.setPadding(0, 0, 0, dp(40));
+        TextView headline = label(form, "Your library, organized.", 30, ink);
+        headline.setPadding(0, 0, 0, dp(12));
+        TextView description = label(form, "Scan your YouTube library and find the right playlist for every video.", 16, muted);
+        description.setPadding(0, 0, 0, dp(32));
         String server = getPreferences(MODE_PRIVATE).getString("server", "https://tubemanager.onrender.com");
         LinearLayout serverPanel = new LinearLayout(this); serverPanel.setOrientation(LinearLayout.VERTICAL);
         EditText address = field(serverPanel, "Server address", server, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
@@ -135,17 +149,34 @@ public final class MainActivity extends AppCompatActivity {
         google.setContentDescription("Sign in with Google");
         google.setScaleType(ImageView.ScaleType.FIT_CENTER);
         google.setBackgroundColor(Color.TRANSPARENT); google.setPadding(0, 0, 0, 0);
-        LinearLayout.LayoutParams googleParams = new LinearLayout.LayoutParams(dp(228), dp(48));
-        googleParams.topMargin = dp(28); googleParams.bottomMargin = dp(8);
+        LinearLayout.LayoutParams googleParams = new LinearLayout.LayoutParams(Math.min(dp(280), available), dp(56));
+        googleParams.bottomMargin = dp(12);
         form.addView(google, googleParams);
         google.setOnClickListener(view -> startGoogle(address.getText().toString()));
-        label(form, "Sign in securely with your Google account.", 13, muted);
-        if (!message.isEmpty()) label(form, message, 14, Color.rgb(255, 180, 171));
+        label(form, "Sign in securely with your Google account.", 14, muted);
+        if (!message.isEmpty()) {
+            TextView error = label(form, message, 14, Color.rgb(255, 180, 171));
+            error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        }
+        View divider = new View(this); divider.setBackgroundColor(Color.rgb(42, 47, 58));
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(-1, dp(1));
+        dividerParams.setMargins(0, dp(28), 0, dp(12)); form.addView(divider, dividerParams);
         Button settings = button(form, "Server settings", () -> serverPanel.setVisibility(serverPanel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE));
         ((MaterialButton) settings).setBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
-        settings.setTextColor(muted);
+        settings.setTextColor(muted); settings.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+        settings.setPadding(0, 0, 0, 0);
+        settings.setContentDescription("Server settings. Change the server address if you use a different server.");
         form.addView(serverPanel); serverPanel.setVisibility(View.GONE);
+        // Use the actual inset/window width, including split-screen and rotation.
+        viewport.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            int width = Math.min(dp(420), Math.max(1, right - left - view.getPaddingLeft() - view.getPaddingRight()));
+            if (form.getLayoutParams().width != width) {
+                form.getLayoutParams().width = width; form.requestLayout();
+                google.getLayoutParams().width = Math.min(dp(280), width); google.requestLayout();
+            }
+        });
     }
+
     private void home(String destination) {
         page = destination; frame();
         label(root, page, 22, ink);
@@ -224,9 +255,13 @@ public final class MainActivity extends AppCompatActivity {
             if (playlists == null || playlists.length() == 0) {
                 label(content, "No playlists available. Connect YouTube on your account website, then refresh.", 16, muted); return;
             }
+            java.util.List<View> choices = searchChoices(content, "Search playlists");
             for (int i = 0; i < playlists.length(); i++) {
                 JSONObject playlist = playlists.optJSONObject(i);
-                if (playlist != null) button(content, playlist.optString("title", "Untitled playlist"), () -> chooseVideo(playlist, playlists));
+                if (playlist != null) {
+                    Button choice = button(content, playlist.optString("title", "Untitled playlist"), () -> chooseVideo(playlist, playlists));
+                    choice.setTag(playlist.optString("title")); choices.add(choice);
+                }
             }
             return;
         }
@@ -234,6 +269,7 @@ public final class MainActivity extends AppCompatActivity {
         JSONArray items = data.optJSONArray(key);
         if (items == null) { label(content, "The server returned an unexpected response. Check that it runs a compatible motus.leap version.", 16, ink); return; }
         if (items.length() == 0) { label(content, "No " + key + " yet. Connect YouTube or organize your library on the website, then refresh.", 16, muted); return; }
+        java.util.List<View> choices = searchChoices(content, "Search " + key);
         for (int i = 0; i < items.length(); i++) {
             JSONObject item = items.optJSONObject(i); if (item == null) continue;
             String id = item.optString("id");
@@ -242,6 +278,8 @@ public final class MainActivity extends AppCompatActivity {
             else if (destination.equals("Channels"))
                 row(item.optString("title", "Unnamed channel"), item.optString("subscribers", "—") + " subscribers", "https://www.youtube.com/channel/" + Uri.encode(id));
             else row(item.optString("channel", item.optString("channel_id")), "Playlist: " + item.optString("playlist"), null);
+            View entry = content.getChildAt(content.getChildCount() - 1);
+            entry.setTag(item.optString("title", item.optString("channel", item.optString("channel_id"))) + " " + item.optString("playlist")); choices.add(entry);
         }
     }
     private interface ServerWork { JSONObject run(ApiClient client) throws Exception; }
@@ -280,24 +318,54 @@ public final class MainActivity extends AppCompatActivity {
     private void findings() {
         perform("Loading scan findings…", client -> client.get("/api/maintenance"), response -> {
             label(content, "Scan findings", 22, ink);
-            // Preserve the backend's reported fields rather than inventing counts.
-            var keys = response.keys();
-            while (keys.hasNext()) {
-                String key = keys.next(); Object value = response.opt(key);
-                if (value instanceof JSONArray) row(key.replace('_', ' '), ((JSONArray) value).length() + " items", null);
-                else if (value != null && value != JSONObject.NULL) row(key.replace('_', ' '), value.toString(), null);
-            }
+            label(content, "Review each video and its suggested destination on the website before making changes.", 16, muted);
+            findingGroup("Duplicates", response.optJSONArray("duplicated_videos"));
+            findingGroup("Suggested moves", response.optJSONArray("misplaced_videos"));
+            findingGroup("Other suggested moves", response.optJSONArray("move_from_x_to_y"));
+            button(content, "Review videos on website", () -> open(api.base + "/maintenance"));
             button(content, "Back to scans", () -> home("Scans"));
         });
+    }
+    private void findingGroup(String title, JSONArray items) {
+        label(content, title + " (" + (items == null ? 0 : items.length()) + ")", 20, ink);
+        if (items == null || items.length() == 0) { label(content, "No " + title.toLowerCase() + " reported.", 15, muted); return; }
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i); if (item == null) continue;
+            String from = item.optString("current_playlist_title", item.optString("source_playlist_title", "Current playlist"));
+            String to = item.optString("mapped_playlist_title", item.optString("target_playlist_title", "Review destination"));
+            String reason = item.optString("match_reason", item.optString("channel_title", "Review this video on the website."));
+            row(item.optString("title", item.optString("video_title", "Untitled video")), from + " → " + to + "\n" + reason, null);
+        }
+    }
+    private java.util.List<View> searchChoices(LinearLayout parent, String hint) {
+        java.util.List<View> choices = new java.util.ArrayList<>();
+        EditText search = field(parent, hint, "", InputType.TYPE_CLASS_TEXT);
+        search.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence text, int start, int count, int after) {}
+            public void onTextChanged(CharSequence text, int start, int before, int count) {
+                String query = text.toString().toLowerCase(java.util.Locale.ROOT).trim();
+                for (View item : choices) item.setVisibility(String.valueOf(item.getTag()).toLowerCase(java.util.Locale.ROOT).contains(query) ? View.VISIBLE : View.GONE);
+            }
+            public void afterTextChanged(android.text.Editable text) {}
+        });
+        return choices;
+    }
+    private void suggestionRecovery(JSONObject video, JSONObject source, JSONArray playlists) {
+        button(content, "Try suggestion again", () -> suggest(video, source, playlists));
+        button(content, "Choose another video", () -> chooseVideo(source, playlists));
     }
     private void chooseVideo(JSONObject source, JSONArray playlists) {
         perform("Loading playlist videos…", client -> client.get("/api/youtube/videos?playlist_id=" + Uri.encode(source.getString("id"))), response -> {
             JSONArray videos = response.optJSONArray("videos");
             label(content, source.optString("title"), 22, ink);
             if (videos == null || videos.length() == 0) label(content, "No videos available in this playlist.", 16, muted);
-            else for (int i = 0; i < videos.length(); i++) {
+            java.util.List<View> choices = searchChoices(content, "Search videos");
+            for (int i = 0; videos != null && i < videos.length(); i++) {
                 JSONObject video = videos.optJSONObject(i);
-                if (video != null) button(content, video.optString("title", "Untitled video"), () -> suggest(video, source, playlists));
+                if (video != null) {
+                    Button choice = button(content, video.optString("title", "Untitled video"), () -> suggest(video, source, playlists));
+                    choice.setTag(video.optString("title")); choices.add(choice);
+                }
             }
             button(content, "Choose another playlist", () -> home("AI sort"));
         });
@@ -313,13 +381,13 @@ public final class MainActivity extends AppCompatActivity {
         }, response -> {
             JSONObject suggestion = response.getJSONArray("results").getJSONObject(0);
             label(content, video.optString("title"), 22, ink);
-            if (!suggestion.isNull("error")) { label(content, suggestion.optString("error"), 16, ink); return; }
+            if (!suggestion.isNull("error")) { label(content, suggestion.optString("error"), 16, ink); suggestionRecovery(video, source, playlists); return; }
             String name = suggestion.optString("matched_playlist", "");
             JSONObject target = null;
             for (int i = 0; i < playlists.length(); i++) {
                 JSONObject candidate = playlists.getJSONObject(i);
                 if (name.equals(candidate.optString("title"))) {
-                    if (target != null) { label(content, "Several playlists share that title. Rename them before sorting.", 16, ink); return; }
+                    if (target != null) { label(content, "Several playlists share that title. Rename them before sorting.", 16, ink); suggestionRecovery(video, source, playlists); return; }
                     target = candidate;
                 }
             }
@@ -328,6 +396,7 @@ public final class MainActivity extends AppCompatActivity {
             else {
                 JSONObject destination = target;
                 label(content, "Suggested playlist: " + name, 18, ink);
+                if (!suggestion.optString("reason").isEmpty()) label(content, suggestion.optString("reason"), 16, muted);
                 button(content, "Review move", () -> new AlertDialog.Builder(this).setTitle("Move this video?")
                     .setMessage("Move “" + video.optString("title") + "” from “" + source.optString("title") + "” to “" + name + "”? This changes your YouTube playlists.")
                     .setNegativeButton("Cancel", null).setPositiveButton("Move video", (dialog, which) -> moveVideo(video, source, destination)).show());

@@ -847,6 +847,8 @@ function requiresFullPageNavigation(url) {
         url.startsWith('/system') ||
         url.startsWith('/logs') ||
         url.startsWith('/maintenance') ||
+        url.startsWith('/bulk') ||
+        url.startsWith('/ai') ||
         // Playlist pages own page-specific state and initialization. Reloading the
         // document prevents stale globals and guarantees their data fetch runs.
         url.startsWith('/playlist')

@@ -58,7 +58,7 @@ Render deployment. Multiple workers or replicas need a shared, atomic TTL store.
 ## Current scope
 
 Playlist editing, mapping editing, batch AI sorting, automatic job polling,
-persistent encrypted sessions, search, and full video detail screens are follow-up work.
+persistent encrypted sessions and full video detail screens are follow-up work.
 Mappings currently show server identifiers. The server remains responsible for
 YouTube credentials and all background processing. No server secrets belong in
 the APK. The backend was not modified for this client.
@@ -67,6 +67,12 @@ Version 0.3.0 uses Material 3 controls and navigation with Yomu's dark surface,
 muted text, rounded shapes, and pale blue accent as the visual reference. Server
 configuration is collapsed on the Google-only welcome screen. The original
 motus.leap artwork is retained.
+
+Version 0.4.0 uses a clean text wordmark on welcome and authenticated screens,
+adds filtering of loaded playlist/channel/video lists, and retains recovery
+actions for failed or ambiguous AI suggestions. Scan findings show video titles,
+playlist context and reasons, with an explicit link to website review before
+any changes. Google OAuth and reviewed move behavior are unchanged.
 
 ## Validation limits
 
