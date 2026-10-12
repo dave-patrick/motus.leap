@@ -56,14 +56,37 @@ def _video_entry(video_id):
     }
 
 
-def _video_page(video_ids, *, continuation=None, logged_in="1"):
+def _video_page(video_ids, *, continuation=None, popup=False, logged_in="1"):
     items = [_video_entry(video_id) for video_id in video_ids]
+    if popup:
+        # A real Watch Later page leads with a token-less "Reload for updates"
+        # renderer; the paging token only ever appears in its own renderer.
+        items.append(
+            {
+                "continuationItemRenderer": {
+                    "continuationEndpoint": {
+                        "commandExecutorCommand": {
+                            "commands": [{"playlistVotingRefreshPopupCommand": {}}]
+                        }
+                    }
+                }
+            }
+        )
     if continuation:
         items.append(
             {
                 "continuationItemRenderer": {
                     "continuationEndpoint": {
-                        "continuationCommand": {"token": continuation}
+                        "commandExecutorCommand": {
+                            "commands": [
+                                {
+                                    "continuationCommand": {
+                                        "token": continuation,
+                                        "request": "CONTINUATION_REQUEST_TYPE_BROWSE",
+                                    }
+                                }
+                            ]
+                        }
                     }
                 }
             }
@@ -134,7 +157,7 @@ def test_list_watch_later_reads_renderers():
 def test_list_watch_later_follows_continuation_pages():
     client = FakeClient(
         posts=[
-            _video_page(["abcdefghijk"], continuation="page-two-token"),
+            _video_page(["abcdefghijk"], continuation="page-two-token", popup=True),
             _video_page(["lmnopqrstuv"]),
         ]
     )
@@ -142,6 +165,106 @@ def test_list_watch_later_follows_continuation_pages():
     assert [video["video_id"] for video in videos] == ["abcdefghijk", "lmnopqrstuv"]
     assert len(client.posts) == 2
     assert client.posts[1]["json"]["continuation"] == "page-two-token"
+
+
+@pytest.mark.unit
+def test_list_watch_later_collects_every_page_up_to_the_real_total():
+    # Watch Later paginates 100 at a time; the real library held 446 videos.
+    # Before the nested-token fix this stopped at the first 100.
+    expected = []
+    pages = []
+    for page in range(5):
+        size = 46 if page == 4 else 100
+        video_ids = [f"p{page}{index:09d}" for index in range(size)]
+        expected.extend(video_ids)
+        pages.append(
+            _video_page(
+                video_ids,
+                continuation=None if page == 4 else f"token-{page + 1}",
+                popup=page == 0,
+            )
+        )
+    client = FakeClient(posts=pages)
+    videos = list_watch_later(client=client)
+    assert [video["video_id"] for video in videos] == expected
+    assert len(videos) == 446
+    assert len(client.posts) == 5
+    assert client.posts[-1]["json"]["continuation"] == "token-4"
+
+
+@pytest.mark.unit
+def test_list_watch_later_stops_at_a_popup_only_page():
+    client = FakeClient(posts=[_video_page(["abcdefghijk"], popup=True)])
+    videos = list_watch_later(client=client)
+    assert [video["video_id"] for video in videos] == ["abcdefghijk"]
+    assert len(client.posts) == 1
+
+
+@pytest.mark.unit
+def test_continuation_token_ignores_a_popup_and_reads_the_nested_command():
+    payload = {
+        "contents": {
+            "items": [
+                {
+                    "continuationItemRenderer": {
+                        "continuationEndpoint": {
+                            "commandExecutorCommand": {
+                                "commands": [{"playlistVotingRefreshPopupCommand": {}}]
+                            }
+                        }
+                    }
+                },
+                {
+                    "continuationItemRenderer": {
+                        "continuationEndpoint": {
+                            "commandExecutorCommand": {
+                                "commands": [
+                                    {"continuationCommand": {"token": "next-page"}}
+                                ]
+                            }
+                        }
+                    }
+                },
+            ]
+        }
+    }
+    assert youtube_innertube._continuation_token(payload) == "next-page"
+
+
+@pytest.mark.unit
+def test_continuation_token_is_empty_without_a_paging_renderer():
+    payload = {
+        "contents": {
+            "items": [
+                {
+                    "continuationItemRenderer": {
+                        "continuationEndpoint": {
+                            "commandExecutorCommand": {
+                                "commands": [{"playlistVotingRefreshPopupCommand": {}}]
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    }
+    assert youtube_innertube._continuation_token(payload) == ""
+
+
+@pytest.mark.unit
+def test_continuation_token_still_reads_the_legacy_flat_shape():
+    payload = {
+        "items": [
+            {
+                "continuationItemRenderer": {
+                    "continuationEndpoint": {
+                        "continuationCommand": {"token": "legacy-token"}
+                    }
+                }
+            }
+        ]
+    }
+    assert youtube_innertube._continuation_token(payload) == "legacy-token"
 
 
 @pytest.mark.unit

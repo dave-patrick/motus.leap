@@ -48,3 +48,13 @@ Watch Later now runs over InnerTube, the same private web API the YouTube site i
 Known limitations: Watch Later is served by a private API, so a YouTube change can break it; and `render.yaml` still installs Playwright Chromium at build time, which only matters for the explicitly-supplied-driver path and can be dropped later.
 
 Verification: 20 new tests in `tests/unit/test_watch_later_innertube.py` (renderer and continuation parsing, non-video lockups skipped, the `SAPISIDHASH` signature, `STATUS_SUCCEEDED`-only confirmation, signed-out detection, and that Watch Later reads/removals start no browser), 397 tests total, all passing. Live production Watch Later membership and transfer are still not verified; the cookies installed in production are currently signed out.
+
+## Pagination fix, 2026-10-12 fifth pass
+
+PR #6 shipped the browser-free read, but production still returned only **100** of the **446** videos actually in Watch Later — a silent truncation that would have left 346 behind on a "move all".
+
+Root cause: `_continuation_token()` looked only at `continuationItemRenderer.continuationEndpoint.continuationCommand.token`. YouTube now nests the token deeper, at `continuationItemRenderer.continuationEndpoint.commandExecutorCommand.commands[].continuationCommand.token`. The live read found `continuationCommand` once and no top-level `continuation` key, so the first page looked terminal and paging stopped after one page.
+
+The pages also carry a second `continuationItemRenderer` — a "Reload for updates" popup driven by `playlistVotingRefreshPopupCommand` — which has no token. The fix walks each continuation renderer's subtree for the first real `continuationCommand.token`, which reads both the new nested shape and the older flat one while ignoring the popup.
+
+Verification on the deployed instance: page 1 → 100, page 2 → 200, page 3 → 300, page 4 → 400, page 5 (+46) → 446, then no token, ending at the full **446**-video library. `_MAX_CONTINUATION_PAGES = 40` is ample for about five pages. The test helper in `tests/unit/test_watch_later_innertube.py` emitted the old flat shape, so the suite passed while production truncated; it now emits the nested `commandExecutorCommand.commands[]` shape, with a 446-video multi-page regression test, a popup-only-page stop test, and direct token-shape tests. 402 tests pass.
