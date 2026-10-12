@@ -211,7 +211,7 @@ def get_playwright_browser():
         # otherwise Playwright uses standard Chromium
         browser_context = pw.chromium.launch_persistent_context(
             user_data_dir=PLAYWRIGHT_USER_DATA_DIR,
-            headless=False,
+            headless=(os.name != "nt" and not os.environ.get("DISPLAY")),
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             args=[
                 "--window-position=-10000,0",

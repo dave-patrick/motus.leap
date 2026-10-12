@@ -7,10 +7,12 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
-/** Native client for the existing FastAPI contracts; no credentials are persisted. */
+/** Native client for the existing FastAPI contracts. */
 final class ApiClient {
     final String base;
     private String token = "";
+    String sessionToken() { return token; }
+    void restoreToken(String saved) { token = saved; }
     ApiClient(String address) {
         URI uri = URI.create(address.trim());
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
@@ -54,7 +56,14 @@ final class ApiClient {
                 text = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
             }
             if (status == 401) throw new SessionExpiredException();
-            if (status < 200 || status >= 300) throw new Exception("Server returned " + status + ". Please retry or check your account.");
+            if (status < 200 || status >= 300) {
+                String detail = "Server returned " + status + ". Please retry or check your account.";
+                if (status >= 400 && status < 500) {
+                    try { Object message = new JSONObject(text).opt("detail"); if (message instanceof String) detail = (String) message; }
+                    catch (Exception ignored) {}
+                }
+                throw new Exception(detail);
+            }
             JSONObject response = new JSONObject(text);
             if (!response.isNull("error") && !response.optString("error").isEmpty())
                 throw new Exception(response.optString("error"));

@@ -302,6 +302,81 @@ async def bulk_move_videos(
     return operation
 
 
+class WatchLaterToSortRequest(BaseModel):
+    confirm: bool = False
+
+
+@router.post("/watch-later-to-sort", response_model=BulkOperationResponse)
+async def watch_later_to_sort(
+    request: Request,
+    payload: WatchLaterToSortRequest,
+    background_tasks: BackgroundTasks,
+    ops_storage: OperationsStorage = Depends(get_operations_storage),
+):
+    if not payload.confirm:
+        raise HTTPException(400, "Confirm the move from Watch Later to 1~Sort.")
+    active = next((op for op in ops_storage.list_all() if op.operation_type == "watch_later_to_sort" and op.status in {"pending", "in_progress"}), None)
+    if active:
+        return active
+    from app import youtube_service as service
+    if service is None:
+        raise HTTPException(400, "Connect YouTube in Settings first.")
+    playlists = await service.list_playlists()
+    matches = [p for p in playlists.get("playlists", []) if str(p.get("title", "")).strip().casefold() == "1~sort"]
+    if len(matches) != 1:
+        raise HTTPException(400, "Create exactly one playlist named 1~Sort before moving Watch Later.")
+    client = service.get_client(require_oauth=True)
+    if not client:
+        raise HTTPException(400, "Connect YouTube in Settings first.")
+    operation = BulkOperationResponse(operation_id=_operation_id("watch_later"), operation_type="watch_later_to_sort", total_items=0, status="pending", started_at=datetime.now())
+    ops_storage.set(operation.operation_id, operation)
+    await ops_storage.save()
+    background_tasks.add_task(process_watch_later_to_sort, operation.operation_id, matches[0]["id"], client, service, ops_storage)
+    return operation
+
+
+async def process_watch_later_to_sort(operation_id, target_id, client, service, storage):
+    operation = storage.get(operation_id)
+    loop = asyncio.get_running_loop()
+    operation.status = "in_progress"
+    await storage.update_and_save(operation)
+    def run():
+        from core.actions import get_browser
+        from services.watch_later_transfer import transfer_item, read_current_watch_later
+        driver = None
+        def save():
+            asyncio.run_coroutine_threadsafe(storage.update_and_save(operation), loop).result()
+        try:
+            driver = get_browser()
+            videos = read_current_watch_later(driver)
+            operation.total_items = len(videos)
+            save()
+            for video in videos:
+                if operation.status == "cancelled": break
+                try:
+                    transfer_item(client, driver, target_id, video)
+                    operation.succeeded += 1
+                except Exception as error:
+                    operation.failed += 1
+                    operation.errors.append(f"{video.get('title', 'Video')}: {error}")
+                operation.processed += 1
+                save()
+            if operation.status != "cancelled": operation.status = "completed"
+        except Exception as error:
+            operation.status = "failed"
+            operation.errors.append(str(error))
+        finally:
+            if driver:
+                try: driver.quit()
+                except Exception: pass
+    await asyncio.to_thread(run)
+    for playlist_id in ("WL", target_id):
+        try: await service._cache_invalidate_playlist(playlist_id)
+        except Exception: pass
+    operation.completed_at = datetime.now()
+    await storage.update_and_save(operation)
+
+
 @router.post("/delete", response_model=BulkOperationResponse)
 async def bulk_delete_videos(
     request: BulkDeleteRequest,

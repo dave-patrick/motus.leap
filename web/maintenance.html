@@ -112,6 +112,7 @@
                         <a href="/bulk" class="min-h-11 px-4 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#3a414f] text-gray-200 text-sm font-semibold flex items-center gap-2 transition-colors">
                             <i class="fa-solid fa-layer-group"></i> Bulk operations
                         </a>
+                        <button id="watch-later-sort-button" onclick="moveWatchLaterToSort()" class="min-h-11 px-4 py-2 rounded-lg bg-[#2374a6] text-white text-sm font-semibold">Watch Later → 1~Sort</button>
                         <details class="relative">
                           <summary class="list-none min-h-11 px-4 py-2 rounded-lg bg-[#20242c] hover:bg-[#2a2f3a] border border-[#3a414f] text-gray-200 text-sm font-semibold flex items-center gap-2 cursor-pointer"><i class="fa-solid fa-ellipsis"></i> More actions</summary>
                           <div class="absolute right-0 mt-2 w-72 p-2 rounded-xl bg-[#1a1d24] border border-[#2a2f3a] shadow-2xl z-50 flex flex-col gap-1">
@@ -157,6 +158,7 @@
 
                 <p class="text-sm text-gray-300" aria-label="Maintenance review steps">Review the reason, select your videos, then move them or keep them here.</p>
 
+                <p id="watch-later-transfer-status" class="hidden text-sm text-gray-300" aria-live="polite"></p>
                 <!-- Playlist Filter Toolbar -->
                 <div class="bento-card p-3.5 px-5 flex flex-wrap items-center justify-between gap-3 bg-[#14171f] border border-[#2a2f3a] rounded-xl shadow-sm">
                     <div class="flex flex-wrap items-center gap-3 flex-1 min-w-0">
@@ -257,6 +259,29 @@
                 </div>
             </div>
         <script>
+        async function moveWatchLaterToSort() {
+            if (!confirm('Move all current Watch Later videos to 1~Sort? Each video will be removed from Watch Later only after YouTube confirms it is saved in 1~Sort.')) return;
+            const button = document.getElementById('watch-later-sort-button');
+            const status = document.getElementById('watch-later-transfer-status');
+            button.disabled = true; status.classList.remove('hidden'); status.textContent = 'Queuing Watch Later move…';
+            try {
+                const response = await authFetch('/api/bulk/watch-later-to-sort', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({confirm:true})});
+                const queued = await response.json();
+                if (!response.ok) throw new Error(queued.detail || 'Could not queue this move.');
+                while (true) {
+                    const check = await authFetch('/api/bulk/operations/' + encodeURIComponent(queued.operation_id));
+                    if (!check.ok) throw new Error('Could not check progress. Open Bulk operations to check this move; do not restart it yet.');
+                    const result = await check.json();
+                    status.textContent = result.total_items ? `${result.succeeded} moved · ${result.failed} failed · ${result.processed} of ${result.total_items} processed` : 'Reading your current Watch Later videos…';
+                    if (['completed','failed','cancelled'].includes(result.status)) {
+                        status.textContent += ' · ' + result.status + (result.errors?.length ? ': ' + result.errors[0] : '');
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+            } catch (error) { status.textContent = error.message; }
+            finally { button.disabled = false; }
+        }
         // Toast notification system
         function toast(message, type = 'info', duration = 4000) {
             const container = document.getElementById('toast-container') || createToastContainer();
