@@ -98,6 +98,41 @@ def _video_page(video_ids, *, continuation=None, popup=False, logged_in="1"):
     return _response(payload)
 
 
+def _lockup_page(video_ids, *, continuation=None, logged_in="1"):
+    """A page in YouTube's newer lockup/continuationItemViewModel shape."""
+    items = [
+        {
+            "lockupViewModel": {
+                "contentId": video_id,
+                "metadata": {
+                    "lockupMetadataViewModel": {"title": {"content": f"Title {video_id}"}}
+                },
+            }
+        }
+        for video_id in video_ids
+    ]
+    if continuation:
+        items.append(
+            {
+                "continuationItemViewModel": {
+                    "continuationCommand": {
+                        "innertubeCommand": {
+                            "continuationCommand": {
+                                "request": "CONTINUATION_REQUEST_TYPE_BROWSE",
+                                "token": continuation,
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    payload = {
+        "contents": {"twoColumnBrowseResultsRenderer": {"tabs": [{"items": items}]}},
+        **_logged_in(logged_in),
+    }
+    return _response(payload)
+
+
 class FakeClient:
     """Stands in for httpx.Client: records calls, replays canned responses."""
 
@@ -201,6 +236,19 @@ def test_list_watch_later_stops_at_a_popup_only_page():
 
 
 @pytest.mark.unit
+def test_list_watch_later_follows_a_lockup_style_continuation():
+    client = FakeClient(
+        posts=[
+            _lockup_page(["abcdefghijk"], continuation="lockup-next"),
+            _lockup_page(["lmnopqrstuv"]),
+        ]
+    )
+    videos = list_watch_later(client=client)
+    assert [video["video_id"] for video in videos] == ["abcdefghijk", "lmnopqrstuv"]
+    assert client.posts[1]["json"]["continuation"] == "lockup-next"
+
+
+@pytest.mark.unit
 def test_continuation_token_ignores_a_popup_and_reads_the_nested_command():
     payload = {
         "contents": {
@@ -265,6 +313,43 @@ def test_continuation_token_still_reads_the_legacy_flat_shape():
         ]
     }
     assert youtube_innertube._continuation_token(payload) == "legacy-token"
+
+
+@pytest.mark.unit
+def test_continuation_token_reads_the_lockup_view_model_shape():
+    payload = {
+        "items": [
+            {
+                "continuationItemViewModel": {
+                    "continuationCommand": {
+                        "innertubeCommand": {
+                            "continuationCommand": {
+                                "request": "CONTINUATION_REQUEST_TYPE_BROWSE",
+                                "token": "lockup-token",
+                            }
+                        }
+                    }
+                }
+            }
+        ]
+    }
+    assert youtube_innertube._continuation_token(payload) == "lockup-token"
+
+
+@pytest.mark.unit
+def test_continuation_token_prefers_the_browse_request_type():
+    payload = {
+        "items": [
+            {"continuationCommand": {"token": "some-other-token"}},
+            {
+                "continuationCommand": {
+                    "request": "CONTINUATION_REQUEST_TYPE_BROWSE",
+                    "token": "browse-token",
+                }
+            },
+        ]
+    }
+    assert youtube_innertube._continuation_token(payload) == "browse-token"
 
 
 @pytest.mark.unit
