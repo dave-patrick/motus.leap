@@ -398,6 +398,11 @@
     }
     aside.querySelector('nav')?.setAttribute('aria-label', 'Main navigation');
     aside.querySelectorAll('a').forEach(link => {
+      const label = link.textContent.trim();
+      if (label) {
+        link.setAttribute('aria-label', link.getAttribute('aria-label') || label);
+        link.setAttribute('title', link.getAttribute('title') || label);
+      }
       const href = link.getAttribute('href');
       if (href && new URL(href, window.location.origin).pathname === window.location.pathname) {
         link.setAttribute('aria-current', 'page');
