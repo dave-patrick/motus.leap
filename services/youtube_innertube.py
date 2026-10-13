@@ -58,7 +58,13 @@ _LOGIN_COOKIE_NAMES = (
     "LOGIN_INFO",
 )
 
-_config_cache: dict[str, Any] = {"api_key": "", "client_version": "", "fetched_at": 0.0}
+_config_cache: dict[str, Any] = {
+    "api_key": "",
+    "client_version": "",
+    "session_index": "0",
+    "page_id": None,
+    "fetched_at": 0.0,
+}
 
 
 class InnerTubeError(RuntimeError):
@@ -82,7 +88,9 @@ def _new_client() -> httpx.Client:
 
 def reset_cache() -> None:
     """Forget the cached InnerTube client config (used by tests)."""
-    _config_cache.update({"api_key": "", "client_version": "", "fetched_at": 0.0})
+    _config_cache.update(
+        {"api_key": "", "client_version": "", "session_index": "0", "page_id": None, "fetched_at": 0.0}
+    )
 
 
 def _netscape_cookies(text: str) -> list[dict[str, str]]:
@@ -180,19 +188,66 @@ def missing_login_cookies(jar: dict[str, str]) -> list[str]:
     return [name for name in _LOGIN_COOKIE_NAMES if not jar.get(name)]
 
 
-def _request_headers(jar: dict[str, str]) -> dict[str, str]:
-    """Cookies plus the SAPISIDHASH signature YouTube requires for web writes."""
+# YouTube's own web client signs one hash per APISID variant the account holds.
+# Each scheme names the cookie candidates that may carry its value, in
+# most-authoritative-first order. Signing only SAPISIDHASH leaves a session that
+# carries __Secure-1P/3P APISID cookies partially authenticated; the real client
+# (and the browser extensions that drive Watch Later) emit all three.
+_AUTHORIZATION_SCHEMES = (
+    (("SAPISID", "__Secure-3PAPISID"), "SAPISIDHASH"),
+    (("__Secure-1PAPISID",), "SAPISID1PHASH"),
+    (("__Secure-3PAPISID",), "SAPISID3PHASH"),
+)
+
+# The InnerTube client name for the WEB client, sent alongside its version.
+_WEB_CLIENT_NAME = "1"
+
+
+def _authorization(jar: dict[str, str]) -> str:
+    """One signed hash per APISID variant the cookies hold, space joined."""
     timestamp = int(time.time())
-    digest = hashlib.sha1(f"{timestamp} {_sapisid(jar)} {YOUTUBE_ORIGIN}".encode()).hexdigest()
-    return {
+    parts = []
+    for names, scheme in _AUTHORIZATION_SCHEMES:
+        value = next((jar[name] for name in names if jar.get(name)), None)
+        if not value:
+            continue
+        digest = hashlib.sha1(f"{timestamp} {value} {YOUTUBE_ORIGIN}".encode()).hexdigest()
+        parts.append(f"{scheme} {timestamp}_{digest}")
+    if not parts:
+        # No APISID-family cookie at all: reuse the guidance _sapisid raises.
+        _sapisid(jar)
+    return " ".join(parts)
+
+
+def _request_headers(
+    jar: dict[str, str], config: Optional[dict[str, Any]] = None
+) -> dict[str, str]:
+    """Cookies, the signed Authorization header, and the client's identity.
+
+    YouTube checks the account's session index and, for delegated sessions, the
+    page id, so those are echoed back when the scraped client config knows them.
+    The bootstrap page fetch that produces that config runs before it exists, so
+    it passes no config and sends only the cookie-backed headers.
+    """
+    headers = {
         "User-Agent": USER_AGENT,
         "Accept-Language": "en-US,en;q=0.9",
         "Cookie": "; ".join(f"{name}={value}" for name, value in jar.items()),
         "Origin": YOUTUBE_ORIGIN,
         "X-Origin": YOUTUBE_ORIGIN,
-        "Authorization": f"SAPISIDHASH {timestamp}_{digest}",
+        "Authorization": _authorization(jar),
         "Content-Type": "application/json",
     }
+    if config:
+        headers["X-Goog-AuthUser"] = str(config.get("session_index") or "0")
+        page_id = config.get("page_id")
+        if page_id:
+            headers["X-Goog-PageId"] = str(page_id)
+        headers["X-Youtube-Client-Name"] = _WEB_CLIENT_NAME
+        client_version = config.get("client_version")
+        if client_version:
+            headers["X-Youtube-Client-Version"] = str(client_version)
+    return headers
 
 
 def _require_match(pattern: str, text: str, label: str) -> str:
@@ -200,6 +255,12 @@ def _require_match(pattern: str, text: str, label: str) -> str:
     if not match:
         raise InnerTubeError(f"Could not read {label} from youtube.com.")
     return match.group(1)
+
+
+def _optional_match(pattern: str, text: str) -> Optional[str]:
+    """Return the first capture group, or None when the field is absent."""
+    match = re.search(pattern, text)
+    return match.group(1) if match else None
 
 
 def _fetch_client_config(http: httpx.Client, jar: dict[str, str]) -> dict[str, Any]:
@@ -211,6 +272,10 @@ def _fetch_client_config(http: httpx.Client, jar: dict[str, str]) -> dict[str, A
         "client_version": _require_match(
             r'"INNERTUBE_CLIENT_VERSION":"([^"]+)"', html, "the InnerTube client version"
         ),
+        # The account's active session index and, for delegated accounts, the
+        # page id. Both are absent on some pages, so absence is not an error.
+        "session_index": _optional_match(r'"SESSION_INDEX"\s*:\s*"?(\d+)"?', html) or "0",
+        "page_id": _optional_match(r'"DELEGATED_SESSION_ID"\s*:\s*"([^"]+)"', html),
         "fetched_at": time.time(),
     }
 
@@ -301,7 +366,7 @@ def _post(
     jar: dict[str, str],
 ) -> dict[str, Any]:
     url = f"{endpoint}?prettyPrint=false&key={config['api_key']}"
-    response = http.post(url, headers=_request_headers(jar), json=body)
+    response = http.post(url, headers=_request_headers(jar, config), json=body)
     if response.status_code == 400:
         raise InnerTubeError("YouTube rejected the request (HTTP 400).")
     response.raise_for_status()

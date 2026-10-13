@@ -191,6 +191,23 @@ def cookie_store(tmp_path, monkeypatch):
     youtube_innertube.reset_cache()
 
 
+def _write_cookie_jar(monkeypatch, tmp_path, cookies):
+    """Write a signed-in cookie store holding exactly the cookies a test needs."""
+    path = tmp_path / "custom_cookies.json"
+    path.write_text(
+        json.dumps(
+            [
+                {"name": name, "value": value, "domain": ".youtube.com"}
+                for name, value in cookies.items()
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("core.actions.get_youtube_cookies_path", lambda: str(path))
+    youtube_innertube.reset_cache()
+    return path
+
+
 @pytest.mark.unit
 def test_list_watch_later_reads_renderers():
     client = FakeClient(posts=[_video_page(["abcdefghijk", "lmnopqrstuv"])])
@@ -413,6 +430,68 @@ def test_requests_carry_the_sapisidhash_signature():
     assert f"SAPISID={SAPISID}" in headers["Cookie"]
     assert "unrelated" not in headers["Cookie"]
     assert "key=test-key" in client.posts[0]["url"]
+
+
+@pytest.mark.unit
+def test_requests_sign_every_apisid_variant_the_session_holds(tmp_path, monkeypatch):
+    _write_cookie_jar(
+        monkeypatch,
+        tmp_path,
+        {
+            "SAPISID": "sapisid-value",
+            "__Secure-1PAPISID": "one-papisid",
+            "__Secure-3PAPISID": "three-papisid",
+        },
+    )
+    client = FakeClient(posts=[_video_page(["abcdefghijk"])])
+    list_watch_later(client=client)
+    tokens = client.posts[0]["headers"]["Authorization"].split(" ")
+    pairs = {tokens[index]: tokens[index + 1] for index in range(0, len(tokens), 2)}
+    assert set(pairs) == {"SAPISIDHASH", "SAPISID1PHASH", "SAPISID3PHASH"}
+    for scheme, cookie_value in (
+        ("SAPISIDHASH", "sapisid-value"),
+        ("SAPISID1PHASH", "one-papisid"),
+        ("SAPISID3PHASH", "three-papisid"),
+    ):
+        timestamp, _, digest = pairs[scheme].partition("_")
+        expected = hashlib.sha1(
+            f"{timestamp} {cookie_value} https://www.youtube.com".encode()
+        ).hexdigest()
+        assert digest == expected
+
+
+@pytest.mark.unit
+def test_writes_carry_the_client_identity_headers():
+    client = FakeClient(posts=[_video_page(["abcdefghijk"])])
+    list_watch_later(client=client)
+    headers = client.posts[0]["headers"]
+    assert headers["X-Goog-AuthUser"] == "0"
+    assert headers["X-Youtube-Client-Name"] == "1"
+    assert headers["X-Youtube-Client-Version"] == "2.2024.01.01.00"
+    assert "X-Goog-PageId" not in headers
+
+
+@pytest.mark.unit
+def test_the_bootstrap_page_fetch_sends_no_client_identity():
+    client = FakeClient(posts=[_video_page(["abcdefghijk"])])
+    list_watch_later(client=client)
+    headers = client.gets[0]["headers"]
+    assert "X-Goog-AuthUser" not in headers
+    assert "X-Youtube-Client-Name" not in headers
+
+
+@pytest.mark.unit
+def test_session_index_and_page_id_are_read_from_the_bootstrap_page():
+    home = (
+        '<script>{"INNERTUBE_API_KEY":"test-key",'
+        '"INNERTUBE_CLIENT_VERSION":"2.2024.01.01.00",'
+        '"SESSION_INDEX":"2","DELEGATED_SESSION_ID":"1234567890"}</script>'
+    )
+    client = FakeClient(home=home, posts=[_video_page(["abcdefghijk"])])
+    list_watch_later(client=client)
+    headers = client.posts[0]["headers"]
+    assert headers["X-Goog-AuthUser"] == "2"
+    assert headers["X-Goog-PageId"] == "1234567890"
 
 
 @pytest.mark.unit
