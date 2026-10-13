@@ -5494,37 +5494,16 @@ async def clear_system_logs():
         raise HTTPException(status_code=500, detail=f"Failed to clear logs: {e}")
 
 
-@app.get("/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
+@app.get("/system/logs")
 async def system_logs_page():
-    """System logs viewer page."""
-    log_file = get_log_file_path()
+    """System logs viewer page.
 
-    logs_html = ""
-    if log_file.exists():
-        try:
-            last_lines = await asyncio.to_thread(read_log_tail, log_file, 500)
-            for line in last_lines:
-                escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                level = "OTHER"
-                style = ""
-                if "ERROR" in line or "CRITICAL" in line:
-                    level = "ERROR"
-                    style = 'style="color:#ff6b6b"'
-                elif "WARNING" in line:
-                    level = "WARNING"
-                    style = 'style="color:#ffa94d"'
-                elif "INFO" in line:
-                    level = "INFO"
-                    style = 'style="color:#69db7c"'
-                elif "DEBUG" in line:
-                    level = "DEBUG"
-                    style = 'style="color:#74c0fc"'
-                logs_html += f'<div class="log-line" data-level="{level}" {style}>{escaped}</div>'
-        except Exception as e:
-            logs_html = f'<div style="color:#ff6b6b">Error reading logs: {e}</div>'
-    else:
-        logs_html = '<div style="color:#868e96">No log file found yet. System logs will record to file on next operation.</div>'
-
+    Served without server-side auth so it can render inside the Hub's
+    cross-origin iframe, where the SameSite=Lax session cookie is not sent and
+    a server-side 401 would surface as raw JSON. The log content stays gated:
+    the page loads it from /api/system/logs with the bearer token the global
+    auth layer keeps in localStorage, which redirects to /auth when absent.
+    """
     return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5608,7 +5587,7 @@ async def system_logs_page():
                     </div>
                     <!-- Log Output Terminal Area -->
                     <div class="p-4 flex-1 bg-[#0e1015] font-mono text-[11px] leading-relaxed overflow-y-auto max-h-[70vh] min-h-[400px] border-t border-[#2a2f3a]" id="log-container">
-                        {logs_html}
+                        <div class="text-gray-500">Loading logs…</div>
                     </div>
                 </div>
             </div>
@@ -5645,7 +5624,7 @@ async def system_logs_page():
 
         async function fetchLogs() {{
             try {{
-                const resp = await fetch('/api/system/logs');
+                const resp = await authFetch('/api/system/logs');
                 if (!resp.ok) return;
                 const data = await resp.json();
                 if (!data.logs) return;
@@ -5684,7 +5663,7 @@ async def system_logs_page():
         async function clearLogs(btn) {{
             if (!confirm('Clear all system logs?')) return;
             try {{
-                const resp = await fetch('/api/system/logs/clear', {{ method: 'POST' }});
+                const resp = await authFetch('/api/system/logs/clear', {{ method: 'POST' }});
                 if (resp.ok) {{
                     document.getElementById('log-container').innerHTML = '<div class="text-gray-500">Logs cleared.</div>';
                 }} else {{
