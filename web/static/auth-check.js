@@ -6,6 +6,11 @@
     localStorage.setItem('token', token);
     document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
     window.location.hash = '';
+    // Deliver only to the originating motus.leap frame, never its host console.
+    // The receiver verifies the token before storing it in embedded storage.
+    if (window.name === 'motus-embedded-sign-in' && window.opener) {
+      window.opener.postMessage({type: 'motus-embedded-login', token}, window.location.origin);
+    }
     // Continue below to validate the token
   }
 
