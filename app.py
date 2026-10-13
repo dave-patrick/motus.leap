@@ -98,6 +98,43 @@ CONFIG_DIR = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) if Path(os.ge
 # Initialize managers
 config_manager = ConfigManager(CONFIG_DIR / "config.json")
 youtube_service: Optional[YouTubeService] = None
+# Captured in lifespan(); lets the synchronous OAuth token-refresh path
+# (which may run on a worker thread) schedule config saves onto the loop.
+_main_event_loop: Optional[asyncio.AbstractEventLoop] = None
+
+
+def _persist_refreshed_youtube_token(
+    access_token: str, token_expiry: int, refresh_token: Optional[str] = None
+) -> None:
+    """Write a refreshed OAuth token back to the live config and to disk.
+
+    YouTubeClient refreshes the access token in memory, but without this the
+    persisted config keeps the stale token, so any code reading
+    config.oauth.access_token directly (diagnostics, one-shot clients) gets
+    401 Invalid Credentials.
+    """
+    try:
+        cfg = config_manager.config
+        cfg.oauth.access_token = access_token
+        cfg.oauth.token_expiry = token_expiry
+        if refresh_token:
+            cfg.oauth.refresh_token = refresh_token
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning(f"[YT-TOKEN] could not update in-memory config: {exc}")
+        return
+    try:
+        loop = _main_event_loop
+        if loop is not None and not loop.is_closed():
+            asyncio.run_coroutine_threadsafe(config_manager.save(cfg), loop)
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning(f"[YT-TOKEN] could not schedule config save: {exc}")
+
+
+try:
+    from services.youtube_client import register_token_refresh_hook as _reg_token_hook
+    _reg_token_hook(_persist_refreshed_youtube_token)
+except Exception as exc:  # pragma: no cover - defensive
+    log.warning(f"[YT-TOKEN] could not register refresh hook: {exc}")
 background_worker: Optional["BackgroundWorker"] = None
 worker = None  # backward compat alias
 
@@ -185,7 +222,11 @@ manager = ConnectionManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    global youtube_service, worker
+    global youtube_service, worker, _main_event_loop
+
+    # Capture the running loop so the synchronous (possibly threaded) OAuth
+    # token-refresh hook can schedule config saves back onto it.
+    _main_event_loop = asyncio.get_running_loop()
 
     # Set up file logging
     log_file = get_log_file_path()
@@ -5387,12 +5428,16 @@ async def diagnostics_youtube() -> dict[str, Any]:
             result["channel_title"] = snippet.get("title", "Unknown")
             result["channel_id"] = channel_items[0].get("id", "")
 
-        # Raw HTTP check bypassing googleapiclient to confirm API response
+        # Raw HTTP check bypassing googleapiclient to confirm API response.
+        # Prefer the client's live access token: config.oauth.access_token can
+        # lag until a refresh has been persisted (see the refresh hook above).
+        raw_access_token = getattr(client, "oauth_access_token", None) or config.oauth.access_token
+        result["token_expiry"] = getattr(client, "token_expiry", None) or config.oauth.token_expiry
         from core.http_client import get_http_client
         http_client = get_http_client()
         raw_playlists = await http_client.get(
             "https://www.googleapis.com/youtube/v3/playlists",
-            headers={"Authorization": f"Bearer {config.oauth.access_token}"},
+            headers={"Authorization": f"Bearer {raw_access_token}"},
             params={"part": "snippet,contentDetails", "mine": "true", "maxResults": 10},
         )
         result["raw_api_status"] = raw_playlists.status_code
