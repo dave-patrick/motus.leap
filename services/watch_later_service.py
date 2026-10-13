@@ -59,34 +59,29 @@ def get_all_snapshot_candidate_paths() -> List[str]:
 
 
 def load_watch_later_videos(allow_browser: bool = False, driver=None) -> List[Dict[str, Any]]:
-    """Load Watch Later videos from local snapshot files, persistent disk cache, or live browser if requested."""
-    # 1. Live browser extraction if requested and available
+    """Load Watch Later from a live read, then fall back to a local snapshot.
+
+    The flag keeps its historical name for API compatibility, but the live read
+    now runs over YouTube's web API (InnerTube) and starts no browser process.
+    """
+    # 1. Live read over YouTube's web API when requested
     if allow_browser:
         try:
-            from core.actions import get_browser, list_videos_in_playlist
-            os.environ.setdefault("DISABLE_CAMOFOX", "1")
-            browser = driver or get_browser()
-            try:
-                live_vids = list_videos_in_playlist("https://www.youtube.com/playlist?list=WL", driver=browser)
-                if live_vids:
-                    # Save to both DATA_DIR and BASE_DIR
-                    for out_dir in [DATA_DIR, BASE_DIR]:
-                        try:
-                            os.makedirs(out_dir, exist_ok=True)
-                            snap_path = os.path.join(out_dir, "watch_later_snapshot.json")
-                            with open(snap_path, "w", encoding="utf-8") as f:
-                                json.dump(live_vids, f, indent=2, ensure_ascii=False)
-                        except Exception:
-                            pass
-                    return _normalize_videos(live_vids)
-            finally:
-                if not driver and browser:
+            from services.youtube_innertube import list_watch_later
+            live_vids = list_watch_later()
+            if live_vids:
+                # Save to both DATA_DIR and BASE_DIR
+                for out_dir in [DATA_DIR, BASE_DIR]:
                     try:
-                        browser.quit()
+                        os.makedirs(out_dir, exist_ok=True)
+                        snap_path = os.path.join(out_dir, "watch_later_snapshot.json")
+                        with open(snap_path, "w", encoding="utf-8") as f:
+                            json.dump(live_vids, f, indent=2, ensure_ascii=False)
                     except Exception:
                         pass
+                return _normalize_videos(live_vids)
         except Exception as be:
-            log.warning(f"Live Watch Later browser scan failed, falling back to snapshot: {be}")
+            log.warning(f"Live Watch Later read failed, falling back to snapshot: {be}")
 
     # 2. Local snapshot files across DATA_DIR, users dirs, and BASE_DIR
     for snap_path in get_all_snapshot_candidate_paths():
@@ -517,12 +512,16 @@ async def execute_auto_sort(
             if not added_via_api and driver:
                 from core.actions import move_video
                 move_video(f"https://www.youtube.com/watch?v={vid}", "Watch Later", target_cat, driver=driver)
-            elif remove_from_source and driver:
+            elif remove_from_source:
+                # Watch Later removal runs over YouTube's web API, so it no longer
+                # needs the browser that adding the copy required.
                 try:
-                    from core.actions import move_video
-                    move_video(f"https://www.youtube.com/watch?v={vid}", "Watch Later", target_cat, driver=driver)
+                    from core.actions import remove_video_from_playlist
+                    remove_video_from_playlist(
+                        f"https://www.youtube.com/watch?v={vid}", "Watch Later", driver=driver
+                    )
                 except Exception as b_err:
-                    log.warning(f"Browser remove from WL failed for {vid}: {b_err}")
+                    log.warning(f"Watch Later removal failed for {vid}: {b_err}")
 
             moved_count += 1
             successfully_moved_ids.add(vid)

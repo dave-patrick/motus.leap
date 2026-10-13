@@ -140,7 +140,24 @@ function viewSystemLogs() {
                                             <button id="disconnect-youtube-btn" onclick="disconnectYouTube()" class="w-full bg-[#2a2f3a] hover:bg-red-600/20 border border-[#374151] text-gray-300 hover:text-red-400 text-xs py-2 rounded flex items-center justify-center gap-2"><i class="fa-solid fa-unlink"></i> Disconnect YouTube</button>
                                             <div id="yt-status" class="text-[10px] text-gray-400 text-center"></div>
                                         </div>
-                                    </div>
+                                        </div>
+                                        <!-- Server-side browser session (Playwright cookies) -->
+                                        <div class="pt-3 border-t border-[#2a2f3a] space-y-2">
+                                            <div class="text-xs font-medium text-white">Browser Session (Watch Later)</div>
+                                            <p class="text-[10px] text-gray-400">
+                                                Reading and clearing Watch Later uses these cookies to act as your signed-in YouTube session. No browser runs on the server.
+                                                Sign in to <code>youtube.com</code>, export cookies with "Get cookies.txt LOCALLY" (Netscape format), and paste the file contents here.
+                                                Cookies are stored on the server and take effect on the next Watch Later request.
+                                            </p>
+                                            <textarea id="yt-cookies-input" rows="5" spellcheck="false"
+                                                placeholder="# Netscape HTTP Cookie File&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;1234567890&#9;SID&#9;..."
+                                                class="w-full bg-[#14171c] border border-[#2a2f3a] rounded text-[10px] text-gray-200 p-2 font-mono resize-y"></textarea>
+                                            <div class="flex items-center gap-2">
+                                                <button id="import-yt-cookies-btn" onclick="importYTCookies()" class="bg-[#2f8fc9] hover:bg-[#2a7db8] text-white text-xs py-2 px-3 rounded"><i class="fa-solid fa-cookie-bite mr-1"></i>Import Cookies</button>
+                                                <button type="button" onclick="document.getElementById('yt-cookies-input').value=''" class="bg-[#2a2f3a] border border-[#374151] text-gray-300 text-xs py-2 px-3 rounded">Clear</button>
+                                            </div>
+                                            <div id="yt-cookies-result" class="text-[10px] text-gray-400"></div>
+                                        </div>                                    </div>
                                 </div>
                             </div>
 
@@ -427,6 +444,47 @@ function viewSystemLogs() {
             }
         }
 
+        async function importYTCookies() {
+            const btn = document.getElementById('import-yt-cookies-btn');
+            const input = document.getElementById('yt-cookies-input');
+            const result = document.getElementById('yt-cookies-result');
+            const text = input.value.trim();
+            if (!text) {
+                result.style.color = '#f59e0b';
+                result.textContent = 'Paste your exported cookies.txt content first.';
+                return;
+            }
+            btn.disabled = true;
+            const original = btn.innerHTML;
+            btn.innerHTML = 'Importing...';
+            result.style.color = '#9ca3af';
+            result.textContent = 'Sending cookies...';
+            try {
+                const resp = await fetch('/api/import-yt-cookies', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({cookies_txt: text})
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (resp.ok && data.success && data.signed_in === false) {
+                    result.style.color = '#f59e0b';
+                    result.textContent = '\u26a0 ' + (data.warning || data.message || 'Cookies are signed out.');
+                } else if (resp.ok && data.success) {
+                    result.style.color = '#22c55e';
+                    result.textContent = '\u2713 ' + (data.message || 'Cookies imported.');
+                    input.value = '';
+                } else {
+                    result.style.color = '#ef4444';
+                    result.textContent = '\u2717 ' + (data.detail || data.message || ('HTTP ' + resp.status));
+                }
+            } catch (err) {
+                result.style.color = '#ef4444';
+                result.textContent = '\u2717 Network error: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
+        }
         async function connectYouTube() {
             const status = document.getElementById('yt-status');
             status.textContent = 'Opening YouTube OAuth...';

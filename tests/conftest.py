@@ -382,20 +382,20 @@ def assert_csp_headers(response):
     csp = response.headers["Content-Security-Policy"]
     assert "default-src 'self'" in csp
     assert "script-src" in csp
-    assert "frame-ancestors 'none'" in csp
+    assert "frame-ancestors 'self'" in csp
 
 
 def assert_security_headers(response):
     """Assert that all security headers are present."""
     assert "Content-Security-Policy" in response.headers
-    assert "X-Frame-Options" in response.headers
+    assert "X-Frame-Options" not in response.headers
     assert "X-Content-Type-Options" in response.headers
     assert "X-XSS-Protection" in response.headers
     assert "Referrer-Policy" in response.headers
     assert "Permissions-Policy" in response.headers
 
     # Check values
-    assert response.headers["X-Frame-Options"] == "DENY"
+    assert "frame-ancestors 'self'" in response.headers["Content-Security-Policy"]
     assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 

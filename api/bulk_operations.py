@@ -341,20 +341,17 @@ async def process_watch_later_to_sort(operation_id, target_id, client, service, 
     operation.status = "in_progress"
     await storage.update_and_save(operation)
     def run():
-        from core.actions import get_browser
         from services.watch_later_transfer import transfer_item, read_current_watch_later
-        driver = None
         def save():
             asyncio.run_coroutine_threadsafe(storage.update_and_save(operation), loop).result()
         try:
-            driver = get_browser()
-            videos = read_current_watch_later(driver)
+            videos = read_current_watch_later()
             operation.total_items = len(videos)
             save()
             for video in videos:
                 if operation.status == "cancelled": break
                 try:
-                    transfer_item(client, driver, target_id, video)
+                    transfer_item(client, None, target_id, video)
                     operation.succeeded += 1
                 except Exception as error:
                     operation.failed += 1
@@ -365,10 +362,6 @@ async def process_watch_later_to_sort(operation_id, target_id, client, service, 
         except Exception as error:
             operation.status = "failed"
             operation.errors.append(str(error))
-        finally:
-            if driver:
-                try: driver.quit()
-                except Exception: pass
     await asyncio.to_thread(run)
     for playlist_id in ("WL", target_id):
         try: await service._cache_invalidate_playlist(playlist_id)

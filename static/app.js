@@ -1723,7 +1723,10 @@ async function importYTCookies() {
             body: JSON.stringify({ cookies_txt: cookiesTxt })
         });
         const data = await resp.json();
-        if (resp.ok && data.success) {
+        if (resp.ok && data.success && data.signed_in === false) {
+            resultEl.style.color = 'var(--warning)';
+            resultEl.textContent = '⚠ ' + data.message;
+        } else if (resp.ok && data.success) {
             resultEl.style.color = 'var(--success)';
             resultEl.textContent = '✓ ' + data.message;
             document.getElementById('yt-cookies-input').value = '';

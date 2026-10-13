@@ -98,6 +98,43 @@ CONFIG_DIR = Path(os.getenv("TUBE_MANAGER_DATA_DIR", "/app/data")) if Path(os.ge
 # Initialize managers
 config_manager = ConfigManager(CONFIG_DIR / "config.json")
 youtube_service: Optional[YouTubeService] = None
+# Captured in lifespan(); lets the synchronous OAuth token-refresh path
+# (which may run on a worker thread) schedule config saves onto the loop.
+_main_event_loop: Optional[asyncio.AbstractEventLoop] = None
+
+
+def _persist_refreshed_youtube_token(
+    access_token: str, token_expiry: int, refresh_token: Optional[str] = None
+) -> None:
+    """Write a refreshed OAuth token back to the live config and to disk.
+
+    YouTubeClient refreshes the access token in memory, but without this the
+    persisted config keeps the stale token, so any code reading
+    config.oauth.access_token directly (diagnostics, one-shot clients) gets
+    401 Invalid Credentials.
+    """
+    try:
+        cfg = config_manager.config
+        cfg.oauth.access_token = access_token
+        cfg.oauth.token_expiry = token_expiry
+        if refresh_token:
+            cfg.oauth.refresh_token = refresh_token
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning(f"[YT-TOKEN] could not update in-memory config: {exc}")
+        return
+    try:
+        loop = _main_event_loop
+        if loop is not None and not loop.is_closed():
+            asyncio.run_coroutine_threadsafe(config_manager.save(cfg), loop)
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning(f"[YT-TOKEN] could not schedule config save: {exc}")
+
+
+try:
+    from services.youtube_client import register_token_refresh_hook as _reg_token_hook
+    _reg_token_hook(_persist_refreshed_youtube_token)
+except Exception as exc:  # pragma: no cover - defensive
+    log.warning(f"[YT-TOKEN] could not register refresh hook: {exc}")
 background_worker: Optional["BackgroundWorker"] = None
 worker = None  # backward compat alias
 
@@ -185,7 +222,11 @@ manager = ConnectionManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    global youtube_service, worker
+    global youtube_service, worker, _main_event_loop
+
+    # Capture the running loop so the synchronous (possibly threaded) OAuth
+    # token-refresh hook can schedule config saves back onto it.
+    _main_event_loop = asyncio.get_running_loop()
 
     # Set up file logging
     log_file = get_log_file_path()
@@ -500,6 +541,13 @@ async def add_compression(request: Request, call_next):
 # us flip pages one at a time with a kill-switch, with zero risk to the others.
 _CSP_STRICT_ENABLED = os.environ.get("CSP_STRICT", "0") == "1"
 
+# All ancestors must match: arnés nests Control Center inside its own frame.
+_FRAME_ANCESTORS = (
+    "'self' http://127.0.0.1:9130 http://localhost:9130 "
+    "https://galaxybook5pro.tail7a64f4.ts.net "
+    "https://harness-hub-dave.davepatrick.chatgpt.site"
+)
+
 def _csp_header(strict: bool) -> str:
     if strict:
         # Strict: no 'unsafe-inline'. All JS external + handlers removed on the
@@ -511,7 +559,7 @@ def _csp_header(strict: bool) -> str:
             "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
             "img-src 'self' https://*.ytimg.com https://yt3.ggpht.com https://picsum.photos data:; "
             "connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
-            "frame-ancestors 'none'; "
+            f"frame-ancestors {_FRAME_ANCESTORS}; "
             "frame-src 'none';"
         )
     # Legacy/permissive (unchanged from before the workstream).
@@ -522,7 +570,7 @@ def _csp_header(strict: bool) -> str:
         "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         "img-src 'self' https://*.ytimg.com https://yt3.ggpht.com https://picsum.photos; "
         "connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
-        "frame-ancestors 'none'; "
+        f"frame-ancestors {_FRAME_ANCESTORS}; "
         "frame-src 'none';"
     )
 
@@ -573,7 +621,10 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Content-Security-Policy"] = csp
 
     # Additional security headers
-    response.headers["X-Frame-Options"] = "DENY"
+    # CSP frame-ancestors controls trusted cross-origin embedding. XFO cannot
+    # express this allowlist, and DENY/SAMEORIGIN would block Control Center.
+    if "X-Frame-Options" in response.headers:
+        del response.headers["X-Frame-Options"]
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -2989,6 +3040,59 @@ class MoveWatchLaterIn(BaseModel):
     source_playlist_id: str = "WL"
 
 
+async def _move_all_watch_later(yt_client, target_pid: str) -> dict[str, Any]:
+    """Move every Watch Later video into target_pid, confirming each save first.
+
+    Watch Later is read and emptied over YouTube's web API, so this needs neither
+    a browser nor YouTube Data API access to Watch Later (which does not exist).
+    """
+    from services.watch_later_transfer import read_current_watch_later, transfer_item
+
+    target_title = target_pid
+    try:
+        pls_resp = await youtube_service.list_playlists()
+        all_pls = pls_resp.get("playlists", []) if isinstance(pls_resp, dict) else (pls_resp if isinstance(pls_resp, list) else [])
+        for p in all_pls:
+            if isinstance(p, dict) and p.get("id") == target_pid:
+                target_title = p.get("title") or target_pid
+                break
+    except Exception:
+        pass
+
+    try:
+        videos = await asyncio.to_thread(read_current_watch_later)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not read Watch Later: {exc}")
+
+    if not videos:
+        return {"status": "ok", "moved": 0, "failed": 0,
+                "message": "Watch Later is empty; nothing was moved."}
+
+    moved_count = 0
+    failed_count = 0
+    for video in videos:
+        try:
+            await asyncio.to_thread(transfer_item, yt_client, None, target_pid, video)
+            moved_count += 1
+        except Exception as err:
+            vid = video.get("video_id") or video.get("id")
+            log.warning(f"Failed moving video {vid} from Watch Later to {target_pid}: {err}")
+            failed_count += 1
+
+    for pid in ("WL", target_pid):
+        try:
+            await youtube_service._cache_invalidate_playlist(pid)
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "moved": moved_count,
+        "failed": failed_count,
+        "message": f"Successfully moved {moved_count} video(s) from Watch Later to '{target_title}'!"
+    }
+
+
 @app.post("/api/maintenance/move-watch-later", dependencies=[Depends(get_current_user), Depends(verify_origin)])
 async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
     """Move all videos from Watch Later (or a specified source playlist) to a target playlist."""
@@ -3002,6 +3106,9 @@ async def api_move_watch_later(payload: MoveWatchLaterIn) -> dict[str, Any]:
     source_pid = payload.source_playlist_id or "WL"
     if not target_pid:
         raise HTTPException(status_code=422, detail="target_playlist_id is required")
+
+    if source_pid.strip().upper() == "WL" or source_pid.strip().casefold() == "watch later":
+        return await _move_all_watch_later(yt_client, target_pid)
 
     # Fetch videos from source playlist
     source_payload = None
@@ -3197,13 +3304,15 @@ async def api_auto_sort_watch_later(payload: AutoSortWatchLaterIn) -> dict[str, 
         except Exception as ce:
             log.warning(f"Could not acquire OAuth YouTube client: {ce}")
 
+    # Watch Later removal runs over YouTube's web API (InnerTube), so a browser is
+    # only needed when there is no OAuth client to add the copy with.
     driver = None
-    if payload.remove_from_watch_later or not yt_client:
+    if not yt_client:
         try:
             from core.actions import get_browser
             driver = get_browser()
         except Exception as be:
-            log.warning(f"Browser unavailable for Watch Later removal: {be}")
+            log.warning(f"Browser unavailable for adding Watch Later videos: {be}")
 
     from services.watch_later_service import execute_auto_sort
     try:
@@ -3902,6 +4011,101 @@ async def youtube_disconnect():
     _sync_worker_youtube_service()
     return {"message": "YouTube OAuth disconnected. Re-authorize in Settings to reconnect."}
 
+
+class ImportYTCookiesIn(BaseModel):
+    """Raw Netscape-format cookie file exported from a signed-in YouTube tab."""
+    cookies_txt: str
+
+
+@app.post("/api/import-yt-cookies", dependencies=[Depends(get_current_user), Depends(verify_origin)])
+async def import_yt_cookies(payload: ImportYTCookiesIn):
+    """Import a Netscape cookie export into the persistent browser profile.
+
+    Playwright Chromium reads its cookies from
+    core.actions.get_youtube_cookies_path() on every launch, so writing there is
+    what actually signs the server-side browser session in. This replaces the old
+    Camofox-based flow, which is not part of this deployment.
+    """
+    from core.actions import get_youtube_cookies_write_path
+    from core.utils import append_agent_log
+
+    cookies = []
+    for line in payload.cookies_txt.splitlines():
+        line = line.strip()
+        if not line or (line.startswith("#") and not line.startswith("#HttpOnly_")):
+            continue
+        http_only = False
+        if line.startswith("#HttpOnly_"):
+            http_only = True
+            line = line[len("#HttpOnly_"):]
+        parts = line.split("\t")
+        if len(parts) < 7:
+            continue
+        try:
+            expires = float(parts[4])
+        except ValueError:
+            expires = -1
+        cookies.append({
+            "name": parts[5],
+            "value": "\t".join(parts[6:]),
+            "domain": parts[0],
+            "path": parts[2],
+            "expires": expires,
+            "httpOnly": http_only,
+            "secure": parts[3].upper() == "TRUE",
+        })
+
+    if not cookies:
+        raise HTTPException(status_code=400, detail="No valid cookies found in the pasted text.")
+
+    yt_cookies = [c for c in cookies if any(tag in c["domain"] for tag in ("youtube", "google", "goog"))]
+    if not yt_cookies:
+        raise HTTPException(status_code=400, detail="No YouTube/Google cookies found. Export cookies from youtube.com while signed in.")
+
+    cookies_path = get_youtube_cookies_write_path()
+    cookies_dir = os.path.dirname(cookies_path) or "."
+    try:
+        os.makedirs(cookies_dir, exist_ok=True)
+        with open(cookies_path, "w", encoding="utf-8") as fh:
+            json.dump(yt_cookies, fh, indent=2)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not write the cookie store at {cookies_path}: {exc}")
+
+    # Keep a Netscape copy beside the JSON store for debugging / manual reuse.
+    try:
+        with open(os.path.join(cookies_dir, "youtube_cookies.txt"), "w", encoding="utf-8") as fh:
+            fh.write("# Netscape HTTP Cookie File\n")
+            for c in yt_cookies:
+                prefix = "#HttpOnly_" if c["httpOnly"] else ""
+                secure = "TRUE" if c["secure"] else "FALSE"
+                exp = int(c["expires"]) if c["expires"] > 0 else 0
+                fh.write(f"{prefix}{c['domain']}\tTRUE\t{c['path']}\t{secure}\t{exp}\t{c['name']}\t{c['value']}\n")
+    except OSError as exc:
+        append_agent_log(f"Warning: could not mirror Netscape cookie file: {exc}")
+
+    # Saving is the import's job; reporting a dead session is a courtesy that
+    # must never fail the import. check_watch_later_session() reads the store we
+    # just wrote and never raises, so a signed-out export still imports and is
+    # told why instead of only failing later, mid-move.
+    from services.youtube_innertube import check_watch_later_session
+
+    session = check_watch_later_session()
+    signed_in = session.get("signed_in")
+    warning = None
+    message = f"Imported {len(yt_cookies)} cookies. They apply the next time the browser starts."
+    if signed_in is False:
+        warning = session["message"]
+        message = f"Imported {len(yt_cookies)} cookies. {warning}"
+
+    append_agent_log(f"Imported {len(yt_cookies)} YouTube/Google cookies to {cookies_path}.")
+    return {
+        "success": True,
+        "count": len(yt_cookies),
+        "path": cookies_path,
+        "signed_in": signed_in,
+        "warning": warning,
+        "message": message,
+    }
 
 class SettingsIn(BaseModel):
     """Settings input model."""
@@ -5224,12 +5428,16 @@ async def diagnostics_youtube() -> dict[str, Any]:
             result["channel_title"] = snippet.get("title", "Unknown")
             result["channel_id"] = channel_items[0].get("id", "")
 
-        # Raw HTTP check bypassing googleapiclient to confirm API response
+        # Raw HTTP check bypassing googleapiclient to confirm API response.
+        # Prefer the client's live access token: config.oauth.access_token can
+        # lag until a refresh has been persisted (see the refresh hook above).
+        raw_access_token = getattr(client, "oauth_access_token", None) or config.oauth.access_token
+        result["token_expiry"] = getattr(client, "token_expiry", None) or config.oauth.token_expiry
         from core.http_client import get_http_client
         http_client = get_http_client()
         raw_playlists = await http_client.get(
             "https://www.googleapis.com/youtube/v3/playlists",
-            headers={"Authorization": f"Bearer {config.oauth.access_token}"},
+            headers={"Authorization": f"Bearer {raw_access_token}"},
             params={"part": "snippet,contentDetails", "mine": "true", "maxResults": 10},
         )
         result["raw_api_status"] = raw_playlists.status_code
@@ -5341,37 +5549,16 @@ async def clear_system_logs():
         raise HTTPException(status_code=500, detail=f"Failed to clear logs: {e}")
 
 
-@app.get("/system/logs", dependencies=[Depends(get_current_user), Depends(check_role([RoleEnum.ADMIN, RoleEnum.USER]))])
+@app.get("/system/logs")
 async def system_logs_page():
-    """System logs viewer page."""
-    log_file = get_log_file_path()
+    """System logs viewer page.
 
-    logs_html = ""
-    if log_file.exists():
-        try:
-            last_lines = await asyncio.to_thread(read_log_tail, log_file, 500)
-            for line in last_lines:
-                escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                level = "OTHER"
-                style = ""
-                if "ERROR" in line or "CRITICAL" in line:
-                    level = "ERROR"
-                    style = 'style="color:#ff6b6b"'
-                elif "WARNING" in line:
-                    level = "WARNING"
-                    style = 'style="color:#ffa94d"'
-                elif "INFO" in line:
-                    level = "INFO"
-                    style = 'style="color:#69db7c"'
-                elif "DEBUG" in line:
-                    level = "DEBUG"
-                    style = 'style="color:#74c0fc"'
-                logs_html += f'<div class="log-line" data-level="{level}" {style}>{escaped}</div>'
-        except Exception as e:
-            logs_html = f'<div style="color:#ff6b6b">Error reading logs: {e}</div>'
-    else:
-        logs_html = '<div style="color:#868e96">No log file found yet. System logs will record to file on next operation.</div>'
-
+    Served without server-side auth so it can render inside the Hub's
+    cross-origin iframe, where the SameSite=Lax session cookie is not sent and
+    a server-side 401 would surface as raw JSON. The log content stays gated:
+    the page loads it from /api/system/logs with the bearer token the global
+    auth layer keeps in localStorage, which redirects to /auth when absent.
+    """
     return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5455,7 +5642,7 @@ async def system_logs_page():
                     </div>
                     <!-- Log Output Terminal Area -->
                     <div class="p-4 flex-1 bg-[#0e1015] font-mono text-[11px] leading-relaxed overflow-y-auto max-h-[70vh] min-h-[400px] border-t border-[#2a2f3a]" id="log-container">
-                        {logs_html}
+                        <div class="text-gray-500">Loading logs…</div>
                     </div>
                 </div>
             </div>
@@ -5492,7 +5679,7 @@ async def system_logs_page():
 
         async function fetchLogs() {{
             try {{
-                const resp = await fetch('/api/system/logs');
+                const resp = await authFetch('/api/system/logs');
                 if (!resp.ok) return;
                 const data = await resp.json();
                 if (!data.logs) return;
@@ -5531,7 +5718,7 @@ async def system_logs_page():
         async function clearLogs(btn) {{
             if (!confirm('Clear all system logs?')) return;
             try {{
-                const resp = await fetch('/api/system/logs/clear', {{ method: 'POST' }});
+                const resp = await authFetch('/api/system/logs/clear', {{ method: 'POST' }});
                 if (resp.ok) {{
                     document.getElementById('log-container').innerHTML = '<div class="text-gray-500">Logs cleared.</div>';
                 }} else {{

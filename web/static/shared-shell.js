@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20261011a';
+  const SHELL_VERSION = '20261013-footer-collapse';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -330,6 +330,7 @@
         user-select: none;
       }
       @media (min-width: 768px) {
+        #desktop-sidebar-toggle { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; margin-right: 12px; border: 1px solid #394454; border-radius: 10px; color: #c6d1df; background: #222b38; cursor: pointer; }
         #mobile-sidebar {
           transform: none !important;
           display: flex !important;
@@ -343,8 +344,10 @@
         #mobile-sidebar.sidebar-collapsed .nav-item,
         #mobile-sidebar.sidebar-collapsed .ai-group-toggle,
         #mobile-sidebar.sidebar-collapsed #sidebar-collapse { justify-content: center; padding-left: .75rem; padding-right: .75rem; }
-        #mobile-sidebar.sidebar-collapsed #sidebar-collapse i { transform: rotate(180deg); }
+        #mobile-sidebar.sidebar-collapsed #sidebar-collapse svg { transform: rotate(180deg); }
       }
+      @media (max-width: 767px) { #desktop-sidebar-toggle { display: none; } }
+      #mobile-sidebar #sidebar-collapse.sidebar-collapse-control{display:flex;align-items:center;justify-content:center;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;margin:8px auto 0;border:1px solid #394454;border-radius:7px;color:#a6b6ca;background:transparent;flex-shrink:0} #mobile-sidebar #sidebar-collapse svg{width:16px;height:16px} @media(max-width:767px){#mobile-sidebar #sidebar-collapse.sidebar-collapse-control{display:none}}
     </style>`;
   }
 
@@ -395,25 +398,41 @@
     }
     aside.querySelector('nav')?.setAttribute('aria-label', 'Main navigation');
     aside.querySelectorAll('a').forEach(link => {
+      const label = link.textContent.trim();
+      if (label) {
+        link.setAttribute('aria-label', link.getAttribute('aria-label') || label);
+        link.setAttribute('title', link.getAttribute('title') || label);
+      }
       const href = link.getAttribute('href');
       if (href && new URL(href, window.location.origin).pathname === window.location.pathname) {
         link.setAttribute('aria-current', 'page');
       }
     });
 
-    const collapseButton = aside.querySelector('#sidebar-collapse');
+    let collapseButton = aside.querySelector('#sidebar-collapse');
+    if (!collapseButton) {
+      collapseButton = document.createElement('button');
+      collapseButton.id = 'sidebar-collapse';
+      (aside.querySelector('.sidebar-footer') || aside).append(collapseButton);
+    }
+    collapseButton.type = 'button';
+    collapseButton.className = 'sidebar-collapse-control';
+    collapseButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m14 6-6 6 6 6"/></svg>';
+    collapseButton.setAttribute('aria-controls', 'mobile-sidebar');
     const setCollapsed = (collapsed) => {
       aside.classList.toggle('sidebar-collapsed', collapsed);
       collapseButton?.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
       collapseButton?.setAttribute('title', collapsed ? 'Expand navigation' : 'Collapse navigation');
+      collapseButton.setAttribute('aria-expanded', String(!collapsed));
     };
-    setCollapsed(localStorage.getItem('motus_sidebar_collapsed') === 'true');
+    try { setCollapsed(localStorage.getItem('motus_sidebar_collapsed') === 'true'); }
+    catch { setCollapsed(false); }
     if (collapseButton && !collapseButton.dataset.wired) {
       collapseButton.dataset.wired = '1';
       collapseButton.addEventListener('click', () => {
         const next = !aside.classList.contains('sidebar-collapsed');
         setCollapsed(next);
-        localStorage.setItem('motus_sidebar_collapsed', String(next));
+        try { localStorage.setItem('motus_sidebar_collapsed', String(next)); } catch { /* Session-only preference. */ }
       });
     }
 
