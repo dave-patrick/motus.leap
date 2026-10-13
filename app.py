@@ -500,6 +500,13 @@ async def add_compression(request: Request, call_next):
 # us flip pages one at a time with a kill-switch, with zero risk to the others.
 _CSP_STRICT_ENABLED = os.environ.get("CSP_STRICT", "0") == "1"
 
+# All ancestors must match: arnés nests Control Center inside its own frame.
+_FRAME_ANCESTORS = (
+    "'self' http://127.0.0.1:9130 http://localhost:9130 "
+    "https://galaxybook5pro.tail7a64f4.ts.net "
+    "https://harness-hub-dave.davepatrick.chatgpt.site"
+)
+
 def _csp_header(strict: bool) -> str:
     if strict:
         # Strict: no 'unsafe-inline'. All JS external + handlers removed on the
@@ -511,7 +518,7 @@ def _csp_header(strict: bool) -> str:
             "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
             "img-src 'self' https://*.ytimg.com https://yt3.ggpht.com https://picsum.photos data:; "
             "connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
-            "frame-ancestors 'none'; "
+            f"frame-ancestors {_FRAME_ANCESTORS}; "
             "frame-src 'none';"
         )
     # Legacy/permissive (unchanged from before the workstream).
@@ -522,7 +529,7 @@ def _csp_header(strict: bool) -> str:
         "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
         "img-src 'self' https://*.ytimg.com https://yt3.ggpht.com https://picsum.photos; "
         "connect-src 'self' https://www.googleapis.com https://www.youtube.com https://cdnjs.cloudflare.com wss://tubemanager.onrender.com ws: wss:; "
-        "frame-ancestors 'none'; "
+        f"frame-ancestors {_FRAME_ANCESTORS}; "
         "frame-src 'none';"
     )
 
@@ -573,7 +580,10 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Content-Security-Policy"] = csp
 
     # Additional security headers
-    response.headers["X-Frame-Options"] = "DENY"
+    # CSP frame-ancestors controls trusted cross-origin embedding. XFO cannot
+    # express this allowlist, and DENY/SAMEORIGIN would block Control Center.
+    if "X-Frame-Options" in response.headers:
+        del response.headers["X-Frame-Options"]
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"

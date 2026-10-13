@@ -14,6 +14,7 @@ Software project in motus.leap. See existing project documentation for its purpo
 - `requirements.txt` is present; use it to confirm dependencies and supported commands.
 
 ## Conventions
+- Both CSP modes allow framing only by the arnés Control Center origins (local port 9130, GB5 Tailscale HTTPS, and the private hosted Hub). CSP frame-ancestors replaces X-Frame-Options so nested cross-origin framing works.
 - Shared mobile shell rules live in `web/static/shared-shell.js`: compact branding, document scrolling, stacked responsive toolbars and in-flow footer. Queue-specific rules remain scoped to maintenance.
 - `web/static/ui-polish.js` supplies dialog focus/Escape behavior and library/schedule controls while preserving original form values and action safeguards. Programmatic ID/cron assignments must dispatch change/input events to keep displayed and submitted values synchronized.
 - Android branding uses the existing transparent symbol and Deltha lettering; preserve both and the official Google sign-in artwork.

@@ -52,12 +52,18 @@ class TestCSPHeaders:
         # But should have specific script sources
         assert "script-src" in csp
 
-    def test_csp_frame_ancestors_none(self, test_client):
-        """Test CSP prevents framing."""
+    def test_csp_frame_ancestors_control_center(self, test_client):
+        """Only trusted Control Center origins can embed the app."""
         response = test_client.get("/dashboard")
         csp = response.headers.get("Content-Security-Policy", "")
 
-        assert "frame-ancestors 'none'" in csp
+        ancestors = next(part.strip() for part in csp.split(";") if part.strip().startswith("frame-ancestors "))
+        assert "http://127.0.0.1:9130" in ancestors
+        assert "http://localhost:9130" in ancestors
+        assert "https://galaxybook5pro.tail7a64f4.ts.net" in ancestors
+        assert "https://harness-hub-dave.davepatrick.chatgpt.site" in ancestors
+        assert "*" not in ancestors
+        assert "X-Frame-Options" not in response.headers
 
     def test_csp_frame_src_none(self, test_client):
         """Test CSP prevents frames."""
@@ -97,11 +103,11 @@ class TestSecurityHeaders:
     """Test security headers."""
 
     def test_x_frame_options(self, test_client):
-        """Test X-Frame-Options header."""
+        """CSP governs embedding without a conflicting legacy header."""
         response = test_client.get("/dashboard")
 
-        assert "X-Frame-Options" in response.headers
-        assert response.headers["X-Frame-Options"] == "DENY"
+        assert "X-Frame-Options" not in response.headers
+        assert "frame-ancestors 'self'" in response.headers["Content-Security-Policy"]
 
     def test_x_content_type_options(self, test_client):
         """Test X-Content-Type-Options header."""
