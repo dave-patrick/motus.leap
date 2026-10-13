@@ -1,7 +1,7 @@
 // web/static/shared-shell.js
 (function () {
   'use strict';
-  const SHELL_VERSION = '20261013-collapse';
+  const SHELL_VERSION = '20261013-footer-collapse';
   if (window.__sharedShellVersion === SHELL_VERSION) return;
   window.__sharedShellVersion = SHELL_VERSION;
 
@@ -14,7 +14,6 @@
 
   function shellHeader() {
     return `<header id="shell-header" class="w-full bg-[#1a1d24] px-5 md:px-8 py-3 flex items-center justify-between border-b border-[#2a2f3a] shrink-0 z-20">
-        <button id="desktop-sidebar-toggle" type="button" aria-label="Collapse navigation" aria-controls="mobile-sidebar" aria-expanded="true" title="Collapse navigation">◀</button>
         <a href="/dashboard" class="flex items-center gap-4 pl-14 md:pl-0 flex-1 cursor-pointer hover:opacity-90 transition-opacity no-underline" title="Go to Dashboard">
           <img src="/static/logo_icon.png?v=20260717e" alt="motus.leap" class="site-logo" style="height:62px;width:auto;object-fit:contain;">
           <h1 class="text-[27px] md:text-[43px] font-semibold tracking-tight flex items-baseline leading-none site-title">
@@ -345,9 +344,10 @@
         #mobile-sidebar.sidebar-collapsed .nav-item,
         #mobile-sidebar.sidebar-collapsed .ai-group-toggle,
         #mobile-sidebar.sidebar-collapsed #sidebar-collapse { justify-content: center; padding-left: .75rem; padding-right: .75rem; }
-        #mobile-sidebar.sidebar-collapsed #sidebar-collapse i { transform: rotate(180deg); }
+        #mobile-sidebar.sidebar-collapsed #sidebar-collapse svg { transform: rotate(180deg); }
       }
       @media (max-width: 767px) { #desktop-sidebar-toggle { display: none; } }
+      #mobile-sidebar #sidebar-collapse.sidebar-collapse-control{display:flex;align-items:center;justify-content:center;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;margin:8px auto 0;border:1px solid #394454;border-radius:7px;color:#a6b6ca;background:transparent;flex-shrink:0} #mobile-sidebar #sidebar-collapse svg{width:16px;height:16px} @media(max-width:767px){#mobile-sidebar #sidebar-collapse.sidebar-collapse-control{display:none}}
     </style>`;
   }
 
@@ -409,27 +409,24 @@
       }
     });
 
-    const collapseButton = aside.querySelector('#sidebar-collapse');
-    const headerCollapseButton = header.querySelector('#desktop-sidebar-toggle');
+    let collapseButton = aside.querySelector('#sidebar-collapse');
+    if (!collapseButton) {
+      collapseButton = document.createElement('button');
+      collapseButton.id = 'sidebar-collapse';
+      (aside.querySelector('.sidebar-footer') || aside).append(collapseButton);
+    }
+    collapseButton.type = 'button';
+    collapseButton.className = 'sidebar-collapse-control';
+    collapseButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m14 6-6 6 6 6"/></svg>';
+    collapseButton.setAttribute('aria-controls', 'mobile-sidebar');
     const setCollapsed = (collapsed) => {
       aside.classList.toggle('sidebar-collapsed', collapsed);
       collapseButton?.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
       collapseButton?.setAttribute('title', collapsed ? 'Expand navigation' : 'Collapse navigation');
-      headerCollapseButton?.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
-      headerCollapseButton?.setAttribute('title', collapsed ? 'Expand navigation' : 'Collapse navigation');
-      headerCollapseButton?.setAttribute('aria-expanded', String(!collapsed));
-      if (headerCollapseButton) headerCollapseButton.textContent = collapsed ? '▶' : '◀';
+      collapseButton.setAttribute('aria-expanded', String(!collapsed));
     };
     try { setCollapsed(localStorage.getItem('motus_sidebar_collapsed') === 'true'); }
     catch { setCollapsed(false); }
-    if (headerCollapseButton && !headerCollapseButton.dataset.wired) {
-      headerCollapseButton.dataset.wired = '1';
-      headerCollapseButton.addEventListener('click', () => {
-        const next = !aside.classList.contains('sidebar-collapsed');
-        setCollapsed(next);
-        try { localStorage.setItem('motus_sidebar_collapsed', String(next)); } catch { /* Session-only preference. */ }
-      });
-    }
     if (collapseButton && !collapseButton.dataset.wired) {
       collapseButton.dataset.wired = '1';
       collapseButton.addEventListener('click', () => {
