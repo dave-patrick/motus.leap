@@ -40,6 +40,19 @@ else:  # pragma: no cover
 # while other threads are still using it.
 _client_lock = threading.Lock()
 
+# Callbacks run after a successful OAuth access-token refresh. The app
+# registers one so the freshened token is written back to the persisted
+# config. Without it config.oauth.access_token stays frozen at the value
+# loaded at boot and every reader that bypasses this client (diagnostics,
+# one-shot clients rebuilt from config) keeps getting 401 Invalid Credentials.
+_token_refresh_hooks: list = []
+
+
+def register_token_refresh_hook(hook) -> None:
+    """Register hook(access_token, token_expiry, refresh_token) for refreshes."""
+    if hook not in _token_refresh_hooks:
+        _token_refresh_hooks.append(hook)
+
 
 def _reset_shared_client():
     """Reset the shared httpx client, closing stale connections and starting fresh.
@@ -291,6 +304,19 @@ class YouTubeClient:
             self.oauth_access_token = tokens.get("access_token")
             expires_in = tokens.get("expires_in", 3600)
             self.token_expiry = int(time.time()) + expires_in
+
+            # Google may hand back a rotated refresh token; keep it if so.
+            new_refresh = tokens.get("refresh_token")
+            if new_refresh:
+                self.oauth_refresh_token = new_refresh
+
+            # Let the app persist the freshened credentials so the stored
+            # config matches this client (see register_token_refresh_hook).
+            for _hook in list(_token_refresh_hooks):
+                try:
+                    _hook(self.oauth_access_token, self.token_expiry, new_refresh)
+                except Exception as hook_exc:  # pragma: no cover - defensive
+                    log.warning(f"[YOUTUBE] token refresh hook failed: {hook_exc}")
 
             self._youtube_oauth = None
             return self._ensure_oauth_client()
