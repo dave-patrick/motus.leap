@@ -106,3 +106,11 @@ For every completed Android update: document behavior and validation, commit and
 - Phone package confirmed versionCode 9 / versionName 0.4.2.
 - Watch Later transfer tests: 7 passed.
 - Actual playlist removals and suggested-move execution remain unverified. No deletions were executed for validation.
+
+## 0.5.0 — Dashboard and logo
+Dashboard is the first destination after sign-in or session restoration, showing library counts, server activity, queued tasks, last scan in local time, and tracked quota. Scan controls and findings are available from Dashboard. Uses the supplied Gemini_Generated_Image_tr.png artwork in-app and for the unframed launcher icon. Build and lint verification and in-place device installation are part of this release.
+
+Validation: Android build/lint passed; v0.5.0 installed in place and Dashboard visually checked with live library counts and retained Google session. The primary full scan button is placed directly beneath library metrics. Other scan controls follow the activity section. No scan or playlist mutation was executed for validation.
+
+0.5.1 matches the user's wordmark reference: white Deltha lettering, blue U (#2F8FC9), muted gray dot (#68717D), and the supplied unframed symbol in header/sign-in. The glyph bounds fitting preserves the complete final P.
+
