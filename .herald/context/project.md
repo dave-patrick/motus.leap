@@ -28,3 +28,5 @@ Software project in motus.leap. See existing project documentation for its purpo
 - Android 0.5.0 starts at Dashboard (stats, activity, quota, scan actions). The user-supplied unframed artwork is android/app/src/main/res/drawable-nodpi/brand_symbol.png.
 - Render browser repair: Playwright 1.63.0 is pinned to installed Chromium binaries. PLAYWRIGHT_BROWSERS_PATH=/app/data/ms-playwright persists them; failed startup closes context and stops Playwright before fallback. Watch Later still requires an authenticated browser profile, separate from app OAuth.
 
+
+- Public landing/help source is site/; GitHub Pages publishes it independently of app hosting. See documentation/PUBLISHING.md. Preserve app branding, screenshots and existing build/device limitations.

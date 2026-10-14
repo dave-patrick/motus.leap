@@ -1,0 +1,37 @@
+name: Android development build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install declared SDK
+        shell: pwsh
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Build and validate without device installation
+        working-directory: android
+        shell: pwsh
+        run: ./gradlew.bat assembleDebug lintDebug --no-daemon
+      - name: Checksum APK
+        shell: pwsh
+        run: |
+          $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
+          $hash = (Get-FileHash $apk -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  app-debug.apk" | Set-Content android/app/build/outputs/apk/debug/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: motus.leap-development-apk
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/debug/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
