@@ -6,7 +6,7 @@ overview, playlist and channel browsing, read-only channel mappings, refresh,
 sign-out, and opening playlists and channels in YouTube. The screens are Android
 views, not a WebView.
 
-Scans is the initial destination: queue playlist sync, full library scan,
+Dashboard is the initial destination, with activity and quota information. In Scans, queue playlist sync, full library scan,
 duplicate scan, or misplaced-video scan, then refresh task status and view the
 server's maintenance findings. Queued work is labeled as queued, not completed.
 
@@ -40,8 +40,7 @@ The Android app has no email, username, or password sign-in form.
 The initial suggested address comes from the repository README; it can be changed
 before login. No live-server availability is implied by that default.
 
-Only the server address is saved. Bearer tokens are kept in memory;
-restarting the process requires login. The app uses Android's system TLS trust,
+The server address and encrypted session are saved. Android Keystore protects the bearer token, bound to the server address; the session is restored until it expires or you sign out. The app uses Android's system TLS trust,
 does not follow API redirects, and does not permit plain HTTP servers. Server
 errors are displayed with a retry action. Expired sessions return to sign-in.
 
