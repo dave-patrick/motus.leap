@@ -1,0 +1,1 @@
+document.querySelector('#example-move').onclick=function(){document.querySelector('#move-status').textContent='Example complete: Kyoto is now in Travel & places. Your YouTube account was not changed.';this.textContent='Example moved';this.disabled=true;};

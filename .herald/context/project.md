@@ -32,3 +32,5 @@ Software project in motus.leap. See existing project documentation for its purpo
 - Public landing/help source is site/; GitHub Pages publishes it independently of app hosting. See documentation/PUBLISHING.md. Preserve app branding, screenshots and existing build/device limitations.
 
 - The app publisher is Atomic 22 Industries. Keep publisher.json, package metadata and first-party app/site credits consistent; preserve existing licence and third-party attribution.
+
+- Public landing pages use dark app-specific compositions with real approved brand assets; shared Atomic 22 navigation links to the blue Notes directory. Publish only site/ via GitHub Pages. Never serve or publish private workspace data.
