@@ -340,6 +340,7 @@ public final class MainActivity extends AppCompatActivity {
         label(content, "Account", 20, ink);
         label(content, "Your Google session stays signed in until it expires or you sign out.", 15, muted);
         row("Connected server", api.base, null);
+        row("Publisher", getString(R.string.publisher_name), null);
         button(content, "Server settings", () -> open(api.base + "/settings"));
         button(content, "Refresh library", () -> home("Dashboard"));
         button(content, "Sign out", () -> {

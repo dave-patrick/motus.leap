@@ -6,8 +6,8 @@ android {
         applicationId = "com.motus.leap"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.5.1"
+        versionCode = 12
+        versionName = "0.5.2"
         testInstrumentationRunner = "com.motus.leap.SessionTestRunner"
     }
     compileOptions {

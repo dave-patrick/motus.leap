@@ -1,5 +1,7 @@
 # motus.leap
 
+Published by **Atomic 22 Industries**.
+
 [Website](https://dave-patrick.github.io/motus.leap/) · [Help](https://dave-patrick.github.io/motus.leap/help.html) · [Downloads](https://github.com/dave-patrick/motus.leap/releases)
 
 An automated agent for managing YT playlists using browser automation and OAuth APIs. This is part of the motus.leap suite and can be easily integrated into other AI systems.
