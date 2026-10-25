@@ -25,7 +25,17 @@ Install Android SDK platform 36 and use JDK 17 or newer. Set `sdk.dir` in
 ./gradlew.bat assembleDebug lintDebug
 ```
 
-APK: `app/build/outputs/apk/debug/app-debug.apk`. Open this directory in Android
+APK: `app/build/outputs/apk/debug/app-debug.apk`.
+
+### Release builds
+
+Public downloads are release-signed, never debug builds. The release key lives outside the repository in `~/.motus-leap-signing/` (`motus-leap-release.jks` plus `keystore.properties` with `storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Point `MOTUS_SIGNING_PROPERTIES` at another properties file if needed. Then run:
+
+```powershell
+./gradlew.bat assembleRelease lintRelease
+```
+
+Output: `app/build/outputs/apk/release/app-release.apk`. Verify with `apksigner verify --print-certs`; the certificate SHA-256 must be `2325b2875c6b507c157de7fd0f8172b3a1898df341ad63f0e5f5def15610f414`. Every future update must be signed with this same key: back up the folder and never commit it. Without the properties file the release build is unsigned and must not be published. Open this directory in Android
 Studio to run an emulator. Minimum supported Android version is 8.0 (API 26).
 
 ## Connect

@@ -4,14 +4,14 @@
 
 Published by **Atomic 22 Industries**.
 
-[Website](https://dave-patrick.github.io/motus.leap/) · [Help](https://dave-patrick.github.io/motus.leap/help.html) · [Android download (0.5.2)](https://github.com/dave-patrick/motus.leap/releases/tag/v0.5.2) · [Report an issue](https://github.com/dave-patrick/motus.leap/issues)
+[Website](https://dave-patrick.github.io/motus.leap/) · [Help](https://dave-patrick.github.io/motus.leap/help.html) · [Android download (0.5.3)](https://github.com/dave-patrick/motus.leap/releases/tag/v0.5.3) · [Report an issue](https://github.com/dave-patrick/motus.leap/issues)
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 ![Android](https://img.shields.io/badge/Android-8.0+-3ddc84.svg)
 ![License](https://img.shields.io/badge/License-Apache--2.0-green.svg)
 
-> **Status:** development build. The Android app (0.5.2) is a debug-signed prerelease, and the server is something you run and configure yourself. There is no hosted public service.
+> **Status:** in active development. The Android app (0.5.3) is a signed release; the server is something you run and configure yourself. There is no hosted public service.
 
 <p>
   <img src="site/assets/web-dashboard.png" alt="motus.leap web dashboard showing what needs attention, library totals and scan status" width="58%">
@@ -114,11 +114,12 @@ AI provider keys are added in the web workspace (**AI Hub → Providers**), not 
 
 The Android companion is a native app (not a WebView) for Android 8.0 or newer.
 
-- **Download:** [motus.leap 0.5.2 prerelease](https://github.com/dave-patrick/motus.leap/releases/tag/v0.5.2) (debug-signed APK with SHA256 checksums).
+- **Download:** [motus.leap 0.5.3](https://github.com/dave-patrick/motus.leap/releases/tag/v0.5.3), a release-signed APK with a SHA256 checksum.
+- **Signing certificate (SHA-256):** `23:25:B2:87:5C:6B:50:7C:15:7D:E7:FD:0F:81:72:B3:A1:89:8D:F3:41:AD:63:F0:E5:F5:DE:F1:56:10:F4:14` (Atomic 22 Industries). Check it with `apksigner verify --print-certs motus.leap-0.5.3.apk`.
 - **Connect:** enter your server's HTTPS address and tap **Continue with Google**. Sign-in completes in the system browser; the session is stored encrypted with Android Keystore.
-- **Build from source:** see [`android/README.md`](android/README.md) (JDK 17+, Android SDK 36, `./gradlew assembleDebug`).
+- **Build from source:** see [`android/README.md`](android/README.md) (JDK 17+, Android SDK 36). `./gradlew assembleDebug` builds a debug APK; release builds need the signing key described there.
 
-Debug-signed builds from different machines use different certificates and can't update each other's installs. Don't uninstall to work around this; that deletes app data.
+Earlier 0.5.x downloads were debug-signed. Android won't let a release-signed app update a debug-signed one, so uninstall the old app once before installing 0.5.3. You'll need to enter your server address and sign in again; your library stays on the server.
 
 <p>
   <img src="site/assets/android-playlists.png" alt="Android playlists" width="22%">
