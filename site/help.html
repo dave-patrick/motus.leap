@@ -1,1 +1,66 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="publisher" content="Atomic 22 Industries"><title>motus.leap help</title><link rel="stylesheet" href="style.css?v=faithful-3"><link rel="icon" href="assets/motus-symbol-clean.png"></head><body><header><a href="./"><span class="motus-wordmark" aria-label="motus.leap">mot<span>u</span>s<span class="brand-dot">.</span>leap</span></a><nav aria-label="Main"><a href="./">Home</a><a href="https://github.com/dave-patrick/motus.leap">Repository</a></nav></header><main class="help"><h1>motus.leap help</h1><p>Setup, options and practical limits.</p><nav aria-label="Help contents"><a href="#s0">Before you start</a><a href="#s1">Connect and sign in</a><a href="#s2">Dashboard and library</a><a href="#s3">Scans</a><a href="#s4">AI sorting</a><a href="#s5">Troubleshooting</a><a href="#s6">Build and downloads</a></nav><section id="s0"><h2>Before you start</h2><p>The Android app requires Android 8 or later and a configured HTTPS motus.leap server. Google is the login method. Server-side YouTube authorization and AI provider configuration are separate from Android sign-in.</p></section><section id="s1"><h2>Connect and sign in</h2><p>Enter your server address and choose Continue with Google. Authentication opens in the system browser. Complete the browser flow and return to the app. Expired attempts can be restarted. Your session is stored encrypted using Android Keystore and is restored until it expires or you sign out.</p></section><section id="s2"><h2>Dashboard and library</h2><p>Use Dashboard for activity, quota and scan actions. Browse your library, playlists and channels, then open an item in YouTube when required. Refresh retrieves current server state. Channel mappings are read-only in the Android companion.</p></section><section id="s3"><h2>Scans</h2><p>Queue a playlist sync, full library scan, duplicate scan or misplaced-video scan. Refresh task status and inspect findings. Queued means accepted for processing; it does not mean completed.</p></section><section id="s4"><h2>AI sorting</h2><p>Choose a source playlist and video, request a suggestion, and review the proposed destination before confirming a move. Unknown or ambiguous playlist names cannot initiate a move. Review operation status for success and failure counts.</p></section><section id="s5"><h2>Troubleshooting</h2><p>For login failures, verify the HTTPS server and mobile authentication endpoints. Check server YouTube authorization if library requests fail. Quota limits and AI provider errors are server concerns. Retry after fixing the reported condition; do not reset app or server data as a first step.</p></section><section id="s6"><h2>Build and downloads</h2><p>The repository includes the web backend and native Android client. Android build instructions are in android/README.md. Development APKs are debug signed and require compatible signing to update an existing app. A source ZIP requires build tools. No device installation is performed by this website.</p></section><p><a href="https://github.com/dave-patrick/motus.leap/issues">Report an issue</a></p></main><footer><span>Published by Atomic 22 Industries · </span>Version-specific release notes and source documentation remain the detailed record.</footer></body></html>
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>motus.leap help · Atomic 22 Industries</title>
+<meta name="description" content="Setup, options and practical limits for the motus.leap Android companion and backend.">
+<meta name="publisher" content="Atomic 22 Industries">
+<meta name="theme-color" content="#0c131d">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="assets/motus-symbol-240.webp" type="image/webp">
+<link rel="preload" href="assets/fonts/Lexend.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/SourceSans3.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css?v=leap-3">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="bar">
+    <a class="brand" href="./" aria-label="motus.leap home"><img src="assets/motus-symbol-240.webp" width="44" height="32" alt=""><span class="wordmark">mot<span class="u">u</span>s<span class="dot">.</span>leap</span></a>
+    <nav aria-label="Main navigation">
+      <a href="./#how">How it works</a>
+      <a href="./#web">Web workspace</a>
+      <a href="./#app">Android</a>
+      <a href="help.html" aria-current="page">Help</a>
+      <a href="https://github.com/dave-patrick/motus.leap">GitHub</a>
+      <a class="nav-cta" href="./#download">Get started</a>
+    </nav>
+  </div>
+  <div class="progress" aria-hidden="true"></div>
+</header>
+
+<main id="main" class="help">
+  <div class="help-head">
+    <h1>Help</h1>
+    <p>Setup, options and practical limits.</p>
+  </div>
+
+  <nav class="toc" aria-label="Help contents">
+    <a href="#s0">Before you start</a>
+    <a href="#s1">Connect and sign in</a>
+    <a href="#s2">Dashboard and library</a>
+    <a href="#s3">Scans</a>
+    <a href="#s4">AI sorting</a>
+    <a href="#s5">Troubleshooting</a>
+    <a href="#s6">Build and downloads</a>
+  </nav>
+
+  <div class="help-body">
+    <section id="s0"><h2>Before you start</h2><p>The Android app requires Android 8 or later and a configured HTTPS motus.leap server. Google is the login method. Server-side YouTube authorisation and AI provider configuration are separate from Android sign-in.</p></section>
+    <section id="s1"><h2>Connect and sign in</h2><p>Enter your server address and choose Continue with Google. Authentication opens in the system browser. Complete the browser flow and return to the app. Expired attempts can be restarted. Your session is stored encrypted using Android Keystore and is restored until it expires or you sign out.</p></section>
+    <section id="s2"><h2>Dashboard and library</h2><p>Use Dashboard for activity, quota and scan actions. Browse your library, playlists and channels, then open an item in YouTube when required. Refresh retrieves current server state. Channel mappings are read-only in the Android companion.</p></section>
+    <section id="s3"><h2>Scans</h2><p>Queue a playlist sync, full library scan, duplicate scan or misplaced-video scan. Refresh task status and inspect findings. Queued means accepted for processing; it does not mean completed.</p></section>
+    <section id="s4"><h2>AI sorting</h2><p>Choose a source playlist and video, request a suggestion, and review the proposed destination before confirming a move. Unknown or ambiguous playlist names cannot initiate a move. Review operation status for success and failure counts.</p></section>
+    <section id="s5"><h2>Troubleshooting</h2><p>For login failures, verify the HTTPS server and mobile authentication endpoints. Check server YouTube authorisation if library requests fail. Quota limits and AI provider errors are server concerns. Retry after fixing the reported condition; do not reset app or server data as a first step.</p></section>
+    <section id="s6"><h2>Build and downloads</h2><p>The repository includes the web backend and native Android client. Android build instructions are in android/README.md. Development APKs are debug signed and require compatible signing to update an existing app. A source ZIP requires build tools. No device installation is performed by this website.</p><p style="margin-top:20px"><a href="https://github.com/dave-patrick/motus.leap/issues">Report an issue</a></p></section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <span>Published by Atomic 22 Industries · Not affiliated with YouTube or Google</span>
+  <div class="resources"><a href="./">motus.leap home</a><a href="https://github.com/dave-patrick/motus.leap">Source &amp; documentation</a></div>
+</footer>
+</body>
+</html>
