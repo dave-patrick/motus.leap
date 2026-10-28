@@ -60,6 +60,8 @@ class TestCSPHeaders:
         ancestors = next(part.strip() for part in csp.split(";") if part.strip().startswith("frame-ancestors "))
         assert "http://127.0.0.1:9130" in ancestors
         assert "http://localhost:9130" in ancestors
+        assert "http://127.0.0.1:9140" in ancestors
+        assert "http://localhost:9140" in ancestors
         assert "https://galaxybook5pro.tail7a64f4.ts.net" in ancestors
         assert "https://harness-hub-dave.davepatrick.chatgpt.site" in ancestors
         assert "*" not in ancestors

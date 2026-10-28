@@ -544,6 +544,7 @@ _CSP_STRICT_ENABLED = os.environ.get("CSP_STRICT", "0") == "1"
 # All ancestors must match: arnés nests Control Center inside its own frame.
 _FRAME_ANCESTORS = (
     "'self' http://127.0.0.1:9130 http://localhost:9130 "
+    "http://127.0.0.1:9140 http://localhost:9140 "
     "https://galaxybook5pro.tail7a64f4.ts.net "
     "https://harness-hub-dave.davepatrick.chatgpt.site"
 )
